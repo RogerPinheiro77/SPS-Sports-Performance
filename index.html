@@ -1,0 +1,132 @@
+-- ============================================================
+--  SPORT PERFORMANCE PLATFORM v2.0 — Supabase Migration
+--  Colar no SQL Editor: https://app.supabase.com → SQL Editor
+-- ============================================================
+
+create extension if not exists "uuid-ossp";
+
+-- 1. CLUBES
+create table if not exists clubs (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null, season text, color text, logo text,
+  created_at timestamptz default now()
+);
+
+-- 2. EQUIPAS
+create table if not exists teams (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  name text not null, type text default 'principal', cat text, created_at timestamptz default now()
+);
+
+-- 3. ATLETAS
+create table if not exists athletes (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  team_id text, name text not null, pos text, num int, dob text,
+  nat text, height text, foot text, photo text, club text, created_at timestamptz default now()
+);
+
+-- 4. WELLNESS
+create table if not exists wellness_records (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  athlete_id text, date text, sleep int, fatigue int, stress int,
+  pain int, mood int, score int, cycle text, submitted_at timestamptz default now()
+);
+
+-- 5. PSE
+create table if not exists pse_records (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  athlete_id text, date text, pse numeric, duration int, ua numeric,
+  session_type text, submitted_at timestamptz default now()
+);
+
+-- 6. LESÕES
+create table if not exists injuries (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  athlete_id text, date text, type text, body_part text, diagnosis text,
+  severity text, status text default 'ativo', return_date text,
+  phase int default 1, phase_desc text, progress int default 0, notes text,
+  registered_at timestamptz default now()
+);
+
+-- 7. TRATAMENTOS
+create table if not exists treatments (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  injury_id text, athlete_id text, date text, type text,
+  description text, response text, professional_name text,
+  registered_at timestamptz default now()
+);
+
+-- 8. AVALIAÇÕES NUTRIÇÃO
+create table if not exists nutrition_records (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  athlete_id text, date text, weight numeric, height numeric, bmi numeric,
+  body_fat numeric, muscle numeric, tricipital numeric, suprailiaca numeric,
+  hydration text, notes text, registered_at timestamptz default now()
+);
+
+-- 9. PLANOS NUTRICIONAIS
+create table if not exists nutrition_plans (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  athlete_id text, name text, objective text, kcal numeric,
+  protein numeric, carbs numeric, fat numeric,
+  meals jsonb default '[]', active boolean default true,
+  start_date text, created_at timestamptz default now()
+);
+
+-- 10. AGENDA
+create table if not exists schedule_events (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  team_id text, type text, title text, date text, time text,
+  location text, dur int, notes text, created_at timestamptz default now()
+);
+
+-- 11. TREINOS INDIVIDUALIZADOS
+create table if not exists training_plans (
+  id text primary key, club_id uuid references clubs(id) on delete cascade,
+  athlete_id text, title text, type text, description text, note text,
+  week text, volume text, done boolean default false, done_at text,
+  created_at timestamptz default now()
+);
+
+-- ROW LEVEL SECURITY
+alter table clubs enable row level security;
+alter table teams enable row level security;
+alter table athletes enable row level security;
+alter table wellness_records enable row level security;
+alter table pse_records enable row level security;
+alter table injuries enable row level security;
+alter table treatments enable row level security;
+alter table nutrition_records enable row level security;
+alter table nutrition_plans enable row level security;
+alter table schedule_events enable row level security;
+alter table training_plans enable row level security;
+
+-- Policies (acesso via anon key — protegido por club_id UUID)
+create policy "anon_all" on clubs for all using (true) with check (true);
+create policy "anon_all" on teams for all using (true) with check (true);
+create policy "anon_all" on athletes for all using (true) with check (true);
+create policy "anon_all" on wellness_records for all using (true) with check (true);
+create policy "anon_all" on pse_records for all using (true) with check (true);
+create policy "anon_all" on injuries for all using (true) with check (true);
+create policy "anon_all" on treatments for all using (true) with check (true);
+create policy "anon_all" on nutrition_records for all using (true) with check (true);
+create policy "anon_all" on nutrition_plans for all using (true) with check (true);
+create policy "anon_all" on schedule_events for all using (true) with check (true);
+create policy "anon_all" on training_plans for all using (true) with check (true);
+
+-- REALTIME
+begin;
+  drop publication if exists supabase_realtime;
+  create publication supabase_realtime;
+commit;
+alter publication supabase_realtime add table wellness_records;
+alter publication supabase_realtime add table pse_records;
+alter publication supabase_realtime add table injuries;
+alter publication supabase_realtime add table treatments;
+alter publication supabase_realtime add table nutrition_records;
+alter publication supabase_realtime add table nutrition_plans;
+alter publication supabase_realtime add table schedule_events;
+alter publication supabase_realtime add table training_plans;
+alter publication supabase_realtime add table athletes;
+
+-- ✅ Migração v2 concluída.
