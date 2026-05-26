@@ -1,0 +1,2170 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Sport Performance Platform</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --c1:#1d6f3b;--c1d:#155c2f;--c1l:#27a34a;
+  --acc:#f59e0b;--red:#dc2626;--yel:#d97706;--grn:#16a34a;--blu:#0284c7;--prp:#7c3aed;--tea:#0e6251;
+  --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+  --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+  --sw:242px;--th:54px;--r:10px;--rs:6px;--rx:16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg0);color:var(--t1);min-height:100vh;overflow-x:hidden}
+button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
+input,select,textarea{font:inherit;color:inherit;background:none;border:none;outline:none}
+a{text-decoration:none;color:inherit}
+ul{list-style:none}
+*{scrollbar-width:thin;scrollbar-color:var(--bg4) transparent}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+
+/* LOGIN */
+#screen-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,rgba(29,111,59,.3) 0%,var(--bg0) 65%);padding:20px}
+.login-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rx);padding:36px 28px;width:100%;max-width:420px;text-align:center;box-shadow:0 30px 60px rgba(0,0,0,.5)}
+.login-brand{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--c1),var(--c1l));display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:34px;box-shadow:0 0 30px rgba(29,111,59,.4)}
+.login-title{font-size:20px;font-weight:800;letter-spacing:-.3px;margin-bottom:4px}
+.login-sub{font-size:12px;color:var(--t2);margin-bottom:26px}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.role-card{padding:15px 10px;border-radius:var(--r);background:var(--bg3);border:2px solid var(--brd);color:var(--t2);font-size:12px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;transition:all .2s}
+.role-card:hover{border-color:var(--c1);color:var(--t1)}
+.role-card.sel{border-color:var(--c1);background:rgba(29,111,59,.15);color:var(--c1l)}
+.role-card .ri{font-size:25px}
+#athlete-picker{display:none;text-align:left}
+#athlete-picker.show{display:block}
+.fg{margin-bottom:12px}
+.lbl{display:block;font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.ctrl{width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);color:var(--t1);font-size:13px;transition:border-color .2s}
+.ctrl:focus{border-color:var(--c1)}
+.btn-login{width:100%;padding:12px;background:linear-gradient(135deg,var(--c1),var(--c1l));color:#fff;border-radius:var(--rs);font-size:14px;font-weight:700;cursor:pointer;border:none;margin-top:10px;transition:opacity .2s;box-shadow:0 4px 15px rgba(29,111,59,.3)}
+.btn-login:hover{opacity:.9}
+.btn-login:disabled{opacity:.35;cursor:not-allowed}
+
+/* STAFF SHELL */
+#staff-app{display:none;min-height:100vh}
+#staff-app.on{display:flex}
+#sidebar{width:var(--sw);background:var(--bg1);border-right:1px solid var(--brd);height:100vh;position:fixed;left:0;top:0;overflow-y:auto;z-index:200;display:flex;flex-direction:column;transition:transform .3s}
+.sb-brand{padding:15px 13px 13px;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sb-logo{width:33px;height:33px;border-radius:8px;background:linear-gradient(135deg,var(--c1),var(--c1l));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.sb-club{font-size:12px;font-weight:800;line-height:1.3}
+.sb-season{font-size:10px;color:var(--t2)}
+.sb-nav{flex:1;padding:9px 7px;overflow-y:auto}
+.sb-sec{margin-bottom:4px}
+.sb-sl{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px;padding:7px 9px 3px}
+.nb{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:var(--rs);font-size:12px;font-weight:500;color:var(--t2);cursor:pointer;transition:all .15s;margin-bottom:1px;width:100%}
+.nb:hover{background:var(--bg3);color:var(--t1)}
+.nb.on{background:rgba(29,111,59,.18);color:var(--c1l);font-weight:700}
+.nb .ic{font-size:14px;width:17px;text-align:center;flex-shrink:0}
+.nb-bdg{margin-left:auto;background:var(--red);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px}
+.sb-foot{padding:9px 7px;border-top:1px solid var(--brd);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:8px;padding:7px;border-radius:var(--rs);cursor:pointer}
+.sb-user:hover{background:var(--bg3)}
+.sb-av{width:29px;height:29px;border-radius:50%;background:var(--c1);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.sb-un{font-size:11px;font-weight:700}
+.sb-ur{font-size:9px;color:var(--t2)}
+.sb-cloud{margin-left:auto;font-size:10px}
+#main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:var(--th);background:var(--bg1);border-bottom:1px solid var(--brd);padding:0 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;flex-shrink:0}
+.topbar-title{font-size:14px;font-weight:800;flex:1}
+.tb-btn{width:31px;height:31px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--t2);cursor:pointer;transition:all .2s}
+.tb-btn:hover{color:var(--t1);border-color:var(--c1)}
+.pg-content{padding:20px;flex:1;min-width:0}
+.pg{display:none}.pg.on{display:block}
+
+/* CARDS */
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:14px 15px;transition:border-color .2s}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.kpi-val{font-size:28px;font-weight:900;line-height:1}
+.kpi-sub{font-size:10px;color:var(--t2);margin-top:4px}
+.kpi.red{border-color:rgba(220,38,38,.4)}.kpi.yel{border-color:rgba(217,119,6,.4)}.kpi.grn{border-color:rgba(22,163,74,.4)}.kpi.blu{border-color:rgba(2,132,199,.4)}
+.card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r)}
+.ch{padding:13px 17px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ct{font-size:13px;font-weight:800}
+.cb{padding:16px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;border:none}
+.btn-sm{padding:5px 9px;font-size:11px}
+.btn-xs{padding:3px 7px;font-size:10px}
+.btn-g{background:var(--c1);color:#fff}.btn-g:hover{background:var(--c1l)}
+.btn-gh{background:var(--bg3);color:var(--t1);border:1px solid var(--brd)}.btn-gh:hover{border-color:var(--c1);color:var(--c1l)}
+.btn-r{background:rgba(220,38,38,.15);color:#f87171;border:1px solid rgba(220,38,38,.25)}.btn-r:hover{background:rgba(220,38,38,.25)}
+.btn-y{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
+.btn-icon{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--rs)}
+
+/* FORMS */
+.form-g{margin-bottom:11px}
+.fl{display:block;font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.fc{width:100%;padding:8px 11px;background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);color:var(--t1);font-size:12px;transition:border-color .2s}
+.fc:focus{border-color:var(--c1)}
+textarea.fc{resize:vertical;min-height:68px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+.fr4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:9px}
+.ipanel{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--r);padding:16px;margin-bottom:16px}
+
+/* TABLE */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--brd);white-space:nowrap}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background .1s}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
+
+/* BADGES */
+.bdg{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.bg-g{background:rgba(22,163,74,.2);color:#4ade80}.bg-r{background:rgba(220,38,38,.2);color:#f87171}
+.bg-y{background:rgba(245,158,11,.2);color:#fbbf24}.bg-b{background:rgba(2,132,199,.2);color:#38bdf8}
+.bg-p{background:rgba(124,58,237,.2);color:#a78bfa}.bg-gr{background:rgba(100,116,139,.2);color:#94a3b8}
+.bg-o{background:rgba(234,88,12,.2);color:#fb923c}.bg-t{background:rgba(14,98,81,.3);color:#2dd4bf}
+
+/* TABS */
+.tabs{display:flex;gap:2px;background:var(--bg3);border-radius:var(--rs);padding:3px;margin-bottom:16px;flex-wrap:wrap}
+.tab-btn{padding:6px 12px;border-radius:4px;font-size:11px;font-weight:700;color:var(--t2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.tab-btn.on{background:var(--bg2);color:var(--t1)}
+.tp{display:none}.tp.on{display:block}
+
+/* ALERTS */
+.al{padding:10px 13px;border-radius:var(--rs);font-size:12px;margin-bottom:9px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}
+.al-r{background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);color:#f87171}
+.al-y{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#fbbf24}
+.al-g{background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);color:#4ade80}
+.al-b{background:rgba(2,132,199,.1);border:1px solid rgba(2,132,199,.3);color:#38bdf8}
+
+/* MODAL */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;padding:16px}
+.ov.on{display:flex}
+.mbox{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:20px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 70px rgba(0,0,0,.6)}
+.mbox.lg{max-width:680px}.mbox.xl{max-width:860px}
+.mh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.mt{font-size:14px;font-weight:800}
+.mx{width:25px;height:25px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--t2);cursor:pointer}
+.mx:hover{color:var(--t1)}
+
+/* PLANTEL GRID */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:11px}
+.at-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:13px;text-align:center;cursor:pointer;transition:all .2s}
+.at-card:hover{border-color:var(--c1);transform:translateY(-2px)}
+.at-card.inj{border-color:rgba(220,38,38,.4)}
+.at-av{width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--c1),var(--c1l));margin:0 auto 9px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;overflow:hidden}
+.at-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.at-name{font-size:11px;font-weight:700;margin-bottom:2px;line-height:1.3}
+.at-pos{font-size:10px;color:var(--t2)}
+.at-num{font-size:10px;color:var(--c1l);font-weight:800;margin-top:1px}
+.wdots{display:flex;gap:3px;justify-content:center;margin-top:4px}
+.wd{width:8px;height:8px;border-radius:50%}
+.wdg{background:#4ade80}.wdy{background:#fbbf24}.wdr{background:#f87171}.wd0{background:var(--bg4)}
+
+/* CALENDAR */
+.cal-wrap{overflow-x:auto}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;min-width:560px}
+.cal-hdr{text-align:center;font-size:10px;font-weight:700;color:var(--t2);padding:5px 0}
+.cal-day{min-height:82px;padding:5px;border-radius:5px;background:var(--bg3);border:1px solid var(--brd);cursor:pointer}
+.cal-day:hover{border-color:var(--bg4)}
+.cal-day.today{border-color:var(--c1)}
+.cal-day.dim{opacity:.3}
+.cal-dn{font-size:10px;color:var(--t2);font-weight:700;margin-bottom:3px}
+.cal-ev{border-radius:3px;padding:1px 4px;margin-bottom:2px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+
+/* MICROCICLOS */
+.mc-wrap{overflow-x:auto}
+.mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;min-width:700px}
+.mc-day{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);padding:7px;min-height:105px}
+.mc-dn{font-size:9px;font-weight:800;color:var(--t2);margin-bottom:5px;text-transform:uppercase}
+.mc-sess{border-radius:3px;padding:3px 5px;margin-bottom:3px;font-size:10px;line-height:1.4;cursor:pointer}
+.mc-sess:hover{opacity:.85}
+.mc-add{color:var(--t3);font-size:10px;cursor:pointer;margin-top:3px;display:flex;align-items:center;gap:2px}
+.mc-add:hover{color:var(--c1l)}
+
+/* SESSION COLORS */
+.s-tac{background:rgba(26,82,118,.6);color:#7fb3d6}.s-fis{background:rgba(125,60,152,.6);color:#c39bd3}
+.s-tec{background:rgba(26,92,53,.6);color:#7dcea0}.s-ati{background:rgba(183,119,13,.6);color:#f9e79f}
+.s-rec{background:rgba(46,134,193,.5);color:#85c1e9}.s-jog{background:rgba(123,36,28,.6);color:#f1948a}
+.s-fol{background:rgba(90,90,90,.4);color:#aaa}.s-nut{background:rgba(14,98,81,.5);color:#76d7c4}
+.s-fio{background:rgba(26,35,126,.5);color:#9fa8da}.s-reu{background:rgba(147,81,22,.5);color:#f0b27a}
+
+/* PHASE BAR */
+.pbar{display:flex;gap:3px;margin:5px 0}
+.ps{flex:1;height:5px;border-radius:3px;background:var(--bg4)}
+.ps.done{background:var(--c1)}.ps.now{background:var(--acc)}
+
+/* STARS */
+.stars{display:inline-flex;gap:2px}
+.star{font-size:13px;cursor:pointer;color:var(--t3)}.star.on{color:var(--acc)}
+
+/* CHART */
+.chart-wrap{position:relative;width:100%}
+.chart-wrap canvas{max-height:240px}
+
+/* MEAL PLAN */
+.meal{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);padding:10px;margin-bottom:8px}
+.meal-n{font-size:12px;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:5px}
+.meal-f{font-size:11px;color:var(--t2);line-height:1.7;white-space:pre-line}
+.macros{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.mac{background:var(--bg4);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700}
+
+/* SECTION HEADER */
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap}
+.sh-t{font-size:14px;font-weight:800}
+.sh-a{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:36px 20px;color:var(--t2)}
+.empty .ei{font-size:40px;margin-bottom:9px}
+.empty p{font-size:13px}
+.esub{font-size:11px;color:var(--t3);margin-top:4px}
+
+/* TOAST */
+#toast{position:fixed;bottom:75px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);padding:8px 16px;font-size:12px;font-weight:700;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 8px 25px rgba(0,0,0,.4);white-space:nowrap}
+#toast.show{opacity:1}
+#toast.ok{border-color:var(--grn);color:#4ade80}
+#toast.err{border-color:var(--red);color:#f87171}
+
+/* SPIN */
+.spin{display:inline-block;width:15px;height:15px;border:2px solid var(--bg4);border-top-color:var(--c1);border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* PROGRESS */
+.prog-bar{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-top:4px}
+.prog-fill{height:100%;border-radius:3px;background:var(--c1);transition:width .4s}
+
+/* ATLETA APP */
+#atleta-app{display:none;min-height:100vh;background:var(--bg0);max-width:500px;margin:0 auto;position:relative;padding-bottom:66px}
+#atleta-app.on{display:block}
+.at-topbar{background:var(--bg1);border-bottom:1px solid var(--brd);padding:12px 15px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50}
+.at-topbar .atn{font-size:14px;font-weight:800;flex:1}
+.at-topbar .atd{font-size:10px;color:var(--t2)}
+.at-content{padding:13px}
+.at-page{display:none}.at-page.on{display:block}
+.at-bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:500px;background:var(--bg1);border-top:1px solid var(--brd);display:flex;z-index:100}
+.at-ni{flex:1;padding:8px 3px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;color:var(--t3);cursor:pointer;transition:color .15s}
+.at-ni.on{color:var(--c1l)}
+.at-ni .ic{font-size:16px}
+
+/* Wellness form */
+.wf-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brd)}
+.wf-row:last-child{border-bottom:none}
+.wf-l{font-size:12px;font-weight:700}
+.wf-s{font-size:10px;color:var(--t2);margin-top:1px}
+.wf-sc{display:flex;gap:3px}
+.wsb{width:29px;height:29px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);font-size:11px;font-weight:800;color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.wsb.on{border-color:var(--c1);background:rgba(29,111,59,.3);color:#fff}
+
+/* PSE buttons */
+.pse-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:10px 0}
+.psb{padding:9px 4px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);font-size:12px;font-weight:800;cursor:pointer;text-align:center;transition:all .15s}
+.psb.on{border-color:var(--c1);background:rgba(29,111,59,.3)}
+
+/* EVAL SLIDERS */
+.eval-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.eval-label{font-size:11px;font-weight:600;width:80px;flex-shrink:0;color:var(--t2)}
+.eval-slider{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:var(--bg4);outline:none;cursor:pointer}
+.eval-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--c1);cursor:pointer}
+.eval-val{width:28px;text-align:right;font-size:11px;font-weight:800;color:var(--c1l)}
+
+/* RESPONSIVE */
+@media(max-width:900px){:root{--sw:200px}.g3{grid-template-columns:1fr 1fr}}
+@media(max-width:680px){
+  #sidebar{transform:translateX(-100%)}
+  #sidebar.mob{transform:translateX(0)}
+  #main{margin-left:0}
+  .kpis{grid-template-columns:1fr 1fr}
+  .g2,.g3{grid-template-columns:1fr}
+  .fr,.fr3,.fr4{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="screen-login">
+  <div class="login-card">
+    <div class="login-brand" id="lb">⚽</div>
+    <div class="login-title" id="lclub">Sport Performance</div>
+    <div class="login-sub">Plataforma de Alto Rendimento</div>
+    <div class="role-grid">
+      <div class="role-card" onclick="selectRole('tecnico',this)"><span class="ri">🧑‍💼</span>Técnico</div>
+      <div class="role-card" onclick="selectRole('fisio',this)"><span class="ri">🏥</span>Fisioterapia</div>
+      <div class="role-card" onclick="selectRole('nutri',this)"><span class="ri">🥗</span>Nutrição</div>
+      <div class="role-card" onclick="selectRole('atleta',this)"><span class="ri">⚡</span>Atleta</div>
+    </div>
+    <div id="athlete-picker">
+      <div class="fg"><label class="lbl">Equipa</label>
+        <select class="ctrl" id="login-team" onchange="fillLoginAthletes()">
+          <option value="">-- Escolhe a equipa --</option>
+        </select>
+      </div>
+      <div class="fg"><label class="lbl">O teu nome</label>
+        <select class="ctrl" id="login-athlete">
+          <option value="">-- Escolhe o teu nome --</option>
+        </select>
+      </div>
+    </div>
+    <div id="pin-box" style="display:none;text-align:left">
+      <div class="fg"><label class="lbl">PIN de acesso</label>
+        <input class="ctrl" id="login-pin" type="password" maxlength="8" placeholder="••••••"
+          oninput="document.getElementById('btn-enter').disabled=this.value.length<4"
+          onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+    </div>
+    <div id="no-pin-note" style="display:none" class="al al-b" style="font-size:11px;margin-bottom:8px">
+      ℹ️ Sem PIN definido — entra diretamente. Define um PIN nas Configurações.
+    </div>
+    <button class="btn-login" id="btn-enter" onclick="doLogin()" disabled>Entrar na Plataforma</button>
+  </div>
+</div>
+
+<!-- STAFF APP -->
+<div id="staff-app">
+  <nav id="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo" id="sb-logo">⚽</div>
+      <div><div class="sb-club" id="sb-club">Sport Performance</div><div class="sb-season" id="sb-sea">2025/26</div></div>
+    </div>
+    <div class="sb-nav" id="sb-nav"></div>
+    <div class="sb-foot">
+      <div class="sb-user" onclick="logout()">
+        <div class="sb-av" id="sb-av">T</div>
+        <div><div class="sb-un" id="sb-uname">Técnico</div><div class="sb-ur" id="sb-urole">Staff</div></div>
+        <span class="sb-cloud" id="cloud-dot">⚫</span>
+      </div>
+    </div>
+  </nav>
+  <div id="main">
+    <div class="topbar">
+      <button class="tb-btn" onclick="toggleSb()">☰</button>
+      <span class="topbar-title" id="pg-title">Dashboard</span>
+      <button class="tb-btn" onclick="openCloud()" title="Cloud">☁️</button>
+      <button class="tb-btn" onclick="navTo('config')" title="Config">⚙️</button>
+    </div>
+    <div class="pg-content">
+      <div class="pg on" id="pg-dashboard"></div>
+      <div class="pg" id="pg-plantel"></div>
+      <div class="pg" id="pg-planeamento"></div>
+      <div class="pg" id="pg-microciclos"></div>
+      <div class="pg" id="pg-jogos"></div>
+      <div class="pg" id="pg-pse-wellness"></div>
+      <div class="pg" id="pg-scouting"></div>
+      <div class="pg" id="pg-avaliacoes"></div>
+      <div class="pg" id="pg-convocatorias"></div>
+      <div class="pg" id="pg-biblioteca"></div>
+      <div class="pg" id="pg-treinos-ind"></div>
+      <div class="pg" id="pg-formacao"></div>
+      <div class="pg" id="pg-fisio-dash"></div>
+      <div class="pg" id="pg-fisio-ep"></div>
+      <div class="pg" id="pg-fisio-trat"></div>
+      <div class="pg" id="pg-nutri-dash"></div>
+      <div class="pg" id="pg-nutri-aval"></div>
+      <div class="pg" id="pg-nutri-planos"></div>
+      <div class="pg" id="pg-config"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ATLETA APP -->
+<div id="atleta-app">
+  <div class="at-topbar">
+    <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
+    <button class="tb-btn" onclick="logout()">↩</button>
+  </div>
+  <div class="at-content">
+    <div class="at-page on" id="atp-home"></div>
+    <div class="at-page" id="atp-wellness"></div>
+    <div class="at-page" id="atp-pse"></div>
+    <div class="at-page" id="atp-agenda"></div>
+    <div class="at-page" id="atp-nutri"></div>
+    <div class="at-page" id="atp-fisio"></div>
+    <div class="at-page" id="atp-treino"></div>
+    <div class="at-page" id="atp-convoc"></div>
+  </div>
+  <nav class="at-bnav">
+    <div class="at-ni on" onclick="atNav('home',this)"><span class="ic">🏠</span>Casa</div>
+    <div class="at-ni" onclick="atNav('wellness',this)"><span class="ic">💊</span>Wellness</div>
+    <div class="at-ni" onclick="atNav('pse',this)"><span class="ic">📊</span>PSE</div>
+    <div class="at-ni" onclick="atNav('agenda',this)"><span class="ic">📅</span>Agenda</div>
+    <div class="at-ni" onclick="atNav('nutri',this)"><span class="ic">🥗</span>Nutri</div>
+    <div class="at-ni" onclick="atNav('fisio',this)"><span class="ic">🏥</span>Fisio</div>
+    <div class="at-ni" onclick="atNav('treino',this)"><span class="ic">🏋️</span>Treino</div>
+  </nav>
+</div>
+
+<!-- MODALS -->
+<div class="ov" id="modal-ov" onclick="closeMod(event)">
+  <div class="mbox" id="modal-box">
+    <div class="mh"><div class="mt" id="modal-title"></div><button class="mx" onclick="closeMod()">✕</button></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+
+// ============================================================
+//  SPORT PERFORMANCE PLATFORM  v2.0
+// ============================================================
+
+const DK='sps_plat_v2', SK='sps_supa2';
+let APP={}, ROLE=null, AID=null, _curPg='dashboard';
+let _supa=null,_cid=null,_sync=false;
+
+// ─── DEFAULT DATA ─────────────────────────────────────────
+function defApp(){
+  return{
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',pinTec:'',pinFis:'',pinNut:''},
+    teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
+    athletes:[],schedule:[],microcycles:[],sessions:[],
+    exercises:defEx(),games:[],scouting:[],evaluations:[],
+    convocatorias:[],trainingPlans:[],wellness:[],pse:[],
+    injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[]
+  };
+}
+function defEx(){
+  return[
+    {id:'ex1',name:'Posse 4v2',cat:'Tático',muscles:'Coordenação',diff:'Médio',equip:'Bola',desc:'Rondo de manutenção'},
+    {id:'ex2',name:'Agachamento',cat:'Força',muscles:'Quadriceps,Glúteos',diff:'Médio',equip:'Barras',desc:'Agachamento livre'},
+    {id:'ex3',name:'Sprint 30m',cat:'Velocidade',muscles:'Isquiotibiais',diff:'Intenso',equip:'Cones',desc:'Sprints máxima intensidade'},
+    {id:'ex4',name:'Corrida Contínua',cat:'Resistência',muscles:'Cardio',diff:'Leve',equip:'',desc:'Corrida aeróbia'},
+    {id:'ex5',name:'Finalização',cat:'Técnico',muscles:'Coordenação',diff:'Médio',equip:'Bola,Baliza',desc:'Remates após passe'},
+    {id:'ex6',name:'Prancha',cat:'Força',muscles:'Core',diff:'Leve',equip:'',desc:'Isometria de core'},
+    {id:'ex7',name:'Mobilidade',cat:'Recuperação',muscles:'Geral',diff:'Leve',equip:'',desc:'Alongamentos dinâmicos'},
+    {id:'ex8',name:'Jogo 3v3',cat:'Tático',muscles:'Geral',diff:'Médio',equip:'Bola,Mini-balizas',desc:'Jogo reduzido'},
+    {id:'ex9',name:'Pliometria',cat:'Força',muscles:'Gémeos,Quadriceps',diff:'Intenso',equip:'',desc:'Saltos e impulsões'},
+    {id:'ex10',name:'Técnica Individual',cat:'Técnico',muscles:'Coordenação',diff:'Leve',equip:'Bola',desc:'Controlo e condução'},
+  ];
+}
+
+// ─── STORAGE ──────────────────────────────────────────────
+function loadData(){
+  try{const d=localStorage.getItem(DK);APP=d?JSON.parse(d):defApp();}
+  catch{APP=defApp();}
+  // ensure all arrays exist
+  const def=defApp();
+  for(const k in def){if(!APP[k])APP[k]=def[k];}
+  if(!APP.config)APP.config=def.config;
+}
+function saveData(){localStorage.setItem(DK,JSON.stringify(APP));}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const today=()=>new Date().toISOString().slice(0,10);
+
+// ─── AUTH ─────────────────────────────────────────────────
+let _selRole=null;
+function selectRole(r,el){
+  _selRole=r;
+  document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  const picker=document.getElementById('athlete-picker');
+  const pinBox=document.getElementById('pin-box');
+  const noPinNote=document.getElementById('no-pin-note');
+  const btn=document.getElementById('btn-enter');
+  const pinInput=document.getElementById('login-pin');
+  pinInput.value='';
+  if(r==='atleta'){
+    picker.classList.add('show');
+    pinBox.style.display='none';
+    noPinNote.style.display='none';
+    fillLoginTeams();
+    btn.disabled=true;
+  } else {
+    picker.classList.remove('show');
+    const pinMap={tecnico:APP.config.pinTec,fisio:APP.config.pinFis,nutri:APP.config.pinNut};
+    const hasPin=pinMap[r]&&pinMap[r].length>=4;
+    if(hasPin){
+      pinBox.style.display='block';
+      noPinNote.style.display='none';
+      btn.disabled=true;
+    } else {
+      pinBox.style.display='none';
+      noPinNote.style.display='block';
+      btn.disabled=false;
+    }
+  }
+}
+function fillLoginTeams(){
+  const sel=document.getElementById('login-team');
+  sel.innerHTML='<option value="">-- Equipa --</option>';
+  APP.teams.forEach(t=>{sel.innerHTML+=`<option value="${t.id}">${t.name}</option>`;});
+}
+function fillLoginAthletes(){
+  const tid=document.getElementById('login-team').value;
+  const sel=document.getElementById('login-athlete');
+  sel.innerHTML='<option value="">-- Atleta --</option>';
+  APP.athletes.filter(a=>a.teamId===tid).sort((a,b)=>a.name.localeCompare(b.name))
+    .forEach(a=>{sel.innerHTML+=`<option value="${a.id}">${a.name}</option>`;});
+  sel.onchange=()=>document.getElementById('btn-enter').disabled=!sel.value;
+}
+function doLogin(){
+  ROLE=_selRole;
+  if(ROLE==='atleta'){
+    AID=document.getElementById('login-athlete').value;
+    if(!AID)return;
+    const at=APP.athletes.find(a=>a.id===AID);
+    if(!at)return;
+    showAtletaApp(at);
+  } else {
+    // Check PIN if defined
+    const pinMap={tecnico:APP.config.pinTec,fisio:APP.config.pinFis,nutri:APP.config.pinNut};
+    const storedPin=pinMap[ROLE];
+    if(storedPin&&storedPin.length>=4){
+      const entered=document.getElementById('login-pin').value;
+      if(entered!==storedPin){
+        document.getElementById('login-pin').style.borderColor='var(--red)';
+        document.getElementById('login-pin').value='';
+        document.getElementById('login-pin').placeholder='PIN incorreto — tenta novamente';
+        document.getElementById('btn-enter').disabled=true;
+        setTimeout(()=>{document.getElementById('login-pin').style.borderColor='';document.getElementById('login-pin').placeholder='••••••';},2000);
+        return;
+      }
+    }
+    showStaffApp();
+  }
+}
+function logout(){
+  ROLE=null;AID=null;_selRole=null;
+  document.getElementById('staff-app').classList.remove('on');
+  document.getElementById('atleta-app').classList.remove('on');
+  document.getElementById('screen-login').style.display='flex';
+  document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('sel'));
+  document.getElementById('athlete-picker').classList.remove('show');
+  document.getElementById('btn-enter').disabled=true;
+}
+
+// ─── STAFF APP INIT ───────────────────────────────────────
+function showStaffApp(){
+  document.getElementById('screen-login').style.display='none';
+  document.getElementById('staff-app').classList.add('on');
+  const cfg=APP.config;
+  document.getElementById('sb-logo').textContent=cfg.logo||'⚽';
+  document.getElementById('sb-club').textContent=cfg.clubName;
+  document.getElementById('sb-sea').textContent=cfg.season;
+  document.getElementById('lclub').textContent=cfg.clubName;
+  renderSidebar();
+  navTo('dashboard');
+  if(_sync)pullCloud();
+}
+function showAtletaApp(at){
+  document.getElementById('screen-login').style.display='none';
+  document.getElementById('atleta-app').classList.add('on');
+  document.getElementById('at-name').textContent=at.name;
+  const d=new Date();
+  document.getElementById('at-date').textContent=d.toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'});
+  atNav('home',document.querySelector('.at-ni'));
+}
+
+// ─── SIDEBAR ──────────────────────────────────────────────
+const NAV_TEC=[
+  {sec:'Técnico'},
+  {id:'dashboard',icon:'🏠',label:'Dashboard'},
+  {id:'plantel',icon:'👥',label:'Plantel'},
+  {id:'planeamento',icon:'📅',label:'Planeamento'},
+  {id:'microciclos',icon:'🔄',label:'Microciclos'},
+  {id:'jogos',icon:'⚽',label:'Jogos'},
+  {id:'formacao',icon:'🌱',label:'Formação'},
+  {sec:'Análise'},
+  {id:'pse-wellness',icon:'📊',label:'PSE & Wellness'},
+  {id:'avaliacoes',icon:'⭐',label:'Avaliações'},
+  {id:'convocatorias',icon:'📋',label:'Convocatórias'},
+  {sec:'Recursos'},
+  {id:'scouting',icon:'🔍',label:'Scouting'},
+  {id:'biblioteca',icon:'📚',label:'Biblioteca'},
+  {id:'treinos-ind',icon:'🏋️',label:'Treinos Individuais'},
+];
+const NAV_FIS=[
+  {sec:'Fisioterapia'},
+  {id:'fisio-dash',icon:'🏠',label:'Dashboard'},
+  {id:'fisio-ep',icon:'🩺',label:'Episódios'},
+  {id:'fisio-trat',icon:'💊',label:'Tratamentos'},
+];
+const NAV_NUT=[
+  {sec:'Nutrição'},
+  {id:'nutri-dash',icon:'🏠',label:'Dashboard'},
+  {id:'nutri-aval',icon:'📏',label:'Avaliações'},
+  {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
+];
+function renderSidebar(){
+  const nav= ROLE==='fisio'?NAV_FIS: ROLE==='nutri'?NAV_NUT: NAV_TEC;
+  const roleLabel={tecnico:'Técnico',fisio:'Fisioterapeuta',nutri:'Nutricionista'}[ROLE]||ROLE;
+  const roleInit={tecnico:'T',fisio:'F',nutri:'N'}[ROLE]||'S';
+  document.getElementById('sb-av').textContent=roleInit;
+  document.getElementById('sb-uname').textContent=roleLabel;
+  document.getElementById('sb-urole').textContent='Staff';
+  let h='';
+  for(const n of nav){
+    if(n.sec){h+=`<div class="sb-sec"><div class="sb-sl">${n.sec}</div></div>`;continue;}
+    h+=`<button class="nb" id="nb-${n.id}" onclick="navTo('${n.id}')" title="${n.label}"><span class="ic">${n.icon}</span>${n.label}</button>`;
+  }
+  document.getElementById('sb-nav').innerHTML=h;
+}
+function navTo(id){
+  _curPg=id;
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  const pg=document.getElementById('pg-'+id);
+  if(pg)pg.classList.add('on');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  const nb=document.getElementById('nb-'+id);
+  if(nb)nb.classList.add('on');
+  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',microciclos:'Microciclos',jogos:'Jogos',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações'};
+  document.getElementById('pg-title').textContent=titles[id]||id;
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,microciclos:renderMicrociclos,jogos:renderJogos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig};
+  if(renders[id])renders[id]();
+  window.scrollTo(0,0);
+}
+function toggleSb(){document.getElementById('sidebar').classList.toggle('mob');}
+
+// ─── UTILS ────────────────────────────────────────────────
+function toast(msg,type='ok'){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+(type==='err'?'err':'ok');setTimeout(()=>t.className='',2400);}
+function openMod(title,bodyHtml,size=''){const b=document.getElementById('modal-box');b.className='mbox'+(size?' '+size:'');document.getElementById('modal-title').textContent=title;document.getElementById('modal-body').innerHTML=bodyHtml;document.getElementById('modal-ov').classList.add('on');}
+function closeMod(e){if(e&&e.target!==document.getElementById('modal-ov'))return;document.getElementById('modal-ov').classList.remove('on');}
+function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit',year:'numeric'});}
+function fmtDateShort(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('pt-PT',{day:'2-digit',month:'short'});}
+function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/(86400000));}
+function ageYears(dob){if(!dob)return'';const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;}
+function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase():'?';}
+function wellnessColor(score){if(!score)return'wd0';if(score>=70)return'wdg';if(score>=45)return'wdy';return'wdr';}
+function sevBadge(s){const m={ligeira:'bg-g',moderada:'bg-y',grave:'bg-o','muito grave':'bg-r'};return`<span class="bdg ${m[s]||'bg-gr'}">${s||'—'}</span>`;}
+function statusBadge(s){const m={ativo:'bg-r',reabilitação:'bg-y',alta:'bg-g',disponivel:'bg-g',indisponivel:'bg-r'};return`<span class="bdg ${m[s]||'bg-gr'}">${s||'—'}</span>`;}
+
+// ─── DASHBOARD ────────────────────────────────────────────
+function renderDashboard(){
+  const d=today();
+  const athletes=APP.athletes.filter(a=>a.teamId==='T1'||!a.teamId);
+  const total=athletes.length;
+  const injured=APP.injuries.filter(i=>i.status==='ativo'||i.status==='reabilitação').length;
+  const lastW=APP.wellness.filter(w=>w.date===d);
+  const alerts=lastW.filter(w=>w.score<50).length;
+  const upcoming=APP.schedule.filter(s=>s.date>=d&&s.date<=addDays(d,7)).length;
+  function addDays(dt,n){const x=new Date(dt+'T00:00:00');x.setDate(x.getDate()+n);return x.toISOString().slice(0,10);}
+
+  // Wellness alerts
+  const wAlerts=lastW.filter(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);return w.score<50&&at;});
+  const injActive=APP.injuries.filter(i=>i.status==='ativo'||i.status==='reabilitação').map(i=>{const at=APP.athletes.find(a=>a.id===i.athleteId);return{...i,atName:at?at.name:'?'};});
+  const nextEvents=APP.schedule.filter(s=>s.date>=d).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+
+  // PSE last 7 days avg
+  const days7=[];for(let i=6;i>=0;i--){const x=new Date(d+'T00:00:00');x.setDate(x.getDate()-i);days7.push(x.toISOString().slice(0,10));}
+  const pse7=APP.pse.filter(p=>days7.includes(p.date));
+  const pseAvg=pse7.length?Math.round(pse7.reduce((s,p)=>s+(+p.pse||0),0)/pse7.length*10)/10:0;
+  const wAvg=lastW.length?Math.round(lastW.reduce((s,w)=>s+(+w.score||0),0)/lastW.length):0;
+
+  let alertsHtml='';
+  wAlerts.slice(0,5).forEach(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);alertsHtml+=`<div class="al al-r">⚠️ <strong>${at?.name||'?'}</strong> — Wellness score baixo: <strong>${w.score}/100</strong> (Fadiga:${w.fatigue} Stress:${w.stress} Dor:${w.pain})</div>`;});
+  injActive.slice(0,3).forEach(i=>{alertsHtml+=`<div class="al al-y">🩺 <strong>${i.atName}</strong> — ${i.diagnosis||i.type} (${i.status}) ${i.returnDate?'· Retorno previsto: '+fmtDate(i.returnDate):''}`;if(!i.returnDate)alertsHtml+=` · Sem data de retorno definida`;alertsHtml+=`</div>`;});
+  if(!alertsHtml)alertsHtml=`<div class="al al-g">✅ Sem alertas ativos hoje</div>`;
+
+  let evHtml='';
+  nextEvents.forEach(ev=>{const typeColors={Treino:'s-tec',Jogo:'s-jog',Reunião:'s-reu','Consulta Nutri':'s-nut','Fisio':'s-fio',Ativação:'s-ati',Recuperação:'s-rec'};evHtml+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd)"><span class="mc-sess ${typeColors[ev.type]||'s-tec'}" style="padding:3px 8px;white-space:nowrap">${ev.type}</span><div style="flex:1"><div style="font-size:12px;font-weight:700">${ev.title}</div><div style="font-size:10px;color:var(--t2)">${fmtDate(ev.date)}${ev.time?' · '+ev.time:''}${ev.location?' · '+ev.location:''}</div></div></div>`;});
+  if(!evHtml)evHtml=`<div class="empty"><p>Sem eventos próximos</p></div>`;
+
+  // PSE last 7 chart data
+  const pse7vals=days7.map(dd=>{const ps=APP.pse.filter(p=>p.date===dd);return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.pse||0),0)/ps.length*10)/10:null;});
+  const w7vals=days7.map(dd=>{const ws=APP.wellness.filter(w=>w.date===dd);return ws.length?Math.round(ws.reduce((s,w)=>s+(+w.score||0),0)/ws.length):null;});
+
+  document.getElementById('pg-dashboard').innerHTML=`
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-lbl">Atletas</div><div class="kpi-val">${total}</div><div class="kpi-sub">Equipa Principal</div></div>
+    <div class="kpi ${injured?'red':''}" ><div class="kpi-lbl">Lesionadas</div><div class="kpi-val" style="color:${injured?'#f87171':'inherit'}">${injured}</div><div class="kpi-sub">Ativas + Reab.</div></div>
+    <div class="kpi ${alerts?'yel':''}"><div class="kpi-lbl">Alertas Wellness</div><div class="kpi-val" style="color:${alerts?'#fbbf24':'inherit'}">${alerts}</div><div class="kpi-sub">Score &lt; 50 hoje</div></div>
+    <div class="kpi blu"><div class="kpi-lbl">Eventos (7 dias)</div><div class="kpi-val">${upcoming}</div><div class="kpi-sub">Próximos</div></div>
+    <div class="kpi"><div class="kpi-lbl">PSE Médio</div><div class="kpi-val">${pseAvg||'—'}</div><div class="kpi-sub">Últimos 7 dias</div></div>
+    <div class="kpi ${wAvg&&wAvg<50?'red':wAvg>=70?'grn':'yel'}"><div class="kpi-lbl">Wellness Médio</div><div class="kpi-val">${wAvg||'—'}</div><div class="kpi-sub">Hoje (${lastW.length} resp.)</div></div>
+  </div>
+  <div class="g2" style="margin-bottom:18px">
+    <div class="card">
+      <div class="ch"><span class="ct">🚨 Alertas</span></div>
+      <div class="cb" style="padding:12px 16px">${alertsHtml}</div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">📅 Próximos Eventos</span><button class="btn btn-sm btn-gh" onclick="navTo('planeamento')">Ver todos</button></div>
+      <div class="cb" style="padding:0 16px 8px">${evHtml}</div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><span class="ct">📊 PSE — Últimos 7 dias</span></div>
+      <div class="cb"><div class="chart-wrap"><canvas id="chart-pse-dash"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">💊 Wellness — Últimos 7 dias</span></div>
+      <div class="cb"><div class="chart-wrap"><canvas id="chart-w-dash"></canvas></div></div>
+    </div>
+  </div>`;
+  setTimeout(()=>{
+    const labels=days7.map(d=>fmtDateShort(d));
+    buildChart('chart-pse-dash',labels,pse7vals,'PSE Médio','rgba(29,111,59,.7)','rgba(29,111,59,.2)',0,10);
+    buildChart('chart-w-dash',labels,w7vals,'Wellness Médio','rgba(245,158,11,.7)','rgba(245,158,11,.15)',0,100);
+  },50);
+}
+function buildChart(id,labels,data,label,borderColor,bgColor,min,max){
+  const c=document.getElementById(id);if(!c)return;
+  if(c._chart)c._chart.destroy();
+  c._chart=new Chart(c,{type:'line',data:{labels,datasets:[{label,data,borderColor,backgroundColor:bgColor,borderWidth:2,pointRadius:4,pointBackgroundColor:borderColor,fill:true,tension:.4,spanGaps:true}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{min,max,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#94a3b8',font:{size:10}}},x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#94a3b8',font:{size:10}}}}}});
+}
+
+// ─── PLANTEL ──────────────────────────────────────────────
+let _plantelTeam='T1', _showAtForm=false, _editAtId=null;
+function renderPlantel(teamId){
+  if(teamId)_plantelTeam=teamId;
+  const team=APP.teams.find(t=>t.id===_plantelTeam)||APP.teams[0];
+  if(!team)return;
+  const athletes=APP.athletes.filter(a=>a.teamId===_plantelTeam);
+  const teamTabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_plantelTeam?'on':''}" onclick="renderPlantel('${t.id}')">${t.name}</button>`).join('');
+
+  const formHtml=_showAtForm?`
+  <div class="ipanel" id="at-form">
+    <div class="sh"><div class="sh-t">${_editAtId?'Editar Atleta':'Nova Atleta'}</div><button class="btn btn-sm btn-gh" onclick="_showAtForm=false;_editAtId=null;renderPlantel()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Nome Completo *</label><input class="fc" id="af-name" placeholder="Nome da atleta"></div>
+    <div class="form-g"><label class="fl">Posição</label><select class="fc" id="af-pos"><option value="">—</option><option>GR</option><option>DC</option><option>DD</option><option>DE</option><option>MDC</option><option>MC</option><option>MOC</option><option>ELD</option><option>ELE</option><option>PL</option><option>AV</option></select></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Nº Camisola</label><input class="fc" id="af-num" type="number" min="1" max="99"></div>
+    <div class="form-g"><label class="fl">Data Nasc.</label><input class="fc" id="af-dob" type="date"></div>
+    <div class="form-g"><label class="fl">Nacionalidade</label><input class="fc" id="af-nat" placeholder="PT"></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="af-height" type="number"></div>
+    <div class="form-g"><label class="fl">Pé Dominante</label><select class="fc" id="af-foot"><option value="">—</option><option>Direito</option><option>Esquerdo</option><option>Ambidestro</option></select></div></div>
+    <div class="form-g"><label class="fl">Clube Anterior</label><input class="fc" id="af-club" placeholder="Clube de origem"></div>
+    <div class="form-g"><label class="fl">URL Foto</label><input class="fc" id="af-photo" placeholder="https://..."></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-g" onclick="saveAthlete()">💾 Guardar</button>
+      <button class="btn btn-gh" onclick="_showAtForm=false;_editAtId=null;renderPlantel()">Cancelar</button>
+    </div>
+  </div>`:'';
+
+  let cardsHtml='';
+  if(!athletes.length){cardsHtml=`<div class="empty"><div class="ei">👥</div><p>Sem atletas nesta equipa</p><div class="esub">Adiciona a primeira atleta</div></div>`;}
+  else{
+    cardsHtml=`<div class="pgrid">`;
+    athletes.sort((a,b)=>(a.num||99)-(b.num||99)).forEach(at=>{
+      const inj=APP.injuries.find(i=>i.athleteId===at.id&&(i.status==='ativo'||i.status==='reabilitação'));
+      const wLast=APP.wellness.filter(w=>w.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+      const dots=wLast.map(w=>`<div class="wd ${wellnessColor(w.score)}"></div>`).join('')+'<div class="wd wd0"></div>'.repeat(Math.max(0,5-wLast.length));
+      const av=at.photo?`<img src="${at.photo}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`:'';
+      cardsHtml+=`<div class="at-card ${inj?'inj':''}" onclick="openAthleteModal('${at.id}')">
+        <div class="at-av">${av}<span ${at.photo?'style="display:none"':''}>${initials(at.name)}</span></div>
+        <div class="at-name">${at.name}</div>
+        <div class="at-pos">${at.pos||'—'} ${at.nat||''}</div>
+        <div class="at-num">${at.num?'#'+at.num:''} ${at.age||ageYears(at.dob)?'· '+(at.age||ageYears(at.dob))+'a':''}</div>
+        ${inj?`<div class="bdg bg-r" style="margin:4px auto 0;font-size:9px">🩺 ${inj.type||'Lesão'}</div>`:''}
+        <div class="wdots" title="Wellness (últimas submissões)">${dots}</div>
+      </div>`;
+    });
+    cardsHtml+=`</div>`;
+  }
+
+  document.getElementById('pg-plantel').innerHTML=`
+  <div class="sh">
+    <div class="sh-t">👥 Plantel — ${team.name}</div>
+    <div class="sh-a">
+      <span style="font-size:11px;color:var(--t2)">${athletes.length} atleta${athletes.length!==1?'s':''}</span>
+      <button class="btn btn-g" onclick="_showAtForm=!_showAtForm;_editAtId=null;renderPlantel()">+ Adicionar Atleta</button>
+    </div>
+  </div>
+  <div class="tabs">${teamTabs}</div>
+  ${formHtml}
+  ${cardsHtml}`;
+
+  if(_editAtId&&_showAtForm){
+    const at=APP.athletes.find(a=>a.id===_editAtId);
+    if(at){
+      document.getElementById('af-name').value=at.name||'';
+      document.getElementById('af-pos').value=at.pos||'';
+      document.getElementById('af-num').value=at.num||'';
+      document.getElementById('af-dob').value=at.dob||'';
+      document.getElementById('af-nat').value=at.nat||'';
+      document.getElementById('af-height').value=at.height||'';
+      document.getElementById('af-foot').value=at.foot||'';
+      document.getElementById('af-club').value=at.club||'';
+      document.getElementById('af-photo').value=at.photo||'';
+    }
+  }
+}
+function saveAthlete(){
+  const name=document.getElementById('af-name').value.trim();
+  if(!name)return toast('Nome obrigatório','err');
+  if(_editAtId){
+    const idx=APP.athletes.findIndex(a=>a.id===_editAtId);
+    if(idx>=0){
+      APP.athletes[idx]={...APP.athletes[idx],name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value};
+    }
+  } else {
+    const at={id:uid(),teamId:_plantelTeam,name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,createdAt:today()};
+    APP.athletes.push(at);
+    if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
+  }
+  saveData();_showAtForm=false;_editAtId=null;toast('Atleta guardada ✓');renderPlantel();
+}
+function openAthleteModal(id){
+  const at=APP.athletes.find(a=>a.id===id);if(!at)return;
+  const inj=APP.injuries.filter(i=>i.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  const lastW=APP.wellness.filter(w=>w.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const lastP=APP.pse.filter(p=>p.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const nutriPlan=APP.nutritionPlans.find(n=>n.athleteId===id&&n.active);
+  const injHtml=inj.length?inj.slice(0,3).map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${i.diagnosis||i.type}</span><span>${statusBadge(i.status)}</span></div>`).join(''):`<div style="color:var(--t2);font-size:12px">Sem lesões registadas</div>`;
+  openMod(at.name,`
+  <div style="display:flex;gap:14px;margin-bottom:16px;align-items:center">
+    <div class="at-av" style="width:60px;height:60px;font-size:22px;flex-shrink:0">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:''}${initials(at.name)}</div>
+    <div>
+      <div style="font-size:16px;font-weight:800">${at.name}</div>
+      <div style="font-size:12px;color:var(--t2)">${at.pos||'—'} ${at.num?'· #'+at.num:''} ${at.nat?'· '+at.nat:''} ${at.dob?'· '+ageYears(at.dob)+' anos':''}</div>
+      ${at.height?`<div style="font-size:11px;color:var(--t2)">${at.height}cm</div>`:''}
+    </div>
+  </div>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="kpi"><div class="kpi-lbl">Último Wellness</div><div class="kpi-val" style="font-size:20px">${lastW?lastW.score:'—'}</div><div class="kpi-sub">${lastW?lastW.date:'Sem dados'}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Último PSE</div><div class="kpi-val" style="font-size:20px">${lastP?lastP.pse:'—'}</div><div class="kpi-sub">${lastP?lastP.date+' · '+lastP.duration+'min':'Sem dados'}</div></div>
+  </div>
+  <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">🩺 Lesões</div>${injHtml}</div>
+  ${nutriPlan?`<div class="al al-g">🥗 Plano nutricional ativo: <strong>${nutriPlan.name}</strong></div>`:''}
+  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+    <button class="btn btn-g btn-sm" onclick="closeMod();_editAtId='${id}';_showAtForm=true;renderPlantel()">✏️ Editar</button>
+    <button class="btn btn-r btn-sm" onclick="deleteAthlete('${id}')">🗑️ Apagar</button>
+  </div>
+  `,'lg');
+}
+function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();renderPlantel();}
+
+// ─── PLANEAMENTO (CALENDÁRIO) ─────────────────────────────
+let _calYear=new Date().getFullYear(), _calMonth=new Date().getMonth();
+let _showEvForm=false, _editEvId=null, _selDate=null;
+const EV_TYPES=['Treino','Jogo','Reunião','Consulta Nutri','Fisio','Ativação','Recuperação','Folga'];
+const EV_COLORS={Treino:'#27a34a',Jogo:'#c0392b',Reunião:'#935116','Consulta Nutri':'#0e6251',Fisio:'#1a237e',Ativação:'#b7770d',Recuperação:'#2e86c1',Folga:'#5a6582'};
+function renderPlaneamento(){
+  const mnths=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const first=new Date(_calYear,_calMonth,1);
+  const last=new Date(_calYear,_calMonth+1,0);
+  const startDay=first.getDay()===0?6:first.getDay()-1; // mon=0
+  const td=today();
+  const teamSel=APP.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const formHtml=_showEvForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editEvId?'Editar Evento':'Novo Evento'} ${_selDate?'— '+fmtDate(_selDate):''}</div>
+    <button class="btn btn-sm btn-gh" onclick="_showEvForm=false;_editEvId=null;renderPlaneamento()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Tipo *</label><select class="fc" id="ef-type"><option value="">—</option>${EV_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Equipa</label><select class="fc" id="ef-team">${teamSel}</select></div></div>
+    <div class="form-g"><label class="fl">Título *</label><input class="fc" id="ef-title" placeholder="Ex: Treino Tático"></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Data *</label><input class="fc" id="ef-date" type="date" value="${_selDate||td}"></div>
+    <div class="form-g"><label class="fl">Hora</label><input class="fc" id="ef-time" type="time"></div>
+    <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="ef-dur" type="number" placeholder="90"></div></div>
+    <div class="form-g"><label class="fl">Local</label><input class="fc" id="ef-loc" placeholder="Campo principal..."></div>
+    <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="ef-notes" rows="2"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveEvent()">💾 Guardar</button>
+    <button class="btn btn-gh" onclick="_showEvForm=false;_editEvId=null;renderPlaneamento()">Cancelar</button></div>
+  </div>`:'';
+
+  // Build calendar grid
+  let calHtml=`<div class="cal-wrap"><div class="cal-grid">`;
+  ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].forEach(d=>{calHtml+=`<div class="cal-hdr">${d}</div>`;});
+  // empty cells before month start
+  for(let i=0;i<startDay;i++) calHtml+=`<div class="cal-day dim"></div>`;
+  for(let day=1;day<=last.getDate();day++){
+    const dt=`${_calYear}-${String(_calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday=dt===td;
+    const evs=APP.schedule.filter(e=>e.date===dt).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div class="cal-ev" style="background:${c}22;color:${c};border-left:2px solid ${c}" onclick="event.stopPropagation();editEvent('${e.id}')" title="${e.title}">${e.time?e.time.slice(0,5)+' ':''} ${e.title}</div>`;}).join('');
+    calHtml+=`<div class="cal-day ${isToday?'today':''}" onclick="clickDay('${dt}')"><div class="cal-dn">${day}</div>${evsHtml}</div>`;
+  }
+  calHtml+=`</div></div>`;
+
+  // Legend
+  const legend=Object.entries(EV_COLORS).map(([t,c])=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block"></span>${t}</span>`).join('');
+
+  document.getElementById('pg-planeamento').innerHTML=`
+  <div class="sh">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-gh btn-sm" onclick="calNav(-1)">‹</button>
+      <span style="font-size:15px;font-weight:800;min-width:160px;text-align:center">${mnths[_calMonth]} ${_calYear}</span>
+      <button class="btn btn-gh btn-sm" onclick="calNav(1)">›</button>
+    </div>
+    <div class="sh-a">
+      <button class="btn btn-g" onclick="_showEvForm=true;_editEvId=null;_selDate=today();renderPlaneamento()">+ Novo Evento</button>
+    </div>
+  </div>
+  ${formHtml}
+  <div style="margin-bottom:10px;padding:8px 0">${legend}</div>
+  ${calHtml}`;
+  if(_editEvId&&_showEvForm){
+    const ev=APP.schedule.find(e=>e.id===_editEvId);
+    if(ev){['type','title','date','time','dur','loc','notes'].forEach(f=>{const el=document.getElementById('ef-'+f);if(el)el.value=ev[f]||'';}); document.getElementById('ef-team').value=ev.teamId||'T1';}
+  }
+}
+function calNav(dir){_calMonth+=dir;if(_calMonth>11){_calMonth=0;_calYear++;}if(_calMonth<0){_calMonth=11;_calYear--;}renderPlaneamento();}
+function clickDay(dt){_selDate=dt;_showEvForm=true;_editEvId=null;renderPlaneamento();}
+function editEvent(id){_editEvId=id;_showEvForm=true;const ev=APP.schedule.find(e=>e.id===id);_selDate=ev?.date;renderPlaneamento();}
+function saveEvent(){
+  const type=document.getElementById('ef-type').value;
+  const title=document.getElementById('ef-title').value.trim();
+  const date=document.getElementById('ef-date').value;
+  if(!type||!title||!date)return toast('Tipo, título e data obrigatórios','err');
+  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value};
+  if(_editEvId){const i=APP.schedule.findIndex(e=>e.id===_editEvId);if(i>=0)APP.schedule[i]=ev;}
+  else{APP.schedule.push(ev);if(_sync)cloudUpsert('schedule_events',{...ev,club_id:_cid});}
+  saveData();_showEvForm=false;_editEvId=null;toast('Evento guardado ✓');renderPlaneamento();
+}
+function deleteEvent(id){if(!confirm('Apagar evento?'))return;APP.schedule=APP.schedule.filter(e=>e.id!==id);saveData();toast('Evento apagado');closeMod();renderPlaneamento();}
+
+// ─── MICROCICLOS ──────────────────────────────────────────
+let _mcWeek=getMonday(today()), _mcTeam='T1', _showMcForm=false, _mcDay=null, _editMcId=null;
+const MC_TYPES={Tático:{css:'s-tac',icon:'⚽'},Físico:{css:'s-fis',icon:'💪'},Técnico:{css:'s-tec',icon:'🎯'},Ativação:{css:'s-ati',icon:'🔥'},Recuperação:{css:'s-rec',icon:'🧊'},Jogo:{css:'s-jog',icon:'🏆'},Folga:{css:'s-fol',icon:'😴'},'Consulta Nutri':{css:'s-nut',icon:'🥗'},Fisio:{css:'s-fio',icon:'🏥'},Reunião:{css:'s-reu',icon:'📋'}};
+function getMonday(dt){const d=new Date(dt+'T00:00:00');const day=d.getDay();const diff=d.getDate()-day+(day===0?-6:1);d.setDate(diff);return d.toISOString().slice(0,10);}
+function addDaysStr(dt,n){const d=new Date(dt+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function renderMicrociclos(){
+  const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const weekDates=Array.from({length:7},(_,i)=>addDaysStr(_mcWeek,i));
+  const td=today();
+  const mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam)||{objective:'',mesocycle:''};
+  const teamTabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_mcTeam?'on':''}" onclick="_mcTeam='${t.id}';renderMicrociclos()">${t.name}</button>`).join('');
+
+  const formHtml=_showMcForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">Nova Sessão — ${days[weekDates.indexOf(_mcDay)]||''} ${fmtDate(_mcDay)}</div>
+    <button class="btn btn-sm btn-gh" onclick="_showMcForm=false;renderMicrociclos()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Tipo *</label><select class="fc" id="mf-type"><option value="">—</option>${Object.keys(MC_TYPES).map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Hora</label><input class="fc" id="mf-time" type="time"></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="mf-dur" type="number" placeholder="90"></div>
+    <div class="form-g"><label class="fl">Intensidade (1-10)</label><input class="fc" id="mf-int" type="number" min="1" max="10"></div></div>
+    <div class="form-g"><label class="fl">Notas / Objetivo</label><textarea class="fc" id="mf-notes" rows="2"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveMcSession()">💾 Guardar</button>
+    <button class="btn btn-gh" onclick="_showMcForm=false;renderMicrociclos()">Cancelar</button></div>
+  </div>`:'';
+
+  let gridHtml=`<div class="mc-wrap"><div class="mc-grid">`;
+  weekDates.forEach((dt,i)=>{
+    const isToday=dt===td;
+    const sessions=APP.sessions.filter(s=>s.date===dt&&s.teamId===_mcTeam).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    const sessHtml=sessions.map(s=>{const t=MC_TYPES[s.type]||{css:'s-tec',icon:'📌'};return`<div class="mc-sess ${t.css}" onclick="_editMcId='${s.id}';openMcSession('${s.id}')" title="${s.notes||s.type}">${t.icon} ${s.type}${s.dur?' · '+s.dur+'min':''}</div>`;}).join('');
+    gridHtml+=`<div class="mc-day" style="${isToday?'border-color:var(--c1)':''}">
+      <div class="mc-dn" style="${isToday?'color:var(--c1l)':''}">${days[i]}<br><span style="font-size:9px;font-weight:400">${fmtDateShort(dt)}</span></div>
+      ${sessHtml}
+      <div class="mc-add" onclick="openMcForm('${dt}')">＋ Sessão</div>
+    </div>`;
+  });
+  gridHtml+=`</div></div>`;
+
+  // Week total load
+  const weekSess=APP.sessions.filter(s=>weekDates.includes(s.date)&&s.teamId===_mcTeam);
+  const totalDur=weekSess.reduce((s,x)=>s+(+x.dur||0),0);
+  const byType={};weekSess.forEach(s=>{byType[s.type]=(byType[s.type]||0)+1;});
+  const summaryHtml=Object.entries(byType).map(([t,n])=>{const tc=MC_TYPES[t]||{css:'s-tec',icon:'📌'};return`<span class="mc-sess ${tc.css}" style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;font-size:11px">${tc.icon} ${t}: ${n}</span>`;}).join(' ');
+
+  document.getElementById('pg-microciclos').innerHTML=`
+  <div class="sh">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-gh btn-sm" onclick="mcNav(-1)">‹</button>
+      <span style="font-size:13px;font-weight:800;min-width:220px;text-align:center">Semana ${fmtDate(_mcWeek)} — ${fmtDate(addDaysStr(_mcWeek,6))}</span>
+      <button class="btn btn-gh btn-sm" onclick="mcNav(1)">›</button>
+    </div>
+    <div class="sh-a"><button class="btn btn-g btn-sm" onclick="mcNav(0)">Semana Atual</button></div>
+  </div>
+  <div class="tabs">${teamTabs}</div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="cb" style="padding:12px 16px">
+      <div class="fr" style="margin-bottom:8px">
+        <div class="form-g"><label class="fl">Objetivo do Microciclo</label><input class="fc" id="mc-obj" value="${mc.objective||''}" placeholder="Ex: Recuperação + Tático" onchange="saveMcConfig()"></div>
+        <div class="form-g"><label class="fl">Mesociclo</label><input class="fc" id="mc-meso" value="${mc.mesocycle||''}" placeholder="Ex: Preparação Geral" onchange="saveMcConfig()"></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        ${summaryHtml||'<span style="color:var(--t2);font-size:11px">Sem sessões esta semana</span>'}
+        ${totalDur?`<span style="font-size:11px;color:var(--t2);margin-left:auto">Total: ${totalDur} min</span>`:''}
+      </div>
+    </div>
+  </div>
+  ${formHtml}
+  ${gridHtml}`;
+}
+function mcNav(dir){if(dir===0){_mcWeek=getMonday(today());} else {_mcWeek=addDaysStr(_mcWeek,dir*7);}renderMicrociclos();}
+function openMcForm(dt){_mcDay=dt;_showMcForm=true;_editMcId=null;renderMicrociclos();}
+function saveMcSession(){
+  const type=document.getElementById('mf-type').value;
+  if(!type)return toast('Tipo obrigatório','err');
+  const sess={id:_editMcId||uid(),teamId:_mcTeam,date:_mcDay,week:_mcWeek,type,time:document.getElementById('mf-time').value,dur:+document.getElementById('mf-dur').value||null,intensity:+document.getElementById('mf-int').value||null,notes:document.getElementById('mf-notes').value};
+  if(_editMcId){const i=APP.sessions.findIndex(s=>s.id===_editMcId);if(i>=0)APP.sessions[i]=sess;}
+  else APP.sessions.push(sess);
+  saveData();_showMcForm=false;toast('Sessão guardada ✓');renderMicrociclos();
+}
+function saveMcConfig(){
+  const obj=document.getElementById('mc-obj')?.value||'';
+  const meso=document.getElementById('mc-meso')?.value||'';
+  let mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam);
+  if(mc){mc.objective=obj;mc.mesocycle=meso;}
+  else APP.microcycles.push({id:uid(),teamId:_mcTeam,week:_mcWeek,objective:obj,mesocycle:meso});
+  saveData();
+}
+function openMcSession(id){
+  const s=APP.sessions.find(x=>x.id===id);if(!s)return;
+  const t=MC_TYPES[s.type]||{icon:'📌'};
+  openMod(`${t.icon} ${s.type}`,`
+  <div class="g2" style="margin-bottom:12px">
+    <div class="kpi"><div class="kpi-lbl">Data</div><div class="kpi-val" style="font-size:16px">${fmtDate(s.date)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Duração</div><div class="kpi-val" style="font-size:16px">${s.dur||'—'}<span style="font-size:14px"> min</span></div></div>
+  </div>
+  ${s.intensity?`<div class="al al-b">Intensidade: ${s.intensity}/10</div>`:''}
+  ${s.notes?`<div style="font-size:12px;color:var(--t2);margin-bottom:12px">${s.notes}</div>`:''}
+  <div style="display:flex;gap:8px"><button class="btn btn-r btn-sm" onclick="deleteMcSession('${id}')">🗑️ Apagar</button><button class="btn btn-gh btn-sm" onclick="closeMod()">Fechar</button></div>`);
+}
+function deleteMcSession(id){APP.sessions=APP.sessions.filter(s=>s.id!==id);saveData();toast('Sessão apagada');closeMod();renderMicrociclos();}
+
+// ─── JOGOS ────────────────────────────────────────────────
+let _showJogoForm=false, _editJogoId=null, _jogoTab='proximos';
+function renderJogos(){
+  const td=today();
+  const teamTabs=APP.teams.map(t=>`<button class="tab-btn" onclick="" style="cursor:default">${t.name}</button>`).join('');
+  const formHtml=_showJogoForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editJogoId?'Editar Jogo':'Novo Jogo'}</div><button class="btn btn-sm btn-gh" onclick="_showJogoForm=false;_editJogoId=null;renderJogos()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Adversário *</label><input class="fc" id="jf-opp" placeholder="Nome do adversário"></div>
+    <div class="form-g"><label class="fl">Equipa</label><select class="fc" id="jf-team">${APP.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Data *</label><input class="fc" id="jf-date" type="date"></div>
+    <div class="form-g"><label class="fl">Hora</label><input class="fc" id="jf-time" type="time"></div>
+    <div class="form-g"><label class="fl">Casa/Fora</label><select class="fc" id="jf-ha"><option value="casa">Casa</option><option value="fora">Fora</option><option value="neutro">Neutro</option></select></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Local</label><input class="fc" id="jf-loc" placeholder="Estádio / Campo"></div>
+    <div class="form-g"><label class="fl">Competição</label><input class="fc" id="jf-comp" placeholder="Ex: Liga, Taça..."></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Resultado (Nós)</label><input class="fc" id="jf-g1" type="number" min="0" placeholder="0"></div>
+    <div class="form-g"><label class="fl">Resultado (Adv)</label><input class="fc" id="jf-g2" type="number" min="0" placeholder="0"></div>
+    <div class="form-g"><label class="fl">Status</label><select class="fc" id="jf-status"><option value="agendado">Agendado</option><option value="realizado">Realizado</option><option value="cancelado">Cancelado</option></select></div></div>
+    <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="jf-notes" rows="2"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveJogo()">💾 Guardar</button><button class="btn btn-gh" onclick="_showJogoForm=false;_editJogoId=null;renderJogos()">Cancelar</button></div>
+  </div>`:'';
+
+  const proximos=APP.games.filter(g=>g.date>=td&&g.status!=='cancelado').sort((a,b)=>a.date.localeCompare(b.date));
+  const realizados=APP.games.filter(g=>g.date<td||g.status==='realizado').sort((a,b)=>b.date.localeCompare(a.date));
+  const haTabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button></div>`;
+
+  const makeRow=(g)=>{
+    const ha={casa:'🏠 Casa',fora:'✈️ Fora',neutro:'⚖️ Neutro'}[g.ha]||'';
+    const result=g.g1!=null&&g.g2!=null?`<strong>${g.g1}–${g.g2}</strong>`:'—';
+    const won=g.g1!=null&&g.g2!=null&&g.g1>g.g2, drew=g.g1!=null&&g.g2!=null&&g.g1==g.g2, lost=g.g1!=null&&g.g2!=null&&g.g1<g.g2;
+    const rBadge=won?`<span class="bdg bg-g">V</span>`:drew?`<span class="bdg bg-y">E</span>`:lost?`<span class="bdg bg-r">D</span>`:'';
+    const team=APP.teams.find(t=>t.id===g.teamId);
+    return`<tr><td>${fmtDate(g.date)} ${g.time?'<span style="color:var(--t2)">'+g.time.slice(0,5)+'</span>':''}</td>
+    <td><strong>${g.opp}</strong>${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${g.comp}</span>`:''}</td>
+    <td>${ha}</td><td>${g.loc||'—'}</td>
+    <td>${team?team.name:'—'}</td>
+    <td style="text-align:center">${result} ${rBadge}</td>
+    <td><button class="btn btn-xs btn-gh" onclick="editJogo('${g.id}')">✏️</button> <button class="btn btn-xs btn-r" onclick="deleteJogo('${g.id}')">🗑️</button></td></tr>`;
+  };
+
+  const list=_jogoTab==='proximos'?proximos:realizados;
+  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Campo</th><th>Equipa</th><th>Resultado</th><th>Ações</th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`;
+
+  // Stats
+  const vit=realizados.filter(g=>g.g1>g.g2).length, emp=realizados.filter(g=>g.g1==g.g2&&g.g1!=null).length, der=realizados.filter(g=>g.g1<g.g2).length;
+  const gm=realizados.reduce((s,g)=>s+(+g.g1||0),0), gs=realizados.reduce((s,g)=>s+(+g.g2||0),0);
+
+  document.getElementById('pg-jogos').innerHTML=`
+  <div class="sh"><div class="sh-t">⚽ Jogos</div>
+  <button class="btn btn-g" onclick="_showJogoForm=!_showJogoForm;_editJogoId=null;renderJogos()">+ Novo Jogo</button></div>
+  ${formHtml}
+  ${realizados.length?`<div class="kpis" style="margin-bottom:16px">
+    <div class="kpi grn"><div class="kpi-lbl">Vitórias</div><div class="kpi-val" style="color:#4ade80">${vit}</div></div>
+    <div class="kpi yel"><div class="kpi-lbl">Empates</div><div class="kpi-val" style="color:#fbbf24">${emp}</div></div>
+    <div class="kpi red"><div class="kpi-lbl">Derrotas</div><div class="kpi-val" style="color:#f87171">${der}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Golos Marcados</div><div class="kpi-val">${gm}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Golos Sofridos</div><div class="kpi-val">${gs}</div></div>
+  </div>`:''}
+  ${haTabHtml}
+  ${tableHtml}`;
+  if(_editJogoId&&_showJogoForm){
+    const g=APP.games.find(x=>x.id===_editJogoId);
+    if(g){['opp','date','time','loc','comp','notes'].forEach(f=>{const el=document.getElementById('jf-'+f);if(el)el.value=g[f]||'';});
+    document.getElementById('jf-ha').value=g.ha||'casa';
+    document.getElementById('jf-status').value=g.status||'agendado';
+    document.getElementById('jf-team').value=g.teamId||'T1';
+    if(g.g1!=null)document.getElementById('jf-g1').value=g.g1;
+    if(g.g2!=null)document.getElementById('jf-g2').value=g.g2;}
+  }
+}
+function saveJogo(){
+  const opp=document.getElementById('jf-opp').value.trim();
+  const date=document.getElementById('jf-date').value;
+  if(!opp||!date)return toast('Adversário e data obrigatórios','err');
+  const g1v=document.getElementById('jf-g1').value;
+  const g2v=document.getElementById('jf-g2').value;
+  const g={id:_editJogoId||uid(),teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,comp:document.getElementById('jf-comp').value,status:document.getElementById('jf-status').value,g1:g1v!==''?+g1v:null,g2:g2v!==''?+g2v:null,notes:document.getElementById('jf-notes').value};
+  if(_editJogoId){const i=APP.games.findIndex(x=>x.id===_editJogoId);if(i>=0)APP.games[i]=g;}
+  else APP.games.push(g);
+  saveData();_showJogoForm=false;_editJogoId=null;toast('Jogo guardado ✓');renderJogos();
+}
+function editJogo(id){_editJogoId=id;_showJogoForm=true;renderJogos();}
+function deleteJogo(id){if(!confirm('Apagar jogo?'))return;APP.games=APP.games.filter(g=>g.id!==id);saveData();toast('Jogo apagado');renderJogos();}
+
+// ─── PSE & WELLNESS ───────────────────────────────────────
+let _pwTab='pse', _pwTeam='T1', _pwPeriod=14;
+function renderPSEWellness(){
+  const td=today();
+  const days=Array.from({length:_pwPeriod},(_,i)=>{const d=new Date(td+'T00:00:00');d.setDate(d.getDate()-(_pwPeriod-1-i));return d.toISOString().slice(0,10);});
+  const athletes=APP.athletes.filter(a=>a.teamId===_pwTeam);
+  const teamTabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_pwTeam?'on':''}" onclick="_pwTeam='${t.id}';renderPSEWellness()">${t.name}</button>`).join('');
+  const mainTabs=`<div class="tabs"><button class="tab-btn ${_pwTab==='pse'?'on':''}" onclick="_pwTab='pse';renderPSEWellness()">📊 PSE / Carga</button><button class="tab-btn ${_pwTab==='wellness'?'on':''}" onclick="_pwTab='wellness';renderPSEWellness()">💊 Wellness</button></div>`;
+
+  let html='';
+  if(_pwTab==='pse'){
+    // Collective PSE chart
+    const labels=days.map(d=>fmtDateShort(d));
+    const avgPSE=days.map(d=>{const ps=APP.pse.filter(p=>p.date===d&&athletes.find(a=>a.id===p.athleteId));return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.pse||0),0)/ps.length*10)/10:null;});
+    const totalUA=days.map(d=>{const ps=APP.pse.filter(p=>p.date===d&&athletes.find(a=>a.id===p.athleteId));return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.ua||0),0)):null;});
+
+    // Individual table
+    const atRows=athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(at=>{
+      const atPSE=APP.pse.filter(p=>p.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
+      const last7=atPSE.filter(p=>days.slice(-7).includes(p.date));
+      const last28=atPSE.filter(p=>days.includes(p.date));
+      const acute=last7.length?Math.round(last7.reduce((s,p)=>s+(+p.ua||0),0)/7*10)/10:0;
+      const chronic=last28.length?Math.round(last28.reduce((s,p)=>s+(+p.ua||0),0)/28*10)/10:0;
+      const acwr=chronic?Math.round(acute/chronic*100)/100:0;
+      const acwrClass=acwr>1.5||acwr<0.8?'bg-r':acwr>=1.0?'bg-g':'bg-y';
+      const lastSub=atPSE[0];
+      return`<tr><td><strong>${at.name}</strong></td><td>${at.pos||'—'}</td>
+      <td style="text-align:center">${lastSub?lastSub.pse:'—'}</td>
+      <td style="text-align:center">${lastSub?lastSub.duration+'min':'—'}</td>
+      <td style="text-align:center">${lastSub?lastSub.ua:'—'}</td>
+      <td style="text-align:center">${acute}</td>
+      <td style="text-align:center">${chronic}</td>
+      <td style="text-align:center">${acwr?`<span class="bdg ${acwrClass}">${acwr}</span>`:'—'}</td>
+      <td><span style="font-size:10px;color:var(--t2)">${lastSub?lastSub.date:'Sem dados'}</span></td></tr>`;
+    }).join('');
+
+    html=`
+    <div class="g2" style="margin-bottom:16px">
+      <div class="card"><div class="ch"><span class="ct">PSE Médio Coletivo</span></div>
+      <div class="cb"><div class="chart-wrap"><canvas id="chart-pse-col"></canvas></div></div></div>
+      <div class="card"><div class="ch"><span class="ct">Unidades de Carga (UA) Total</span></div>
+      <div class="cb"><div class="chart-wrap"><canvas id="chart-ua-col"></canvas></div></div></div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">Individual — PSE & ACWR</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select class="fc" style="width:auto;font-size:11px" onchange="_pwPeriod=+this.value;renderPSEWellness()">
+            <option value="7" ${_pwPeriod===7?'selected':''}>7 dias</option>
+            <option value="14" ${_pwPeriod===14?'selected':''}>14 dias</option>
+            <option value="28" ${_pwPeriod===28?'selected':''}>28 dias</option>
+          </select>
+        </div>
+      </div>
+      <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>PSE</th><th>Dur</th><th>UA</th><th>Carga Aguda</th><th>Carga Crónica</th><th>ACWR</th><th>Última Sub.</th></tr></thead>
+      <tbody>${atRows||'<tr><td colspan="9" style="text-align:center;color:var(--t2);padding:20px">Sem dados PSE</td></tr>'}</tbody></table></div></div>
+    </div>`;
+    setTimeout(()=>{
+      buildChart('chart-pse-col',labels,avgPSE,'PSE Médio','rgba(29,111,59,.7)','rgba(29,111,59,.15)',0,10);
+      buildChart('chart-ua-col',labels,totalUA,'UA Total','rgba(2,132,199,.7)','rgba(2,132,199,.15)',0,null);
+    },50);
+  } else {
+    // WELLNESS heatmap
+    const wDims=['sleep','fatigue','stress','pain','mood'];
+    const wLabels={sleep:'Sono',fatigue:'Fadiga',stress:'Stress',pain:'Dor',mood:'Humor'};
+    const wScaleMax={sleep:5,fatigue:10,stress:10,pain:10,mood:5};
+    function wColor(dim,val){
+      if(!val)return'var(--bg4)';
+      const pct=val/wScaleMax[dim];
+      const isNeg=(dim==='fatigue'||dim==='stress'||dim==='pain');
+      if(isNeg){return pct<=0.3?'rgba(34,197,94,.5)':pct<=0.6?'rgba(234,179,8,.5)':pct<=0.8?'rgba(249,115,22,.5)':'rgba(239,68,68,.5)';}
+      else{return pct>=0.7?'rgba(34,197,94,.5)':pct>=0.4?'rgba(234,179,8,.5)':'rgba(239,68,68,.5)';}
+    }
+    const last7days=days.slice(-7);
+    let hmHtml=`<div style="overflow-x:auto"><table style="width:100%;font-size:10px;border-collapse:collapse">
+    <thead><tr><th style="text-align:left;padding:5px 8px;color:var(--t2)">Atleta</th>${last7days.map(d=>`<th style="text-align:center;padding:5px 4px;color:var(--t2);white-space:nowrap">${fmtDateShort(d)}</th>`).join('')}<th style="text-align:center;padding:5px 8px;color:var(--t2)">Score</th><th style="text-align:center;padding:5px 8px;color:var(--t2)">Ciclo</th></tr></thead><tbody>`;
+    athletes.sort((a,b)=>a.name.localeCompare(b.name)).forEach(at=>{
+      hmHtml+=`<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;font-size:11px">${at.name}</td>`;
+      last7days.forEach(d=>{
+        const w=APP.wellness.find(x=>x.athleteId===at.id&&x.date===d);
+        if(w){
+          const sc=w.score;const sc_c=sc>=70?'rgba(34,197,94,.25)':sc>=45?'rgba(234,179,8,.2)':'rgba(239,68,68,.2)';
+          hmHtml+=`<td style="text-align:center;padding:3px;background:${sc_c}" title="Score:${sc} Sono:${w.sleep} Fadiga:${w.fatigue} Stress:${w.stress} Dor:${w.pain} Humor:${w.mood}"><span style="font-weight:700;font-size:11px">${sc}</span></td>`;
+        } else hmHtml+=`<td style="text-align:center;padding:3px"><span style="color:var(--t3);font-size:10px">—</span></td>`;
+      });
+      const lastW=APP.wellness.filter(w=>w.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+      const scoreC=lastW?(lastW.score>=70?'bg-g':lastW.score>=45?'bg-y':'bg-r'):'bg-gr';
+      hmHtml+=`<td style="text-align:center;padding:4px"><span class="bdg ${scoreC}">${lastW?lastW.score:'—'}</span></td>`;
+      hmHtml+=`<td style="text-align:center;padding:4px;font-size:10px;color:var(--t2)">${lastW?.cycle||'—'}</td></tr>`;
+    });
+    hmHtml+=`</tbody></table></div>`;
+
+    const avgW=days.map(d=>{const ws=APP.wellness.filter(w=>w.date===d&&athletes.find(a=>a.id===w.athleteId));return ws.length?Math.round(ws.reduce((s,w)=>s+(+w.score||0),0)/ws.length):null;});
+    html=`
+    <div class="card" style="margin-bottom:16px">
+      <div class="ch"><span class="ct">Score Wellness — Heatmap (últimos 7 dias)</span>
+        <div style="display:flex;gap:6px;font-size:10px;color:var(--t2)">
+          <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(34,197,94,.3);display:inline-block"></span>≥70</span>
+          <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(234,179,8,.3);display:inline-block"></span>45-69</span>
+          <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(239,68,68,.3);display:inline-block"></span>&lt;45</span>
+        </div>
+      </div>
+      <div class="cb">${hmHtml}</div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">Wellness Médio Coletivo</span></div>
+      <div class="cb"><div class="chart-wrap"><canvas id="chart-w-col"></canvas></div></div>
+    </div>`;
+    setTimeout(()=>buildChart('chart-w-col',days.map(d=>fmtDateShort(d)),avgW,'Wellness Médio','rgba(245,158,11,.7)','rgba(245,158,11,.15)',0,100),50);
+  }
+
+  document.getElementById('pg-pse-wellness').innerHTML=`
+  <div class="sh"><div class="sh-t">📊 PSE & Wellness</div>
+  <div class="sh-a">
+    <select class="fc" style="width:auto;font-size:11px" onchange="_pwTeam=this.value;renderPSEWellness()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_pwTeam?'selected':''}>${t.name}</option>`).join('')}</select>
+  </div></div>
+  ${mainTabs}${html}`;
+}
+
+// ─── SCOUTING ─────────────────────────────────────────────
+let _showScoutForm=false, _editScoutId=null, _scoutFilter='';
+function renderScouting(){
+  const formHtml=_showScoutForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editScoutId?'Editar Scout':'Novo Jogador Scouting'}</div><button class="btn btn-sm btn-gh" onclick="_showScoutForm=false;_editScoutId=null;renderScouting()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Nome *</label><input class="fc" id="sf-name" placeholder="Nome completo"></div>
+    <div class="form-g"><label class="fl">Posição</label><select class="fc" id="sf-pos"><option value="">—</option><option>GR</option><option>DC</option><option>DD</option><option>DE</option><option>MDC</option><option>MC</option><option>MOC</option><option>ELD</option><option>ELE</option><option>PL</option><option>AV</option></select></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Clube</label><input class="fc" id="sf-club" placeholder="Clube atual"></div>
+    <div class="form-g"><label class="fl">Nacionalidade</label><input class="fc" id="sf-nat" placeholder="PT"></div>
+    <div class="form-g"><label class="fl">Idade</label><input class="fc" id="sf-age" type="number" placeholder="23"></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="sf-height" type="number"></div>
+    <div class="form-g"><label class="fl">Pé Dominante</label><select class="fc" id="sf-foot"><option value="">—</option><option>Direito</option><option>Esquerdo</option><option>Ambidestro</option></select></div></div>
+    <div class="form-g"><label class="fl">Rating (1-5)</label>
+      <div class="stars" id="sf-stars-row">${[1,2,3,4,5].map(i=>`<span class="star" onclick="setScoutRating(${i})" data-v="${i}">★</span>`).join('')}</div>
+      <input type="hidden" id="sf-rating" value="0">
+    </div>
+    <div class="form-g"><label class="fl">Relatório / Notas</label><textarea class="fc" id="sf-notes" rows="4" placeholder="Observações técnicas, táticas, físicas..."></textarea></div>
+    <div class="form-g"><label class="fl">URL Vídeo</label><input class="fc" id="sf-video" placeholder="https://youtube.com/..."></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveScout()">💾 Guardar</button><button class="btn btn-gh" onclick="_showScoutForm=false;_editScoutId=null;renderScouting()">Cancelar</button></div>
+  </div>`:'';
+
+  const list=APP.scouting.filter(s=>!_scoutFilter||s.pos===_scoutFilter).sort((a,b)=>(b.rating||0)-(a.rating||0));
+  const posFilter=['','GR','DC','DD','DE','MDC','MC','MOC','ELD','ELE','PL','AV'];
+
+  const cardsHtml=list.length?list.map(s=>`
+  <div class="card" style="padding:14px;display:flex;gap:12px;align-items:flex-start;margin-bottom:10px">
+    <div class="at-av" style="width:44px;height:44px;font-size:16px;flex-shrink:0">${s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;font-weight:800">${s.name}</div>
+          <div style="font-size:11px;color:var(--t2)">${s.pos||'—'} · ${s.club||'—'} · ${s.nat||'—'} ${s.age?'· '+s.age+' anos':''}</div>
+          <div class="stars" style="margin-top:3px">${[1,2,3,4,5].map(i=>`<span class="star ${i<=(s.rating||0)?'on':''}">★</span>`).join('')}</div>
+        </div>
+        <div style="display:flex;gap:5px">
+          ${s.video?`<a href="${s.video}" target="_blank" class="btn btn-sm btn-gh">▶️ Vídeo</a>`:''}
+          <button class="btn btn-sm btn-gh" onclick="editScout('${s.id}')">✏️</button>
+          <button class="btn btn-sm btn-r" onclick="deleteScout('${s.id}')">🗑️</button>
+        </div>
+      </div>
+      ${s.notes?`<div style="font-size:11px;color:var(--t2);margin-top:6px;line-height:1.6">${s.notes}</div>`:''}
+    </div>
+  </div>`).join(''):`<div class="empty"><div class="ei">🔍</div><p>Sem jogadores em scouting</p></div>`;
+
+  document.getElementById('pg-scouting').innerHTML=`
+  <div class="sh"><div class="sh-t">🔍 Scouting (${APP.scouting.length})</div>
+  <div class="sh-a">
+    <select class="fc" style="width:auto;font-size:11px" onchange="_scoutFilter=this.value;renderScouting()">
+      ${posFilter.map(p=>`<option value="${p}" ${p===_scoutFilter?'selected':''}>${p||'Todas posições'}</option>`).join('')}
+    </select>
+    <button class="btn btn-g" onclick="_showScoutForm=!_showScoutForm;_editScoutId=null;renderScouting()">+ Adicionar</button>
+  </div></div>
+  ${formHtml}${cardsHtml}`;
+  if(_editScoutId&&_showScoutForm){
+    const s=APP.scouting.find(x=>x.id===_editScoutId);
+    if(s){['name','pos','club','nat','notes','video','height','foot'].forEach(f=>{const el=document.getElementById('sf-'+f);if(el)el.value=s[f]||'';});
+    document.getElementById('sf-age').value=s.age||'';
+    document.getElementById('sf-rating').value=s.rating||0;
+    document.querySelectorAll('#sf-stars-row .star').forEach((st,i)=>st.classList.toggle('on',i<(s.rating||0)));}
+  }
+}
+function setScoutRating(v){document.getElementById('sf-rating').value=v;document.querySelectorAll('#sf-stars-row .star').forEach((s,i)=>s.classList.toggle('on',i<v));}
+function saveScout(){
+  const name=document.getElementById('sf-name').value.trim();
+  if(!name)return toast('Nome obrigatório','err');
+  const s={id:_editScoutId||uid(),name,pos:document.getElementById('sf-pos').value,club:document.getElementById('sf-club').value,nat:document.getElementById('sf-nat').value,age:+document.getElementById('sf-age').value||null,height:document.getElementById('sf-height').value,foot:document.getElementById('sf-foot').value,rating:+document.getElementById('sf-rating').value||0,notes:document.getElementById('sf-notes').value,video:document.getElementById('sf-video').value,addedAt:today()};
+  if(_editScoutId){const i=APP.scouting.findIndex(x=>x.id===_editScoutId);if(i>=0)APP.scouting[i]=s;}
+  else APP.scouting.push(s);
+  saveData();_showScoutForm=false;_editScoutId=null;toast('Scout guardado ✓');renderScouting();
+}
+function editScout(id){_editScoutId=id;_showScoutForm=true;renderScouting();}
+function deleteScout(id){if(!confirm('Apagar?'))return;APP.scouting=APP.scouting.filter(s=>s.id!==id);saveData();toast('Apagado');renderScouting();}
+
+// ─── AVALIAÇÕES ───────────────────────────────────────────
+let _evalTeam='T1', _evalAtId=null, _showEvalForm=false;
+function renderAvaliacoes(){
+  const athletes=APP.athletes.filter(a=>a.teamId===_evalTeam);
+  const formHtml=_showEvalForm&&_evalAtId?`
+  <div class="ipanel" id="eval-form">
+    <div class="sh"><div class="sh-t">Nova Avaliação — ${APP.athletes.find(a=>a.id===_evalAtId)?.name||''}</div><button class="btn btn-sm btn-gh" onclick="_showEvalForm=false;renderAvaliacoes()">✕</button></div>
+    <label class="fl">Data</label><input class="fc" id="evf-date" type="date" value="${today()}" style="margin-bottom:10px">
+    <div class="eval-row"><span class="eval-label">Técnico</span><input type="range" class="eval-slider" id="evf-tec" min="1" max="10" value="5" oninput="document.getElementById('evv-tec').textContent=this.value"><span class="eval-val" id="evv-tec">5</span></div>
+    <div class="eval-row"><span class="eval-label">Físico</span><input type="range" class="eval-slider" id="evf-fis" min="1" max="10" value="5" oninput="document.getElementById('evv-fis').textContent=this.value"><span class="eval-val" id="evv-fis">5</span></div>
+    <div class="eval-row"><span class="eval-label">Tático</span><input type="range" class="eval-slider" id="evf-tac" min="1" max="10" value="5" oninput="document.getElementById('evv-tac').textContent=this.value"><span class="eval-val" id="evv-tac">5</span></div>
+    <div class="eval-row"><span class="eval-label">Mental</span><input type="range" class="eval-slider" id="evf-men" min="1" max="10" value="5" oninput="document.getElementById('evv-men').textContent=this.value"><span class="eval-val" id="evv-men">5</span></div>
+    <div class="form-g" style="margin-top:10px"><label class="fl">Notas</label><textarea class="fc" id="evf-notes" rows="3"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveEval()">💾 Guardar</button><button class="btn btn-gh" onclick="_showEvalForm=false;renderAvaliacoes()">Cancelar</button></div>
+  </div>`:'';
+
+  const rows=athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(at=>{
+    const evals=APP.evaluations.filter(e=>e.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const last=evals[0];
+    const avg=last?Math.round((last.tec+last.fis+last.tac+last.men)/4*10)/10:'—';
+    const bar=v=>`<div style="display:flex;align-items:center;gap:4px"><div class="prog-bar" style="width:60px"><div class="prog-fill" style="width:${(v/10)*100}%;background:var(--c1)"></div></div><span style="font-size:10px">${v}</span></div>`;
+    return`<tr><td><strong>${at.name}</strong></td><td>${at.pos||'—'}</td>
+    <td>${last?bar(last.tec):'—'}</td><td>${last?bar(last.fis):'—'}</td>
+    <td>${last?bar(last.tac):'—'}</td><td>${last?bar(last.men):'—'}</td>
+    <td style="text-align:center;font-weight:800">${avg}</td>
+    <td style="font-size:10px;color:var(--t2)">${last?last.date:'—'}</td>
+    <td><button class="btn btn-xs btn-g" onclick="_evalAtId='${at.id}';_showEvalForm=true;renderAvaliacoes()">+ Aval.</button></td></tr>`;
+  }).join('');
+
+  document.getElementById('pg-avaliacoes').innerHTML=`
+  <div class="sh"><div class="sh-t">⭐ Avaliações de Desempenho</div>
+    <select class="fc" style="width:auto;font-size:11px" onchange="_evalTeam=this.value;renderAvaliacoes()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_evalTeam?'selected':''}>${t.name}</option>`).join('')}</select>
+  </div>
+  ${formHtml}
+  <div class="card"><div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Técnico</th><th>Físico</th><th>Tático</th><th>Mental</th><th>Média</th><th>Data</th><th>Ação</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>`;
+}
+function saveEval(){
+  const ev={id:uid(),athleteId:_evalAtId,date:document.getElementById('evf-date').value||today(),tec:+document.getElementById('evf-tec').value,fis:+document.getElementById('evf-fis').value,tac:+document.getElementById('evf-tac').value,men:+document.getElementById('evf-men').value,notes:document.getElementById('evf-notes').value};
+  APP.evaluations.push(ev);saveData();_showEvalForm=false;toast('Avaliação guardada ✓');renderAvaliacoes();
+}
+
+// ─── CONVOCATÓRIAS ────────────────────────────────────────
+let _showConvForm=false, _editConvId=null, _convTeam='T1';
+function renderConvocatorias(){
+  const games=APP.games.filter(g=>g.teamId===_convTeam).sort((a,b)=>b.date.localeCompare(a.date));
+  const formHtml=_showConvForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editConvId?'Editar Convocatória':'Nova Convocatória'}</div><button class="btn btn-sm btn-gh" onclick="_showConvForm=false;_editConvId=null;renderConvocatorias()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Jogo</label><select class="fc" id="cf-game"><option value="">— Sem jogo associado —</option>${games.map(g=>`<option value="${g.id}">${fmtDate(g.date)} vs ${g.opp}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="cf-date" type="date" value="${today()}"></div></div>
+    <div class="form-g"><label class="fl">Notas</label><input class="fc" id="cf-notes" placeholder="Ex: Jornada 12 — Liga"></div>
+    <div class="form-g"><label class="fl">Selecionar Atletas</label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-top:6px" id="conv-athletes">
+        ${APP.athletes.filter(a=>a.teamId===_convTeam).sort((a,b)=>(a.num||99)-(b.num||99)).map(at=>{
+          const inj=APP.injuries.find(i=>i.athleteId===at.id&&(i.status==='ativo'||i.status==='reabilitação'));
+          return`<label style="display:flex;align-items:center;gap:7px;padding:6px 8px;background:var(--bg4);border-radius:var(--rs);cursor:pointer;font-size:12px">
+            <input type="checkbox" value="${at.id}" ${inj?'disabled title="Lesionada"':''}>
+            <span>${at.num?'#'+at.num+' ':''}<strong>${at.name}</strong> ${inj?'🩺':''}</span>
+          </label>`;}).join('')}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-g" onclick="saveConvocatoria()">💾 Guardar</button><button class="btn btn-gh" onclick="_showConvForm=false;_editConvId=null;renderConvocatorias()">Cancelar</button></div>
+  </div>`:'';
+
+  const convList=APP.convocatorias.filter(c=>c.teamId===_convTeam).sort((a,b)=>b.date.localeCompare(a.date));
+  const listHtml=convList.length?convList.map(c=>{
+    const game=APP.games.find(g=>g.id===c.gameId);
+    const selected=c.athletes||[];
+    return`<div class="card" style="margin-bottom:12px">
+      <div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)} ${game?'vs '+game.opp:''}</span>
+        <div style="display:flex;gap:6px"><span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)} · ${selected.length} convocadas</span>
+        <button class="btn btn-xs btn-r" onclick="deleteConv('${c.id}')">🗑️</button></div>
+      </div>
+      <div class="cb" style="padding:12px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${selected.map(aid=>{const at=APP.athletes.find(a=>a.id===aid);return at?`<span class="bdg bg-g">${at.num?'#'+at.num+' ':''}${at.name}</span>`:'';}).join('')}
+        </div>
+      </div>
+    </div>`;}).join(''):`<div class="empty"><div class="ei">📋</div><p>Sem convocatórias</p></div>`;
+
+  document.getElementById('pg-convocatorias').innerHTML=`
+  <div class="sh"><div class="sh-t">📋 Convocatórias</div>
+  <div class="sh-a">
+    <select class="fc" style="width:auto;font-size:11px" onchange="_convTeam=this.value;renderConvocatorias()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_convTeam?'selected':''}>${t.name}</option>`).join('')}</select>
+    <button class="btn btn-g" onclick="_showConvForm=!_showConvForm;_editConvId=null;renderConvocatorias()">+ Nova Convocatória</button>
+  </div></div>
+  ${formHtml}${listHtml}`;
+}
+function saveConvocatoria(){
+  const date=document.getElementById('cf-date').value;
+  if(!date)return toast('Data obrigatória','err');
+  const sel=[...document.querySelectorAll('#conv-athletes input:checked')].map(i=>i.value);
+  if(!sel.length)return toast('Seleciona pelo menos uma atleta','err');
+  const c={id:_editConvId||uid(),teamId:_convTeam,gameId:document.getElementById('cf-game').value||null,date,notes:document.getElementById('cf-notes').value,athletes:sel};
+  if(_editConvId){const i=APP.convocatorias.findIndex(x=>x.id===_editConvId);if(i>=0)APP.convocatorias[i]=c;}
+  else APP.convocatorias.push(c);
+  saveData();_showConvForm=false;_editConvId=null;toast('Convocatória guardada ✓');renderConvocatorias();
+}
+function deleteConv(id){if(!confirm('Apagar?'))return;APP.convocatorias=APP.convocatorias.filter(c=>c.id!==id);saveData();toast('Apagada');renderConvocatorias();}
+
+// ─── BIBLIOTECA ───────────────────────────────────────────
+let _libCat='', _showLibForm=false, _editLibId=null;
+const EX_CATS=['Tático','Físico','Técnico','Velocidade','Força','Resistência','Recuperação','Ativação'];
+function renderBiblioteca(){
+  const formHtml=_showLibForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editLibId?'Editar Exercício':'Novo Exercício'}</div><button class="btn btn-sm btn-gh" onclick="_showLibForm=false;_editLibId=null;renderBiblioteca()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Nome *</label><input class="fc" id="lf-name" placeholder="Nome do exercício"></div>
+    <div class="form-g"><label class="fl">Categoria</label><select class="fc" id="lf-cat">${EX_CATS.map(c=>`<option>${c}</option>`).join('')}</select></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Músculos / Componente</label><input class="fc" id="lf-muscles" placeholder="Quadriceps, Core..."></div>
+    <div class="form-g"><label class="fl">Dificuldade</label><select class="fc" id="lf-diff"><option>Leve</option><option>Médio</option><option>Intenso</option><option>Máximo</option></select></div></div>
+    <div class="form-g"><label class="fl">Equipamento</label><input class="fc" id="lf-equip" placeholder="Bola, Cones, Barras..."></div>
+    <div class="form-g"><label class="fl">Descrição</label><textarea class="fc" id="lf-desc" rows="3"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveExercise()">💾 Guardar</button><button class="btn btn-gh" onclick="_showLibForm=false;_editLibId=null;renderBiblioteca()">Cancelar</button></div>
+  </div>`:'';
+
+  const list=APP.exercises.filter(e=>!_libCat||e.cat===_libCat);
+  const catCounts={};APP.exercises.forEach(e=>{catCounts[e.cat]=(catCounts[e.cat]||0)+1;});
+  const catBtns=[{k:'',v:'Todos ('+APP.exercises.length+')'},...EX_CATS.map(c=>({k:c,v:c+' ('+(catCounts[c]||0)+')'}))];
+  const diffColors={Leve:'bg-g',Médio:'bg-b',Intenso:'bg-y',Máximo:'bg-r'};
+
+  const cardsHtml=list.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">${list.map(e=>`
+  <div class="card" style="padding:13px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+      <div style="font-size:12px;font-weight:800;line-height:1.3">${e.name}</div>
+      <div style="display:flex;gap:3px">
+        <button class="btn btn-xs btn-gh" onclick="editExercise('${e.id}')">✏️</button>
+        <button class="btn btn-xs btn-r" onclick="deleteExercise('${e.id}')">🗑️</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px">
+      <span class="bdg bg-b">${e.cat}</span>
+      <span class="bdg ${diffColors[e.diff]||'bg-gr'}">${e.diff}</span>
+      ${e.equip?`<span class="bdg bg-gr">${e.equip}</span>`:''}
+    </div>
+    ${e.muscles?`<div style="font-size:10px;color:var(--t2)">💪 ${e.muscles}</div>`:''}
+    ${e.desc?`<div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.5">${e.desc}</div>`:''}
+  </div>`).join('')}</div>`:`<div class="empty"><div class="ei">📚</div><p>Sem exercícios nesta categoria</p></div>`;
+
+  document.getElementById('pg-biblioteca').innerHTML=`
+  <div class="sh"><div class="sh-t">📚 Biblioteca de Exercícios (${APP.exercises.length})</div>
+  <button class="btn btn-g" onclick="_showLibForm=!_showLibForm;_editLibId=null;renderBiblioteca()">+ Novo Exercício</button></div>
+  ${formHtml}
+  <div class="tabs">${catBtns.map(c=>`<button class="tab-btn ${c.k===_libCat?'on':''}" onclick="_libCat='${c.k}';renderBiblioteca()">${c.v}</button>`).join('')}</div>
+  ${cardsHtml}`;
+  if(_editLibId&&_showLibForm){const e=APP.exercises.find(x=>x.id===_editLibId);if(e){['name','cat','muscles','diff','equip','desc'].forEach(f=>{const el=document.getElementById('lf-'+f);if(el)el.value=e[f]||'';});}}
+}
+function saveExercise(){
+  const name=document.getElementById('lf-name').value.trim();
+  if(!name)return toast('Nome obrigatório','err');
+  const e={id:_editLibId||uid(),name,cat:document.getElementById('lf-cat').value,muscles:document.getElementById('lf-muscles').value,diff:document.getElementById('lf-diff').value,equip:document.getElementById('lf-equip').value,desc:document.getElementById('lf-desc').value};
+  if(_editLibId){const i=APP.exercises.findIndex(x=>x.id===_editLibId);if(i>=0)APP.exercises[i]=e;}
+  else APP.exercises.push(e);
+  saveData();_showLibForm=false;_editLibId=null;toast('Exercício guardado ✓');renderBiblioteca();
+}
+function editExercise(id){_editLibId=id;_showLibForm=true;renderBiblioteca();}
+function deleteExercise(id){if(!confirm('Apagar?'))return;APP.exercises=APP.exercises.filter(e=>e.id!==id);saveData();toast('Apagado');renderBiblioteca();}
+
+// ─── TREINOS INDIVIDUALIZADOS ─────────────────────────────
+let _tiTeam='T1', _tiAtId=null, _showTiForm=false;
+function renderTreinosInd(){
+  const athletes=APP.athletes.filter(a=>a.teamId===_tiTeam);
+  const formHtml=_showTiForm&&_tiAtId?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">Nova Ficha — ${APP.athletes.find(a=>a.id===_tiAtId)?.name||''}</div><button class="btn btn-sm btn-gh" onclick="_showTiForm=false;renderTreinosInd()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Título</label><input class="fc" id="tf-title" placeholder="Ex: Trabalho de Velocidade"></div>
+    <div class="form-g"><label class="fl">Tipo</label><select class="fc" id="tf-type"><option>Físico</option><option>Técnico</option><option>Tático</option><option>Mental</option><option>Reabilitação</option><option>Velocidade</option><option>Força</option><option>Resistência</option></select></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Semana</label><input class="fc" id="tf-week" type="date"></div>
+    <div class="form-g"><label class="fl">Volume</label><input class="fc" id="tf-vol" placeholder="Ex: 45 min"></div></div>
+    <div class="form-g"><label class="fl">Descrição / Exercícios</label><textarea class="fc" id="tf-desc" rows="5" placeholder="Descreve os exercícios, séries, repetições..."></textarea></div>
+    <div class="form-g"><label class="fl">Nota para a Atleta</label><input class="fc" id="tf-note" placeholder="Mensagem motivacional ou instrução especial"></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveTreinoInd()">💾 Guardar</button><button class="btn btn-gh" onclick="_showTiForm=false;renderTreinosInd()">Cancelar</button></div>
+  </div>`:'';
+
+  const rows=athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(at=>{
+    const plans=APP.trainingPlans.filter(p=>p.athleteId===at.id).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||''));
+    const active=plans.filter(p=>!p.done).length;
+    const done=plans.filter(p=>p.done).length;
+    return`<tr><td><strong>${at.name}</strong></td><td>${at.pos||'—'}</td>
+    <td style="text-align:center"><span class="bdg bg-b">${active} ativa${active!==1?'s':''}</span></td>
+    <td style="text-align:center"><span class="bdg bg-g">${done} concluída${done!==1?'s':''}</span></td>
+    <td><button class="btn btn-xs btn-g" onclick="_tiAtId='${at.id}';_showTiForm=true;renderTreinosInd()">+ Ficha</button>
+    <button class="btn btn-xs btn-gh" onclick="viewTreinosAt('${at.id}')">Ver todas</button></td></tr>`;
+  }).join('');
+
+  document.getElementById('pg-treinos-ind').innerHTML=`
+  <div class="sh"><div class="sh-t">🏋️ Treinos Individualizados</div>
+    <select class="fc" style="width:auto;font-size:11px" onchange="_tiTeam=this.value;renderTreinosInd()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_tiTeam?'selected':''}>${t.name}</option>`).join('')}</select>
+  </div>
+  ${formHtml}
+  <div class="card"><div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Posição</th><th>Fichas Ativas</th><th>Concluídas</th><th>Ações</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>`;
+}
+function saveTreinoInd(){
+  const tp={id:uid(),athleteId:_tiAtId,title:document.getElementById('tf-title').value||'Ficha de Treino',type:document.getElementById('tf-type').value,week:document.getElementById('tf-week').value,volume:document.getElementById('tf-vol').value,description:document.getElementById('tf-desc').value,note:document.getElementById('tf-note').value,done:false,createdAt:today()};
+  APP.trainingPlans.push(tp);saveData();_showTiForm=false;toast('Ficha criada ✓');renderTreinosInd();
+}
+function viewTreinosAt(aid){
+  const at=APP.athletes.find(a=>a.id===aid);
+  const plans=APP.trainingPlans.filter(p=>p.athleteId===aid).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||''));
+  openMod(`📋 Fichas — ${at?.name||''}`,`
+  ${plans.length?plans.map(p=>`<div class="card" style="margin-bottom:10px;padding:13px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+      <div><div style="font-size:13px;font-weight:800">${p.title}</div>
+      <div style="font-size:10px;color:var(--t2)">${p.type} ${p.week?'· '+fmtDate(p.week):''} ${p.volume?'· '+p.volume:''}</div></div>
+      ${p.done?'<span class="bdg bg-g">✓ Concluída</span>':'<span class="bdg bg-y">Pendente</span>'}
+    </div>
+    ${p.description?`<div style="font-size:11px;color:var(--t2);line-height:1.6">${p.description}</div>`:''}
+    ${p.note?`<div class="al al-b" style="margin-top:8px;font-size:11px">💬 ${p.note}</div>`:''}
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <button class="btn btn-xs btn-r" onclick="deleteTreinoInd('${p.id}')">🗑️</button>
+    </div>
+  </div>`).join(''):
+  '<div class="empty"><p>Sem fichas criadas</p></div>'}`,'lg');
+}
+function deleteTreinoInd(id){if(!confirm('Apagar?'))return;APP.trainingPlans=APP.trainingPlans.filter(p=>p.id!==id);saveData();toast('Apagada');closeMod();renderTreinosInd();}
+
+// ─── FORMAÇÃO ─────────────────────────────────────────────
+let _formTeam=null;
+function renderFormacao(){
+  const youthTeams=APP.teams.filter(t=>t.type==='formacao'||t.id!=='T1');
+  if(!_formTeam&&youthTeams.length)_formTeam=youthTeams[0].id;
+  const addTeamHtml=`<div class="ipanel" style="max-width:400px">
+    <div class="fl" style="margin-bottom:8px">Adicionar Equipa de Formação</div>
+    <div class="fr"><input class="fc" id="ft-name" placeholder="Ex: Sub-19"><select class="fc" id="ft-cat"><option>Sub-23</option><option>Sub-21</option><option>Sub-19</option><option>Sub-17</option><option>Sub-15</option><option>Outro</option></select></div>
+    <button class="btn btn-g btn-sm" style="margin-top:8px" onclick="addFormTeam()">+ Adicionar</button>
+  </div>`;
+  const tabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_formTeam?'on':''}" onclick="_formTeam='${t.id}';renderFormacao()">${t.name}</button>`).join('');
+  const currentAt=_formTeam?APP.athletes.filter(a=>a.teamId===_formTeam):[];
+  document.getElementById('pg-formacao').innerHTML=`
+  <div class="sh"><div class="sh-t">🌱 Equipas de Formação</div></div>
+  <div class="tabs">${tabs}</div>
+  ${addTeamHtml}
+  ${_formTeam?`<div class="sh"><div class="sh-t">${APP.teams.find(t=>t.id===_formTeam)?.name||''} (${currentAt.length} atletas)</div>
+    <button class="btn btn-g btn-sm" onclick="_plantelTeam=_formTeam;_showAtForm=true;navTo('plantel')">+ Adicionar Atleta</button>
+  </div>
+  <div class="pgrid">${currentAt.length?currentAt.sort((a,b)=>(a.num||99)-(b.num||99)).map(at=>`
+    <div class="at-card" onclick="openAthleteModal('${at.id}')">
+      <div class="at-av">${initials(at.name)}</div>
+      <div class="at-name">${at.name}</div><div class="at-pos">${at.pos||'—'}</div>
+      <div class="at-num">${at.num?'#'+at.num:''}</div>
+    </div>`).join(''):'<div class="empty" style="grid-column:1/-1"><p>Sem atletas</p></div>'}
+  </div>`:''}`;
+}
+function addFormTeam(){
+  const name=document.getElementById('ft-name').value.trim();
+  if(!name)return;
+  const cat=document.getElementById('ft-cat').value;
+  const t={id:uid(),name,type:'formacao',cat};
+  APP.teams.push(t);saveData();_formTeam=t.id;toast('Equipa adicionada ✓');renderFormacao();
+}
+
+// ─── FISIOTERAPIA ─────────────────────────────────────────
+function renderFisioDash(){
+  const active=APP.injuries.filter(i=>i.status==='ativo');
+  const rehab=APP.injuries.filter(i=>i.status==='reabilitação');
+  const alta=APP.injuries.filter(i=>i.status==='alta').length;
+  const rows=[...active,...rehab].sort((a,b)=>b.date.localeCompare(a.date)).map(inj=>{
+    const at=APP.athletes.find(a=>a.id===inj.athleteId);
+    const treats=APP.treatments.filter(t=>t.injuryId===inj.id);
+    const lastT=treats.sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const daysInj=diffDays(inj.date,today());
+    return`<div class="card" style="margin-bottom:10px;padding:14px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <div>
+          <div style="font-size:13px;font-weight:800">${at?.name||'?'} <span style="font-size:10px;color:var(--t2)">${at?.pos||''}</span></div>
+          <div style="font-size:11px;color:var(--t2)">${inj.type||'—'} · ${inj.diagnosis||'—'} · ${inj.bodyPart||''}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${statusBadge(inj.status)} ${sevBadge(inj.severity)}
+          <span style="font-size:10px;color:var(--t2)">${daysInj}d</span>
+        </div>
+      </div>
+      <div class="pbar">${[1,2,3,4,5].map(p=>`<div class="ps ${p<(inj.phase||1)?'done':p===(inj.phase||1)?'now':''}"></div>`).join('')}</div>
+      <div style="font-size:10px;color:var(--t2);margin-top:3px">Fase ${inj.phase||1}/5 — ${inj.phaseDesc||'Avaliação inicial'} ${inj.returnDate?'· Retorno: '+fmtDate(inj.returnDate):''}</div>
+      ${lastT?`<div style="font-size:11px;color:var(--t2);margin-top:6px">Último tratamento: ${lastT.type} — ${fmtDate(lastT.date)}</div>`:''}
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-xs btn-g" onclick="navTo('fisio-trat');setTratAt('${inj.id}')">+ Tratamento</button>
+        <button class="btn btn-xs btn-gh" onclick="updatePhase('${inj.id}')">📈 Fase</button>
+        <button class="btn btn-xs btn-gh" onclick="altaMedica('${inj.id}')">✅ Alta</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('pg-fisio-dash').innerHTML=`
+  <div class="kpis">
+    <div class="kpi red"><div class="kpi-lbl">Ativas</div><div class="kpi-val" style="color:#f87171">${active.length}</div><div class="kpi-sub">Lesões em curso</div></div>
+    <div class="kpi yel"><div class="kpi-lbl">Reabilitação</div><div class="kpi-val" style="color:#fbbf24">${rehab.length}</div><div class="kpi-sub">Em prog. reab.</div></div>
+    <div class="kpi grn"><div class="kpi-lbl">Alta</div><div class="kpi-val" style="color:#4ade80">${alta}</div><div class="kpi-sub">Total altas</div></div>
+    <div class="kpi"><div class="kpi-lbl">Tratamentos</div><div class="kpi-val">${APP.treatments.length}</div><div class="kpi-sub">Total registados</div></div>
+  </div>
+  <div class="sh"><div class="sh-t">🩺 Atletas em Acompanhamento</div>
+    <button class="btn btn-g" onclick="navTo('fisio-ep')">+ Novo Episódio</button>
+  </div>
+  ${rows||`<div class="empty"><div class="ei">🏥</div><p>Sem lesões ativas</p><div class="esub">Todas as atletas disponíveis</div></div>`}`;
+}
+
+let _showEpForm=false, _editEpId=null;
+function renderFisioEp(){
+  const formHtml=_showEpForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editEpId?'Editar Episódio':'Novo Episódio de Lesão'}</div><button class="btn btn-sm btn-gh" onclick="_showEpForm=false;_editEpId=null;renderFisioEp()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="epf-at"><option value="">— Atleta —</option>${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}">${a.name} (${APP.teams.find(t=>t.id===a.teamId)?.name||'—'})</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Data Lesão *</label><input class="fc" id="epf-date" type="date" value="${today()}"></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Tipo</label><select class="fc" id="epf-type"><option>Muscular</option><option>Ligamentar</option><option>Óssea</option><option>Tendinosa</option><option>Contusão</option><option>Outro</option></select></div>
+    <div class="form-g"><label class="fl">Segmento / Localização</label><input class="fc" id="epf-body" placeholder="Ex: Coxa direita, Tornozelo..."></div></div>
+    <div class="form-g"><label class="fl">Diagnóstico</label><input class="fc" id="epf-diag" placeholder="Diagnóstico clínico"></div>
+    <div class="fr"><div class="form-g"><label class="fl">Gravidade</label><select class="fc" id="epf-sev"><option>ligeira</option><option>moderada</option><option>grave</option><option>muito grave</option></select></div>
+    <div class="form-g"><label class="fl">Retorno Previsto</label><input class="fc" id="epf-ret" type="date"></div></div>
+    <div class="form-g"><label class="fl">Mecanismo / Notas</label><textarea class="fc" id="epf-notes" rows="3"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveEpisodio()">💾 Guardar</button><button class="btn btn-gh" onclick="_showEpForm=false;_editEpId=null;renderFisioEp()">Cancelar</button></div>
+  </div>`:'';
+
+  const list=APP.injuries.sort((a,b)=>b.date.localeCompare(a.date));
+  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Atleta</th><th>Data</th><th>Tipo</th><th>Diagnóstico</th><th>Localização</th><th>Gravidade</th><th>Status</th><th>Retorno</th><th>Ações</th></tr></thead>
+  <tbody>${list.map(i=>{const at=APP.athletes.find(a=>a.id===i.athleteId);return`<tr>
+    <td><strong>${at?.name||'?'}</strong></td>
+    <td>${fmtDate(i.date)}</td><td>${i.type||'—'}</td>
+    <td>${i.diagnosis||'—'}</td><td>${i.bodyPart||'—'}</td>
+    <td>${sevBadge(i.severity)}</td><td>${statusBadge(i.status)}</td>
+    <td>${i.returnDate?fmtDate(i.returnDate):'—'}</td>
+    <td><button class="btn btn-xs btn-gh" onclick="editEpisodio('${i.id}')">✏️</button> <button class="btn btn-xs btn-r" onclick="deleteEpisodio('${i.id}')">🗑️</button></td>
+  </tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">🩺</div><p>Sem episódios registados</p></div>`;
+
+  document.getElementById('pg-fisio-ep').innerHTML=`
+  <div class="sh"><div class="sh-t">🩺 Episódios de Lesão (${list.length})</div>
+  <button class="btn btn-g" onclick="_showEpForm=!_showEpForm;_editEpId=null;renderFisioEp()">+ Novo Episódio</button></div>
+  ${formHtml}${tableHtml}`;
+  if(_editEpId&&_showEpForm){const i=APP.injuries.find(x=>x.id===_editEpId);if(i){['at','date','type','body','diag','sev','ret','notes'].forEach(f=>{const el=document.getElementById('epf-'+f);if(el)el.value=f==='at'?i.athleteId:i[f==='at'?'athleteId':f==='body'?'bodyPart':f==='diag'?'diagnosis':f==='sev'?'severity':f==='ret'?'returnDate':f]||'';});}}
+}
+function saveEpisodio(){
+  const aid=document.getElementById('epf-at').value;
+  const date=document.getElementById('epf-date').value;
+  if(!aid||!date)return toast('Atleta e data obrigatórios','err');
+  const ep={id:_editEpId||uid(),athleteId:aid,date,type:document.getElementById('epf-type').value,bodyPart:document.getElementById('epf-body').value,diagnosis:document.getElementById('epf-diag').value,severity:document.getElementById('epf-sev').value,returnDate:document.getElementById('epf-ret').value,notes:document.getElementById('epf-notes').value,status:'ativo',phase:1,phaseDesc:'Avaliação inicial',progress:0};
+  if(_editEpId){const i=APP.injuries.findIndex(x=>x.id===_editEpId);if(i>=0)APP.injuries[i]={...APP.injuries[i],...ep};}
+  else APP.injuries.push(ep);
+  saveData();_showEpForm=false;_editEpId=null;toast('Episódio registado ✓');renderFisioEp();
+}
+function editEpisodio(id){_editEpId=id;_showEpForm=true;renderFisioEp();}
+function deleteEpisodio(id){if(!confirm('Apagar?'))return;APP.injuries=APP.injuries.filter(i=>i.id!==id);APP.treatments=APP.treatments.filter(t=>t.injuryId!==id);saveData();toast('Apagado');renderFisioEp();}
+function altaMedica(id){const i=APP.injuries.find(x=>x.id===id);if(i){i.status='alta';i.phase=5;saveData();toast('Alta médica registada ✓');renderFisioDash();}}
+function updatePhase(id){
+  const i=APP.injuries.find(x=>x.id===id);if(!i)return;
+  const phases=['Avaliação inicial','Controlo da dor','Recuperação funcional','Treino específico','Retorno ao jogo'];
+  const next=Math.min((i.phase||1)+1,5);
+  i.phase=next;i.phaseDesc=phases[next-1];
+  if(next>=4)i.status='reabilitação';
+  saveData();toast(`Fase ${next}: ${phases[next-1]}`);renderFisioDash();
+}
+let _tratEpId=null;
+function setTratAt(epId){_tratEpId=epId;renderFisioTrat();}
+function renderFisioTrat(){
+  const inj=APP.injuries.find(i=>i.id===_tratEpId);
+  const at=inj?APP.athletes.find(a=>a.id===inj.athleteId):null;
+  const formHtml=`
+  <div class="ipanel" style="max-width:600px">
+    <div class="sh"><div class="sh-t">Registar Tratamento ${at?'— '+at.name:''}</div></div>
+    <div class="form-g"><label class="fl">Episódio de Lesão</label>
+      <select class="fc" id="tf-inj" onchange="_tratEpId=this.value;renderFisioTrat()">${APP.injuries.filter(i=>i.status!=='alta').map(i=>{const a=APP.athletes.find(x=>x.id===i.athleteId);return`<option value="${i.id}" ${i.id===_tratEpId?'selected':''}>${a?.name||'?'} — ${i.diagnosis||i.type} (${i.status})</option>`;}).join('')}</select>
+    </div>
+    <div class="fr"><div class="form-g"><label class="fl">Data *</label><input class="fc" id="tr-date" type="date" value="${today()}"></div>
+    <div class="form-g"><label class="fl">Tipo de Tratamento</label><select class="fc" id="tr-type"><option>Fisioterapia Manual</option><option>Electroterapia</option><option>Hidroterapia</option><option>Crioterapia</option><option>Termoterapia</option><option>Massagem</option><option>Fortalecimento</option><option>Mobilidade</option><option>Propriocepção</option><option>Outro</option></select></div></div>
+    <div class="form-g"><label class="fl">Descrição / Protocolo</label><textarea class="fc" id="tr-desc" rows="3" placeholder="Técnicas aplicadas, duração, intensidade..."></textarea></div>
+    <div class="fr"><div class="form-g"><label class="fl">Resposta da Atleta</label><select class="fc" id="tr-resp"><option value="">— Selecionar —</option><option>Boa</option><option>Moderada</option><option>Fraca</option><option>Sem alteração</option></select></div>
+    <div class="form-g"><label class="fl">Profissional</label><input class="fc" id="tr-prof" placeholder="Nome do fisioterapeuta"></div></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveTratamento()">💾 Guardar</button></div>
+  </div>`;
+
+  const treats=APP.treatments.sort((a,b)=>b.date.localeCompare(a.date));
+  const tableHtml=treats.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Atleta</th><th>Lesão</th><th>Tipo</th><th>Resposta</th><th>Profissional</th><th>Ações</th></tr></thead>
+  <tbody>${treats.map(t=>{const i=APP.injuries.find(x=>x.id===t.injuryId);const a=APP.athletes.find(x=>x.id===t.athleteId||(i&&x.id===i.athleteId));const rClr={Boa:'bg-g',Moderada:'bg-y',Fraca:'bg-r','Sem alteração':'bg-gr'}[t.response]||'bg-gr';
+  return`<tr><td>${fmtDate(t.date)}</td><td><strong>${a?.name||'?'}</strong></td><td>${i?.diagnosis||i?.type||'—'}</td><td>${t.type}</td>
+  <td>${t.response?`<span class="bdg ${rClr}">${t.response}</span>`:'—'}</td><td>${t.professional||'—'}</td>
+  <td><button class="btn btn-xs btn-r" onclick="deleteTrat('${t.id}')">🗑️</button></td></tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">💊</div><p>Sem tratamentos</p></div>`;
+
+  document.getElementById('pg-fisio-trat').innerHTML=`
+  <div class="sh"><div class="sh-t">💊 Tratamentos (${treats.length})</div></div>
+  ${formHtml}
+  <div class="sh" style="margin-top:20px"><div class="sh-t">Histórico de Tratamentos</div></div>
+  ${tableHtml}`;
+}
+function saveTratamento(){
+  const date=document.getElementById('tr-date').value;
+  if(!date)return toast('Data obrigatória','err');
+  const inj=APP.injuries.find(i=>i.id===_tratEpId);
+  const t={id:uid(),injuryId:_tratEpId,athleteId:inj?.athleteId||null,date,type:document.getElementById('tr-type').value,description:document.getElementById('tr-desc').value,response:document.getElementById('tr-resp').value,professional:document.getElementById('tr-prof').value};
+  APP.treatments.push(t);saveData();toast('Tratamento registado ✓');renderFisioTrat();
+}
+function deleteTrat(id){if(!confirm('Apagar?'))return;APP.treatments=APP.treatments.filter(t=>t.id!==id);saveData();toast('Apagado');renderFisioTrat();}
+
+// ─── NUTRIÇÃO ─────────────────────────────────────────────
+function renderNutriDash(){
+  const athletes=APP.athletes.sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=athletes.map(at=>{
+    const avals=APP.nutritionAssessments.filter(x=>x.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const last=avals[0];
+    const plan=APP.nutritionPlans.find(p=>p.athleteId===at.id&&p.active);
+    const bmi=last?.bmi?+last.bmi:null;
+    const bmiClass=bmi?(bmi<18.5?'bg-y':bmi<25?'bg-g':bmi<30?'bg-y':'bg-r'):'bg-gr';
+    return`<tr><td><strong>${at.name}</strong></td><td>${at.pos||'—'}</td>
+    <td style="text-align:center">${last?last.weight+'kg':'—'}</td>
+    <td style="text-align:center">${bmi?`<span class="bdg ${bmiClass}">${bmi}</span>`:'—'}</td>
+    <td style="text-align:center">${last?last.bodyFat+'%':'—'}</td>
+    <td style="text-align:center">${plan?`<span class="bdg bg-g">${plan.kcal||'?'} kcal</span>`:'<span class="bdg bg-gr">Sem plano</span>'}</td>
+    <td style="font-size:10px;color:var(--t2)">${last?last.date:'—'}</td>
+    <td><button class="btn btn-xs btn-g" onclick="_naAtId='${at.id}';_showNaForm=true;navTo('nutri-aval')">+ Aval.</button>
+        <button class="btn btn-xs btn-gh" onclick="_npAtId='${at.id}';_showNpForm=true;navTo('nutri-planos')">+ Plano</button></td></tr>`;
+  }).join('');
+
+  const withPlan=APP.athletes.filter(a=>APP.nutritionPlans.some(p=>p.athleteId===a.id&&p.active)).length;
+  document.getElementById('pg-nutri-dash').innerHTML=`
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-lbl">Atletas</div><div class="kpi-val">${athletes.length}</div></div>
+    <div class="kpi grn"><div class="kpi-lbl">Com Plano Ativo</div><div class="kpi-val" style="color:#4ade80">${withPlan}</div></div>
+    <div class="kpi yel"><div class="kpi-lbl">Sem Plano</div><div class="kpi-val">${athletes.length-withPlan}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Avaliações</div><div class="kpi-val">${APP.nutritionAssessments.length}</div></div>
+  </div>
+  <div class="card"><div class="ch"><span class="ct">🥗 Visão Geral Nutricional</span></div>
+  <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Peso</th><th>IMC</th><th>% Gordo</th><th>Plano Ativo</th><th>Última Aval.</th><th>Ações</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>`;
+}
+
+let _naAtId=null, _showNaForm=false;
+function renderNutriAval(){
+  const formHtml=_showNaForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">Nova Avaliação ${_naAtId?'— '+APP.athletes.find(a=>a.id===_naAtId)?.name:''}</div><button class="btn btn-sm btn-gh" onclick="_showNaForm=false;renderNutriAval()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="na-at" onchange="_naAtId=this.value">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_naAtId?'selected':''}>${a.name}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="na-date" type="date" value="${today()}"></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Peso (kg)</label><input class="fc" id="na-wt" type="number" step="0.1" oninput="calcBMI()"></div>
+    <div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="na-ht" type="number" oninput="calcBMI()"></div>
+    <div class="form-g"><label class="fl">IMC (auto)</label><input class="fc" id="na-bmi" readonly placeholder="—"></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">% Gordura</label><input class="fc" id="na-fat" type="number" step="0.1"></div>
+    <div class="form-g"><label class="fl">% Massa Muscular</label><input class="fc" id="na-mus" type="number" step="0.1"></div>
+    <div class="form-g"><label class="fl">Hidratação</label><select class="fc" id="na-hyd"><option value="">—</option><option>Boa</option><option>Moderada</option><option>Fraca</option></select></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Prega Tricipital (mm)</label><input class="fc" id="na-tri" type="number" step="0.1"></div>
+    <div class="form-g"><label class="fl">Prega Supra-ilíaca (mm)</label><input class="fc" id="na-sup" type="number" step="0.1"></div></div>
+    <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="na-notes" rows="2"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveNutriAval()">💾 Guardar</button><button class="btn btn-gh" onclick="_showNaForm=false;renderNutriAval()">Cancelar</button></div>
+  </div>`:'';
+
+  const list=APP.nutritionAssessments.sort((a,b)=>b.date.localeCompare(a.date));
+  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Atleta</th><th>Peso</th><th>Altura</th><th>IMC</th><th>% Gordo</th><th>% Músculo</th><th>Hidratação</th><th>Ações</th></tr></thead>
+  <tbody>${list.map(a=>{const at=APP.athletes.find(x=>x.id===a.athleteId);const bmi=+a.bmi||0;const bc=bmi<18.5?'bg-y':bmi<25?'bg-g':bmi<30?'bg-y':'bg-r';
+  return`<tr><td>${fmtDate(a.date)}</td><td><strong>${at?.name||'?'}</strong></td>
+  <td>${a.weight?a.weight+'kg':'—'}</td><td>${a.height?a.height+'cm':'—'}</td>
+  <td>${bmi?`<span class="bdg ${bc}">${bmi}</span>`:'—'}</td>
+  <td>${a.bodyFat?a.bodyFat+'%':'—'}</td><td>${a.muscle?a.muscle+'%':'—'}</td>
+  <td>${a.hydration||'—'}</td>
+  <td><button class="btn btn-xs btn-r" onclick="deleteNutriAval('${a.id}')">🗑️</button></td></tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">📏</div><p>Sem avaliações</p></div>`;
+
+  document.getElementById('pg-nutri-aval').innerHTML=`
+  <div class="sh"><div class="sh-t">📏 Avaliações Antropométricas</div>
+  <button class="btn btn-g" onclick="_showNaForm=!_showNaForm;renderNutriAval()">+ Nova Avaliação</button></div>
+  ${formHtml}${tableHtml}`;
+}
+function calcBMI(){
+  const wt=+document.getElementById('na-wt').value;
+  const ht=+document.getElementById('na-ht').value;
+  if(wt&&ht){const bmi=Math.round(wt/((ht/100)**2)*10)/10;document.getElementById('na-bmi').value=bmi;}
+}
+function saveNutriAval(){
+  const aid=document.getElementById('na-at').value;
+  const date=document.getElementById('na-date').value;
+  if(!aid||!date)return toast('Atleta e data obrigatórios','err');
+  const a={id:uid(),athleteId:aid,date,weight:document.getElementById('na-wt').value,height:document.getElementById('na-ht').value,bmi:document.getElementById('na-bmi').value,bodyFat:document.getElementById('na-fat').value,muscle:document.getElementById('na-mus').value,hydration:document.getElementById('na-hyd').value,tricipital:document.getElementById('na-tri').value,suprailiaca:document.getElementById('na-sup').value,notes:document.getElementById('na-notes').value};
+  APP.nutritionAssessments.push(a);saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
+}
+function deleteNutriAval(id){if(!confirm('Apagar?'))return;APP.nutritionAssessments=APP.nutritionAssessments.filter(a=>a.id!==id);saveData();toast('Apagada');renderNutriAval();}
+
+let _npAtId=null, _showNpForm=false, _editNpId=null;
+const MEALS=['Pequeno-almoço','Meio da manhã','Almoço','Lanche da tarde','Jantar','Ceia'];
+const MEAL_ICONS={'Pequeno-almoço':'🌅','Meio da manhã':'🍎','Almoço':'🍽️','Lanche da tarde':'🥐','Jantar':'🌙','Ceia':'🌛'};
+function renderNutriPlanos(){
+  const formHtml=_showNpForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editNpId?'Editar Plano':'Novo Plano Nutricional'}</div><button class="btn btn-sm btn-gh" onclick="_showNpForm=false;_editNpId=null;renderNutriPlanos()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="np-at">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_npAtId?'selected':''}>${a.name}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Nome do Plano *</label><input class="fc" id="np-name" placeholder="Ex: Plano Competição"></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Objetivo</label><input class="fc" id="np-obj" placeholder="Manutenção / Definição..."></div>
+    <div class="form-g"><label class="fl">Total kcal</label><input class="fc" id="np-kcal" type="number" placeholder="2200"></div>
+    <div class="form-g"><label class="fl">Proteína (g)</label><input class="fc" id="np-prot" type="number"></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Hidratos (g)</label><input class="fc" id="np-carb" type="number"></div>
+    <div class="form-g"><label class="fl">Gordura (g)</label><input class="fc" id="np-fat" type="number"></div></div>
+    <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px">Refeições</div>
+    ${MEALS.map((m,i)=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m]||'🍴'} ${m}</div>
+    <div class="fr"><div class="form-g"><label class="fl">Hora</label><input class="fc" id="np-mt-${i}" type="time"></div>
+    <div class="form-g"><label class="fl">kcal</label><input class="fc" id="np-mk-${i}" type="number" placeholder="0"></div></div>
+    <div class="form-g"><textarea class="fc" id="np-mf-${i}" rows="2" placeholder="Alimentos e quantidades..."></textarea></div>
+    </div>`).join('')}
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-g" onclick="saveNutriPlano()">💾 Guardar Plano</button><button class="btn btn-gh" onclick="_showNpForm=false;_editNpId=null;renderNutriPlanos()">Cancelar</button></div>
+  </div>`:'';
+
+  const plans=APP.nutritionPlans.sort((a,b)=>b.startDate?.localeCompare(a.startDate||''));
+  const plansHtml=plans.length?plans.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return`<div class="card" style="margin-bottom:12px">
+    <div class="ch"><span class="ct">${at?.name||'?'} — ${p.name}</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${p.active?'<span class="bdg bg-g">Ativo</span>':'<span class="bdg bg-gr">Inativo</span>'}
+        <button class="btn btn-xs btn-gh" onclick="toggleNpActive('${p.id}')">${p.active?'Desativar':'Ativar'}</button>
+        <button class="btn btn-xs btn-r" onclick="deleteNutriPlano('${p.id}')">🗑️</button>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="macros" style="margin-bottom:12px">${p.kcal?`<span class="mac">🔥 ${p.kcal} kcal</span>`:''}${p.protein?`<span class="mac">🥩 ${p.protein}g proteína</span>`:''}${p.carbs?`<span class="mac">🍞 ${p.carbs}g HC</span>`:''}${p.fat?`<span class="mac">🧈 ${p.fat}g gordura</span>`:''}${p.objective?`<span class="mac">🎯 ${p.objective}</span>`:''}</div>
+      ${(p.meals||[]).filter(m=>m.foods).map(m=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?'<span style="font-size:10px;color:var(--t2)">'+m.time+'</span>':''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div><div class="meal-f">${m.foods}</div></div>`).join('')}
+    </div>
+  </div>`;}).join(''):`<div class="empty"><div class="ei">🥗</div><p>Sem planos nutricionais</p></div>`;
+
+  document.getElementById('pg-nutri-planos').innerHTML=`
+  <div class="sh"><div class="sh-t">🥗 Planos Nutricionais</div>
+  <button class="btn btn-g" onclick="_showNpForm=!_showNpForm;_editNpId=null;renderNutriPlanos()">+ Novo Plano</button></div>
+  ${formHtml}${plansHtml}`;
+}
+function saveNutriPlano(){
+  const aid=document.getElementById('np-at').value;
+  const name=document.getElementById('np-name').value.trim();
+  if(!aid||!name)return toast('Atleta e nome obrigatórios','err');
+  const meals=MEALS.map((m,i)=>({name:m,time:document.getElementById('np-mt-'+i).value,kcal:document.getElementById('np-mk-'+i).value,foods:document.getElementById('np-mf-'+i).value}));
+  const p={id:_editNpId||uid(),athleteId:aid,name,objective:document.getElementById('np-obj').value,kcal:document.getElementById('np-kcal').value,protein:document.getElementById('np-prot').value,carbs:document.getElementById('np-carb').value,fat:document.getElementById('np-fat').value,meals,active:true,startDate:today()};
+  if(_editNpId){const i=APP.nutritionPlans.findIndex(x=>x.id===_editNpId);if(i>=0)APP.nutritionPlans[i]=p;}
+  else APP.nutritionPlans.push(p);
+  saveData();_showNpForm=false;_editNpId=null;toast('Plano guardado ✓');renderNutriPlanos();
+}
+function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
+function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
+
+// ─── CONFIGURAÇÕES ────────────────────────────────────────
+function renderConfig(){
+  document.getElementById('pg-config').innerHTML=`
+  <div class="sh"><div class="sh-t">⚙️ Configurações</div></div>
+  <div class="g2">
+    <div class="card"><div class="ch"><span class="ct">🏟️ Clube</span></div><div class="cb">
+      <div class="form-g"><label class="fl">Nome do Clube</label><input class="fc" id="cfg-club" value="${APP.config.clubName||''}"></div>
+      <div class="form-g"><label class="fl">Época</label><input class="fc" id="cfg-sea" value="${APP.config.season||''}"></div>
+      <div class="form-g"><label class="fl">Logo (emoji)</label><input class="fc" id="cfg-logo" value="${APP.config.logo||'⚽'}" maxlength="4"></div>
+      <button class="btn btn-g btn-sm" onclick="saveConfig()">💾 Guardar</button>
+    </div></div>
+    <div class="card"><div class="ch"><span class="ct">🔐 PINs de Acesso</span></div><div class="cb">
+      <div class="al al-b" style="margin-bottom:12px;font-size:11px">Define um PIN de 4-8 dígitos para cada função. Deixa em branco para acesso livre.</div>
+      <div class="fr3">
+        <div class="form-g"><label class="fl">🧑‍💼 Técnico</label>
+          <input class="fc" id="cfg-pin-tec" type="password" maxlength="8" placeholder="PIN técnico" value="${APP.config.pinTec||''}">
+        </div>
+        <div class="form-g"><label class="fl">🏥 Fisioterapia</label>
+          <input class="fc" id="cfg-pin-fis" type="password" maxlength="8" placeholder="PIN fisio" value="${APP.config.pinFis||''}">
+        </div>
+        <div class="form-g"><label class="fl">🥗 Nutrição</label>
+          <input class="fc" id="cfg-pin-nut" type="password" maxlength="8" placeholder="PIN nutrição" value="${APP.config.pinNut||''}">
+        </div>
+      </div>
+      <button class="btn btn-g btn-sm" onclick="savePins()">🔐 Guardar PINs</button>
+    </div></div>
+    <div class="card"><div class="ch"><span class="ct">☁️ Supabase Cloud Sync</span></div><div class="cb">
+      <div class="al al-b" style="margin-bottom:12px">Sincroniza dados em tempo real entre dispositivos via Supabase</div>
+      <div class="form-g"><label class="fl">Project URL</label><input class="fc" id="supa-url" placeholder="https://xxx.supabase.co" value="${getSupaCfg().url||''}"></div>
+      <div class="form-g"><label class="fl">Anon Key</label><input class="fc" id="supa-key" placeholder="eyJ..." value="${getSupaCfg().anonKey||''}"></div>
+      <div class="form-g"><label class="fl">Club ID (UUID)</label><input class="fc" id="supa-cid" placeholder="Deixar vazio para criar automaticamente" value="${getSupaCfg().clubId||''}"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g btn-sm" onclick="connectCloud()">🔗 Conectar</button>
+        <button class="btn btn-r btn-sm" onclick="disconnectCloud()">✕ Desligar</button>
+      </div>
+      <div id="cloud-status" style="margin-top:10px;font-size:11px;color:var(--t2)">${_sync?'🟢 Ligado':'🔴 Desligado'}</div>
+    </div></div>
+    <div class="card"><div class="ch"><span class="ct">📊 Dados</span></div><div class="cb">
+      <button class="btn btn-gh btn-sm" onclick="exportData()">📥 Exportar JSON</button>
+      <label class="btn btn-gh btn-sm" style="display:inline-flex;cursor:pointer;margin-left:8px">📤 Importar JSON<input type="file" accept=".json" style="display:none" onchange="importData(event)"></label>
+      <div style="margin-top:12px"><button class="btn btn-r btn-sm" onclick="if(confirm('Apagar TODOS os dados?')){APP=defApp();saveData();toast('Dados limpos');renderConfig();}">🗑️ Limpar Todos os Dados</button></div>
+    </div></div>
+    <div class="card"><div class="ch"><span class="ct">🌱 Equipas</span></div><div class="cb">
+      ${APP.teams.map(t=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${t.name} <span class="bdg bg-gr">${t.cat||t.type}</span></span>${t.id!=='T1'?`<button class="btn btn-xs btn-r" onclick="deleteTeam('${t.id}')">🗑️</button>`:''}</div>`).join('')}
+      <div style="display:flex;gap:6px;margin-top:10px"><input class="fc" id="new-team-name" placeholder="Nova equipa..." style="flex:1"><button class="btn btn-g btn-sm" onclick="addTeamQuick()">+</button></div>
+    </div></div>
+  </div>`;
+}
+function saveConfig(){
+  APP.config.clubName=document.getElementById('cfg-club').value||APP.config.clubName;
+  APP.config.season=document.getElementById('cfg-sea').value||APP.config.season;
+  APP.config.logo=document.getElementById('cfg-logo').value||APP.config.logo;
+  saveData();
+  document.getElementById('sb-club').textContent=APP.config.clubName;
+  document.getElementById('sb-sea').textContent=APP.config.season;
+  document.getElementById('sb-logo').textContent=APP.config.logo;
+  document.getElementById('lclub').textContent=APP.config.clubName;
+  toast('Configurações guardadas ✓');
+}
+function savePins(){
+  const tec=document.getElementById('cfg-pin-tec').value;
+  const fis=document.getElementById('cfg-pin-fis').value;
+  const nut=document.getElementById('cfg-pin-nut').value;
+  if((tec&&tec.length<4)||(fis&&fis.length<4)||(nut&&nut.length<4))
+    return toast('PIN deve ter pelo menos 4 dígitos','err');
+  APP.config.pinTec=tec;
+  APP.config.pinFis=fis;
+  APP.config.pinNut=nut;
+  saveData();
+  toast('PINs guardados ✓ 🔐');
+}
+function addTeamQuick(){
+  const name=document.getElementById('new-team-name').value.trim();
+  if(!name)return;
+  APP.teams.push({id:uid(),name,type:'formacao',cat:'Formação'});
+  saveData();toast('Equipa adicionada');renderConfig();
+}
+function deleteTeam(id){if(!confirm('Apagar equipa?'))return;APP.teams=APP.teams.filter(t=>t.id!==id);APP.athletes.forEach(a=>{if(a.teamId===id)a.teamId='T1';});saveData();toast('Equipa apagada');renderConfig();}
+function exportData(){const blob=new Blob([JSON.stringify(APP,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sps_backup_'+today()+'.json';a.click();}
+function importData(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{try{APP=JSON.parse(ev.target.result);saveData();toast('Dados importados ✓');navTo(_curPg);}catch{toast('Erro no ficheiro','err');}};reader.readAsText(file);}
+
+// ─── ATLETA APP ───────────────────────────────────────────
+let _atPage='home', _wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:''}, _psfVal=0, _psfDur='';
+function atNav(page,el){
+  _atPage=page;
+  document.querySelectorAll('.at-page').forEach(p=>p.classList.remove('on'));
+  const pg=document.getElementById('atp-'+page);if(pg)pg.classList.add('on');
+  document.querySelectorAll('.at-ni').forEach(n=>n.classList.remove('on'));
+  if(el)el.classList.add('on');
+  const renders={home:renderAtHome,wellness:renderAtWellness,pse:renderAtPSE,agenda:renderAtAgenda,nutri:renderAtNutri,fisio:renderAtFisio,treino:renderAtTreino,convoc:renderAtConvoc};
+  if(renders[page])renders[page]();
+}
+function renderAtHome(){
+  const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
+  const td=today();
+  const todayW=APP.wellness.find(w=>w.athleteId===AID&&w.date===td);
+  const todayP=APP.pse.filter(p=>p.athleteId===AID&&p.date===td);
+  const todayEvs=APP.schedule.filter(e=>e.date===td&&(e.teamId===at.teamId||!e.teamId)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const nextEvs=APP.schedule.filter(e=>e.date>td&&(e.teamId===at.teamId||!e.teamId)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  const inj=APP.injuries.find(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação'));
+  const convoc=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  const notifs=(!todayW?1:0)+(!todayP.length?1:0);
+
+  document.getElementById('atp-home').innerHTML=`
+  <div style="margin-bottom:16px">
+    <div style="font-size:18px;font-weight:900;margin-bottom:2px">Olá, ${at.name.split(' ')[0]}! 👋</div>
+    <div style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+  </div>
+  ${notifs?`<div class="al al-y">📌 ${notifs} tarefa${notifs>1?'s':''} pendente${notifs>1?'s':''} hoje — ${!todayW?'Wellness ':''} ${!todayP.length?'PSE':''}</div>`:''}
+  ${inj?`<div class="al al-r">🩺 Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
+  ${convoc?`<div class="al al-g">📋 Convocada! — ${fmtDate(convoc.date)} ${APP.games.find(g=>g.id===convoc.gameId)?'vs '+APP.games.find(g=>g.id===convoc.gameId).opp:''}</div>`:''}
+  <div class="g2" style="margin-bottom:16px">
+    <div class="kpi ${todayW?'grn':'red'}" onclick="atNav('wellness',document.querySelectorAll('.at-ni')[1])" style="cursor:pointer">
+      <div class="kpi-lbl">Wellness Hoje</div>
+      <div class="kpi-val" style="font-size:22px">${todayW?todayW.score+'<span style="font-size:12px">/100</span>':'⚠️'}</div>
+      <div class="kpi-sub">${todayW?'Submetido ✓':'Clica para responder'}</div>
+    </div>
+    <div class="kpi ${todayP.length?'grn':'red'}" onclick="atNav('pse',document.querySelectorAll('.at-ni')[2])" style="cursor:pointer">
+      <div class="kpi-lbl">PSE Hoje</div>
+      <div class="kpi-val" style="font-size:22px">${todayP.length?todayP[0].pse+'<span style="font-size:12px">/10</span>':'⚠️'}</div>
+      <div class="kpi-sub">${todayP.length?todayP[0].duration+'min registado':'Clica para registar'}</div>
+    </div>
+  </div>
+  ${todayEvs.length?`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">📅 Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--brd)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}
+  ${nextEvs.length?`<div class="card"><div class="ch"><span class="ct">📆 Próximos Eventos</span></div><div class="cb" style="padding:10px 14px">${nextEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--brd)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${fmtDate(e.date)} ${e.time?'· '+e.time.slice(0,5):''}${e.location?' · '+e.location:''}</div></div></div>`;}).join('')}</div></div>`:''}`;
+}
+function renderAtWellness(){
+  const td=today();
+  const alreadyToday=APP.wellness.find(w=>w.athleteId===AID&&w.date===td);
+  const wDims=[{k:'sleep',label:'Sono',sub:'Qualidade do sono (1=Mau → 5=Excelente)',max:5},{k:'fatigue',label:'Fadiga',sub:'Nível de fadiga (1=Sem fadiga → 10=Exausto)',max:10},{k:'stress',label:'Stress',sub:'Stress/Ansiedade (1=Sem stress → 10=Muito stressado)',max:10},{k:'pain',label:'Dor Muscular',sub:'Dores musculares (0=Sem dor → 10=Muita dor)',max:10,min:0},{k:'mood',label:'Humor',sub:'Estado de humor (1=Muito mau → 5=Excelente)',max:5}];
+  const scaleHtml=(k,min,max)=>{const nums=Array.from({length:max-(min||1)+1},(_,i)=>(min||1)+i);return`<div class="wf-sc">${nums.map(n=>`<button class="wsb ${_wfVals[k]==n?'on':''}" onclick="_wfVals['${k}']=${n};this.closest('.wf-row').querySelectorAll('.wsb').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${n}</button>`).join('')}</div>`;};
+  const cycleOpts=['N/A','Menstruação','Folicular','Ovulação','Lútea'];
+
+  document.getElementById('atp-wellness').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">💊 Questionário Wellness</div>
+  <div style="font-size:12px;color:var(--t2);margin-bottom:16px">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
+  ${alreadyToday?`<div class="al al-g">✅ Já submetiste o questionário de hoje! Score: <strong>${alreadyToday.score}/100</strong></div>`:''}
+  <div class="card" style="margin-bottom:14px">
+    <div class="cb" style="padding:12px 14px">
+      <div class="wellness-form">
+        ${wDims.map(d=>`<div class="wf-row"><div><div class="wf-l">${d.label}</div><div class="wf-s">${d.sub}</div></div>${scaleHtml(d.k,d.min,d.max)}</div>`).join('')}
+        <div class="wf-row"><div><div class="wf-l">Fase do Ciclo</div><div class="wf-s">Fase menstrual atual</div></div>
+          <select class="fc" style="width:auto" onchange="_wfVals.cycle=this.value">
+            ${cycleOpts.map(o=>`<option value="${o}" ${_wfVals.cycle===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitWellness()">📤 Submeter Questionário</button>
+  <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Histórico (últimos 14 dias)</div>
+  <div class="tw"><table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
+  <tbody>${APP.wellness.filter(w=>w.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(w=>{const sc=w.score;const c=sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="bdg ${c}">${sc}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
+}
+function submitWellness(){
+  const v=_wfVals;
+  if(!v.sleep||!v.fatigue||!v.stress||!v.mood)return toast('Preenche todos os campos','err');
+  const score=calcWellnessScore(v);
+  const td=today();
+  const existing=APP.wellness.findIndex(w=>w.athleteId===AID&&w.date===td);
+  const entry={id:uid(),athleteId:AID,date:td,sleep:v.sleep,fatigue:v.fatigue,stress:v.stress,pain:v.pain||0,mood:v.mood,score,cycle:v.cycle||'N/A',submittedAt:new Date().toISOString()};
+  if(existing>=0)APP.wellness[existing]=entry;else APP.wellness.push(entry);
+  if(_sync)cloudUpsert('wellness_records',{...entry,athlete_id:entry.athleteId,club_id:_cid});
+  saveData();_wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:''};toast('Wellness submetido! Score: '+score+'/100');renderAtWellness();
+}
+function calcWellnessScore(v){
+  let s=0;
+  s+=(v.sleep/5)*25;
+  s+=((10-v.fatigue)/9)*20;
+  s+=((10-v.stress)/9)*20;
+  s+=((10-v.pain)/10)*15;
+  s+=(v.mood/5)*20;
+  return Math.round(s);
+}
+function renderAtPSE(){
+  const td=today();
+  const already=APP.pse.filter(p=>p.athleteId===AID&&p.date===td);
+  const borgLabels={0:'Repouso',1:'Muito fácil',2:'Fácil',3:'Moderado',4:'Algo difícil',5:'Difícil',6:'',7:'Muito difícil',8:'',9:'Extremamente difícil',10:'Esforço máximo'};
+  document.getElementById('atp-pse').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">📊 PSE — Carga de Treino</div>
+  <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Escala de Borg CR10</div>
+  ${already.length?`<div class="al al-g">✅ PSE registado hoje: ${already[0].pse}/10 · ${already[0].duration} min · UA: ${already[0].ua}</div>`:''}
+  <div class="card" style="margin-bottom:14px"><div class="cb" style="padding:14px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px">Como foi o esforço percebido?</div>
+    <div class="pse-grid">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="psb ${_psfVal===n?'on':''}" data-v="${n}" onclick="_psfVal=${n};document.querySelectorAll('.psb').forEach(b=>b.classList.remove('on'));this.classList.add('on')"><div>${n}</div><div style="font-size:9px;color:var(--t2);line-height:1.2">${borgLabels[n]||''}</div></button>`).join('')}</div>
+    <div style="margin-top:12px"><label class="fl">Duração da sessão (minutos) *</label><input class="fc" id="pse-dur" type="number" min="1" max="300" placeholder="90" value="${_psfDur}" oninput="_psfDur=this.value"></div>
+    <div style="margin-top:8px"><label class="fl">Tipo de sessão</label><select class="fc" id="pse-type"><option>Treino</option><option>Jogo</option><option>Ginásio</option><option>Reabilitação</option><option>Ativação</option></select></div>
+  </div></div>
+  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitPSE()">📤 Registar PSE</button>
+  <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Últimos Registos</div>
+  <div class="tw"><table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead>
+  <tbody>${APP.pse.filter(p=>p.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
+}
+function submitPSE(){
+  if(!_psfVal&&_psfVal!==0)return toast('Seleciona o PSE','err');
+  const dur=+document.getElementById('pse-dur').value;
+  if(!dur)return toast('Duração obrigatória','err');
+  const ua=Math.round(_psfVal*dur);
+  const td=today();
+  const entry={id:uid(),athleteId:AID,date:td,pse:_psfVal,duration:dur,ua,sessionType:document.getElementById('pse-type').value,submittedAt:new Date().toISOString()};
+  APP.pse.push(entry);
+  if(_sync)cloudUpsert('pse_records',{...entry,athlete_id:entry.athleteId,session_type:entry.sessionType,club_id:_cid});
+  saveData();_psfVal=0;_psfDur='';toast(`PSE registado! UA: ${ua}`);renderAtPSE();
+}
+function renderAtAgenda(){
+  const at=APP.athletes.find(a=>a.id===AID);
+  const td=today();
+  const evs=APP.schedule.filter(e=>e.date>=td&&(e.teamId===at?.teamId||!e.teamId)).sort((a,b)=>a.date===b.date?(a.time||'').localeCompare(b.time||''):a.date.localeCompare(b.date));
+  const grouped={};evs.forEach(e=>{if(!grouped[e.date])grouped[e.date]=[];grouped[e.date].push(e);});
+  const html=Object.entries(grouped).slice(0,20).map(([dt,evList])=>`
+  <div style="margin-bottom:14px">
+    <div style="font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${fmtDate(dt)===fmtDate(td)?'HOJE':fmtDate(dt)}</div>
+    ${evList.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div class="card" style="margin-bottom:6px;padding:11px;display:flex;gap:10px;align-items:center">
+      <div style="width:4px;height:40px;border-radius:2px;background:${c};flex-shrink:0"></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:800">${e.title}</div>
+      <div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''} ${e.dur?'· '+e.dur+'min':''}</div>
+      ${e.notes?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${e.notes}</div>`:''}
+      </div><span class="mc-sess ${EV_TYPES.indexOf(e.type)>=0?Object.keys(EV_COLORS).indexOf(e.type)>=0?'s-tec':'s-tec':'s-tec'}" style="background:${c}22;color:${c};padding:3px 7px;font-size:9px">${e.type}</span>
+    </div>`;}).join('')}
+  </div>`).join('');
+  document.getElementById('atp-agenda').innerHTML=`<div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">📅 Agenda</div>${html||`<div class="empty"><div class="ei">📅</div><p>Sem eventos próximos</p></div>`}`;
+}
+function renderAtNutri(){
+  const plan=APP.nutritionPlans.find(p=>p.athleteId===AID&&p.active);
+  const avals=APP.nutritionAssessments.filter(a=>a.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date));
+  const lastA=avals[0];
+  document.getElementById('atp-nutri').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🥗 Nutrição</div>
+  ${lastA?`<div class="g2" style="margin-bottom:14px">
+    <div class="kpi"><div class="kpi-lbl">Peso</div><div class="kpi-val" style="font-size:20px">${lastA.weight||'—'}<span style="font-size:12px"> kg</span></div><div class="kpi-sub">${lastA.date}</div></div>
+    <div class="kpi"><div class="kpi-lbl">IMC</div><div class="kpi-val" style="font-size:20px">${lastA.bmi||'—'}</div><div class="kpi-sub">${lastA.hydration?'Hidratação: '+lastA.hydration:''}</div></div>
+  </div>`:''}
+  ${plan?`<div class="card"><div class="ch"><span class="ct">${plan.name}</span></div><div class="cb" style="padding:12px">
+    <div class="macros" style="margin-bottom:12px">${plan.kcal?`<span class="mac">🔥 ${plan.kcal} kcal</span>`:''}${plan.protein?`<span class="mac">🥩 ${plan.protein}g prot</span>`:''}${plan.carbs?`<span class="mac">🍞 ${plan.carbs}g HC</span>`:''}${plan.fat?`<span class="mac">🧈 ${plan.fat}g gord</span>`:''}</div>
+    ${(plan.meals||[]).map(m=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?`<span style="font-size:10px;color:var(--t2)">${m.time}</span>`:''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div>${m.foods?`<div class="meal-f">${m.foods}</div>`:''}</div>`).join('')}
+  </div></div>`:
+  `<div class="empty"><div class="ei">🥗</div><p>Sem plano nutricional ativo</p><div class="esub">O teu nutricionista ainda não definiu um plano</div></div>`}`;
+}
+function renderAtFisio(){
+  const injs=APP.injuries.filter(i=>i.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date));
+  const active=injs.filter(i=>i.status==='ativo'||i.status==='reabilitação');
+  const phases=['Avaliação inicial','Controlo da dor','Recuperação funcional','Treino específico','Retorno ao jogo'];
+  document.getElementById('atp-fisio').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏥 Fisioterapia</div>
+  ${active.map(inj=>{const treats=APP.treatments.filter(t=>t.injuryId===inj.id).sort((a,b)=>b.date.localeCompare(a.date));return`<div class="card" style="margin-bottom:12px"><div class="ch"><span class="ct">🩺 ${inj.diagnosis||inj.type}</span>${statusBadge(inj.status)}</div>
+  <div class="cb" style="padding:12px">
+    <div style="font-size:11px;color:var(--t2);margin-bottom:8px">${inj.bodyPart||''} · ${inj.date} ${inj.returnDate?'· Retorno previsto: '+fmtDate(inj.returnDate):''}</div>
+    <div class="pbar">${[1,2,3,4,5].map(p=>`<div class="ps ${p<(inj.phase||1)?'done':p===(inj.phase||1)?'now':''}"></div>`).join('')}</div>
+    <div style="font-size:10px;color:var(--t2);margin-top:3px;margin-bottom:10px">Fase ${inj.phase||1}/5 — ${phases[(inj.phase||1)-1]}</div>
+    ${treats.slice(0,3).map(t=>`<div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--brd)"><strong>${fmtDate(t.date)}</strong> · ${t.type} ${t.response?`<span class="bdg ${t.response==='Boa'?'bg-g':t.response==='Moderada'?'bg-y':'bg-r'}" style="font-size:9px">${t.response}</span>`:''}</div>`).join('')}
+  </div></div>`;}).join('')}
+  ${!active.length?`<div class="empty"><div class="ei">✅</div><p>Sem lesões ativas</p><div class="esub">Estás disponível</div></div>`:''}
+  ${injs.filter(i=>i.status==='alta').length?`<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Historial</div>${injs.filter(i=>i.status==='alta').map(i=>`<div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--brd);color:var(--t2)">${fmtDate(i.date)} — ${i.diagnosis||i.type} <span class="bdg bg-g">Alta</span></div>`).join('')}</div>`:''}`;
+}
+function renderAtTreino(){
+  const plans=APP.trainingPlans.filter(p=>p.athleteId===AID).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||''));
+  const active=plans.filter(p=>!p.done);
+  const done=plans.filter(p=>p.done);
+  document.getElementById('atp-treino').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏋️ Fichas de Treino</div>
+  ${active.length?`<div style="margin-bottom:14px">${active.map(p=>`<div class="card" style="margin-bottom:10px">
+    <div class="ch"><span class="ct">${p.title}</span><span class="bdg bg-y">Pendente</span></div>
+    <div class="cb" style="padding:11px">
+      <div style="font-size:10px;color:var(--t2);margin-bottom:6px">${p.type} ${p.week?'· '+fmtDate(p.week):''} ${p.volume?'· '+p.volume:''}</div>
+      ${p.description?`<div style="font-size:12px;color:var(--t1);line-height:1.7;white-space:pre-line;margin-bottom:8px">${p.description}</div>`:''}
+      ${p.note?`<div class="al al-b" style="font-size:11px">💬 ${p.note}</div>`:''}
+      <button class="btn btn-g btn-sm" style="margin-top:8px" onclick="markTreinoDone('${p.id}')">✅ Marcar como Concluída</button>
+    </div>
+  </div>`).join('')}</div>`:''}
+  ${!active.length?`<div class="empty"><div class="ei">🏋️</div><p>Sem fichas pendentes</p><div class="esub">O teu treinador irá criar fichas individualizadas</div></div>`:''}
+  ${done.length?`<div><div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--t2)">Concluídas (${done.length})</div>${done.slice(0,5).map(p=>`<div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--brd);color:var(--t2)"><span class="bdg bg-g">✓</span> ${p.title} ${p.week?'· '+fmtDate(p.week):''}</div>`).join('')}</div>`:''}`;
+}
+function markTreinoDone(id){const p=APP.trainingPlans.find(x=>x.id===id);if(p){p.done=true;p.doneAt=today();saveData();toast('Ficha marcada como concluída ✓');renderAtTreino();}}
+function renderAtConvoc(){
+  const convocs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)).sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('atp-convoc').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">📋 Convocatórias</div>
+  ${convocs.length?convocs.map(c=>{const game=APP.games.find(g=>g.id===c.gameId);return`<div class="card" style="margin-bottom:10px"><div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)}</span><span class="bdg bg-g">Convocada</span></div>
+  <div class="cb" style="padding:11px">
+    ${game?`<div style="font-size:13px;font-weight:700">vs ${game.opp}</div><div style="font-size:11px;color:var(--t2)">${fmtDate(game.date)} ${game.time?'· '+game.time.slice(0,5):''} · ${game.ha==='casa'?'🏠 Casa':'✈️ Fora'} ${game.loc?'· '+game.loc:''}</div>`:''}
+    <div style="font-size:11px;color:var(--t2);margin-top:4px">${fmtDate(c.date)} · ${c.athletes.length} convocadas</div>
+  </div></div>`;}).join(''):
+  `<div class="empty"><div class="ei">📋</div><p>Sem convocatórias</p></div>`}`;
+}
+
+// ─── SUPABASE ─────────────────────────────────────────────
+function getSupaCfg(){try{return JSON.parse(localStorage.getItem(SK))||{};}catch{return{};}}
+function setSupaCfg(cfg){localStorage.setItem(SK,JSON.stringify(cfg));}
+function updateCloudDot(ok){document.getElementById('cloud-dot').textContent=ok?'🟢':'🔴';}
+async function connectCloud(){
+  const url=document.getElementById('supa-url').value.trim();
+  const key=document.getElementById('supa-key').value.trim();
+  const cid=document.getElementById('supa-cid').value.trim();
+  if(!url||!key)return toast('URL e Key obrigatórios','err');
+  try{
+    _supa=supabase.createClient(url,key);
+    // find or create club
+    let clubId=cid;
+    if(!clubId){
+      const {data:existing}=await _supa.from('clubs').select('id').eq('name',APP.config.clubName).single();
+      if(existing){clubId=existing.id;}
+      else{const {data:nc}=await _supa.from('clubs').insert({name:APP.config.clubName,season:APP.config.season}).select('id').single();clubId=nc?.id;}
+    }
+    _cid=clubId;_sync=true;
+    setSupaCfg({url,anonKey:key,clubId});
+    updateCloudDot(true);
+    toast('Cloud conectado! ☁️🟢');
+    document.getElementById('cloud-status').textContent='🟢 Ligado — Club ID: '+_cid;
+    await pullCloud();
+  }catch(e){toast('Erro ao conectar: '+e.message,'err');_sync=false;updateCloudDot(false);}
+}
+function disconnectCloud(){_supa=null;_cid=null;_sync=false;setSupaCfg({});updateCloudDot(false);toast('Cloud desligado');if(document.getElementById('cloud-status'))document.getElementById('cloud-status').textContent='🔴 Desligado';}
+async function cloudUpsert(table,row){if(!_supa||!_cid)return;try{await _supa.from(table).upsert({...row,club_id:_cid});}catch(e){console.warn('Cloud upsert error',e);}}
+async function cloudDelete(table,id){if(!_supa||!_cid)return;try{await _supa.from(table).delete().eq('id',id).eq('club_id',_cid);}catch(e){console.warn('Cloud delete error',e);}}
+async function pullCloud(){
+  if(!_supa||!_cid)return;
+  try{
+    const tables=['athletes','wellness_records','pse_records','injuries','treatments','nutrition_records','nutrition_plans','schedule_events','training_plans'];
+    for(const t of tables){
+      const {data}=await _supa.from(t).select('*').eq('club_id',_cid);
+      if(data?.length){
+        if(t==='athletes')APP.athletes=data.map(r=>({...r,teamId:r.team_id}));
+        else if(t==='wellness_records')APP.wellness=data.map(r=>({...r,athleteId:r.athlete_id}));
+        else if(t==='pse_records')APP.pse=data.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type}));
+        else if(t==='injuries')APP.injuries=data.map(r=>({...r,athleteId:r.athlete_id,bodyPart:r.body_part,returnDate:r.return_date,phaseDesc:r.phase_desc}));
+        else if(t==='treatments')APP.treatments=data.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name}));
+        else if(t==='nutrition_records')APP.nutritionAssessments=data.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat}));
+        else if(t==='nutrition_plans')APP.nutritionPlans=data.map(r=>({...r,athleteId:r.athlete_id,meals:r.meals||[]}));
+        else if(t==='schedule_events')APP.schedule=data.map(r=>({...r,teamId:r.team_id}));
+        else if(t==='training_plans')APP.trainingPlans=data.map(r=>({...r,athleteId:r.athlete_id}));
+      }
+    }
+    saveData();if(_curPg)navTo(_curPg);toast('Dados sincronizados ✓');
+  }catch(e){console.warn('Pull cloud error',e);}
+}
+function openCloud(){navTo('config');}
+
+// ─── INIT ─────────────────────────────────────────────────
+function init(){
+  loadData();
+  // Setup login
+  const cfg=APP.config;
+  document.getElementById('lclub').textContent=cfg.clubName;
+  document.getElementById('lb').textContent=cfg.logo||'⚽';
+  // Init supabase if configured
+  const sc=getSupaCfg();
+  if(sc.url&&sc.anonKey){
+    try{_supa=supabase.createClient(sc.url,sc.anonKey);_cid=sc.clubId||null;_sync=true;updateCloudDot(true);}
+    catch{_sync=false;}
+  }
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
