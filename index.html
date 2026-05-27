@@ -2470,7 +2470,6 @@ function renderAtConvoc(){
 }
 
 // ─── SUPABASE CLOUD ───────────────────────────────────────
-let _supa=null,_cid=null,_sync=false;
 function getSupaCfg(){try{return JSON.parse(localStorage.getItem('sps_supa_cfg')||'{}');}catch{return{};}}
 function setSupaCfg(o){localStorage.setItem('sps_supa_cfg',JSON.stringify(o));}
 function updateCloudDot(on){
@@ -2553,3 +2552,4 @@ document.getElementById('lclub').textContent=APP.config.clubName||'Sport Perform
 </script>
 </body>
 </html>
+                                      
