@@ -1015,7 +1015,7 @@ function renderPlantel(teamId){
       <strong>📥 Importar via URL</strong> — Cola o URL da FPF ou Transfermarkt para pré-preencher os dados
       <div style="display:flex;gap:6px;margin-top:6px">
         <input class="fc" id="af-import-url" placeholder="https://www.fpf.pt/...playerId/... ou transfermarkt.pt/..." style="flex:1;font-size:11px">
-        <button class="btn btn-g btn-sm" onclick="importAthleteFromUrl()">📥 Importar</button>
+        <button class="btn btn-g btn-sm" id="af-import-btn" onclick="importAthleteFromUrl()">📥 Importar</button>
       </div>
     </div>
     <div class="fr"><div class="form-g"><label class="fl">Nome Completo *</label><input class="fc" id="af-name" placeholder="Nome da atleta"></div>
@@ -1084,40 +1084,191 @@ function renderPlantel(teamId){
   }
 }
 function importAthleteFromUrl(){
-  const url=(document.getElementById('af-import-url')||{}).value||'';
+  const urlEl=document.getElementById('af-import-url');
+  if(!urlEl)return;
+  const url=(urlEl.value||'').trim();
   if(!url)return toast('Cola o URL primeiro','err');
-  // FPF: .../playerId/1234567
-  const fpfM=url.match(/playerId[\/=](\d+)/i);
-  // Transfermarkt: .../nome-jogador/profil/spieler/12345
-  const tmM=url.match(/transfermarkt\.[a-z]+\/([^\/]+)\/profil\/spieler\/(\d+)/i);
-  // Transfermarkt short: /spieler/12345
-  const tmM2=url.match(/\/spieler\/(\d+)/i);
-
-  if(fpfM){
-    const pid=fpfM[1];
-    document.getElementById('af-fpf-id').value=pid;
-    window.open(url,'_blank','noopener');
-    toast(`FPF ID: ${pid} — página aberta. Preenche os dados manualmente.`,'ok');
-  } else if(tmM){
-    const rawName=tmM[1].replace(/-/g,' ');
-    const capName=rawName.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
-    const tmId=tmM[2];
-    document.getElementById('af-name').value=capName;
-    document.getElementById('af-club').value='(Transfermarkt #'+tmId+')';
-    // Try to detect nationality from URL if present
-    const natM=url.match(/\/([a-z]{2,3})\/profil\/spieler/i);
-    window.open(url,'_blank','noopener');
-    toast(`Transfermarkt — "${capName}" pré-preenchido. Completa os restantes dados.`,'ok');
-  } else if(tmM2){
-    document.getElementById('af-club').value='(Transfermarkt #'+tmM2[1]+')';
-    window.open(url,'_blank','noopener');
-    toast('Transfermarkt — página aberta. Preenche os dados manualmente.','ok');
-  } else {
-    // Try to open anyway in new tab
-    try{window.open(url,'_blank','noopener');}catch(e){}
-    toast('URL não reconhecido como FPF ou Transfermarkt. Página aberta na nova tab.','err');
+  const fpfM=url.match(/playerId[=\/](\d+)/i);
+  const tmM=url.match(/spieler\/(\d+)/i);
+  const zzM=url.match(/zerozero\.pt\/jogador\.php.*[?&]id=(\d+)/i);
+  const btn=document.getElementById('af-import-btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳';}
+  toast('A importar dados...','ok');
+  (async()=>{
+    try{
+      let data=null;
+      if(fpfM){
+        document.getElementById('af-fpf-id').value=fpfM[1];
+        data=await _xtFPF(fpfM[1],url);
+      }else if(tmM){
+        data=await _xtTM(url);
+      }else if(zzM){
+        data=await _xtZZ(zzM[1],url);
+      }else{
+        data=await _xtGeneric(url);
+      }
+      if(data&&data._ok){_showImportModal(data);}
+      else if(data&&data.fpfId){_applyImport(data);toast('FPF ID guardado — preenche os dados manualmente','ok');}
+      else{window.open(url,'_blank');toast('Não foi possível importar — página aberta','err');}
+    }catch(e){toast('Erro: '+e.message,'err');window.open(url,'_blank');}
+    finally{if(btn){btn.disabled=false;btn.textContent='📥 Importar';}}
+  })();
+}
+async function _proxyGet(url){
+  try{
+    const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(url));
+    const j=await r.json();
+    return j.contents||'';
+  }catch(e){
+    try{const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(url));return await r.text();}
+    catch(e2){return '';}
   }
 }
+async function _xtFPF(id,url){
+  // Try FPF internal API patterns
+  const apis=[
+    'https://www.fpf.pt/umbraco/Surface/Player/Details?playerId='+id,
+    'https://www.fpf.pt/api/v1/players/'+id,
+    'https://www.fpf.pt/api/player/'+id,
+  ];
+  for(const api of apis){
+    try{
+      const html=await _proxyGet(api);
+      if(html&&html.trim().startsWith('{')){
+        const j=JSON.parse(html);
+        if(j.name||j.Name||j.firstName||j.FirstName){return _parseFPFJ(j,id);}
+      }
+    }catch(e){}
+  }
+  // Try the actual page — look for embedded JSON (Next.js __NEXT_DATA__, etc.)
+  const html=await _proxyGet(url);
+  if(html&&html.length>500){
+    const nd=html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>(\{[\s\S]+?\})<\/script>/);
+    if(nd){try{const d=JSON.parse(nd[1]);const p=d.props?.pageProps?.player||d.props?.pageProps?.playerData;if(p)return _parseFPFJ(p,id);}catch(e){}}
+    const ws=html.match(/window\.__(?:INITIAL|STATE|DATA)__\s*=\s*(\{[\s\S]+?\});/);
+    if(ws){try{const d=JSON.parse(ws[1]);const found=_deepFind(d,id);if(found)return found;}catch(e){}}
+    // Try meta tags
+    const og=(k)=>{const m=html.match(new RegExp('<meta[^>]+(?:property|name)=["\']'+k+'["\'][^>]+content=["\']([^"\']+)'));return m?m[1]:'';}
+    const name=og('og:title').split('|')[0].split('-')[0].trim();
+    if(name&&name.length>2)return{name,photo:og('og:image'),bio:og('og:description').slice(0,200),fpfId:id,_ok:true,_source:'fpf'};
+  }
+  return{fpfId:id,_ok:false};
+}
+async function _xtTM(url){
+  const html=await _proxyGet(url);
+  if(!html)return null;
+  const doc=(new DOMParser()).parseFromString(html,'text/html');
+  // JSON-LD Person
+  for(const el of doc.querySelectorAll('script[type="application/ld+json"]')){
+    try{const j=JSON.parse(el.textContent);if(j['@type']==='Person')return{name:j.name||'',dob:j.birthDate||'',nat:j.nationality||'',photo:j.image||'',_ok:true,_source:'transfermarkt'};}catch(e){}
+  }
+  const og=(k)=>{const el=doc.querySelector('meta[property="'+k+'"],meta[name="'+k+'"]');return el?el.getAttribute('content'):'';}
+  const name=og('og:title').replace(/\s*[-|].*$/,'').trim();
+  const dobM=(og('description')||'').match(/(\d{2}[\/\-]\d{2}[\/\-]\d{4}|\d{4}-\d{2}-\d{2})/);
+  if(name)return{name,photo:og('og:image'),dob:dobM?dobM[1]:'',bio:(og('description')||'').slice(0,200),_ok:true,_source:'transfermarkt'};
+  return null;
+}
+async function _xtZZ(id,url){
+  const html=await _proxyGet(url);
+  if(!html||html.length<200)return null;
+  const doc=(new DOMParser()).parseFromString(html,'text/html');
+  const nameEl=doc.querySelector('h1,.player-name,#player-name');
+  const name=nameEl?nameEl.textContent.trim():'';
+  const imgEl=doc.querySelector('#player-photo,img[alt*="jogador"],img[class*="player"]');
+  const photo=imgEl?(imgEl.getAttribute('data-src')||imgEl.src||''):'';
+  const bio={};
+  doc.querySelectorAll('table tr').forEach(r=>{
+    const c=r.querySelectorAll('td');
+    if(c.length>=2){
+      const k=c[0].textContent.toLowerCase();
+      const v=c[1].textContent.trim();
+      if(k.includes('nasc'))bio.dob=v;
+      if(k.includes('nacion'))bio.nat=v;
+      if(k.includes('posi'))bio.pos=v;
+      if(k.includes('altur'))bio.height=v.replace(/\D/g,'');
+    }
+  });
+  const clubs=[];
+  doc.querySelectorAll('table.historico tr,table tr').forEach(r=>{
+    const c=r.querySelectorAll('td');
+    if(c.length>=2&&c[0].textContent.trim().length>2){
+      const yr=c[c.length-1].textContent.trim();
+      if(yr.match(/\d{4}/))clubs.push({club:c[0].textContent.trim(),period:yr});
+    }
+  });
+  if(name)return{name,...bio,photo,clubs,_ok:true,_source:'zerozero'};
+  return null;
+}
+async function _xtGeneric(url){
+  const html=await _proxyGet(url);
+  if(!html)return null;
+  const doc=(new DOMParser()).parseFromString(html,'text/html');
+  const og=(k)=>{const el=doc.querySelector('meta[property="'+k+'"],meta[name="'+k+'"]');return el?el.getAttribute('content'):'';}
+  const name=(og('og:title')||doc.title||'').replace(/\s*[-|].*$/,'').trim();
+  if(name&&name.length>2)return{name,photo:og('og:image'),bio:(og('description')||'').slice(0,200),_ok:true,_source:'web'};
+  return null;
+}
+function _parseFPFJ(j,id){
+  const clubs=(j.clubs||j.Clubs||j.careerHistory||j.career||[]).map(c=>({club:c.name||c.Name||c.clubName||c.club||'',period:c.period||c.season||c.Season||''})).filter(c=>c.club);
+  return{name:[j.firstName||j.FirstName||'',j.lastName||j.LastName||''].join(' ').trim()||j.name||j.Name||'',dob:j.dateOfBirth||j.DateOfBirth||j.birthDate||'',nat:j.nationality||j.Nationality||'',pos:j.position||j.Position||j.mainPosition||'',photo:j.photo||j.Photo||j.imageUrl||j.profilePicture||'',height:String(j.height||j.Height||''),clubs,fpfId:id,_ok:true,_source:'fpf'};
+}
+function _deepFind(obj,id,depth=0){
+  if(!obj||typeof obj!=='object'||depth>6)return null;
+  for(const k of Object.keys(obj)){
+    const v=obj[k];
+    if(v&&typeof v==='object'){
+      if((v.playerId==id||v.id==id||v.PlayerId==id)&&(v.name||v.firstName||v.Name)){return _parseFPFJ(v,id);}
+      const r=_deepFind(v,id,depth+1);if(r)return r;
+    }
+  }
+  return null;
+}
+function _showImportModal(data){
+  window._lastImportedHistory=data.clubs||[];
+  const clubsHtml=(data.clubs&&data.clubs.length)?
+    '<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:6px">Histórico de Clubes</div>'+
+    data.clubs.slice(0,6).map(c=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid var(--brd)"><span>'+c.club+'</span><span style="color:var(--t2)">'+c.period+'</span></div>').join('')+'</div>':'';
+  const m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML='<div style="background:var(--bg2);border-radius:14px;padding:20px;max-width:400px;width:100%;border:1px solid var(--brd);max-height:85vh;overflow-y:auto">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span style="font-weight:800;font-size:15px">📥 Dados Encontrados</span>'
+    +'<span style="font-size:9px;color:var(--t2);background:var(--bg3);padding:2px 8px;border-radius:20px;text-transform:uppercase">'+(data._source||'?')+'</span></div>'
+    +'<div style="display:flex;gap:12px;margin-bottom:14px">'
+    +(data.photo?'<img src="'+data.photo+'" style="width:56px;height:56px;border-radius:10px;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'">':'')
+    +'<div><div style="font-weight:700;font-size:16px">'+(data.name||'—')+'</div>'
+    +'<div style="font-size:11px;color:var(--t2);margin-top:3px">'
+    +[data.pos,data.nat,data.dob].filter(Boolean).join(' · ')+'</div>'
+    +(data.height?'<div style="font-size:11px;color:var(--t2)">'+data.height+'cm</div>':'')
+    +'</div></div>'
+    +clubsHtml
+    +(data.bio&&!clubsHtml?'<div style="font-size:11px;color:var(--t2);margin-bottom:12px">'+data.bio.slice(0,180)+'</div>':'')
+    +'<div style="display:flex;gap:8px;margin-top:12px">'
+    +'<button class="btn btn-g" style="flex:1" id="_imp_apply">✅ Aplicar ao Formulário</button>'
+    +'<button class="btn btn-gh" id="_imp_cancel">Cancelar</button>'
+    +'</div></div>';
+  document.body.appendChild(m);
+  document.getElementById('_imp_apply').onclick=()=>{_applyImport(data);m.remove();};
+  document.getElementById('_imp_cancel').onclick=()=>m.remove();
+}
+function _applyImport(d){
+  const set=(id,v)=>{if(v){const el=document.getElementById(id);if(el)el.value=v;}};
+  set('af-name',d.name);
+  if(d.dob){
+    let dob=d.dob;
+    const m=dob.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(m)dob=m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+    set('af-dob',dob);
+  }
+  set('af-nat',d.nat);
+  set('af-pos',d.pos);
+  set('af-photo',d.photo);
+  set('af-height',d.height);
+  set('af-fpf-id',d.fpfId);
+  if(d.clubs&&d.clubs.length)set('af-club',d.clubs[0].club);
+  window._lastImportedHistory=d.clubs||[];
+  toast('Formulário preenchido ✓','ok');
+}
+
 function saveAthlete(){
   const name=document.getElementById('af-name').value.trim();
   if(!name)return toast('Nome obrigatório','err');
@@ -1127,7 +1278,7 @@ function saveAthlete(){
       APP.athletes[idx]={...APP.athletes[idx],name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,fpfId:document.getElementById('af-fpf-id').value};
     }
   } else {
-    const at={id:uid(),teamId:_plantelTeam,name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,fpfId:document.getElementById('af-fpf-id').value,createdAt:today()};
+    const at={id:uid(),teamId:_plantelTeam,name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today()};
     APP.athletes.push(at);
     if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
   }
