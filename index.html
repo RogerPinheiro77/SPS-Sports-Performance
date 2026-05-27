@@ -1454,39 +1454,50 @@ async function searchClub(q){
     dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">🔍 A pesquisar...</div>';
     dd.style.display='block';
     try{
-      const res=await fetch('https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(q+' football club')+'&gsrlimit=7&prop=pageimages|description&pithumbsize=80&pilicense=any&format=json&origin=*');
-      const data=await res.json();
-      const pages=Object.values(data.query?.pages||{}).sort((a,b)=>(a.index||0)-(b.index||0));
-      if(!pages.length){dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Nenhum clube encontrado</div>';return;}
+      // Step 1: opensearch to get page titles
+      const sr=await fetch('https://en.wikipedia.org/w/api.php?action=opensearch&search='+encodeURIComponent(q+' football')+'&limit=6&namespace=0&format=json&origin=*');
+      const [,titles]=await sr.json();
+      if(!titles||!titles.length){
+        dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Nenhum clube encontrado</div>';
+        return;
+      }
+      // Step 2: fetch REST summary for each title in parallel — returns infobox image = badge
+      const summaries=await Promise.all(titles.slice(0,5).map(async t=>{
+        try{
+          const r=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(t.replace(/ /g,'_')));
+          return await r.json();
+        }catch(e){return {title:t,description:'',thumbnail:null};}
+      }));
       dd.innerHTML='';
-      pages.forEach(p=>{
+      summaries.forEach(s=>{
+        const logo=s.thumbnail?s.thumbnail.source:'';
         const row=document.createElement('div');
         row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--brd)';
         row.onmouseover=()=>row.style.background='var(--bg3)';
         row.onmouseout=()=>row.style.background='';
-        row.onclick=()=>selectClub(p.title,p.thumbnail?p.thumbnail.source:'');
+        row.onclick=()=>selectClub(s.title||'',logo);
         // icon
         const ic=document.createElement('div');
-        ic.style.cssText='width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px';
-        if(p.thumbnail&&p.thumbnail.source){
+        ic.style.cssText='width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
+        if(logo){
           const img=document.createElement('img');
-          img.src=p.thumbnail.source;
-          img.style.cssText='width:30px;height:30px;object-fit:contain;border-radius:4px';
-          img.onerror=()=>{ic.removeChild(img);ic.textContent='\u26BD';};
+          img.src=logo;
+          img.style.cssText='width:32px;height:32px;object-fit:contain;border-radius:4px';
+          img.onerror=()=>{ic.innerHTML='<span style="font-size:22px">⚽</span>';};
           ic.appendChild(img);
         }else{
-          ic.textContent='\u26BD';
+          ic.innerHTML='<span style="font-size:22px">⚽</span>';
         }
         row.appendChild(ic);
         // text
         const tx=document.createElement('div');
-        const t1=document.createElement('div');
-        t1.style.cssText='font-size:13px;font-weight:600';
-        t1.textContent=p.title;
-        const t2=document.createElement('div');
-        t2.style.cssText='font-size:10px;color:var(--t2)';
-        t2.textContent=p.description||'';
-        tx.appendChild(t1);tx.appendChild(t2);
+        const n=document.createElement('div');
+        n.style.cssText='font-size:13px;font-weight:600';
+        n.textContent=s.title||'';
+        const d=document.createElement('div');
+        d.style.cssText='font-size:10px;color:var(--t2)';
+        d.textContent=s.description||'';
+        tx.appendChild(n);tx.appendChild(d);
         row.appendChild(tx);
         dd.appendChild(row);
       });
@@ -1503,9 +1514,9 @@ function selectClub(name,logo){
     if(logo){
       const img=document.createElement('img');
       img.src=logo;img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:6px';
-      img.onerror=()=>{prev.innerHTML='<span style="font-size:18px">\u26BD</span>';};
+      img.onerror=()=>{prev.innerHTML='<span style="font-size:22px">⚽</span>';};
       prev.innerHTML='';prev.appendChild(img);
-    }else{prev.innerHTML='<span style="font-size:18px">\u26BD</span>';}
+    }else{prev.innerHTML='<span style="font-size:22px">⚽</span>';}
   }
   const dd=document.getElementById('jf-club-dropdown');if(dd)dd.style.display='none';
 }
