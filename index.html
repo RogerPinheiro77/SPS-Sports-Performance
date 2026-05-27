@@ -634,75 +634,353 @@ function sevBadge(s){const m={ligeira:'bg-g',moderada:'bg-y',grave:'bg-o','muito
 function statusBadge(s){const m={ativo:'bg-r',reabilitação:'bg-y',alta:'bg-g',disponivel:'bg-g',indisponivel:'bg-r'};return`<span class="bdg ${m[s]||'bg-gr'}">${s||'—'}</span>`;}
 
 // ─── DASHBOARD ────────────────────────────────────────────
+function svgRing(pct,color,sz){
+  const r=sz*.38,c=sz/2,ci=2*Math.PI*r,d=ci*(Math.min(pct,100)/100);
+  return`<svg viewBox="0 0 ${sz} ${sz}" style="width:${sz}px;height:${sz}px;display:block"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="${sz*.1}"/><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${sz*.1}" stroke-dasharray="${d} ${ci}" stroke-linecap="round" transform="rotate(-90 ${c} ${c})"/></svg>`;
+}
 function renderDashboard(){
-  const d=today();
-  const athletes=APP.athletes.filter(a=>a.teamId==='T1'||!a.teamId);
-  const total=athletes.length;
-  const injured=APP.injuries.filter(i=>i.status==='ativo'||i.status==='reabilitação').length;
-  const lastW=APP.wellness.filter(w=>w.date===d);
-  const alerts=lastW.filter(w=>w.score<50).length;
-  const upcoming=APP.schedule.filter(s=>s.date>=d&&s.date<=addDays(d,7)).length;
-  function addDays(dt,n){const x=new Date(dt+'T00:00:00');x.setDate(x.getDate()+n);return x.toISOString().slice(0,10);}
+  const td=today();
+  // Day arrays
+  const dys28=[],dys7=[];
+  for(let i=27;i>=0;i--){const x=new Date(td+'T00:00:00');x.setDate(x.getDate()-i);dys28.push(x.toISOString().slice(0,10));}
+  dys7.push(...dys28.slice(-7));
+  const wkMon=getMonday(td);
+  const wkDays=[],lwDays=[];
+  for(let i=0;i<7;i++){const x=new Date(wkMon+'T00:00:00');x.setDate(x.getDate()+i);wkDays.push(x.toISOString().slice(0,10));}
+  for(let i=0;i<7;i++){const x=new Date(wkMon+'T00:00:00');x.setDate(x.getDate()-7+i);lwDays.push(x.toISOString().slice(0,10));}
 
-  // Wellness alerts
-  const wAlerts=lastW.filter(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);return w.score<50&&at;});
-  const injActive=APP.injuries.filter(i=>i.status==='ativo'||i.status==='reabilitação').map(i=>{const at=APP.athletes.find(a=>a.id===i.athleteId);return{...i,atName:at?at.name:'?'};});
-  const nextEvents=APP.schedule.filter(s=>s.date>=d).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  // Athletes for current team
+  const selTeam=_pwTeam||'T1';
+  const mainAts=APP.athletes.filter(a=>a.teamId===selTeam||(selTeam==='T1'&&!a.teamId));
 
-  // PSE last 7 days avg
-  const days7=[];for(let i=6;i>=0;i--){const x=new Date(d+'T00:00:00');x.setDate(x.getDate()-i);days7.push(x.toISOString().slice(0,10));}
-  const pse7=APP.pse.filter(p=>days7.includes(p.date));
-  const pseAvg=pse7.length?Math.round(pse7.reduce((s,p)=>s+(+p.pse||0),0)/pse7.length*10)/10:0;
-  const wAvg=lastW.length?Math.round(lastW.reduce((s,w)=>s+(+w.score||0),0)/lastW.length):0;
+  // Injuries
+  const injMap={};
+  APP.injuries.filter(i=>i.status==='ativo'||i.status==='reabilitação').forEach(i=>injMap[i.athleteId]=i);
+  const injCount=Object.keys(injMap).length;
 
-  let alertsHtml='';
-  wAlerts.slice(0,5).forEach(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);alertsHtml+=`<div class="al al-r">⚠️ <strong>${at?.name||'?'}</strong> — Wellness score baixo: <strong>${w.score}/100</strong> (Fadiga:${w.fatigue} Stress:${w.stress} Dor:${w.pain})</div>`;});
-  injActive.slice(0,3).forEach(i=>{alertsHtml+=`<div class="al al-y">🩺 <strong>${i.atName}</strong> — ${i.diagnosis||i.type} (${i.status}) ${i.returnDate?'· Retorno previsto: '+fmtDate(i.returnDate):''}`;if(!i.returnDate)alertsHtml+=` · Sem data de retorno definida`;alertsHtml+=`</div>`;});
-  if(!alertsHtml)alertsHtml=`<div class="al al-g">✅ Sem alertas ativos hoje</div>`;
+  // PSE loads
+  const wkUA=Math.round(APP.pse.filter(p=>wkDays.includes(p.date)&&mainAts.find(a=>a.id===p.athleteId)).reduce((s,p)=>s+(+p.ua||0),0));
+  const lwkUA=Math.round(APP.pse.filter(p=>lwDays.includes(p.date)&&mainAts.find(a=>a.id===p.athleteId)).reduce((s,p)=>s+(+p.ua||0),0));
+  const uaDelta=lwkUA?Math.round((wkUA-lwkUA)/lwkUA*100):0;
+  const wkMins=wkUA; // use UA as proxy for minutes accumulation
 
-  let evHtml='';
-  nextEvents.forEach(ev=>{const typeColors={Treino:'s-tec',Jogo:'s-jog',Reunião:'s-reu','Consulta Nutri':'s-nut','Fisio':'s-fio',Ativação:'s-ati',Recuperação:'s-rec'};evHtml+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd)"><span class="mc-sess ${typeColors[ev.type]||'s-tec'}" style="padding:3px 8px;white-space:nowrap">${ev.type}</span><div style="flex:1"><div style="font-size:12px;font-weight:700">${ev.title}</div><div style="font-size:10px;color:var(--t2)">${fmtDate(ev.date)}${ev.time?' · '+ev.time:''}${ev.location?' · '+ev.location:''}</div></div></div>`;});
-  if(!evHtml)evHtml=`<div class="empty"><p>Sem eventos próximos</p></div>`;
+  // ACWR per athlete
+  const acwrList=mainAts.map(at=>{
+    const atP=APP.pse.filter(p=>p.athleteId===at.id);
+    const ac=atP.filter(p=>dys7.includes(p.date)).reduce((s,p)=>s+(+p.ua||0),0)/7;
+    const ch=atP.filter(p=>dys28.includes(p.date)).reduce((s,p)=>s+(+p.ua||0),0)/28;
+    const r=ch?+(ac/ch).toFixed(2):0;
+    const wkU=Math.round(atP.filter(p=>wkDays.includes(p.date)).reduce((s,p)=>s+(+p.ua||0),0));
+    return{at,ac:Math.round(ac),ch:Math.round(ch),r,wkU};
+  }).sort((a,b)=>b.r-a.r);
+  const highAcwr=acwrList.filter(x=>x.r>1.5).length;
+  const monitored=acwrList.filter(x=>x.r>0).length;
 
-  // PSE last 7 chart data
-  const pse7vals=days7.map(dd=>{const ps=APP.pse.filter(p=>p.date===dd);return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.pse||0),0)/ps.length*10)/10:null;});
-  const w7vals=days7.map(dd=>{const ws=APP.wellness.filter(w=>w.date===dd);return ws.length?Math.round(ws.reduce((s,w)=>s+(+w.score||0),0)/ws.length):null;});
+  // Disponibilidade
+  const disp=mainAts.filter(a=>!injMap[a.id]).length;
+  const dispPct=mainAts.length?Math.round(disp/mainAts.length*100):100;
+
+  // Wellness last 7 days
+  const wkW=APP.wellness.filter(w=>dys7.includes(w.date)&&mainAts.find(a=>a.id===w.athleteId));
+  const avgD=(dim,max)=>wkW.length?(wkW.reduce((s,w)=>s+(+w[dim]||0),0)/wkW.length).toFixed(1):'0';
+  const avgSleep=avgD('sleep',5),avgFat=avgD('fatigue',10),avgStr=avgD('stress',10),avgPain=avgD('pain',10);
+  const avgRPE=APP.pse.filter(p=>dys7.includes(p.date)&&mainAts.find(a=>a.id===p.athleteId));
+  const avgRPEVal=avgRPE.length?(avgRPE.reduce((s,p)=>s+(+p.pse||0),0)/avgRPE.length).toFixed(1):'0';
+  const wAvg=wkW.length?Math.round(wkW.reduce((s,w)=>s+(+w.score||0),0)/wkW.length):0;
+
+  // SVG gauge helper (inside function)
+  function gauge(val,max,color,lbl,sz=68){
+    const r=sz*.37,c=sz/2,ci=2*Math.PI*r,d=ci*(Math.min(+val/max,1));
+    return`<div style="text-align:center;flex:1">
+      <svg viewBox="0 0 ${sz} ${sz}" style="width:${sz}px;height:${sz}px">
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="${sz*.09}"/>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${sz*.09}" stroke-dasharray="${d} ${ci}" stroke-linecap="round" transform="rotate(-90 ${c} ${c})"/>
+        <text x="${c}" y="${c+2}" text-anchor="middle" fill="white" font-size="${sz*.22}" font-weight="800">${val}</text>
+        <text x="${c}" y="${c+sz*.19}" text-anchor="middle" fill="rgba(255,255,255,.45)" font-size="${sz*.14}">/10</text>
+      </svg>
+      <div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px">${lbl}</div>
+    </div>`;
+  }
+
+  // Estado do plantel row builder
+  function plantelRow(at,i){
+    const inj=injMap[at.id];
+    const lw=APP.wellness.filter(w=>w.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const acd=acwrList.find(x=>x.at.id===at.id);
+    // Status
+    let stLbl='VERDE',stC='#4ade80';
+    if(inj){stLbl='VERMELHO';stC='#f87171';}
+    else if(lw&&lw.score<50){stLbl='VERMELHO';stC='#f87171';}
+    else if((lw&&lw.score<70)||(acd&&(acd.r>1.3||acd.r<0.8))){stLbl='AMARELO';stC='#fbbf24';}
+    // Wellness circle
+    let wCirc='<span style="color:var(--t3);font-size:11px">—</span>';
+    if(lw){const s=lw.score;const cc=s>=70?'#4ade80':s>=50?'#fbbf24':'#f87171';const r=18;const ci2=2*Math.PI*r;const d2=ci2*(s/100);
+      wCirc=`<svg viewBox="0 0 44 44" style="width:40px;height:40px"><circle cx="22" cy="22" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="22" cy="22" r="${r}" fill="none" stroke="${cc}" stroke-width="4" stroke-dasharray="${d2} ${ci2}" stroke-linecap="round" transform="rotate(-90 22 22)"/><text x="22" y="26" text-anchor="middle" fill="white" font-size="10" font-weight="800">${s}%</text></svg>`;}
+    // Carga bar
+    const maxU=Math.max(...acwrList.map(x=>x.wkU),1);
+    const u=acd?acd.wkU:0;const bw=Math.round(u/maxU*100);
+    const bc=acd&&acd.r>1.5?'#f87171':acd&&acd.r>1.3?'#fbbf24':'#4ade80';
+    const cargaBar=`<div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:5px;background:rgba(255,255,255,.1);border-radius:3px"><div style="width:${bw}%;height:100%;background:${bc};border-radius:3px"></div></div><span style="font-size:10px;color:var(--t2);white-space:nowrap;min-width:50px">${u} u.a.</span></div>`;
+    // Obs
+    const obs=inj?'🩺':acd&&acd.r>1.5?'⚠️':acd&&acd.r<0.8&&acd.r>0?'⚡':'—';
+    const lp=APP.pse.filter(p=>p.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const wkMinsAt=acd?acd.wkU:0;
+    return`<tr style="border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer" onclick="openAthleteModal('${at.id}')">
+      <td style="padding:5px 8px;font-size:11px;color:var(--t3)">${i+1}</td>
+      <td style="padding:5px 8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="at-av" style="width:28px;height:28px;font-size:10px;flex-shrink:0">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:initials(at.name)}</div>
+          <div><div style="font-size:12px;font-weight:700;white-space:nowrap">${at.name}</div><div style="font-size:10px;color:var(--t3)">${at.pos||'—'} | ${ageYears(at.dob)||'?'}</div></div>
+        </div>
+      </td>
+      <td style="padding:5px 8px;text-align:center;white-space:nowrap"><span style="font-size:10px;font-weight:700;color:${stC}">● ${stLbl}</span></td>
+      <td style="padding:5px 6px;text-align:center">${wCirc}</td>
+      <td style="padding:5px 8px;min-width:130px">${cargaBar}</td>
+      <td style="padding:5px 8px;text-align:center;font-size:11px;color:var(--t2)">${lp?lp.duration+'m':'—'}</td>
+      <td style="padding:5px 8px;text-align:center;font-size:14px">${obs}</td>
+    </tr>`;
+  }
+
+  const plantelRows=mainAts.sort((a,b)=>(a.num||99)-(b.num||99)).slice(0,9).map((at,i)=>plantelRow(at,i)).join('');
+
+  // Next event & game
+  const nextEv=APP.schedule.filter(e=>e.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  const nextGame=APP.games.filter(g=>g.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
+
+  // Carga por dia da semana
+  const dayNames=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const dayUA=wkDays.map(d=>APP.pse.filter(p=>p.date===d&&mainAts.find(a=>a.id===p.athleteId)).reduce((s,p)=>s+(+p.ua||0),0));
+  const avgChron=dys28.length?Math.round(APP.pse.filter(p=>dys28.includes(p.date)&&mainAts.find(a=>a.id===p.athleteId)).reduce((s,p)=>s+(+p.ua||0),0)/4):0;
+
+  // Load distribution
+  const typeUA={Treino:0,Jogo:0,Força:0,Outros:0};
+  APP.pse.filter(p=>dys28.includes(p.date)&&mainAts.find(a=>a.id===p.athleteId)).forEach(p=>{
+    const t=p.sessionType||'Treino';
+    if(t==='Jogo')typeUA.Jogo+=(+p.ua||0);
+    else if(t==='Ginásio'||t==='Força')typeUA.Força+=(+p.ua||0);
+    else if(t==='Treino'||t==='Ativação'||t==='Recuperação'||t==='Reabilitação')typeUA.Treino+=(+p.ua||0);
+    else typeUA.Outros+=(+p.ua||0);
+  });
+  const tTot=Object.values(typeUA).reduce((a,b)=>a+b,1);
+  const distPct=(v)=>Math.round(v/tTot*100);
+
+  // Injury risk athletes
+  const injRisk=mainAts.filter(a=>injMap[a.id]||acwrList.find(x=>x.at.id===a.id&&x.r>1.3));
+
+  // Alerts
+  const alts=[];
+  if(highAcwr)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-r" style="font-size:9px">${highAcwr}</span> Atletas com carga elevada</span>`);
+  const lowSlp=wkW.filter(w=>+w.sleep<=2).length;if(lowSlp)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-y" style="font-size:9px">${lowSlp}</span> Atletas com sono abaixo do ideal</span>`);
+  const hiPain=wkW.filter(w=>+w.pain>=7).length;if(hiPain)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-y" style="font-size:9px">${hiPain}</span> Atletas com dor reportada</span>`);
+  if(injCount)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-r" style="font-size:9px">${injCount}</span> Atletas com lesão ativa</span>`);
+  if(!alts.length)alts.push(`<span style="color:#4ade80">✅ Sem alertas ativos</span>`);
 
   document.getElementById('pg-dashboard').innerHTML=`
-  <div class="kpis">
-    <div class="kpi"><div class="kpi-lbl">Atletas</div><div class="kpi-val">${total}</div><div class="kpi-sub">Equipa Principal</div></div>
-    <div class="kpi ${injured?'red':''}" ><div class="kpi-lbl">Lesionadas</div><div class="kpi-val" style="color:${injured?'#f87171':'inherit'}">${injured}</div><div class="kpi-sub">Ativas + Reab.</div></div>
-    <div class="kpi ${alerts?'yel':''}"><div class="kpi-lbl">Alertas Wellness</div><div class="kpi-val" style="color:${alerts?'#fbbf24':'inherit'}">${alerts}</div><div class="kpi-sub">Score &lt; 50 hoje</div></div>
-    <div class="kpi blu"><div class="kpi-lbl">Eventos (7 dias)</div><div class="kpi-val">${upcoming}</div><div class="kpi-sub">Próximos</div></div>
-    <div class="kpi"><div class="kpi-lbl">PSE Médio</div><div class="kpi-val">${pseAvg||'—'}</div><div class="kpi-sub">Últimos 7 dias</div></div>
-    <div class="kpi ${wAvg&&wAvg<50?'red':wAvg>=70?'grn':'yel'}"><div class="kpi-lbl">Wellness Médio</div><div class="kpi-val">${wAvg||'—'}</div><div class="kpi-sub">Hoje (${lastW.length} resp.)</div></div>
+  <style>
+    .db-kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+    .db-kpi-lbl{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--t2)}
+    .db-kpi-val{font-size:26px;font-weight:900;line-height:1}
+    .db-kpi-sub{font-size:11px;color:var(--t3);margin-top:2px}
+  </style>
+  <!-- KPI Row -->
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px">
+    <div class="db-kpi">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><div class="db-kpi-lbl">Disponíveis</div><div class="db-kpi-val" style="color:#4ade80">${disp}</div><div class="db-kpi-sub">${dispPct}% aptas a 100%</div></div>
+        <span style="font-size:22px">🏃‍♀️</span>
+      </div>
+    </div>
+    <div class="db-kpi">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><div class="db-kpi-lbl" style="color:#fbbf24">Gestão de Carga</div><div class="db-kpi-val" style="color:#fbbf24">${highAcwr}</div><div class="db-kpi-sub">${mainAts.length?Math.round(monitored/mainAts.length*100):0}% monitorização ativa</div></div>
+        <span style="font-size:22px">📊</span>
+      </div>
+    </div>
+    <div class="db-kpi">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><div class="db-kpi-lbl" style="color:#f87171">Proteção</div><div class="db-kpi-val" style="color:#f87171">${injCount}</div><div class="db-kpi-sub">${mainAts.length?Math.round(injCount/mainAts.length*100):0}% risco elevado/lesão</div></div>
+        <span style="font-size:22px">🛡️</span>
+      </div>
+    </div>
+    <div class="db-kpi">
+      <div><div class="db-kpi-lbl">Carga Média Semanal</div>
+        <div style="display:flex;align-items:baseline;gap:4px"><div class="db-kpi-val">${wkUA}</div><span style="font-size:12px;color:var(--t2)">u.a.</span></div>
+        <div class="db-kpi-sub"><span style="color:${uaDelta>=0?'#4ade80':'#f87171'}">${uaDelta>=0?'+':''}${uaDelta}%</span> vs semana ant.</div>
+      </div>
+    </div>
+    <div class="db-kpi">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div class="db-kpi-lbl">Disponibilidade %</div><div class="db-kpi-val">${dispPct}%</div><div class="db-kpi-sub">Plantel disponível</div></div>
+        ${svgRing(dispPct,'#4ade80',44)}
+      </div>
+    </div>
+    <div class="db-kpi">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><div class="db-kpi-lbl" style="color:#60a5fa">Acumulação UA</div><div class="db-kpi-val" style="color:#60a5fa">${wkMins}</div><div class="db-kpi-sub">Esta semana</div></div>
+        <span style="font-size:22px">⏱️</span>
+      </div>
+    </div>
   </div>
-  <div class="g2" style="margin-bottom:18px">
+
+  <!-- Body: plantel + wellness -->
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:12px;margin-bottom:12px;align-items:start">
+    <!-- Estado do Plantel -->
     <div class="card">
-      <div class="ch"><span class="ct">🚨 Alertas</span></div>
-      <div class="cb" style="padding:12px 16px">${alertsHtml}</div>
+      <div class="ch">
+        <span class="ct">ESTADO DO PLANTEL</span>
+        <select class="fc" style="width:auto;font-size:11px" onchange="_pwTeam=this.value;renderDashboard()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===selTeam?'selected':''}>${t.name}</option>`).join('')}</select>
+      </div>
+      <div class="cb" style="padding:0">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid rgba(255,255,255,.08)">
+            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:left">#</th>
+            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:left">ATLETA</th>
+            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">ESTADO</th>
+            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">WELLNESS</th>
+            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700">CARGA SEMANAL</th>
+            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">MINS</th>
+            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">OBS.</th>
+          </tr></thead>
+          <tbody>${plantelRows||`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--t2);font-size:12px">Sem atletas nesta equipa</td></tr>`}</tbody>
+        </table>
+        ${mainAts.length>9?`<div style="text-align:center;padding:8px 0"><button class="btn btn-gh btn-sm" onclick="navTo('plantel')">Ver todas as ${mainAts.length} atletas →</button></div>`:''}
+      </div>
     </div>
-    <div class="card">
-      <div class="ch"><span class="ct">📅 Próximos Eventos</span><button class="btn btn-sm btn-gh" onclick="navTo('planeamento')">Ver todos</button></div>
-      <div class="cb" style="padding:0 16px 8px">${evHtml}</div>
+
+    <!-- Right column: Wellness gauges + próxima sessão -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <div class="ch"><span class="ct">WELLNESS MÉDIO (7 DIAS)</span></div>
+        <div class="cb" style="padding:12px 8px">
+          <div style="display:flex;gap:4px;justify-content:space-around">
+            ${gauge(avgSleep,5,'#a78bfa','Sono')}
+            ${gauge(avgFat,10,'#fbbf24','Fadiga')}
+            ${gauge(avgStr,10,'#60a5fa','Stress')}
+            ${gauge(avgPain,10,'#4ade80','Dor')}
+            ${gauge(avgRPEVal,10,'#f87171','RPE')}
+          </div>
+          <div style="text-align:center;font-size:10px;color:var(--t3);margin-top:6px">${wkW.length} respostas · últimos 7 dias</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><span class="ct">PRÓXIMA SESSÃO</span></div>
+        <div class="cb" style="padding:12px 14px">
+          ${nextEv?`<div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="mc-sess s-tec" style="padding:4px 10px;font-size:10px;font-weight:700;white-space:nowrap;border-radius:6px">${nextEv.type}</span>
+            <div><div style="font-size:13px;font-weight:700">${nextEv.title}</div>
+              <div style="font-size:11px;color:var(--t2);margin-top:3px">${nextEv.date===td?'Hoje':fmtDate(nextEv.date)}${nextEv.time?' · '+nextEv.time:''}</div>
+              ${nextEv.location?`<div style="font-size:10px;color:var(--t3)">📍 ${nextEv.location}</div>`:''}
+              ${nextEv.notes?`<div style="font-size:10px;color:var(--t3);margin-top:3px">${nextEv.notes}</div>`:''}
+            </div>
+          </div>`:
+          `<div style="color:var(--t2);font-size:12px;text-align:center;padding:8px">Sem sessões agendadas</div>`}
+          ${nextGame?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
+            <div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;margin-bottom:4px">Próximo Jogo</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:18px">⚽</span>
+              <div><div style="font-size:13px;font-weight:700">vs ${nextGame.opp}</div>
+              <div style="font-size:11px;color:var(--t2)">${fmtDate(nextGame.date)}${nextGame.time?' · '+nextGame.time:''}${nextGame.location?' · '+nextGame.location:''}</div></div>
+            </div>
+          </div>`:''}
+        </div>
+      </div>
     </div>
   </div>
-  <div class="g2">
+
+  <!-- Bottom row -->
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-bottom:58px">
+    <!-- Carga Semanal chart -->
     <div class="card">
-      <div class="ch"><span class="ct">📊 PSE — Últimos 7 dias</span></div>
-      <div class="cb"><div class="chart-wrap"><canvas id="chart-pse-dash"></canvas></div></div>
+      <div class="ch"><span class="ct">CARGA SEMANAL</span>
+        <div style="display:flex;gap:12px;font-size:10px;color:var(--t2);align-items:center">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:8px;background:rgba(74,222,128,.6);display:inline-block;border-radius:2px"></span>Carga (u.a.)</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:2px;background:rgba(255,255,255,.35);display:inline-block"></span>Crónica</span>
+        </div>
+      </div>
+      <div class="cb"><div class="chart-wrap" style="height:160px"><canvas id="ch-carga-sem"></canvas></div></div>
     </div>
+
+    <!-- Top 5 ACWR -->
     <div class="card">
-      <div class="ch"><span class="ct">💊 Wellness — Últimos 7 dias</span></div>
-      <div class="cb"><div class="chart-wrap"><canvas id="chart-w-dash"></canvas></div></div>
+      <div class="ch"><span class="ct">TOP 5 ACWR</span></div>
+      <div class="cb" style="padding:12px 14px">
+        ${acwrList.filter(x=>x.r>0).slice(0,5).map((x,i)=>{
+          const c=x.r>1.5?'#f87171':x.r>1.3?'#fbbf24':x.r>=0.8?'#4ade80':'#60a5fa';
+          const bw=Math.min(100,Math.round(x.r/2*100));
+          return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+            <span style="font-size:10px;color:var(--t3);width:12px;flex-shrink:0">${i+1}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.at.name.split(' ').slice(0,2).join(' ')}</div>
+              <div style="height:3px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:3px"><div style="width:${bw}%;height:100%;background:${c};border-radius:2px"></div></div>
+            </div>
+            <span style="font-size:13px;font-weight:800;color:${c};flex-shrink:0">${x.r}</span>
+          </div>`;
+        }).join('')||`<div style="color:var(--t2);font-size:11px;text-align:center;padding:16px">Sem dados PSE (28 dias)</div>`}
+        <div style="font-size:9px;color:var(--t3);padding-top:8px;border-top:1px solid var(--brd)">ⓘ Ideal: 0.8–1.3 &nbsp;|&nbsp; >1.5 Risco Elevado</div>
+      </div>
     </div>
+
+    <!-- Risco de Lesão + Distribuição -->
+    <div class="card">
+      <div class="ch"><span class="ct">RISCO DE LESÃO</span></div>
+      <div class="cb" style="padding:12px 14px">
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px">
+          <div style="text-align:center;flex-shrink:0">
+            <div style="font-size:30px;font-weight:900;line-height:1;color:${injRisk.length>2?'#f87171':injRisk.length?'#fbbf24':'#4ade80'}">${injRisk.length}</div>
+            <div style="font-size:9px;color:var(--t2);font-weight:700">${injRisk.length>2?'ALTO RISCO':injRisk.length?'ATENÇÃO':'CONTROLADO'}</div>
+          </div>
+          <div style="flex:1">
+            ${injRisk.slice(0,3).map(a=>{
+              const inj=injMap[a.id];
+              const ac=acwrList.find(x=>x.at.id===a.id);
+              const reason=inj?(inj.diagnosis||inj.type):ac&&ac.r>1.3?'Alta carga / baixa recuperação':'Fadiga acumulada';
+              const c=inj?'#f87171':'#fbbf24';
+              return`<div style="margin-bottom:5px"><div style="font-size:11px;font-weight:700;color:${c}">● ${a.name.split(' ')[0]}</div><div style="font-size:9px;color:var(--t3)">${reason}</div></div>`;
+            }).join('')||`<div style="color:#4ade80;font-size:11px">✅ Sem atletas em risco</div>`}
+          </div>
+        </div>
+        <div style="margin-top:4px">
+          <div style="font-size:9px;color:var(--t2);font-weight:700;margin-bottom:4px;text-transform:uppercase">Distribuição de Carga (28d)</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <div style="flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden;display:flex">
+              <div style="width:${distPct(typeUA.Treino)}%;background:#4ade80;transition:width .5s"></div>
+              <div style="width:${distPct(typeUA.Jogo)}%;background:#f87171;transition:width .5s"></div>
+              <div style="width:${distPct(typeUA.Força)}%;background:#60a5fa;transition:width .5s"></div>
+              <div style="width:${distPct(typeUA.Outros)}%;background:#fbbf24;transition:width .5s"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:5px;font-size:9px;color:var(--t2);flex-wrap:wrap">
+            <span><span style="color:#4ade80">■</span> Treino ${distPct(typeUA.Treino)}%</span>
+            <span><span style="color:#f87171">■</span> Jogo ${distPct(typeUA.Jogo)}%</span>
+            <span><span style="color:#60a5fa">■</span> Força ${distPct(typeUA.Força)}%</span>
+            <span><span style="color:#fbbf24">■</span> Outros ${distPct(typeUA.Outros)}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert bar -->
+  <div style="position:fixed;bottom:0;left:var(--sb-w,220px);right:0;background:var(--bg1);border-top:1px solid var(--brd);padding:8px 16px;display:flex;align-items:center;gap:14px;z-index:40;font-size:11px;flex-wrap:wrap">
+    <strong style="color:var(--t2);white-space:nowrap;font-size:10px;letter-spacing:.5px">⚡ ALERTAS ATIVOS</strong>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;flex:1">${alts.join('')}</div>
+    <button class="btn btn-gh btn-sm" style="white-space:nowrap;flex-shrink:0" onclick="navTo('pse-wellness')">Ver todos alertas →</button>
   </div>`;
+
+  // Render charts
   setTimeout(()=>{
-    const labels=days7.map(d=>fmtDateShort(d));
-    buildChart('chart-pse-dash',labels,pse7vals,'PSE Médio','rgba(29,111,59,.7)','rgba(29,111,59,.2)',0,10);
-    buildChart('chart-w-dash',labels,w7vals,'Wellness Médio','rgba(245,158,11,.7)','rgba(245,158,11,.15)',0,100);
-  },50);
+    const ctx1=document.getElementById('ch-carga-sem');
+    if(ctx1){
+      if(ctx1._chart)ctx1._chart.destroy();
+      ctx1._chart=new Chart(ctx1,{data:{labels:dayNames,datasets:[
+        {type:'bar',label:'Carga (u.a.)',data:dayUA,backgroundColor:'rgba(74,222,128,.45)',borderColor:'rgba(74,222,128,.8)',borderWidth:1,borderRadius:4},
+        {type:'line',label:'Crónica',data:wkDays.map(()=>avgChron),borderColor:'rgba(255,255,255,.3)',borderWidth:1.5,pointRadius:0,fill:false,tension:0}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#94a3b8',font:{size:9}}},x:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:9}}}}}});
+    }
+  },80);
 }
+
 function buildChart(id,labels,data,label,borderColor,bgColor,min,max){
   const c=document.getElementById(id);if(!c)return;
   if(c._chart)c._chart.destroy();
@@ -721,6 +999,13 @@ function renderPlantel(teamId){
   const formHtml=_showAtForm?`
   <div class="ipanel" id="at-form">
     <div class="sh"><div class="sh-t">${_editAtId?'Editar Atleta':'Nova Atleta'}</div><button class="btn btn-sm btn-gh" onclick="_showAtForm=false;_editAtId=null;renderPlantel()">✕</button></div>
+    <div class="al al-b" style="margin-bottom:10px;font-size:11px">
+      <strong>📥 Importar via URL</strong> — Cola o URL da FPF ou Transfermarkt para pré-preencher os dados
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <input class="fc" id="af-import-url" placeholder="https://www.fpf.pt/...playerId/... ou transfermarkt.pt/..." style="flex:1;font-size:11px">
+        <button class="btn btn-g btn-sm" onclick="importAthleteFromUrl()">📥 Importar</button>
+      </div>
+    </div>
     <div class="fr"><div class="form-g"><label class="fl">Nome Completo *</label><input class="fc" id="af-name" placeholder="Nome da atleta"></div>
     <div class="form-g"><label class="fl">Posição</label><select class="fc" id="af-pos"><option value="">—</option><option>GR</option><option>DC</option><option>DD</option><option>DE</option><option>MDC</option><option>MC</option><option>MOC</option><option>ELD</option><option>ELE</option><option>PL</option><option>AV</option></select></div></div>
     <div class="fr3"><div class="form-g"><label class="fl">Nº Camisola</label><input class="fc" id="af-num" type="number" min="1" max="99"></div>
@@ -728,7 +1013,8 @@ function renderPlantel(teamId){
     <div class="form-g"><label class="fl">Nacionalidade</label><input class="fc" id="af-nat" placeholder="PT"></div></div>
     <div class="fr"><div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="af-height" type="number"></div>
     <div class="form-g"><label class="fl">Pé Dominante</label><select class="fc" id="af-foot"><option value="">—</option><option>Direito</option><option>Esquerdo</option><option>Ambidestro</option></select></div></div>
-    <div class="form-g"><label class="fl">Clube Anterior</label><input class="fc" id="af-club" placeholder="Clube de origem"></div>
+    <div class="fr"><div class="form-g"><label class="fl">Clube Anterior</label><input class="fc" id="af-club" placeholder="Clube de origem"></div>
+    <div class="form-g"><label class="fl">FPF Player ID</label><input class="fc" id="af-fpf-id" placeholder="Ex: 1759779" style="font-size:11px"></div></div>
     <div class="form-g"><label class="fl">URL Foto</label><input class="fc" id="af-photo" placeholder="https://..."></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-g" onclick="saveAthlete()">💾 Guardar</button>
@@ -781,7 +1067,43 @@ function renderPlantel(teamId){
       document.getElementById('af-foot').value=at.foot||'';
       document.getElementById('af-club').value=at.club||'';
       document.getElementById('af-photo').value=at.photo||'';
+      document.getElementById('af-fpf-id').value=at.fpfId||'';
     }
+  }
+}
+function importAthleteFromUrl(){
+  const url=(document.getElementById('af-import-url')||{}).value||'';
+  if(!url)return toast('Cola o URL primeiro','err');
+  // FPF: .../playerId/1234567
+  const fpfM=url.match(/playerId[\/=](\d+)/i);
+  // Transfermarkt: .../nome-jogador/profil/spieler/12345
+  const tmM=url.match(/transfermarkt\.[a-z]+\/([^\/]+)\/profil\/spieler\/(\d+)/i);
+  // Transfermarkt short: /spieler/12345
+  const tmM2=url.match(/\/spieler\/(\d+)/i);
+
+  if(fpfM){
+    const pid=fpfM[1];
+    document.getElementById('af-fpf-id').value=pid;
+    window.open(url,'_blank','noopener');
+    toast(`FPF ID: ${pid} — página aberta. Preenche os dados manualmente.`,'ok');
+  } else if(tmM){
+    const rawName=tmM[1].replace(/-/g,' ');
+    const capName=rawName.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+    const tmId=tmM[2];
+    document.getElementById('af-name').value=capName;
+    document.getElementById('af-club').value='(Transfermarkt #'+tmId+')';
+    // Try to detect nationality from URL if present
+    const natM=url.match(/\/([a-z]{2,3})\/profil\/spieler/i);
+    window.open(url,'_blank','noopener');
+    toast(`Transfermarkt — "${capName}" pré-preenchido. Completa os restantes dados.`,'ok');
+  } else if(tmM2){
+    document.getElementById('af-club').value='(Transfermarkt #'+tmM2[1]+')';
+    window.open(url,'_blank','noopener');
+    toast('Transfermarkt — página aberta. Preenche os dados manualmente.','ok');
+  } else {
+    // Try to open anyway in new tab
+    try{window.open(url,'_blank','noopener');}catch(e){}
+    toast('URL não reconhecido como FPF ou Transfermarkt. Página aberta na nova tab.','err');
   }
 }
 function saveAthlete(){
@@ -790,10 +1112,10 @@ function saveAthlete(){
   if(_editAtId){
     const idx=APP.athletes.findIndex(a=>a.id===_editAtId);
     if(idx>=0){
-      APP.athletes[idx]={...APP.athletes[idx],name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value};
+      APP.athletes[idx]={...APP.athletes[idx],name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,fpfId:document.getElementById('af-fpf-id').value};
     }
   } else {
-    const at={id:uid(),teamId:_plantelTeam,name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,createdAt:today()};
+    const at={id:uid(),teamId:_plantelTeam,name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,fpfId:document.getElementById('af-fpf-id').value,createdAt:today()};
     APP.athletes.push(at);
     if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
   }
@@ -802,27 +1124,57 @@ function saveAthlete(){
 function openAthleteModal(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
   const inj=APP.injuries.filter(i=>i.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
-  const lastW=APP.wellness.filter(w=>w.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const lastP=APP.pse.filter(p=>p.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const wList=APP.wellness.filter(w=>w.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  const pList=APP.pse.filter(p=>p.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  const lastW=wList[0]; const lastP=pList[0];
   const nutriPlan=APP.nutritionPlans.find(n=>n.athleteId===id&&n.active);
-  const injHtml=inj.length?inj.slice(0,3).map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${i.diagnosis||i.type}</span><span>${statusBadge(i.status)}</span></div>`).join(''):`<div style="color:var(--t2);font-size:12px">Sem lesões registadas</div>`;
+  const injHtml=inj.length?inj.slice(0,3).map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--brd);font-size:11px"><span>${i.diagnosis||i.type}<span style="color:var(--t2);margin-left:4px">${i.bodyPart?'('+i.bodyPart+')':''}</span></span><span>${statusBadge(i.status)}</span></div>`).join(''):`<div style="color:var(--t2);font-size:12px">Sem lesões registadas</div>`;
+
+  // Wellness trend (last 7) — arrow
+  const w7=wList.slice(0,7);
+  let wTrend='';
+  if(w7.length>=2){const diff=w7[0].score-w7[w7.length-1].score;wTrend=diff>5?'<span style="color:#4ade80">▲</span>':diff<-5?'<span style="color:#f87171">▼</span>':'<span style="color:#94a3b8">→</span>';}
+
+  // ACWR for this athlete
+  const td=today();
+  const days28=[];for(let i=27;i>=0;i--){const x=new Date(td+'T00:00:00');x.setDate(x.getDate()-i);days28.push(x.toISOString().slice(0,10));}
+  const days7=days28.slice(-7);
+  const acute=pList.filter(p=>days7.includes(p.date)).reduce((s,p)=>s+(+p.ua||0),0)/7;
+  const chronic=pList.filter(p=>days28.includes(p.date)).reduce((s,p)=>s+(+p.ua||0),0)/28;
+  const acwr=chronic?Math.round(acute/chronic*100)/100:null;
+  const acwrC=acwr?(acwr>1.5||acwr<0.8?'bg-r':acwr>=1.0?'bg-g':'bg-y'):'bg-gr';
+
+  // Mini sparkline HTML (last 7 wellness scores)
+  const sparkData=w7.slice().reverse().map(w=>w.score);
+  const spMax=Math.max(...sparkData,1);
+  const spMin=Math.min(...sparkData,0);
+  const spRange=spMax-spMin||1;
+  const spH=36; const spW=12;
+  const sparkBars=sparkData.map((v,i)=>{const h=Math.max(4,Math.round(((v-spMin)/spRange)*spH));const c=v>=70?'#4ade80':v>=45?'#fbbf24':'#f87171';return`<div style="width:${spW}px;height:${h}px;background:${c};border-radius:2px 2px 0 0;align-self:flex-end;opacity:.85" title="${v}"></div>`;}).join('');
+  const sparkHtml=sparkData.length?`<div style="display:flex;align-items:flex-end;gap:2px;height:${spH}px;margin-top:6px">${sparkBars}</div>`:'';
+
   openMod(at.name,`
-  <div style="display:flex;gap:14px;margin-bottom:16px;align-items:center">
-    <div class="at-av" style="width:60px;height:60px;font-size:22px;flex-shrink:0">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:''}${initials(at.name)}</div>
-    <div>
+  <div style="display:flex;gap:14px;margin-bottom:14px;align-items:flex-start">
+    <div class="at-av" style="width:64px;height:64px;font-size:24px;flex-shrink:0">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:''}${initials(at.name)}</div>
+    <div style="flex:1">
       <div style="font-size:16px;font-weight:800">${at.name}</div>
-      <div style="font-size:12px;color:var(--t2)">${at.pos||'—'} ${at.num?'· #'+at.num:''} ${at.nat?'· '+at.nat:''} ${at.dob?'· '+ageYears(at.dob)+' anos':''}</div>
-      ${at.height?`<div style="font-size:11px;color:var(--t2)">${at.height}cm</div>`:''}
+      <div style="font-size:12px;color:var(--t2);margin-top:2px">${at.pos||'—'}${at.num?' · #'+at.num:''}${at.nat?' · '+at.nat:''}${at.dob?' · '+ageYears(at.dob)+' anos':''}</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">${at.height?at.height+'cm':''} ${at.foot?'· '+at.foot:''} ${at.club?'· Anterior: '+at.club:''}</div>
+      ${at.fpfId?`<a href="https://www.fpf.pt/pt/Jogadores/Ficha-de-Jogador/playerId/${at.fpfId}" target="_blank" rel="noopener" style="font-size:10px;color:var(--c1);text-decoration:none">🔗 Ver perfil FPF</a>`:''}
     </div>
   </div>
-  <div class="g2" style="margin-bottom:14px">
-    <div class="kpi"><div class="kpi-lbl">Último Wellness</div><div class="kpi-val" style="font-size:20px">${lastW?lastW.score:'—'}</div><div class="kpi-sub">${lastW?lastW.date:'Sem dados'}</div></div>
-    <div class="kpi"><div class="kpi-lbl">Último PSE</div><div class="kpi-val" style="font-size:20px">${lastP?lastP.pse:'—'}</div><div class="kpi-sub">${lastP?lastP.date+' · '+lastP.duration+'min':'Sem dados'}</div></div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+    <div class="kpi" style="padding:10px 8px"><div class="kpi-lbl">Wellness</div><div class="kpi-val" style="font-size:18px">${lastW?lastW.score:'—'} ${wTrend}</div><div class="kpi-sub">${lastW?fmtDateShort(lastW.date):'Sem dados'}</div></div>
+    <div class="kpi" style="padding:10px 8px"><div class="kpi-lbl">PSE</div><div class="kpi-val" style="font-size:18px">${lastP?lastP.pse+'/10':'—'}</div><div class="kpi-sub">${lastP?lastP.duration+'min':'Sem dados'}</div></div>
+    <div class="kpi" style="padding:10px 8px"><div class="kpi-lbl">ACWR</div><div class="kpi-val" style="font-size:18px">${acwr?`<span class="bdg ${acwrC}" style="font-size:14px">${acwr}</span>`:'—'}</div><div class="kpi-sub">Carga A/C</div></div>
+    <div class="kpi" style="padding:10px 8px"><div class="kpi-lbl">Lesões</div><div class="kpi-val" style="font-size:18px;color:${inj.filter(i=>i.status!=='alta').length?'#f87171':'#4ade80'}">${inj.filter(i=>i.status!=='alta').length}</div><div class="kpi-sub">Ativas</div></div>
   </div>
-  <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">🩺 Lesões</div>${injHtml}</div>
-  ${nutriPlan?`<div class="al al-g">🥗 Plano nutricional ativo: <strong>${nutriPlan.name}</strong></div>`:''}
-  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+  ${sparkHtml?`<div style="margin-bottom:14px"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">💊 Wellness — últimas ${sparkData.length} submissões</div>${sparkHtml}</div>`:''}
+  <div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">🩺 Histórico de Lesões</div>${injHtml}</div>
+  ${nutriPlan?`<div class="al al-g" style="margin-bottom:10px">🥗 Plano nutricional ativo: <strong>${nutriPlan.name}</strong> · ${nutriPlan.kcal||'—'} kcal</div>`:''}
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
     <button class="btn btn-g btn-sm" onclick="closeMod();_editAtId='${id}';_showAtForm=true;renderPlantel()">✏️ Editar</button>
+    <button class="btn btn-gh btn-sm" onclick="closeMod();navTo('pse-wellness')">📊 PSE/Wellness</button>
     <button class="btn btn-r btn-sm" onclick="deleteAthlete('${id}')">🗑️ Apagar</button>
   </div>
   `,'lg');
@@ -2074,97 +2426,4 @@ function renderAtTreino(){
   document.getElementById('atp-treino').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏋️ Fichas de Treino</div>
   ${active.length?`<div style="margin-bottom:14px">${active.map(p=>`<div class="card" style="margin-bottom:10px">
-    <div class="ch"><span class="ct">${p.title}</span><span class="bdg bg-y">Pendente</span></div>
-    <div class="cb" style="padding:11px">
-      <div style="font-size:10px;color:var(--t2);margin-bottom:6px">${p.type} ${p.week?'· '+fmtDate(p.week):''} ${p.volume?'· '+p.volume:''}</div>
-      ${p.description?`<div style="font-size:12px;color:var(--t1);line-height:1.7;white-space:pre-line;margin-bottom:8px">${p.description}</div>`:''}
-      ${p.note?`<div class="al al-b" style="font-size:11px">💬 ${p.note}</div>`:''}
-      <button class="btn btn-g btn-sm" style="margin-top:8px" onclick="markTreinoDone('${p.id}')">✅ Marcar como Concluída</button>
-    </div>
-  </div>`).join('')}</div>`:''}
-  ${!active.length?`<div class="empty"><div class="ei">🏋️</div><p>Sem fichas pendentes</p><div class="esub">O teu treinador irá criar fichas individualizadas</div></div>`:''}
-  ${done.length?`<div><div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--t2)">Concluídas (${done.length})</div>${done.slice(0,5).map(p=>`<div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--brd);color:var(--t2)"><span class="bdg bg-g">✓</span> ${p.title} ${p.week?'· '+fmtDate(p.week):''}</div>`).join('')}</div>`:''}`;
-}
-function markTreinoDone(id){const p=APP.trainingPlans.find(x=>x.id===id);if(p){p.done=true;p.doneAt=today();saveData();toast('Ficha marcada como concluída ✓');renderAtTreino();}}
-function renderAtConvoc(){
-  const convocs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)).sort((a,b)=>b.date.localeCompare(a.date));
-  document.getElementById('atp-convoc').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">📋 Convocatórias</div>
-  ${convocs.length?convocs.map(c=>{const game=APP.games.find(g=>g.id===c.gameId);return`<div class="card" style="margin-bottom:10px"><div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)}</span><span class="bdg bg-g">Convocada</span></div>
-  <div class="cb" style="padding:11px">
-    ${game?`<div style="font-size:13px;font-weight:700">vs ${game.opp}</div><div style="font-size:11px;color:var(--t2)">${fmtDate(game.date)} ${game.time?'· '+game.time.slice(0,5):''} · ${game.ha==='casa'?'🏠 Casa':'✈️ Fora'} ${game.loc?'· '+game.loc:''}</div>`:''}
-    <div style="font-size:11px;color:var(--t2);margin-top:4px">${fmtDate(c.date)} · ${c.athletes.length} convocadas</div>
-  </div></div>`;}).join(''):
-  `<div class="empty"><div class="ei">📋</div><p>Sem convocatórias</p></div>`}`;
-}
-
-// ─── SUPABASE ─────────────────────────────────────────────
-function getSupaCfg(){try{return JSON.parse(localStorage.getItem(SK))||{};}catch{return{};}}
-function setSupaCfg(cfg){localStorage.setItem(SK,JSON.stringify(cfg));}
-function updateCloudDot(ok){document.getElementById('cloud-dot').textContent=ok?'🟢':'🔴';}
-async function connectCloud(){
-  const url=document.getElementById('supa-url').value.trim();
-  const key=document.getElementById('supa-key').value.trim();
-  const cid=document.getElementById('supa-cid').value.trim();
-  if(!url||!key)return toast('URL e Key obrigatórios','err');
-  try{
-    _supa=supabase.createClient(url,key);
-    // find or create club
-    let clubId=cid;
-    if(!clubId){
-      const {data:existing}=await _supa.from('clubs').select('id').eq('name',APP.config.clubName).single();
-      if(existing){clubId=existing.id;}
-      else{const {data:nc}=await _supa.from('clubs').insert({name:APP.config.clubName,season:APP.config.season}).select('id').single();clubId=nc?.id;}
-    }
-    _cid=clubId;_sync=true;
-    setSupaCfg({url,anonKey:key,clubId});
-    updateCloudDot(true);
-    toast('Cloud conectado! ☁️🟢');
-    document.getElementById('cloud-status').textContent='🟢 Ligado — Club ID: '+_cid;
-    await pullCloud();
-  }catch(e){toast('Erro ao conectar: '+e.message,'err');_sync=false;updateCloudDot(false);}
-}
-function disconnectCloud(){_supa=null;_cid=null;_sync=false;setSupaCfg({});updateCloudDot(false);toast('Cloud desligado');if(document.getElementById('cloud-status'))document.getElementById('cloud-status').textContent='🔴 Desligado';}
-async function cloudUpsert(table,row){if(!_supa||!_cid)return;try{await _supa.from(table).upsert({...row,club_id:_cid});}catch(e){console.warn('Cloud upsert error',e);}}
-async function cloudDelete(table,id){if(!_supa||!_cid)return;try{await _supa.from(table).delete().eq('id',id).eq('club_id',_cid);}catch(e){console.warn('Cloud delete error',e);}}
-async function pullCloud(){
-  if(!_supa||!_cid)return;
-  try{
-    const tables=['athletes','wellness_records','pse_records','injuries','treatments','nutrition_records','nutrition_plans','schedule_events','training_plans'];
-    for(const t of tables){
-      const {data}=await _supa.from(t).select('*').eq('club_id',_cid);
-      if(data?.length){
-        if(t==='athletes')APP.athletes=data.map(r=>({...r,teamId:r.team_id}));
-        else if(t==='wellness_records')APP.wellness=data.map(r=>({...r,athleteId:r.athlete_id}));
-        else if(t==='pse_records')APP.pse=data.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type}));
-        else if(t==='injuries')APP.injuries=data.map(r=>({...r,athleteId:r.athlete_id,bodyPart:r.body_part,returnDate:r.return_date,phaseDesc:r.phase_desc}));
-        else if(t==='treatments')APP.treatments=data.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name}));
-        else if(t==='nutrition_records')APP.nutritionAssessments=data.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat}));
-        else if(t==='nutrition_plans')APP.nutritionPlans=data.map(r=>({...r,athleteId:r.athlete_id,meals:r.meals||[]}));
-        else if(t==='schedule_events')APP.schedule=data.map(r=>({...r,teamId:r.team_id}));
-        else if(t==='training_plans')APP.trainingPlans=data.map(r=>({...r,athleteId:r.athlete_id}));
-      }
-    }
-    saveData();if(_curPg)navTo(_curPg);toast('Dados sincronizados ✓');
-  }catch(e){console.warn('Pull cloud error',e);}
-}
-function openCloud(){navTo('config');}
-
-// ─── INIT ─────────────────────────────────────────────────
-function init(){
-  loadData();
-  // Setup login
-  const cfg=APP.config;
-  document.getElementById('lclub').textContent=cfg.clubName;
-  document.getElementById('lb').textContent=cfg.logo||'⚽';
-  // Init supabase if configured
-  const sc=getSupaCfg();
-  if(sc.url&&sc.anonKey){
-    try{_supa=supabase.createClient(sc.url,sc.anonKey);_cid=sc.clubId||null;_sync=true;updateCloudDot(true);}
-    catch{_sync=false;}
-  }
-}
-document.addEventListener('DOMContentLoaded',init);
-</script>
-</body>
-</html>
+    <div class="ch"><span class="ct">${p.title}</span><span class="bdg b
