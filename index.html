@@ -1454,49 +1454,56 @@ async function searchClub(q){
     dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">🔍 A pesquisar...</div>';
     dd.style.display='block';
     try{
-      // Step 1: opensearch to get page titles
-      const sr=await fetch('https://en.wikipedia.org/w/api.php?action=opensearch&search='+encodeURIComponent(q+' football')+'&limit=6&namespace=0&format=json&origin=*');
-      const [,titles]=await sr.json();
-      if(!titles||!titles.length){
+      // Pesquisar PT e EN Wikipedia em simultâneo
+      const [ptR,enR]=await Promise.allSettled([
+        fetch('https://pt.wikipedia.org/w/api.php?action=opensearch&search='+encodeURIComponent(q)+'&limit=4&namespace=0&format=json&origin=*').then(r=>r.json()),
+        fetch('https://en.wikipedia.org/w/api.php?action=opensearch&search='+encodeURIComponent(q+' football club')+'&limit=4&namespace=0&format=json&origin=*').then(r=>r.json())
+      ]);
+      const ptTitles=(ptR.status==='fulfilled'?(ptR.value[1]||[]):[]).map(t=>({t,lang:'pt'}));
+      const enTitles=(enR.status==='fulfilled'?(enR.value[1]||[]):[]).map(t=>({t,lang:'en'}));
+      // PT primeiro, depois EN, sem duplicados
+      const seen=new Set();
+      const combined=[...ptTitles,...enTitles].filter(({t})=>{
+        const k=t.toLowerCase();
+        if(seen.has(k))return false;
+        seen.add(k);return true;
+      }).slice(0,6);
+      if(!combined.length){
         dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Nenhum clube encontrado</div>';
         return;
       }
-      // Step 2: fetch REST summary for each title in parallel — returns infobox image = badge
-      const summaries=await Promise.all(titles.slice(0,5).map(async t=>{
+      // REST summary de cada artigo em paralelo — thumbnail = escudo do infobox
+      const results=await Promise.all(combined.map(async({t,lang})=>{
         try{
-          const r=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(t.replace(/ /g,'_')));
-          return await r.json();
-        }catch(e){return {title:t,description:'',thumbnail:null};}
+          const r=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(t.replace(/ /g,'_')));
+          const s=await r.json();
+          return{title:s.title||t,desc:s.description||'',logo:s.thumbnail?s.thumbnail.source:''};
+        }catch(e){return{title:t,desc:'',logo:''};}
       }));
       dd.innerHTML='';
-      summaries.forEach(s=>{
-        const logo=s.thumbnail?s.thumbnail.source:'';
+      results.forEach(s=>{
         const row=document.createElement('div');
         row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--brd)';
         row.onmouseover=()=>row.style.background='var(--bg3)';
         row.onmouseout=()=>row.style.background='';
-        row.onclick=()=>selectClub(s.title||'',logo);
-        // icon
+        row.onclick=()=>selectClub(s.title,s.logo);
         const ic=document.createElement('div');
         ic.style.cssText='width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
-        if(logo){
+        if(s.logo){
           const img=document.createElement('img');
-          img.src=logo;
+          img.src=s.logo;
           img.style.cssText='width:32px;height:32px;object-fit:contain;border-radius:4px';
           img.onerror=()=>{ic.innerHTML='<span style="font-size:22px">⚽</span>';};
           ic.appendChild(img);
-        }else{
-          ic.innerHTML='<span style="font-size:22px">⚽</span>';
-        }
+        }else{ic.innerHTML='<span style="font-size:22px">⚽</span>';}
         row.appendChild(ic);
-        // text
         const tx=document.createElement('div');
         const n=document.createElement('div');
         n.style.cssText='font-size:13px;font-weight:600';
-        n.textContent=s.title||'';
+        n.textContent=s.title;
         const d=document.createElement('div');
         d.style.cssText='font-size:10px;color:var(--t2)';
-        d.textContent=s.description||'';
+        d.textContent=s.desc;
         tx.appendChild(n);tx.appendChild(d);
         row.appendChild(tx);
         dd.appendChild(row);
