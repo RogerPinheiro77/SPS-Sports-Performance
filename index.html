@@ -420,7 +420,7 @@ let _supa=null,_cid=null,_sync=false;
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:''},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
     exercises:defEx(),games:[],scouting:[],evaluations:[],
@@ -451,6 +451,7 @@ function loadData(){
   const def=defApp();
   for(const k in def){if(!APP[k])APP[k]=def[k];}
   if(!APP.config)APP.config=def.config;
+  for(const k in def.config){if(APP.config[k]===undefined)APP.config[k]=def.config[k];}
 }
 function saveData(){localStorage.setItem(DK,JSON.stringify(APP));}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -2776,6 +2777,26 @@ function renderConfig(){
       <label class="btn btn-gh btn-sm" style="display:inline-flex;cursor:pointer;margin-left:8px">📤 Importar JSON<input type="file" accept=".json" style="display:none" onchange="importData(event)"></label>
       <div style="margin-top:12px"><button class="btn btn-r btn-sm" onclick="if(confirm('Apagar TODOS os dados?')){APP=defApp();saveData();toast('Dados limpos');renderConfig();}">🗑️ Limpar Todos os Dados</button></div>
     </div></div>
+    <div class="card"><div class="ch"><span class="ct">⏰ Ativações</span></div><div class="cb">
+      <div class="al al-b" style="margin-bottom:14px;font-size:11px">Define quando o PSE e o Wellness ficam disponíveis para as atletas.</div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--t2)">💊 WELLNESS — Janela Diária</div>
+      <div class="fr">
+        <div class="form-g"><label class="fl">Hora de Abertura</label>
+          <input class="fc" type="time" id="cfg-wstart" value="${APP.config.wellnessStart||'07:00'}">
+        </div>
+        <div class="form-g"><label class="fl">Hora de Fecho</label>
+          <input class="fc" type="time" id="cfg-wend" value="${APP.config.wellnessEnd||'11:00'}">
+        </div>
+      </div>
+      <div style="font-size:12px;font-weight:700;margin:14px 0 10px;color:var(--t2)">📊 PSE — Ativação Após Sessão</div>
+      <div class="form-g"><label class="fl">Minutos após fim da sessão (0 = ativa imediatamente)</label>
+        <input class="fc" type="number" id="cfg-psedelay" min="0" max="240" value="${APP.config.pseDelay||0}" placeholder="0">
+      </div>
+      <div class="al" style="margin:8px 0 14px;font-size:11px;background:var(--bg3);border-color:var(--brd)">
+        ℹ️ O PSE abre automaticamente quando a hora atual ultrapassa o fim do treino/jogo definido no calendário + os minutos de espera acima.
+      </div>
+      <button class="btn btn-g btn-sm" onclick="saveActivations()">💾 Guardar Ativações</button>
+    </div></div>
     <div class="card"><div class="ch"><span class="ct">🌱 Equipas</span></div><div class="cb">
       ${APP.teams.map(t=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${t.name} <span class="bdg bg-gr">${t.cat||t.type}</span></span>${t.id!=='T1'?`<button class="btn btn-xs btn-r" onclick="deleteTeam('${t.id}')">🗑️</button>`:''}</div>`).join('')}
       <div style="display:flex;gap:6px;margin-top:10px"><input class="fc" id="new-team-name" placeholder="Nova equipa..." style="flex:1"><button class="btn btn-g btn-sm" onclick="addTeamQuick()">+</button></div>
@@ -2800,6 +2821,13 @@ function updateSidebarLogo(){
   const logo=APP.config.clubLogo;
   if(logo){el.innerHTML='<img src="'+logo+'" style="width:28px;height:28px;object-fit:contain;border-radius:5px" onerror="this.parentElement.textContent=\''+(APP.config.logo||'⚽')+'\'">';}
   else{el.textContent=APP.config.logo||'⚽';}
+}
+function saveActivations(){
+  APP.config.wellnessStart=document.getElementById('cfg-wstart').value||'07:00';
+  APP.config.wellnessEnd=document.getElementById('cfg-wend').value||'11:00';
+  APP.config.pseDelay=parseInt(document.getElementById('cfg-psedelay').value)||0;
+  saveData();
+  toast('Ativações guardadas ✓');
 }
 function savePins(){
   const tec=document.getElementById('cfg-pin-tec').value;
@@ -2871,6 +2899,31 @@ function renderAtHome(){
 function renderAtWellness(){
   const td=today();
   const alreadyToday=APP.wellness.find(w=>w.athleteId===AID&&w.date===td);
+  // ── Wellness time-window check ────────────────────────────────────────
+  const _wNow=new Date();
+  const _wNowMin=_wNow.getHours()*60+_wNow.getMinutes();
+  const _wStart=(APP.config.wellnessStart||'07:00').split(':').map(Number);
+  const _wEnd=(APP.config.wellnessEnd||'11:00').split(':').map(Number);
+  const _wStartMin=_wStart[0]*60+(_wStart[1]||0);
+  const _wEndMin=_wEnd[0]*60+(_wEnd[1]||0);
+  const _wOpen=_wNowMin>=_wStartMin&&_wNowMin<_wEndMin;
+  const _wFmt=(h,m)=>String(h).padStart(2,'0')+':'+String(m||0).padStart(2,'0');
+  if(!_wOpen&&!alreadyToday){
+    const lockMsg=_wNowMin<_wStartMin?`Abre hoje às <strong>${_wFmt(_wStart[0],_wStart[1])}</strong>`:`Reabre amanhã às <strong>${_wFmt(_wStart[0],_wStart[1])}</strong>`;
+    document.getElementById('atp-wellness').innerHTML=`
+    <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">💊 Questionário Wellness</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:16px">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
+    <div class="card" style="text-align:center;padding:32px 20px">
+      <div style="font-size:44px;margin-bottom:12px">🔒</div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:6px">Questionário fechado</div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:10px">${lockMsg}</div>
+      <div style="font-size:11px;color:var(--t2)">Janela diária: ${APP.config.wellnessStart||'07:00'} – ${APP.config.wellnessEnd||'11:00'}</div>
+    </div>
+    <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Histórico (últimos 14 dias)</div>
+    <div class="tw"><table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
+    <tbody>${APP.wellness.filter(w=>w.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(w=>{const sc=w.score;const c=sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="bdg ${c}">${sc}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
+    return;
+  }
   const wDims=[{k:'sleep',label:'Sono',sub:'Qualidade do sono (1=Mau → 5=Excelente)',max:5},{k:'fatigue',label:'Fadiga',sub:'Nível de fadiga (1=Sem fadiga → 10=Exausto)',max:10},{k:'stress',label:'Stress',sub:'Stress/Ansiedade (1=Sem stress → 10=Muito stressado)',max:10},{k:'pain',label:'Dor Muscular',sub:'Dores musculares (0=Sem dor → 10=Muita dor)',max:10,min:0},{k:'mood',label:'Humor',sub:'Estado de humor (1=Muito mau → 5=Excelente)',max:5}];
   const scaleHtml=(k,min,max)=>{const nums=Array.from({length:max-(min||1)+1},(_,i)=>(min||1)+i);return`<div class="wf-sc">${nums.map(n=>`<button class="wsb ${_wfVals[k]==n?'on':''}" onclick="_wfVals['${k}']=${n};this.closest('.wf-row').querySelectorAll('.wsb').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${n}</button>`).join('')}</div>`;};
   const cycleOpts=['N/A','Menstruação','Folicular','Ovulação','Lútea'];
@@ -2919,6 +2972,51 @@ function calcWellnessScore(v){
 function renderAtPSE(){
   const td=today();
   const already=APP.pse.filter(p=>p.athleteId===AID&&p.date===td);
+  // ── PSE session-end check ──────────────────────────────────────────────
+  const _pNow=new Date();
+  const _pNowMin=_pNow.getHours()*60+_pNow.getMinutes();
+  const _pDelay=parseInt(APP.config.pseDelay)||0;
+  const _pAt=APP.athletes.find(a=>a.id===AID);
+  const _pTrainTypes=['Treino','Treino Força','Treino Técnico','Jogo','Jogo Oficial','Jogo Treino','Jogo Amigável'];
+  const _pEvs=APP.schedule.filter(e=>{
+    if(e.date!==td||!e.time||!e.dur)return false;
+    if(!_pTrainTypes.includes(e.type))return false;
+    return !e.teamId||e.teamId===_pAt?.teamId;
+  });
+  let _pUnlocked=already.length>0;
+  let _pNextEndStr='';
+  let _pNextEndMin=9999;
+  if(!_pUnlocked&&_pEvs.length){
+    for(const ev of _pEvs){
+      const [eh,em]=(ev.time||'00:00').split(':').map(Number);
+      const endMin=eh*60+em+parseInt(ev.dur||90)+_pDelay;
+      if(_pNowMin>=endMin){_pUnlocked=true;break;}
+      if(endMin<_pNextEndMin){_pNextEndMin=endMin;const h2=Math.floor(endMin/60);const m2=endMin%60;_pNextEndStr=String(h2).padStart(2,'0')+':'+String(m2).padStart(2,'0');}
+    }
+  }
+  if(!_pUnlocked){
+    const noSession=!_pEvs.length;
+    const lockBody=noSession?'Sem treino ou jogo agendado para hoje.':_pNextEndStr?'O PSE fica disponível às <strong>'+_pNextEndStr+'</strong> (fim da sessão'+((_pDelay>0)?' + '+_pDelay+' min':'')+')':'A aguardar fim da sessão...';
+    const evCards=_pEvs.map(ev=>{
+      const [eh2,em2]=(ev.time||'00:00').split(':').map(Number);
+      const end2=eh2*60+em2+parseInt(ev.dur||90)+_pDelay;
+      const hh=Math.floor(end2/60);const mm=end2%60;
+      return `<div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;margin-bottom:6px"><div style="font-size:20px">🏋️</div><div><div style="font-size:12px;font-weight:700">${ev.title}</div><div style="font-size:10px;color:var(--t2)">PSE disponível: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}</div></div></div>`;
+    }).join('');
+    document.getElementById('atp-pse').innerHTML=`
+    <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">📊 PSE — Carga de Treino</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Escala de Borg CR10</div>
+    <div class="card" style="text-align:center;padding:32px 20px">
+      <div style="font-size:44px;margin-bottom:12px">${noSession?'📅':'⏳'}</div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:8px">${noSession?'Sem sessão hoje':'A aguardar fim de sessão'}</div>
+      <div style="font-size:12px;color:var(--t2)">${lockBody}</div>
+    </div>
+    ${evCards}
+    <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Últimos Registos</div>
+    <div class="tw"><table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead>
+    <tbody>${APP.pse.filter(p=>p.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
+    return;
+  }
   const borgLabels={0:'Repouso',1:'Muito fácil',2:'Fácil',3:'Moderado',4:'Algo difícil',5:'Difícil',6:'',7:'Muito difícil',8:'',9:'Extremamente difícil',10:'Esforço máximo'};
   document.getElementById('atp-pse').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">📊 PSE — Carga de Treino</div>
