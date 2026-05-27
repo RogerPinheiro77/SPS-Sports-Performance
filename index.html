@@ -1454,19 +1454,27 @@ async function searchClub(q){
     dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">🔍 A pesquisar...</div>';
     dd.style.display='block';
     try{
-      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/1/searchteams.php?t=${encodeURIComponent(q)}`);
+      // Wikipedia API — CORS-friendly, images for all major clubs
+      const url=`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q+' football club')}&gsrlimit=8&prop=pageimages|description&pithumbsize=80&format=json&origin=*`;
+      const r=await fetch(url);
       const j=await r.json();
-      const teams=(j.teams||[]).slice(0,8);
-      if(!teams.length){dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Nenhum clube encontrado</div>';return;}
-      dd.innerHTML=teams.map(t=>`
-        <div onclick="selectClub('${(t.strTeam||'').replace(/'/g,"\'")}','${t.strTeamBadge||''}')"
+      const pages=Object.values(j.query?.pages||{}).sort((a,b)=>(a.index||0)-(b.index||0));
+      if(!pages.length){dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Nenhum clube encontrado</div>';return;}
+      dd.innerHTML=pages.map(p=>{
+        const logo=p.thumbnail?p.thumbnail.source:'';
+        const name=(p.title||'').replace(/'/g,"\\'");
+        const logoSafe=(logo||'').replace(/'/g,"\\'");
+        return`<div onclick="selectClub('${name}','${logoSafe}')"
           style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--brd)"
           onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-          ${t.strTeamBadge?`<img src="${t.strTeamBadge}" style="width:28px;height:28px;object-fit:contain;flex-shrink:0">`:'<span style="font-size:20px;flex-shrink:0">⚽</span>'}
-          <div><div style="font-size:13px;font-weight:600">${t.strTeam}</div>
-          <div style="font-size:10px;color:var(--t2)">${t.strCountry||''}${t.strLeague?' · '+t.strLeague:''}</div></div>
-        </div>`).join('');
-    }catch(e){dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Erro na pesquisa</div>';}
+          ${logo?`<img src="${logo}" style="width:28px;height:28px;object-fit:contain;flex-shrink:0;border-radius:4px">`:'<span style="font-size:20px;flex-shrink:0">⚽</span>'}
+          <div><div style="font-size:13px;font-weight:600">${p.title}</div>
+          <div style="font-size:10px;color:var(--t2)">${p.description||''}</div></div>
+        </div>`;
+      }).join('');
+    }catch(e){
+      dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Erro na pesquisa</div>';
+    }
   },400);
 }
 function selectClub(name,logo){
