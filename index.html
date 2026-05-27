@@ -877,10 +877,12 @@ function renderDashboard(){
           `<div style="color:var(--t2);font-size:12px;text-align:center;padding:8px">Sem sessões agendadas</div>`}
           ${nextGame?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
             <div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;margin-bottom:4px">Próximo Jogo</div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:18px">⚽</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              ${nextGame.oppLogo
+                ?`<img src="${nextGame.oppLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;flex-shrink:0" onerror="this.outerHTML='<span style=font-size:24px>⚽</span>'">`
+                :`<span style="font-size:24px">⚽</span>`}
               <div><div style="font-size:13px;font-weight:700">vs ${nextGame.opp}</div>
-              <div style="font-size:11px;color:var(--t2)">${fmtDate(nextGame.date)}${nextGame.time?' · '+nextGame.time:''}${nextGame.location?' · '+nextGame.location:''}</div></div>
+              <div style="font-size:11px;color:var(--t2)">${fmtDate(nextGame.date)}${nextGame.time?' · '+nextGame.time:''}${nextGame.loc?' · '+nextGame.loc:''}</div></div>
             </div>
           </div>`:''}
         </div>
@@ -2642,11 +2644,4 @@ if(_sc.url&&_sc.anonKey){
     _cid=_sc.clubId||null;
     if(_cid){_sync=true;}
     setTimeout(()=>updateCloudDot(_sync),200);
-  }catch(e){console.warn('Supabase init:',e);}
-}
-document.getElementById('lb').textContent=APP.config.logo||'⚽';
-document.getElementById('lclub').textContent=APP.config.clubName||'Sport Performance';
-</script>
-</body>
-</html>
-                                      
+  }catch(e){console.warn('Supabase ini
