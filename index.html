@@ -1454,7 +1454,7 @@ async function searchClub(q){
     dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">🔍 A pesquisar...</div>';
     dd.style.display='block';
     try{
-      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(q)}`);
+      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/1/searchteams.php?t=${encodeURIComponent(q)}`);
       const j=await r.json();
       const teams=(j.teams||[]).slice(0,8);
       if(!teams.length){dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Nenhum clube encontrado</div>';return;}
