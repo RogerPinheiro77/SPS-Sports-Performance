@@ -2426,4 +2426,130 @@ function renderAtTreino(){
   document.getElementById('atp-treino').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏋️ Fichas de Treino</div>
   ${active.length?`<div style="margin-bottom:14px">${active.map(p=>`<div class="card" style="margin-bottom:10px">
-    <div class="ch"><span class="ct">${p.title}</span><span class="bdg b
+bg-b">${p.type||'Treino'}</span></div>
+    <div class="cb" style="padding:12px 14px">
+      ${p.description?`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">${p.description}</div>`:''}
+      ${p.note?`<div class="al al-b" style="font-size:11px;margin-bottom:8px">📝 ${p.note}</div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        ${p.week?`<span class="bdg bg-gr">📅 ${p.week}</span>`:''}
+        ${p.volume?`<span class="bdg bg-gr">📊 ${p.volume}</span>`:''}
+      </div>
+      <button class="btn btn-g btn-sm" style="margin-top:10px" onclick="markTreinoDone('${p.id}')">✅ Marcar como concluído</button>
+    </div>
+  </div>`).join('')}</div>`:`<div class="al al-g">✅ Sem treinos pendentes atribuídos</div>`}
+  ${done.length?`<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">Concluídos</div>
+  ${done.slice(0,5).map(p=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd);font-size:12px;opacity:.65">
+    <span>✅ ${p.title}</span><span style="color:var(--t2)">${p.doneAt?fmtDate(p.doneAt):''}</span>
+  </div>`).join('')}</div>`:''}`;
+}
+function markTreinoDone(id){
+  const idx=APP.trainingPlans.findIndex(p=>p.id===id);if(idx<0)return;
+  APP.trainingPlans[idx].done=true;APP.trainingPlans[idx].doneAt=today();
+  if(_sync)cloudUpsert('training_plans',{...APP.trainingPlans[idx],club_id:_cid,athlete_id:APP.trainingPlans[idx].athleteId,done_at:APP.trainingPlans[idx].doneAt});
+  saveData();toast('Treino concluído ✅');renderAtTreino();
+}
+function renderAtConvoc(){
+  const td=today();
+  const convs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date));
+  const past=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date<td).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  document.getElementById('atp-convoc').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">📋 Convocatórias</div>
+  ${convs.length?convs.map(c=>{
+    const g=APP.games.find(x=>x.id===c.gameId);
+    return`<div class="card" style="margin-bottom:10px">
+      <div class="ch"><span class="ct">📋 Convocada</span><span class="bdg bg-g">Confirmada</span></div>
+      <div class="cb" style="padding:12px 14px">
+        ${g?`<div style="font-size:14px;font-weight:800;margin-bottom:4px">vs ${g.opp}</div>
+        <div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${g.time?' · '+g.time:''}${g.location?' · '+g.location:''}</div>`:''}
+        ${c.notes?`<div class="al al-b" style="margin-top:8px;font-size:11px">${c.notes}</div>`:''}
+      </div>
+    </div>`;
+  }).join(''):`<div class="al al-b">Sem convocatórias próximas</div>`}
+  ${past.length?`<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">Historial</div>
+  ${past.map(c=>{const g=APP.games.find(x=>x.id===c.gameId);return`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${g?'vs '+g.opp:'Jogo'}</span><span style="color:var(--t2)">${fmtDate(c.date)}</span></div>`;}).join('')}</div>`:''}`;
+}
+
+// ─── SUPABASE CLOUD ───────────────────────────────────────
+let _supa=null,_cid=null,_sync=false;
+function getSupaCfg(){try{return JSON.parse(localStorage.getItem('sps_supa_cfg')||'{}');}catch{return{};}}
+function setSupaCfg(o){localStorage.setItem('sps_supa_cfg',JSON.stringify(o));}
+function updateCloudDot(on){
+  const dot=document.getElementById('cloud-dot');if(dot)dot.className='cloud-dot '+(on?'on':'');
+  const st=document.getElementById('cloud-status');if(st)st.textContent=on?'🟢 Ligado':'🔴 Desligado';
+}
+async function connectCloud(){
+  const url=document.getElementById('supa-url')?.value?.trim();
+  const key=document.getElementById('supa-key')?.value?.trim();
+  let clubId=document.getElementById('supa-cid')?.value?.trim();
+  if(!url||!key)return toast('URL e Anon Key obrigatórios','err');
+  try{
+    _supa=supabase.createClient(url,key);
+    if(!clubId){
+      const cn=APP.config.clubName||'Clube';
+      const {data,error}=await _supa.from('clubs').select('id').eq('name',cn).maybeSingle();
+      if(data){clubId=data.id;}
+      else{
+        const {data:d2}=await _supa.from('clubs').insert({name:cn,season:APP.config.season||'2025/26'}).select('id').single();
+        if(d2)clubId=d2.id;
+      }
+    }
+    if(!clubId)return toast('Erro ao criar clube','err');
+    _cid=clubId;_sync=true;
+    setSupaCfg({url,anonKey:key,clubId});
+    updateCloudDot(true);
+    const cidEl=document.getElementById('supa-cid');if(cidEl)cidEl.value=clubId;
+    toast('☁️ Cloud ligado! A sincronizar...');
+    await pullCloud();
+  }catch(e){toast('Erro: '+e.message,'err');}
+}
+function disconnectCloud(){
+  _supa=null;_cid=null;_sync=false;
+  updateCloudDot(false);
+  toast('Cloud desligado');
+}
+async function pullCloud(){
+  if(!_supa||!_cid)return;
+  try{
+    const pulls=[
+      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id}))],
+      ['wellness_records','wellness',(d)=>APP.wellness=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at}))],
+      ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at}))],
+      ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at}))],
+      ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professionalName:r.professional_name,registeredAt:r.registered_at}))],
+      ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
+      ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
+      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at}))],
+      ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at}))]
+    ];
+    for(const [tbl,,setter] of pulls){
+      const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
+      if(data&&data.length)setter(data);
+    }
+    saveData();
+    if(_curPg)navTo(_curPg);
+    toast('Dados sincronizados ✓');
+  }catch(e){toast('Erro sync: '+e.message,'err');}
+}
+async function cloudUpsert(table,row){
+  if(!_supa||!_cid)return;
+  try{await _supa.from(table).upsert({...row,club_id:_cid});}
+  catch(e){console.warn('cloudUpsert:',e);}
+}
+function openCloud(){navTo('config');}
+
+// ─── INIT ────────────────────────────────────────────────
+loadData();
+const _sc=getSupaCfg();
+if(_sc.url&&_sc.anonKey){
+  try{
+    _supa=supabase.createClient(_sc.url,_sc.anonKey);
+    _cid=_sc.clubId||null;
+    if(_cid){_sync=true;}
+    setTimeout(()=>updateCloudDot(_sync),200);
+  }catch(e){console.warn('Supabase init:',e);}
+}
+document.getElementById('lb').textContent=APP.config.logo||'⚽';
+document.getElementById('lclub').textContent=APP.config.clubName||'Sport Performance';
+</script>
+</body>
+</html>
