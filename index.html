@@ -1451,29 +1451,47 @@ async function searchClub(q){
   clearTimeout(_clubSearchTimer);
   if(!q||q.length<2){dd.style.display='none';return;}
   _clubSearchTimer=setTimeout(async()=>{
-    dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">🔍 A pesquisar...</div>';
+    dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">🔍 A pesquisar...</div>';
     dd.style.display='block';
     try{
-      // Wikipedia API — CORS-friendly, images for all major clubs
-      const url=`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q+' football club')}&gsrlimit=8&prop=pageimages|description&pithumbsize=80&format=json&origin=*`;
-      const r=await fetch(url);
-      const j=await r.json();
-      const pages=Object.values(j.query?.pages||{}).sort((a,b)=>(a.index||0)-(b.index||0));
-      if(!pages.length){dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Nenhum clube encontrado</div>';return;}
-      dd.innerHTML=pages.map(p=>{
-        const logo=p.thumbnail?p.thumbnail.source:'';
-        const name=(p.title||'').replace(/'/g,"\\'");
-        const logoSafe=(logo||'').replace(/'/g,"\\'");
-        return`<div onclick="selectClub('${name}','${logoSafe}')"
-          style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--brd)"
-          onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-          ${logo?`<img src="${logo}" style="width:28px;height:28px;object-fit:contain;flex-shrink:0;border-radius:4px">`:'<span style="font-size:20px;flex-shrink:0">⚽</span>'}
-          <div><div style="font-size:13px;font-weight:600">${p.title}</div>
-          <div style="font-size:10px;color:var(--t2)">${p.description||''}</div></div>
-        </div>`;
-      }).join('');
+      const res=await fetch('https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(q+' football club')+'&gsrlimit=7&prop=pageimages|description&pithumbsize=80&pilicense=any&format=json&origin=*');
+      const data=await res.json();
+      const pages=Object.values(data.query?.pages||{}).sort((a,b)=>(a.index||0)-(b.index||0));
+      if(!pages.length){dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Nenhum clube encontrado</div>';return;}
+      dd.innerHTML='';
+      pages.forEach(p=>{
+        const row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--brd)';
+        row.onmouseover=()=>row.style.background='var(--bg3)';
+        row.onmouseout=()=>row.style.background='';
+        row.onclick=()=>selectClub(p.title,p.thumbnail?p.thumbnail.source:'');
+        // icon
+        const ic=document.createElement('div');
+        ic.style.cssText='width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px';
+        if(p.thumbnail&&p.thumbnail.source){
+          const img=document.createElement('img');
+          img.src=p.thumbnail.source;
+          img.style.cssText='width:30px;height:30px;object-fit:contain;border-radius:4px';
+          img.onerror=()=>{ic.removeChild(img);ic.textContent='\u26BD';};
+          ic.appendChild(img);
+        }else{
+          ic.textContent='\u26BD';
+        }
+        row.appendChild(ic);
+        // text
+        const tx=document.createElement('div');
+        const t1=document.createElement('div');
+        t1.style.cssText='font-size:13px;font-weight:600';
+        t1.textContent=p.title;
+        const t2=document.createElement('div');
+        t2.style.cssText='font-size:10px;color:var(--t2)';
+        t2.textContent=p.description||'';
+        tx.appendChild(t1);tx.appendChild(t2);
+        row.appendChild(tx);
+        dd.appendChild(row);
+      });
     }catch(e){
-      dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Erro na pesquisa</div>';
+      dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Erro na pesquisa</div>';
     }
   },400);
 }
@@ -1481,7 +1499,14 @@ function selectClub(name,logo){
   const inp=document.getElementById('jf-opp');if(inp)inp.value=name;
   const logoInp=document.getElementById('jf-logo');if(logoInp)logoInp.value=logo;
   const prev=document.getElementById('jf-logo-preview');
-  if(prev){if(logo){prev.innerHTML=`<img src="${logo}" style="width:36px;height:36px;object-fit:contain;border-radius:6px" onerror="this.parentElement.innerHTML='<span style=font-size:18px>⚽</span>'">`;}else{prev.innerHTML='<span style="font-size:18px">⚽</span>';}}
+  if(prev){
+    if(logo){
+      const img=document.createElement('img');
+      img.src=logo;img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:6px';
+      img.onerror=()=>{prev.innerHTML='<span style="font-size:18px">\u26BD</span>';};
+      prev.innerHTML='';prev.appendChild(img);
+    }else{prev.innerHTML='<span style="font-size:18px">\u26BD</span>';}
+  }
   const dd=document.getElementById('jf-club-dropdown');if(dd)dd.style.display='none';
 }
 function saveJogo(){
