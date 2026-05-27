@@ -1131,33 +1131,81 @@ async function _proxyGet(url){
     catch(e2){return '';}
   }
 }
+async function _fpfTestImg(url){
+  return new Promise(res=>{
+    const img=new Image();
+    const t=setTimeout(()=>{img.src='';res(null);},3000);
+    img.onload=()=>{clearTimeout(t);res(url);};
+    img.onerror=()=>{clearTimeout(t);res(null);};
+    img.src=url+'?t='+Date.now();
+  });
+}
+async function _fpfFindPhoto(id){
+  // Known FPF photo URL patterns — test all in parallel
+  const patterns=[
+    'https://www.fpf.pt/umbraco/Surface/Player/Photo?playerId='+id,
+    'https://www.fpf.pt/Portals/0/SGPM/players/'+id+'.jpg',
+    'https://www.fpf.pt/Portals/0/players/'+id+'.jpg',
+    'https://cdn.fpf.pt/players/'+id+'.jpg',
+    'https://www.fpf.pt/Content/Players/'+id+'.jpg',
+    'https://www.fpf.pt/Content/Images/Players/'+id+'.jpg',
+    'https://fpf.pt/images/players/'+id+'.jpg',
+    'https://www.fpf.pt/Portals/0/FPF/Players/Photo/'+id+'.jpg',
+    'https://www.fpf.pt/Portals/0/FPF/Players/Photo/'+id+'.png',
+  ];
+  const results=await Promise.all(patterns.map(p=>_fpfTestImg(p)));
+  return results.find(r=>r!==null)||null;
+}
 async function _xtFPF(id,url){
+  // Run photo search in parallel with data fetch
+  const photoPromise=_fpfFindPhoto(id);
   // Try FPF internal API patterns
   const apis=[
     'https://www.fpf.pt/umbraco/Surface/Player/Details?playerId='+id,
+    'https://www.fpf.pt/umbraco/api/PlayerApi/GetPlayer?id='+id,
     'https://www.fpf.pt/api/v1/players/'+id,
     'https://www.fpf.pt/api/player/'+id,
   ];
+  let apiData=null;
   for(const api of apis){
     try{
       const html=await _proxyGet(api);
       if(html&&html.trim().startsWith('{')){
         const j=JSON.parse(html);
-        if(j.name||j.Name||j.firstName||j.FirstName){return _parseFPFJ(j,id);}
+        if(j.name||j.Name||j.firstName||j.FirstName){apiData=_parseFPFJ(j,id);break;}
       }
     }catch(e){}
   }
-  // Try the actual page — look for embedded JSON (Next.js __NEXT_DATA__, etc.)
-  const html=await _proxyGet(url);
-  if(html&&html.length>500){
-    const nd=html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>(\{[\s\S]+?\})<\/script>/);
-    if(nd){try{const d=JSON.parse(nd[1]);const p=d.props?.pageProps?.player||d.props?.pageProps?.playerData;if(p)return _parseFPFJ(p,id);}catch(e){}}
-    const ws=html.match(/window\.__(?:INITIAL|STATE|DATA)__\s*=\s*(\{[\s\S]+?\});/);
-    if(ws){try{const d=JSON.parse(ws[1]);const found=_deepFind(d,id);if(found)return found;}catch(e){}}
-    // Try meta tags
-    const og=(k)=>{const m=html.match(new RegExp('<meta[^>]+(?:property|name)=["\']'+k+'["\'][^>]+content=["\']([^"\']+)'));return m?m[1]:'';}
-    const name=og('og:title').split('|')[0].split('-')[0].trim();
-    if(name&&name.length>2)return{name,photo:og('og:image'),bio:og('og:description').slice(0,200),fpfId:id,_ok:true,_source:'fpf'};
+  // Try actual page HTML
+  if(!apiData){
+    const html=await _proxyGet(url);
+    if(html&&html.length>500){
+      const nd=html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>(\{[\s\S]+?\})<\/script>/);
+      if(nd){try{const d=JSON.parse(nd[1]);const p=d.props?.pageProps?.player||d.props?.pageProps?.playerData;if(p){apiData=_parseFPFJ(p,id);}}catch(e){}}
+      if(!apiData){
+        const ws=html.match(/window\.__(?:INITIAL|STATE|DATA)__\s*=\s*(\{[\s\S]+?\});/);
+        if(ws){try{const d=JSON.parse(ws[1]);const found=_deepFind(d,id);if(found){apiData=found;}}catch(e){}}
+      }
+      if(!apiData){
+        const og=(k)=>{const m=html.match(new RegExp('<meta[^>]+(?:property|name)=["\']'+k+'["\'][^>]+content=["\']([^"\']+)'));return m?m[1]:'';}
+        const name=og('og:title').split('|')[0].split('-')[0].trim();
+        const metaImg=og('og:image');
+        if(name&&name.length>2)apiData={name,photo:metaImg,bio:og('og:description').slice(0,200),fpfId:id,_ok:true,_source:'fpf'};
+      }
+    }
+  }
+  // Wait for photo result
+  const foundPhoto=await photoPromise;
+  if(apiData){
+    // Prefer found photo over API photo if we found one
+    if(foundPhoto)apiData.photo=foundPhoto;
+    apiData._ok=true;
+    return apiData;
+  }
+  // No data but maybe a photo
+  if(foundPhoto){
+    return{fpfId:id,photo:foundPhoto,_ok:true,_source:'fpf',
+      _msg:'Foto encontrada! Preenche os restantes dados.'};
   }
   return{fpfId:id,_ok:false};
 }
