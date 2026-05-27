@@ -1369,7 +1369,18 @@ function renderJogos(){
   const formHtml=_showJogoForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">${_editJogoId?'Editar Jogo':'Novo Jogo'}</div><button class="btn btn-sm btn-gh" onclick="_showJogoForm=false;_editJogoId=null;renderJogos()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Adversário *</label><input class="fc" id="jf-opp" placeholder="Nome do adversário"></div>
+    <div class="fr"><div class="form-g" style="position:relative"><label class="fl">Adversário *</label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="position:relative;flex:1">
+        <input class="fc" id="jf-opp" placeholder="Escrever para pesquisar clube..." autocomplete="off" oninput="searchClub(this.value)">
+        <div id="jf-club-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+      </div>
+      <div id="jf-logo-preview" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:8px;border:1px solid var(--brd);flex-shrink:0">
+        <span style="font-size:18px">⚽</span>
+      </div>
+    </div>
+    <input type="hidden" id="jf-logo">
+    </div>
     <div class="form-g"><label class="fl">Equipa</label><select class="fc" id="jf-team">${APP.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select></div></div>
     <div class="fr3"><div class="form-g"><label class="fl">Data *</label><input class="fc" id="jf-date" type="date"></div>
     <div class="form-g"><label class="fl">Hora</label><input class="fc" id="jf-time" type="time"></div>
@@ -1394,7 +1405,7 @@ function renderJogos(){
     const rBadge=won?`<span class="bdg bg-g">V</span>`:drew?`<span class="bdg bg-y">E</span>`:lost?`<span class="bdg bg-r">D</span>`:'';
     const team=APP.teams.find(t=>t.id===g.teamId);
     return`<tr><td>${fmtDate(g.date)} ${g.time?'<span style="color:var(--t2)">'+g.time.slice(0,5)+'</span>':''}</td>
-    <td><strong>${g.opp}</strong>${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${g.comp}</span>`:''}</td>
+    <td><div style="display:flex;align-items:center;gap:8px">${g.oppLogo?`<img src="${g.oppLogo}" style="width:28px;height:28px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`:'<span style="font-size:20px">⚽</span>'}<div><strong>${g.opp}</strong>${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${g.comp}</span>`:''}</div></div></td>
     <td>${ha}</td><td>${g.loc||'—'}</td>
     <td>${team?team.name:'—'}</td>
     <td style="text-align:center">${result} ${rBadge}</td>
@@ -1424,6 +1435,8 @@ function renderJogos(){
   if(_editJogoId&&_showJogoForm){
     const g=APP.games.find(x=>x.id===_editJogoId);
     if(g){['opp','date','time','loc','comp','notes'].forEach(f=>{const el=document.getElementById('jf-'+f);if(el)el.value=g[f]||'';});
+    const logoEl=document.getElementById('jf-logo');if(logoEl)logoEl.value=g.oppLogo||'';
+    const prevEl=document.getElementById('jf-logo-preview');if(prevEl){if(g.oppLogo){prevEl.innerHTML=`<img src="${g.oppLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:6px" onerror="this.parentElement.innerHTML='<span style=font-size:18px>⚽</span>'">`;}else{prevEl.innerHTML='<span style="font-size:18px">⚽</span>';}}
     document.getElementById('jf-ha').value=g.ha||'casa';
     document.getElementById('jf-status').value=g.status||'agendado';
     document.getElementById('jf-team').value=g.teamId||'T1';
@@ -1431,13 +1444,46 @@ function renderJogos(){
     if(g.g2!=null)document.getElementById('jf-g2').value=g.g2;}
   }
 }
+let _clubSearchTimer=null;
+async function searchClub(q){
+  const dd=document.getElementById('jf-club-dropdown');
+  if(!dd)return;
+  clearTimeout(_clubSearchTimer);
+  if(!q||q.length<2){dd.style.display='none';return;}
+  _clubSearchTimer=setTimeout(async()=>{
+    dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">🔍 A pesquisar...</div>';
+    dd.style.display='block';
+    try{
+      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(q)}`);
+      const j=await r.json();
+      const teams=(j.teams||[]).slice(0,8);
+      if(!teams.length){dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Nenhum clube encontrado</div>';return;}
+      dd.innerHTML=teams.map(t=>`
+        <div onclick="selectClub('${(t.strTeam||'').replace(/'/g,"\'")}','${t.strTeamBadge||''}')"
+          style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--brd)"
+          onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+          ${t.strTeamBadge?`<img src="${t.strTeamBadge}" style="width:28px;height:28px;object-fit:contain;flex-shrink:0">`:'<span style="font-size:20px;flex-shrink:0">⚽</span>'}
+          <div><div style="font-size:13px;font-weight:600">${t.strTeam}</div>
+          <div style="font-size:10px;color:var(--t2)">${t.strCountry||''}${t.strLeague?' · '+t.strLeague:''}</div></div>
+        </div>`).join('');
+    }catch(e){dd.innerHTML='<div style="padding:10px;color:var(--t2);font-size:12px;text-align:center">Erro na pesquisa</div>';}
+  },400);
+}
+function selectClub(name,logo){
+  const inp=document.getElementById('jf-opp');if(inp)inp.value=name;
+  const logoInp=document.getElementById('jf-logo');if(logoInp)logoInp.value=logo;
+  const prev=document.getElementById('jf-logo-preview');
+  if(prev){if(logo){prev.innerHTML=`<img src="${logo}" style="width:36px;height:36px;object-fit:contain;border-radius:6px" onerror="this.parentElement.innerHTML='<span style=font-size:18px>⚽</span>'">`;}else{prev.innerHTML='<span style="font-size:18px">⚽</span>';}}
+  const dd=document.getElementById('jf-club-dropdown');if(dd)dd.style.display='none';
+}
 function saveJogo(){
   const opp=document.getElementById('jf-opp').value.trim();
   const date=document.getElementById('jf-date').value;
   if(!opp||!date)return toast('Adversário e data obrigatórios','err');
   const g1v=document.getElementById('jf-g1').value;
   const g2v=document.getElementById('jf-g2').value;
-  const g={id:_editJogoId||uid(),teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,comp:document.getElementById('jf-comp').value,status:document.getElementById('jf-status').value,g1:g1v!==''?+g1v:null,g2:g2v!==''?+g2v:null,notes:document.getElementById('jf-notes').value};
+  const oppLogo=document.getElementById('jf-logo').value||'';
+  const g={id:_editJogoId||uid(),teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,comp:document.getElementById('jf-comp').value,status:document.getElementById('jf-status').value,g1:g1v!==''?+g1v:null,g2:g2v!==''?+g2v:null,notes:document.getElementById('jf-notes').value,oppLogo};
   if(_editJogoId){const i=APP.games.findIndex(x=>x.id===_editJogoId);if(i>=0)APP.games[i]=g;}
   else APP.games.push(g);
   saveData();_showJogoForm=false;_editJogoId=null;toast('Jogo guardado ✓');renderJogos();
