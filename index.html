@@ -422,7 +422,7 @@ function defApp(){
   return{
     config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:''},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
-    athletes:[],schedule:[],microcycles:[],sessions:[],
+    athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
     exercises:defEx(),games:[],scouting:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[]
@@ -1419,66 +1419,246 @@ function saveAthlete(){
 }
 function openAthleteModal(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
-  const inj=APP.injuries.filter(i=>i.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
-  const wList=APP.wellness.filter(w=>w.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
-  const pList=APP.pse.filter(p=>p.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
-  const lastW=wList[0]; const lastP=pList[0];
-  const nutriPlan=APP.nutritionPlans.find(n=>n.athleteId===id&&n.active);
-  const injHtml=inj.length?inj.slice(0,3).map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--brd);font-size:11px"><span>${i.diagnosis||i.type}<span style="color:var(--t2);margin-left:4px">${i.bodyPart?'('+i.bodyPart+')':''}</span></span><span>${statusBadge(i.status)}</span></div>`).join(''):`<div style="color:var(--t2);font-size:12px">Sem lesões registadas</div>`;
-
-  // Wellness trend (last 7) — arrow
-  const w7=wList.slice(0,7);
-  let wTrend='';
-  if(w7.length>=2){const diff=w7[0].score-w7[w7.length-1].score;wTrend=diff>5?'<span style="color:#4ade80">▲</span>':diff<-5?'<span style="color:#f87171">▼</span>':'<span style="color:#94a3b8">→</span>';}
-
-  // ACWR for this athlete
   const td=today();
   const days28=[];for(let i=27;i>=0;i--){const x=new Date(td+'T00:00:00');x.setDate(x.getDate()-i);days28.push(x.toISOString().slice(0,10));}
   const days7=days28.slice(-7);
-  const acute=pList.filter(p=>days7.includes(p.date)).reduce((s,p)=>s+(+p.ua||0),0)/7;
-  const chronic=pList.filter(p=>days28.includes(p.date)).reduce((s,p)=>s+(+p.ua||0),0)/28;
+  // PSE
+  const pList=APP.pse.filter(p=>p.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  const p28=pList.filter(p=>days28.includes(p.date));
+  const p7=pList.filter(p=>days7.includes(p.date));
+  const acute=p7.reduce((s,p)=>s+(+p.ua||0),0)/7;
+  const chronic=p28.reduce((s,p)=>s+(+p.ua||0),0)/28;
   const acwr=chronic?Math.round(acute/chronic*100)/100:null;
-  const acwrC=acwr?(acwr>1.5||acwr<0.8?'bg-r':acwr>=1.0?'bg-g':'bg-y'):'bg-gr';
+  const avgPse7=p7.length?Math.round(p7.reduce((s,p)=>s+(+p.pse||0),0)/p7.length*10)/10:null;
+  const totalLoad28=Math.round(p28.reduce((s,p)=>s+(+p.ua||0),0));
+  // Wellness
+  const wList=APP.wellness.filter(w=>w.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  const w7=wList.filter(w=>days7.includes(w.date));
+  const lastW=wList[0];
+  const avgWell7=w7.length?Math.round(w7.reduce((s,w)=>s+(+w.score||0),0)/w7.length):null;
+  // Attendance
+  if(!APP.attendance)APP.attendance=[];
+  const attRecs=APP.attendance.filter(a=>a.athleteId===id);
+  const attTotal=attRecs.length;
+  const attPres=attRecs.filter(a=>a.present).length;
+  const attRate=attTotal?Math.round(attPres/attTotal*100):null;
+  // Injuries
+  const injuries=APP.injuries.filter(i=>i.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  const activeInj=injuries.find(i=>i.status==='ativo'||i.status==='reabilitação');
+  // Nutrition
+  const nutriPlan=(APP.nutritionPlans||[]).find(n=>n.athleteId===id&&n.active);
+  const lastAnthro=(APP.anthropometric||[]).filter(a=>a.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  // Training plans
+  const plans=(APP.trainingPlans||[]).filter(p=>p.athleteId===id).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const activePlan=plans.find(p=>!p.done);
+  // Convocatórias
+  const convocs=(APP.convocatorias||[]).filter(c=>c.athletes&&c.athletes.includes(id)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
+  // Club history
+  const clubHistory=at.clubHistory||[];
+  // KPI badge colors
+  const acwrColor=acwr?(acwr>1.5||acwr<0.8?'#f87171':acwr>=1.0?'#4ade80':'#fbbf24'):'#94a3b8';
+  const wellColor=avgWell7?(avgWell7>=70?'#4ade80':avgWell7>=45?'#fbbf24':'#f87171'):'#94a3b8';
+  // Build blocks with string concat to avoid nested template issues
+  const injBlock=(()=>{
+    if(!injuries.length)return '<div style="color:var(--t2);font-size:12px">Sem lesões registadas</div>';
+    return injuries.slice(0,3).map(i=>'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--brd);font-size:11px">'
+      +'<span>'+i.diagnosis+'<span style="color:var(--t2);margin-left:4px">'+(i.bodyPart?'('+i.bodyPart+')':'')+'</span></span>'
+      +'<span>'+statusBadge(i.status)+'</span></div>').join('');
+  })();
+  const daysMissed=injuries.reduce((s,i)=>s+(+i.days||0),0);
+  const anthroBlock=(()=>{
+    if(!lastAnthro)return '<div style="color:var(--t2);font-size:12px">Sem avaliação registada</div>';
+    const bmi=lastAnthro.weight&&at.height?Math.round(lastAnthro.weight/Math.pow(+at.height/100,2)*10)/10:'—';
+    return '<div style="font-size:11px">'
+      +(lastAnthro.weight?'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--brd)"><span>Peso</span><strong>'+lastAnthro.weight+' kg</strong></div>':'')
+      +(lastAnthro.fatPct?'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--brd)"><span>% Massa Gorda</span><strong>'+lastAnthro.fatPct+'%</strong></div>':'')
+      +(bmi!=='—'?'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--brd)"><span>IMC</span><strong>'+bmi+'</strong></div>':'')
+      +'<div style="color:var(--t2);font-size:10px;margin-top:4px">'+fmtDate(lastAnthro.date)+'</div></div>';
+  })();
+  const clubHistBlock=(()=>{
+    if(clubHistory.length)return clubHistory.map(c=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--brd)"><span>'+c.club+'</span><span style="color:var(--t2)">'+c.period+'</span></div>').join('');
+    if(at.club)return '<div style="font-size:11px;color:var(--t2)">Anterior: '+at.club+'</div>';
+    return '<div style="color:var(--t2);font-size:11px">Sem histórico disponível</div>';
+  })();
+  const convocBlock=convocs.length?convocs.map(c=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--brd)"><span>'+c.name+'</span><span style="color:var(--t2)">'+fmtDate(c.date)+'</span></div>').join(''):'<div style="color:var(--t2);font-size:12px">Sem convocatórias</div>';
+  // Build overlay
+  const ov=document.createElement('div');
+  ov.id='athlete-profile-ov';
+  ov.style.cssText='position:fixed;inset:0;background:var(--bg1);z-index:3000;overflow-y:auto';
+  ov.innerHTML=''
+    // ── Top bar ──
+    +'<div style="position:sticky;top:0;background:var(--bg1);border-bottom:1px solid var(--brd);padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:10">'
+      +'<button onclick="document.getElementById(\'athlete-profile-ov\').remove()" style="background:var(--bg3);border:none;border-radius:8px;padding:6px 12px;color:var(--t1);cursor:pointer;font-size:13px">← Voltar</button>'
+      +'<span style="font-weight:800;font-size:15px">'+at.name+'</span>'
+      +'<span style="margin-left:auto;font-size:12px;padding:3px 10px;border-radius:20px;background:'+(activeInj?'#f8717122':'#4ade8022')+';color:'+(activeInj?'#f87171':'#4ade80')+'">'+(activeInj?'🔴 Lesionada':'🟢 Disponível')+'</span>'
+    +'</div>'
+    // ── Header ──
+    +'<div style="padding:20px 16px 0;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">'
+      +'<div style="width:80px;height:80px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;flex-shrink:0;overflow:hidden">'+(at.photo?'<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover">':initials(at.name))+'</div>'
+      +'<div style="flex:1;min-width:200px">'
+        +'<div style="font-size:22px;font-weight:900">'+(at.num?'<span style="color:var(--c1);">#'+at.num+'</span> ':'')+at.name+'</div>'
+        +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+(at.pos||'—')+' · '+(at.nat||'—')+' · '+(at.dob?ageYears(at.dob)+' anos':'—')+'</div>'
+        +'<div style="font-size:12px;color:var(--t3);margin-top:2px">'+(at.height?at.height+'cm · ':'')+at.foot+' '+(at.foot?' · ':'')+'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+          +(at.fpfId?'<a href="https://www.fpf.pt/pt/Jogadores/Ficha-de-Jogador/playerId/'+at.fpfId+'" target="_blank" style="font-size:11px;color:var(--c1);text-decoration:none;padding:3px 8px;border:1px solid var(--c1);border-radius:6px">🔗 FPF</a>':'')
+          +'<button onclick="document.getElementById(\'athlete-profile-ov\').remove();_editAtId=\''+id+'\';_showAtForm=true;renderPlantel()" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;cursor:pointer;color:var(--t1)">✏️ Editar</button>'
+          +'<button onclick="if(confirm(\'Apagar atleta?\'))deleteAthlete(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid #f87171;border-radius:6px;cursor:pointer;color:#f87171">🗑️</button>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    // ── KPIs ──
+    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:16px">'
+      +[['ACWR',acwr?'<span style="font-size:18px;font-weight:800;color:'+acwrColor+'">'+acwr+'</span>':'—','Carga A:C'],
+        ['PSE Médio',avgPse7?'<span style="font-size:18px;font-weight:800">'+avgPse7+'/10</span>':'—','Últimos 7 dias'],
+        ['Wellness',avgWell7?'<span style="font-size:18px;font-weight:800;color:'+wellColor+'">'+avgWell7+'</span>':'—','Últimos 7 dias'],
+        ['Carga Total',totalLoad28?'<span style="font-size:18px;font-weight:800">'+totalLoad28+'</span>':'—','28 dias (UA)'],
+        ['Presenças',attRate!==null?'<span style="font-size:18px;font-weight:800">'+attRate+'%</span>':'—',attTotal?attPres+'/'+attTotal+' sessões':'Sem dados']
+      ].map(([lbl,val,sub])=>'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:12px 10px;text-align:center">'
+        +'<div style="font-size:10px;color:var(--t2);font-weight:700;text-transform:uppercase;margin-bottom:6px">'+lbl+'</div>'
+        +'<div>'+val+'</div>'
+        +'<div style="font-size:9px;color:var(--t3);margin-top:4px">'+sub+'</div>'
+        +'</div>').join('')
+    +'</div>'
+    // ── Charts ──
+    +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;padding:0 16px 16px">'
+      +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+        +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;text-transform:uppercase">📊 Carga & PSE — 28 dias</div>'
+        +'<div style="position:relative;height:140px"><canvas id="prof-load-ch"></canvas></div>'
+      +'</div>'
+      +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+        +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;text-transform:uppercase">💊 Wellness Radar</div>'
+        +'<div style="position:relative;height:140px"><canvas id="prof-well-ch"></canvas></div>'
+      +'</div>'
+    +'</div>'
+    // ── 3-col grid ──
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:0 16px 16px">'
+      // Physio
+      +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+        +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏥 Fisioterapia</div>'
+        +(activeInj?'<div style="font-size:11px;color:#f87171;margin-bottom:8px;padding:6px;background:#f8717111;border-radius:6px">⚠️ '+activeInj.diagnosis+'</div>':'')
+        +(daysMissed?'<div style="font-size:11px;color:var(--t2);margin-bottom:8px">'+daysMissed+' dias perdidos</div>':'')
+        +injBlock
+      +'</div>'
+      // Nutrition
+      +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+        +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🥗 Nutrição</div>'
+        +(nutriPlan?'<div style="font-size:11px;margin-bottom:8px;padding:5px 8px;background:var(--c1l)22;border-radius:6px;border-left:2px solid var(--c1)">📋 '+nutriPlan.name+(nutriPlan.kcal?' · '+nutriPlan.kcal+' kcal':'')+'</div>':'<div style="color:var(--t2);font-size:11px;margin-bottom:8px">Sem plano ativo</div>')
+        +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Última Avaliação</div>'
+        +anthroBlock
+      +'</div>'
+      // Training
+      +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+        +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏋️ Treino</div>'
+        +(activePlan?'<div style="font-size:11px;margin-bottom:8px;padding:5px 8px;background:var(--bg3);border-radius:6px"><span style="font-weight:700">'+activePlan.title+'</span><span style="color:var(--t2);display:block;font-size:10px">'+activePlan.type+(activePlan.week?' · '+activePlan.week:'')+'</span></div>':'<div style="color:var(--t2);font-size:11px;margin-bottom:8px">Sem ficha ativa</div>')
+        +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Convocatórias recentes</div>'
+        +convocBlock
+      +'</div>'
+    +'</div>'
+    // ── Club history ──
+    +'<div style="margin:0 16px 32px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+      +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏆 Histórico de Clubes</div>'
+      +clubHistBlock
+    +'</div>';
 
-  // Mini sparkline HTML (last 7 wellness scores)
-  const sparkData=w7.slice().reverse().map(w=>w.score);
-  const spMax=Math.max(...sparkData,1);
-  const spMin=Math.min(...sparkData,0);
-  const spRange=spMax-spMin||1;
-  const spH=36; const spW=12;
-  const sparkBars=sparkData.map((v,i)=>{const h=Math.max(4,Math.round(((v-spMin)/spRange)*spH));const c=v>=70?'#4ade80':v>=45?'#fbbf24':'#f87171';return`<div style="width:${spW}px;height:${h}px;background:${c};border-radius:2px 2px 0 0;align-self:flex-end;opacity:.85" title="${v}"></div>`;}).join('');
-  const sparkHtml=sparkData.length?`<div style="display:flex;align-items:flex-end;gap:2px;height:${spH}px;margin-top:6px">${sparkBars}</div>`:'';
+  document.body.appendChild(ov);
 
-  openMod(at.name,`
-  <div style="display:flex;gap:14px;margin-bottom:14px;align-items:flex-start">
-    <div class="at-av" style="width:64px;height:64px;font-size:24px;flex-shrink:0">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:''}${initials(at.name)}</div>
-    <div style="flex:1">
-      <div style="font-size:16px;font-weight:800">${at.name}</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:2px">${at.pos||'—'}${at.num?' · #'+at.num:''}${at.nat?' · '+at.nat:''}${at.dob?' · '+ageYears(at.dob)+' anos':''}</div>
-      <div style="font-size:11px;color:var(--t3);margin-top:2px">${at.height?at.height+'cm':''} ${at.foot?'· '+at.foot:''} ${at.club?'· Anterior: '+at.club:''}</div>
-      ${at.fpfId?`<a href="https://www.fpf.pt/pt/Jogadores/Ficha-de-Jogador/playerId/${at.fpfId}" target="_blank" rel="noopener" style="font-size:10px;color:var(--c1);text-decoration:none">🔗 Ver perfil FPF</a>`:''}
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
-    <div class="kpi" style="padding:10px 8px"><div class="kpi-lbl">Wellness</div><div class="kpi-val" style="font-size:18px">${lastW?lastW.score:'—'} ${wTrend}</div><div class="kpi-sub">${lastW?fmtDateShort(lastW.date):'Sem dados'}</div></div>
-    <div class="kpi" style="padding:10px 8px"><div class="kpi-lbl">PSE</div><div class="kpi-val" style="font-size:18px">${lastP?lastP.pse+'/10':'—'}</div><div class="kpi-sub">${lastP?lastP.duration+'min':'Sem dados'}</div></div>
-    <div class="kpi" style="padding:10px 8px"><div class="kpi-lbl">ACWR</div><div class="kpi-val" style="font-size:18px">${acwr?`<span class="bdg ${acwrC}" style="font-size:14px">${acwr}</span>`:'—'}</div><div class="kpi-sub">Carga A/C</div></div>
-    <div class="kpi" style="padding:10px 8px"><div class="kpi-lbl">Lesões</div><div class="kpi-val" style="font-size:18px;color:${inj.filter(i=>i.status!=='alta').length?'#f87171':'#4ade80'}">${inj.filter(i=>i.status!=='alta').length}</div><div class="kpi-sub">Ativas</div></div>
-  </div>
-  ${sparkHtml?`<div style="margin-bottom:14px"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">💊 Wellness — últimas ${sparkData.length} submissões</div>${sparkHtml}</div>`:''}
-  <div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">🩺 Histórico de Lesões</div>${injHtml}</div>
-  ${nutriPlan?`<div class="al al-g" style="margin-bottom:10px">🥗 Plano nutricional ativo: <strong>${nutriPlan.name}</strong> · ${nutriPlan.kcal||'—'} kcal</div>`:''}
-  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-    <button class="btn btn-g btn-sm" onclick="closeMod();_editAtId='${id}';_showAtForm=true;renderPlantel()">✏️ Editar</button>
-    <button class="btn btn-gh btn-sm" onclick="closeMod();navTo('pse-wellness')">📊 PSE/Wellness</button>
-    <button class="btn btn-r btn-sm" onclick="deleteAthlete('${id}')">🗑️ Apagar</button>
-  </div>
-  `,'lg');
+  // ── Init charts ──
+  setTimeout(()=>{
+    const lbls=days28.map(d=>d.slice(5));
+    const uaData=days28.map(d=>{const ps=APP.pse.filter(p=>p.athleteId===id&&p.date===d);return ps.length?ps.reduce((s,p)=>s+(+p.ua||0),0):null;});
+    const pseData=days28.map(d=>{const ps=APP.pse.filter(p=>p.athleteId===id&&p.date===d);return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.pse||0),0)/ps.length*10)/10:null;});
+    const loadCtx=document.getElementById('prof-load-ch');
+    if(loadCtx&&typeof Chart!=='undefined'){
+      new Chart(loadCtx,{type:'bar',data:{labels:lbls,datasets:[
+        {type:'bar',label:'UA',data:uaData,backgroundColor:'rgba(29,111,59,.5)',order:2},
+        {type:'line',label:'PSE',data:pseData,borderColor:'#fbbf24',tension:.4,yAxisID:'pse',pointRadius:2,order:1}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+        x:{grid:{display:false},ticks:{font:{size:8},maxRotation:0,autoSkip:true,maxTicksLimit:8}},
+        y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{font:{size:9}}},
+        pse:{position:'right',min:0,max:10,grid:{display:false},ticks:{font:{size:9}}}
+      }}});
+    }
+    const wellCtx=document.getElementById('prof-well-ch');
+    if(wellCtx&&lastW&&typeof Chart!=='undefined'){
+      new Chart(wellCtx,{type:'radar',data:{labels:['Sono','Fadiga','Stress','Dor','Humor'],datasets:[{
+        data:[lastW.sleep||0,10-(lastW.fatigue||0),10-(lastW.stress||0),10-(lastW.pain||0),lastW.mood||0],
+        backgroundColor:'rgba(29,111,59,.2)',borderColor:'#1d6f3b',pointBackgroundColor:'#1d6f3b',pointRadius:3
+      }]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{r:{min:0,max:10,ticks:{display:false},grid:{color:'rgba(255,255,255,.1)'},pointLabels:{font:{size:9},color:'var(--t2)'}}}}});
+    }
+  },80);
 }
+
 function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();renderPlantel();}
 
 // ─── PLANEAMENTO (CALENDÁRIO) ─────────────────────────────
 let _calYear=new Date().getFullYear(), _calMonth=new Date().getMonth();
+function openAttendanceModal(eventId){
+  const ev=APP.schedule.find(e=>e.id===eventId);if(!ev)return;
+  const athletes=APP.athletes.filter(a=>a.teamId===ev.teamId||!ev.teamId).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!athletes.length)return toast('Sem atletas nesta equipa','err');
+  if(!APP.attendance)APP.attendance=[];
+  // Current attendance for this event
+  const cur={};
+  APP.attendance.filter(a=>a.eventId===eventId).forEach(a=>{cur[a.athleteId]=a.present;});
+  // Pre-fill from PSE if not yet marked
+  APP.pse.filter(p=>p.date===ev.date).forEach(p=>{if(cur[p.athleteId]===undefined)cur[p.athleteId]=true;});
+
+  const m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:4000;display:flex;align-items:center;justify-content:center;padding:16px';
+  const rows=athletes.map(at=>{
+    const present=cur[at.athleteId]!==false; // default present
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${at.photo?'<img src="'+at.photo+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">':at.name.split(' ').map(w=>w[0]).slice(0,2).join('')}</div>
+        <span style="font-size:13px">${at.name}<span style="color:var(--t2);font-size:10px;margin-left:4px">${at.pos||''}</span></span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-xs" id="att-p-${at.id}" onclick="setAtt('${eventId}','${at.id}',true)" style="background:${cur[at.id]===true?'#4ade8033':'var(--bg3)'};border:1px solid ${cur[at.id]===true?'#4ade80':'var(--brd)'}">✅</button>
+        <button class="btn btn-xs" id="att-a-${at.id}" onclick="setAtt('${eventId}','${at.id}',false)" style="background:${cur[at.id]===false?'#f8717133':'var(--bg3)'};border:1px solid ${cur[at.id]===false?'#f87171':'var(--brd)'}">❌</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  m.innerHTML=`<div style="background:var(--bg2);border-radius:14px;padding:20px;max-width:420px;width:100%;border:1px solid var(--brd);max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="font-weight:800;font-size:15px">📋 Presenças</div>
+      <button class="btn btn-xs btn-gh" onclick="this.closest('[style*=fixed]').remove()">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:14px">${ev.title} · ${fmtDate(ev.date)}${ev.time?' · '+ev.time:''}</div>
+    <div id="att-list">${rows}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
+      <span style="font-size:11px;color:var(--t2)">✅ pré-marcado do PSE</span>
+      <button class="btn btn-g" onclick="saveAttendance('${eventId}');this.closest('[style*=fixed]').remove()">💾 Guardar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+  window._attState=Object.assign({},cur);
+  athletes.forEach(at=>{if(window._attState[at.id]===undefined)window._attState[at.id]=true;});
+}
+function setAtt(eventId,athleteId,present){
+  if(!window._attState)window._attState={};
+  window._attState[athleteId]=present;
+  const pBtn=document.getElementById('att-p-'+athleteId);
+  const aBtn=document.getElementById('att-a-'+athleteId);
+  if(pBtn){pBtn.style.background=present?'#4ade8033':'var(--bg3)';pBtn.style.borderColor=present?'#4ade80':'var(--brd)';}
+  if(aBtn){aBtn.style.background=!present?'#f8717133':'var(--bg3)';aBtn.style.borderColor=!present?'#f87171':'var(--brd)';}
+}
+function saveAttendance(eventId){
+  if(!APP.attendance)APP.attendance=[];
+  const ev=APP.schedule.find(e=>e.id===eventId);if(!ev)return;
+  // Remove old entries for this event
+  APP.attendance=APP.attendance.filter(a=>a.eventId!==eventId);
+  // Add new
+  Object.entries(window._attState||{}).forEach(([aid,present])=>{
+    APP.attendance.push({id:uid(),eventId,athleteId:aid,present,date:ev.date});
+  });
+  saveData();
+  const pres=Object.values(window._attState||{}).filter(v=>v).length;
+  const total=Object.keys(window._attState||{}).length;
+  toast('Presenças guardadas: '+pres+'/'+total+' ✓');
+  window._attState={};
+}
 let _showEvForm=false, _editEvId=null, _selDate=null;
 const EV_TYPES=['Treino','Jogo','Reunião','Consulta Nutri','Fisio','Ativação','Recuperação','Folga'];
 const EV_COLORS={Treino:'#27a34a',Jogo:'#c0392b',Reunião:'#935116','Consulta Nutri':'#0e6251',Fisio:'#1a237e',Ativação:'#b7770d',Recuperação:'#2e86c1',Folga:'#5a6582'};
@@ -1514,7 +1694,7 @@ function renderPlaneamento(){
     const dt=`${_calYear}-${String(_calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const isToday=dt===td;
     const evs=APP.schedule.filter(e=>e.date===dt).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div class="cal-ev" style="background:${c}22;color:${c};border-left:2px solid ${c}" onclick="event.stopPropagation();editEvent('${e.id}')" title="${e.title}">${e.time?e.time.slice(0,5)+' ':''} ${e.title}</div>`;}).join('');
+    const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';const isTraining=e.type==='Treino'||e.type==='Ativação'||e.type==='Recuperação'||e.type==='Ginásio';return`<div class="cal-ev" style="background:${c}22;color:${c};border-left:2px solid ${c};display:flex;align-items:center;justify-content:space-between;gap:4px"><span onclick="event.stopPropagation();editEvent('${e.id}')" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.time?e.time.slice(0,5)+' ':''} ${e.title}</span>${isTraining?`<span onclick="event.stopPropagation();openAttendanceModal('${e.id}')" title="Marcar presenças" style="cursor:pointer;font-size:11px;flex-shrink:0;padding:0 3px;opacity:.8">📋</span>`:''}</div>`;}).join('');
     calHtml+=`<div class="cal-day ${isToday?'today':''}" onclick="clickDay('${dt}')"><div class="cal-dn">${day}</div>${evsHtml}</div>`;
   }
   calHtml+=`</div></div>`;
