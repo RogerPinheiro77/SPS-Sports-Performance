@@ -1177,34 +1177,93 @@ async function _xtTM(url){
 }
 async function _xtZZ(id,url){
   const html=await _proxyGet(url);
-  if(!html||html.length<200)return null;
-  const doc=(new DOMParser()).parseFromString(html,'text/html');
-  const nameEl=doc.querySelector('h1,.player-name,#player-name');
-  const name=nameEl?nameEl.textContent.trim():'';
-  const imgEl=doc.querySelector('#player-photo,img[alt*="jogador"],img[class*="player"]');
-  const photo=imgEl?(imgEl.getAttribute('data-src')||imgEl.src||''):'';
-  const bio={};
-  doc.querySelectorAll('table tr').forEach(r=>{
-    const c=r.querySelectorAll('td');
-    if(c.length>=2){
-      const k=c[0].textContent.toLowerCase();
-      const v=c[1].textContent.trim();
-      if(k.includes('nasc'))bio.dob=v;
-      if(k.includes('nacion'))bio.nat=v;
-      if(k.includes('posi'))bio.pos=v;
-      if(k.includes('altur'))bio.height=v.replace(/\D/g,'');
-    }
-  });
-  const clubs=[];
-  doc.querySelectorAll('table.historico tr,table tr').forEach(r=>{
-    const c=r.querySelectorAll('td');
-    if(c.length>=2&&c[0].textContent.trim().length>2){
-      const yr=c[c.length-1].textContent.trim();
-      if(yr.match(/\d{4}/))clubs.push({club:c[0].textContent.trim(),period:yr});
-    }
-  });
-  if(name)return{name,...bio,photo,clubs,_ok:true,_source:'zerozero'};
+  // Detect block / suspension
+  const blocked=!html||html.length<200
+    ||html.includes('temporariamente suspenso')
+    ||html.includes('temporarily suspended')
+    ||html.includes('acesso bloqueado')
+    ||html.includes('Access Denied')
+    ||html.includes('Forbidden');
+  if(!blocked){
+    try{
+      const doc=(new DOMParser()).parseFromString(html,'text/html');
+      const nameEl=doc.querySelector('h1,.player-name,#player-name,.jogador-nome');
+      const name=nameEl?nameEl.textContent.trim():'';
+      const imgEl=doc.querySelector('#player-photo,img[alt*="jogador"],img[class*="player"],img[class*="foto"]');
+      const photo=imgEl?(imgEl.getAttribute('data-src')||imgEl.src||''):'';
+      const bio={};
+      doc.querySelectorAll('table tr,dl dt').forEach(r=>{
+        const c=r.querySelectorAll('td,dd');
+        if(c.length>=2){
+          const k=(c[0].textContent||'').toLowerCase();
+          const v=(c[1].textContent||'').trim();
+          if(k.includes('nasc'))bio.dob=v;
+          if(k.includes('nacion'))bio.nat=v;
+          if(k.includes('posi'))bio.pos=v;
+          if(k.includes('altur'))bio.height=v.replace(/\D/g,'');
+        }
+      });
+      const clubs=[];
+      doc.querySelectorAll('table tr').forEach(r=>{
+        const c=r.querySelectorAll('td');
+        if(c.length>=2&&c[0].textContent.trim().length>2){
+          const yr=c[c.length-1].textContent.trim();
+          if(yr.match(/\d{4}/))clubs.push({club:c[0].textContent.trim(),period:yr});
+        }
+      });
+      if(name)return{name,...bio,photo,clubs,_ok:true,_source:'zerozero'};
+    }catch(e){}
+  }
+  // Blocked — show assisted manual form
+  _showZZManualModal(id,url);
   return null;
+}
+function _showZZManualModal(id,url){
+  window.open(url,'_blank');
+  const m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML=`<div style="background:var(--bg2);border-radius:14px;padding:20px;max-width:420px;width:100%;border:1px solid var(--brd);max-height:90vh;overflow-y:auto">
+    <div style="font-weight:800;font-size:15px;margin-bottom:4px">🟢 Importar do ZeroZero</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:14px">O ZeroZero bloqueou o acesso automático. A página abriu numa nova tab — copia os dados para aqui:</div>
+    <div class="form-g"><label class="fl">Nome Completo *</label><input class="fc" id="_zz_name" placeholder="Nome da jogadora"></div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Data Nasc. (DD/MM/AAAA)</label><input class="fc" id="_zz_dob" placeholder="ex: 15/03/1998"></div>
+      <div class="form-g"><label class="fl">Nacionalidade</label><input class="fc" id="_zz_nat" placeholder="ex: Portuguesa"></div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Posição</label><input class="fc" id="_zz_pos" placeholder="ex: Avançada"></div>
+      <div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="_zz_height" type="number" placeholder="ex: 168"></div>
+    </div>
+    <div class="form-g"><label class="fl">URL Foto (opcional)</label><input class="fc" id="_zz_photo" placeholder="https://..."></div>
+    <div class="form-g"><label class="fl">Histórico de Clubes (um por linha: Clube — Época)</label>
+      <textarea class="fc" id="_zz_clubs" rows="4" placeholder="Moreirense — 2023/24&#10;Benfica — 2022/23&#10;Porto — 2020/22"></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-g" style="flex:1" id="_zz_apply">✅ Aplicar</button>
+      <button class="btn btn-gh" id="_zz_cancel">Cancelar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+  document.getElementById('_zz_apply').onclick=()=>{
+    const name=(document.getElementById('_zz_name').value||'').trim();
+    if(!name)return toast('Nome obrigatório','err');
+    const dobRaw=(document.getElementById('_zz_dob').value||'').trim();
+    let dob=dobRaw;
+    const dm=dobRaw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(dm)dob=dm[3]+'-'+dm[2].padStart(2,'0')+'-'+dm[1].padStart(2,'0');
+    const clubLines=(document.getElementById('_zz_clubs').value||'').split('\n').filter(l=>l.trim());
+    const clubs=clubLines.map(l=>{const p=l.split(/[—\-–]/);return{club:(p[0]||'').trim(),period:(p[1]||'').trim()};}).filter(c=>c.club);
+    const data={
+      name,dob,
+      nat:(document.getElementById('_zz_nat').value||'').trim(),
+      pos:(document.getElementById('_zz_pos').value||'').trim(),
+      height:(document.getElementById('_zz_height').value||'').trim(),
+      photo:(document.getElementById('_zz_photo').value||'').trim(),
+      clubs,_ok:true,_source:'zerozero-manual'
+    };
+    _applyImport(data);
+    m.remove();
+  };
+  document.getElementById('_zz_cancel').onclick=()=>m.remove();
 }
 async function _xtGeneric(url){
   const html=await _proxyGet(url);
