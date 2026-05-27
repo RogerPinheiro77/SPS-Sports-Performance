@@ -420,7 +420,7 @@ let _supa=null,_cid=null,_sync=false;
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',pinTec:'',pinFis:'',pinNut:''},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:''},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],
     exercises:defEx(),games:[],scouting:[],evaluations:[],
@@ -543,7 +543,7 @@ function showStaffApp(){
   document.getElementById('screen-login').style.display='none';
   document.getElementById('staff-app').classList.add('on');
   const cfg=APP.config;
-  document.getElementById('sb-logo').textContent=cfg.logo||'⚽';
+  updateSidebarLogo();
   document.getElementById('sb-club').textContent=cfg.clubName;
   document.getElementById('sb-sea').textContent=cfg.season;
   document.getElementById('lclub').textContent=cfg.clubName;
@@ -875,16 +875,26 @@ function renderDashboard(){
             </div>
           </div>`:
           `<div style="color:var(--t2);font-size:12px;text-align:center;padding:8px">Sem sessões agendadas</div>`}
-          ${nextGame?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
-            <div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;margin-bottom:4px">Próximo Jogo</div>
-            <div style="display:flex;align-items:center;gap:10px">
-              ${nextGame.oppLogo
-                ?`<img src="${nextGame.oppLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;flex-shrink:0" onerror="this.outerHTML='<span style=font-size:24px>⚽</span>'">`
-                :`<span style="font-size:24px">⚽</span>`}
-              <div><div style="font-size:13px;font-weight:700">vs ${nextGame.opp}</div>
-              <div style="font-size:11px;color:var(--t2)">${fmtDate(nextGame.date)}${nextGame.time?' · '+nextGame.time:''}${nextGame.loc?' · '+nextGame.loc:''}</div></div>
-            </div>
-          </div>`:''}
+          ${(()=>{
+            if(!nextGame)return '';
+            const myLogo=APP.config.clubLogo?'<img src="'+APP.config.clubLogo+'" style="width:38px;height:38px;object-fit:contain;border-radius:6px" onerror="this.style.display=\'none\'">':'<span style="font-size:26px">⚽</span>';
+            const opLogo=nextGame.oppLogo?'<img src="'+nextGame.oppLogo+'" style="width:38px;height:38px;object-fit:contain;border-radius:6px" onerror="this.style.display=\'none\'">':'<span style="font-size:26px">⚽</span>';
+            const isFora=nextGame.ha==='fora';
+            const leftLogo=isFora?opLogo:myLogo;
+            const rightLogo=isFora?myLogo:opLogo;
+            const leftName=isFora?nextGame.opp:APP.config.clubName;
+            const rightName=isFora?APP.config.clubName:nextGame.opp;
+            const haBadge=isFora?'<span class="bdg bg-y" style="font-size:9px">Fora</span>':'<span class="bdg bg-g" style="font-size:9px">Casa</span>';
+            return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">'
+              +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase">Próximo Jogo</span>'+haBadge+'</div>'
+              +'<div style="display:flex;align-items:center;justify-content:space-around;gap:4px">'
+                +'<div style="text-align:center;flex:1">'+leftLogo+'<div style="font-size:9px;color:var(--t2);margin-top:3px;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+leftName+'</div></div>'
+                +'<div style="font-size:12px;font-weight:800;color:var(--t2);flex-shrink:0">VS</div>'
+                +'<div style="text-align:center;flex:1">'+rightLogo+'<div style="font-size:9px;color:var(--t2);margin-top:3px;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+rightName+'</div></div>'
+              +'</div>'
+              +'<div style="font-size:10px;color:var(--t2);text-align:center;margin-top:5px">'+fmtDate(nextGame.date)+(nextGame.time?' · '+nextGame.time:'')+(nextGame.loc?' · '+nextGame.loc:'')+'</div>'
+              +'</div>';
+          })()}
         </div>
       </div>
     </div>
@@ -1447,8 +1457,8 @@ function renderJogos(){
   }
 }
 let _clubSearchTimer=null;
-async function searchClub(q){
-  const dd=document.getElementById('jf-club-dropdown');
+async function _doClubSearch(q,ddId,onSelect){
+  const dd=document.getElementById(ddId);
   if(!dd)return;
   clearTimeout(_clubSearchTimer);
   if(!q||q.length<2){dd.style.display='none';return;}
@@ -1456,31 +1466,18 @@ async function searchClub(q){
     dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">🔍 A pesquisar...</div>';
     dd.style.display='block';
     try{
-      // Pesquisar PT e EN Wikipedia em simultâneo
       const [ptR,enR]=await Promise.allSettled([
         fetch('https://pt.wikipedia.org/w/api.php?action=opensearch&search='+encodeURIComponent(q)+'&limit=4&namespace=0&format=json&origin=*').then(r=>r.json()),
         fetch('https://en.wikipedia.org/w/api.php?action=opensearch&search='+encodeURIComponent(q+' football club')+'&limit=4&namespace=0&format=json&origin=*').then(r=>r.json())
       ]);
-      const ptTitles=(ptR.status==='fulfilled'?(ptR.value[1]||[]):[]).map(t=>({t,lang:'pt'}));
-      const enTitles=(enR.status==='fulfilled'?(enR.value[1]||[]):[]).map(t=>({t,lang:'en'}));
-      // PT primeiro, depois EN, sem duplicados
+      const ptT=(ptR.status==='fulfilled'?(ptR.value[1]||[]):[]).map(t=>({t,lang:'pt'}));
+      const enT=(enR.status==='fulfilled'?(enR.value[1]||[]):[]).map(t=>({t,lang:'en'}));
       const seen=new Set();
-      const combined=[...ptTitles,...enTitles].filter(({t})=>{
-        const k=t.toLowerCase();
-        if(seen.has(k))return false;
-        seen.add(k);return true;
-      }).slice(0,6);
-      if(!combined.length){
-        dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Nenhum clube encontrado</div>';
-        return;
-      }
-      // REST summary de cada artigo em paralelo — thumbnail = escudo do infobox
+      const combined=[...ptT,...enT].filter(({t})=>{const k=t.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;}).slice(0,6);
+      if(!combined.length){dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Nenhum clube encontrado</div>';return;}
       const results=await Promise.all(combined.map(async({t,lang})=>{
-        try{
-          const r=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(t.replace(/ /g,'_')));
-          const s=await r.json();
-          return{title:s.title||t,desc:s.description||'',logo:s.thumbnail?s.thumbnail.source:''};
-        }catch(e){return{title:t,desc:'',logo:''};}
+        try{const r=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(t.replace(/ /g,'_')));const s=await r.json();return{title:s.title||t,desc:s.description||'',logo:s.thumbnail?s.thumbnail.source:''};}
+        catch(e){return{title:t,desc:'',logo:''};}
       }));
       dd.innerHTML='';
       results.forEach(s=>{
@@ -1488,33 +1485,22 @@ async function searchClub(q){
         row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--brd)';
         row.onmouseover=()=>row.style.background='var(--bg3)';
         row.onmouseout=()=>row.style.background='';
-        row.onclick=()=>selectClub(s.title,s.logo);
+        row.onclick=()=>{onSelect(s.title,s.logo,s.desc);dd.style.display='none';};
         const ic=document.createElement('div');
         ic.style.cssText='width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
-        if(s.logo){
-          const img=document.createElement('img');
-          img.src=s.logo;
-          img.style.cssText='width:32px;height:32px;object-fit:contain;border-radius:4px';
-          img.onerror=()=>{ic.innerHTML='<span style="font-size:22px">⚽</span>';};
-          ic.appendChild(img);
-        }else{ic.innerHTML='<span style="font-size:22px">⚽</span>';}
+        if(s.logo){const img=document.createElement('img');img.src=s.logo;img.style.cssText='width:32px;height:32px;object-fit:contain;border-radius:4px';img.onerror=()=>{ic.innerHTML='<span style="font-size:22px">⚽</span>';};ic.appendChild(img);}
+        else{ic.innerHTML='<span style="font-size:22px">⚽</span>';}
         row.appendChild(ic);
         const tx=document.createElement('div');
-        const n=document.createElement('div');
-        n.style.cssText='font-size:13px;font-weight:600';
-        n.textContent=s.title;
-        const d=document.createElement('div');
-        d.style.cssText='font-size:10px;color:var(--t2)';
-        d.textContent=s.desc;
-        tx.appendChild(n);tx.appendChild(d);
-        row.appendChild(tx);
-        dd.appendChild(row);
+        const n=document.createElement('div');n.style.cssText='font-size:13px;font-weight:600';n.textContent=s.title;
+        const d=document.createElement('div');d.style.cssText='font-size:10px;color:var(--t2)';d.textContent=s.desc;
+        tx.appendChild(n);tx.appendChild(d);row.appendChild(tx);dd.appendChild(row);
       });
-    }catch(e){
-      dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Erro na pesquisa</div>';
-    }
+    }catch(e){dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Erro na pesquisa</div>';}
   },400);
 }
+function searchClub(q){_doClubSearch(q,'jf-club-dropdown',(name,logo)=>selectClub(name,logo));}
+function searchMyClub(q){_doClubSearch(q,'cfg-club-dropdown',(name,logo,desc)=>selectMyClub(name,logo,desc));}
 function selectClub(name,logo){
   const inp=document.getElementById('jf-opp');if(inp)inp.value=name;
   const logoInp=document.getElementById('jf-logo');if(logoInp)logoInp.value=logo;
@@ -1528,6 +1514,12 @@ function selectClub(name,logo){
     }else{prev.innerHTML='<span style="font-size:22px">⚽</span>';}
   }
   const dd=document.getElementById('jf-club-dropdown');if(dd)dd.style.display='none';
+}
+function selectMyClub(name,logo,desc){
+  const inp=document.getElementById('cfg-club');if(inp)inp.value=name;
+  const logoInp=document.getElementById('cfg-club-logo');if(logoInp)logoInp.value=logo;
+  const prev=document.getElementById('cfg-logo-preview');
+  if(prev){if(logo){const img=document.createElement('img');img.src=logo;img.style.cssText='width:38px;height:38px;object-fit:contain';img.onerror=()=>{prev.innerHTML='<span style="font-size:22px">⚽</span>';};prev.innerHTML='';prev.appendChild(img);}else{prev.innerHTML='<span style="font-size:22px">⚽</span>';}}
 }
 function saveJogo(){
   const opp=document.getElementById('jf-opp').value.trim();
@@ -2270,9 +2262,23 @@ function renderConfig(){
   <div class="sh"><div class="sh-t">⚙️ Configurações</div></div>
   <div class="g2">
     <div class="card"><div class="ch"><span class="ct">🏟️ Clube</span></div><div class="cb">
-      <div class="form-g"><label class="fl">Nome do Clube</label><input class="fc" id="cfg-club" value="${APP.config.clubName||''}"></div>
-      <div class="form-g"><label class="fl">Época</label><input class="fc" id="cfg-sea" value="${APP.config.season||''}"></div>
-      <div class="form-g"><label class="fl">Logo (emoji)</label><input class="fc" id="cfg-logo" value="${APP.config.logo||'⚽'}" maxlength="4"></div>
+      <div class="form-g" style="position:relative">
+        <label class="fl">Nome do Clube</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="position:relative;flex:1">
+            <input class="fc" id="cfg-club" autocomplete="off" placeholder="Pesquisar clube..." value="${APP.config.clubName||''}" oninput="searchMyClub(this.value)">
+            <div id="cfg-club-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+          </div>
+          <div id="cfg-logo-preview" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:8px;border:1px solid var(--brd);flex-shrink:0;overflow:hidden">
+            ${APP.config.clubLogo?'<img src="'+APP.config.clubLogo+'" style="width:38px;height:38px;object-fit:contain" onerror="this.parentElement.innerHTML=\'<span style=font-size:22px>⚽</span>\'">':(APP.config.logo||'⚽')}
+          </div>
+        </div>
+        <input type="hidden" id="cfg-club-logo" value="${APP.config.clubLogo||''}">
+      </div>
+      <div class="fr">
+        <div class="form-g"><label class="fl">Época</label><input class="fc" id="cfg-sea" value="${APP.config.season||''}"></div>
+        <div class="form-g"><label class="fl">Estádio / Campo Principal</label><input class="fc" id="cfg-ground" placeholder="Nome do estádio" value="${APP.config.homeGround||''}"></div>
+      </div>
       <button class="btn btn-g btn-sm" onclick="saveConfig()">💾 Guardar</button>
     </div></div>
     <div class="card"><div class="ch"><span class="ct">🔐 PINs de Acesso</span></div><div class="cb">
@@ -2315,13 +2321,21 @@ function renderConfig(){
 function saveConfig(){
   APP.config.clubName=document.getElementById('cfg-club').value||APP.config.clubName;
   APP.config.season=document.getElementById('cfg-sea').value||APP.config.season;
-  APP.config.logo=document.getElementById('cfg-logo').value||APP.config.logo;
+  APP.config.clubLogo=document.getElementById('cfg-club-logo').value||APP.config.clubLogo||'';
+  APP.config.homeGround=document.getElementById('cfg-ground').value||'';
   saveData();
   document.getElementById('sb-club').textContent=APP.config.clubName;
   document.getElementById('sb-sea').textContent=APP.config.season;
-  document.getElementById('sb-logo').textContent=APP.config.logo;
   document.getElementById('lclub').textContent=APP.config.clubName;
+  updateSidebarLogo();
   toast('Configurações guardadas ✓');
+}
+function updateSidebarLogo(){
+  const el=document.getElementById('sb-logo');
+  if(!el)return;
+  const logo=APP.config.clubLogo;
+  if(logo){el.innerHTML='<img src="'+logo+'" style="width:28px;height:28px;object-fit:contain;border-radius:5px" onerror="this.parentElement.textContent=\''+(APP.config.logo||'⚽')+'\'">';}
+  else{el.textContent=APP.config.logo||'⚽';}
 }
 function savePins(){
   const tec=document.getElementById('cfg-pin-tec').value;
