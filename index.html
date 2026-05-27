@@ -1012,10 +1012,16 @@ function renderPlantel(teamId){
   <div class="ipanel" id="at-form">
     <div class="sh"><div class="sh-t">${_editAtId?'Editar Atleta':'Nova Atleta'}</div><button class="btn btn-sm btn-gh" onclick="_showAtForm=false;_editAtId=null;renderPlantel()">✕</button></div>
     <div class="al al-b" style="margin-bottom:10px;font-size:11px">
-      <strong>📥 Importar via URL</strong> — Cola o URL da FPF ou Transfermarkt para pré-preencher os dados
-      <div style="display:flex;gap:6px;margin-top:6px">
+      <strong>📥 Importar via URL</strong> — Cola o URL da FPF, Transfermarkt ou ZeroZero para pré-preencher os dados
+      <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+        <span style="font-size:10px;color:var(--t2);white-space:nowrap;flex-shrink:0">🇵🇹 FPF / TM</span>
         <input class="fc" id="af-import-url" placeholder="https://www.fpf.pt/...playerId/... ou transfermarkt.pt/..." style="flex:1;font-size:11px">
-        <button class="btn btn-g btn-sm" id="af-import-btn" onclick="importAthleteFromUrl()">📥 Importar</button>
+        <button class="btn btn-g btn-sm" id="af-import-btn" onclick="importAthleteFromUrl()">📥</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+        <span style="font-size:10px;color:var(--t2);white-space:nowrap;flex-shrink:0">🟢 ZeroZero</span>
+        <input class="fc" id="af-zz-url" placeholder="https://www.zerozero.pt/jogador.php?id=..." style="flex:1;font-size:11px">
+        <button class="btn btn-g btn-sm" id="af-zz-btn" onclick="importFromZeroZero()">📥</button>
       </div>
     </div>
     <div class="fr"><div class="form-g"><label class="fl">Nome Completo *</label><input class="fc" id="af-name" placeholder="Nome da atleta"></div>
@@ -1080,6 +1086,7 @@ function renderPlantel(teamId){
       document.getElementById('af-club').value=at.club||'';
       document.getElementById('af-photo').value=at.photo||'';
       document.getElementById('af-fpf-id').value=at.fpfId||'';
+      const zzEl=document.getElementById('af-zz-url');if(zzEl&&at.zzUrl)zzEl.value=at.zzUrl||'';
     }
   }
 }
@@ -1269,6 +1276,25 @@ function _applyImport(d){
   toast('Formulário preenchido ✓','ok');
 }
 
+function importFromZeroZero(){
+  const urlEl=document.getElementById('af-zz-url');
+  if(!urlEl)return;
+  const url=(urlEl.value||'').trim();
+  if(!url)return toast('Cola o URL do ZeroZero primeiro','err');
+  const idM=url.match(/[?&]id=(\d+)/i)||url.match(/zerozero\.pt\/[^?]+\/(\d+)/i);
+  if(!idM)return toast('URL ZeroZero inválido — deve conter ?id=XXXXX','err');
+  const btn=document.getElementById('af-zz-btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳';}
+  toast('A importar do ZeroZero...','ok');
+  (async()=>{
+    try{
+      const data=await _xtZZ(idM[1],url);
+      if(data&&data._ok){_showImportModal(data);}
+      else{window.open(url,'_blank');toast('Não foi possível extrair — página aberta','err');}
+    }catch(e){toast('Erro: '+e.message,'err');window.open(url,'_blank');}
+    finally{if(btn){btn.disabled=false;btn.textContent='📥';}}
+  })();
+}
 function saveAthlete(){
   const name=document.getElementById('af-name').value.trim();
   if(!name)return toast('Nome obrigatório','err');
@@ -2795,11 +2821,9 @@ async function pullCloud(){
 }
 async function cloudUpsert(table,row){
   if(!_supa||!_cid)return;
-  try{await _supa.from(table).upsert({...row,club_id:_cid});}
-  catch(e){console.warn('cloudUpsert:',e);}
+  try{await _supa.from(table).upsert({...row,club_id:_cid},{onConflict:'id'});}
+  catch(e){console.warn('cloudUpsert error',e);}
 }
-function openCloud(){navTo('config');}
-
 // ─── INIT ────────────────────────────────────────────────
 loadData();
 const _sc=getSupaCfg();
