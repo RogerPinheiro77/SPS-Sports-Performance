@@ -365,6 +365,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-aval"></div>
       <div class="pg" id="pg-nutri-planos"></div>
       <div class="pg" id="pg-config"></div>
+      <div class="pg" id="pg-relatorios"></div>
     </div>
   </div>
 </div>
@@ -578,6 +579,8 @@ const NAV_TEC=[
   {id:'scouting',icon:'🔍',label:'Scouting'},
   {id:'biblioteca',icon:'📚',label:'Biblioteca'},
   {id:'treinos-ind',icon:'🏋️',label:'Treinos Individuais'},
+  {sec:'Exportações'},
+  {id:'relatorios',icon:'📥',label:'Relatórios'},
 ];
 const NAV_FIS=[
   {sec:'Fisioterapia'},
@@ -613,9 +616,9 @@ function navTo(id){
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
-  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',microciclos:'Microciclos',jogos:'Jogos',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações'};
+  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',microciclos:'Microciclos',jogos:'Jogos',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
   document.getElementById('pg-title').textContent=titles[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,microciclos:renderMicrociclos,jogos:renderJogos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,microciclos:renderMicrociclos,jogos:renderJogos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   window.scrollTo(0,0);
 }
@@ -2720,6 +2723,306 @@ function saveNutriPlano(){
 }
 function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
+
+// ─── RELATÓRIOS ──────────────────────────────────────────────
+let _repWellMode='diario',_repPseMode='diario';
+function renderRelatorios(){
+  const ats=APP.athletes.sort((a,b)=>a.name.localeCompare(b.name));
+  const teams=[{id:'',name:'Todas as Equipas'},...APP.teams];
+  const atOpts=ats.map(a=>`<option value="${a.id}">${a.name} (${a.pos||'—'})</option>`).join('');
+  const teamOpts=teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const td=new Date().toISOString().slice(0,10);
+  const ym=td.slice(0,7);
+  document.getElementById('pg-relatorios').innerHTML=`
+  <div class="sh"><div class="sh-t">📥 Relatórios & Exportações</div></div>
+  <div class="g2">
+
+    <!-- Ficha de Atleta -->
+    <div class="card"><div class="ch"><span class="ct">👤 Ficha de Atleta</span></div><div class="cb">
+      <div class="form-g"><label class="fl">Atleta</label>
+        <select class="fc" id="rep-at-sel">${atOpts||'<option>Sem atletas</option>'}</select>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Gera ficha completa: dados pessoais, estatísticas da época, histórico de lesões e clubes.</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-g btn-sm" onclick="printFichaAtleta()">🖨️ PDF / Imprimir</button>
+      </div>
+    </div></div>
+
+    <!-- Plantel -->
+    <div class="card"><div class="ch"><span class="ct">👥 Plantel</span></div><div class="cb">
+      <div class="form-g"><label class="fl">Equipa</label>
+        <select class="fc" id="rep-team-sel">${teamOpts}</select>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Exporta lista com: nome, número, posição, data de nascimento, naturalidade, altura, peso, pé.</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-g btn-sm" onclick="exportPlantelCSV()">📊 Exportar CSV</button>
+        <button class="btn btn-gh btn-sm" onclick="printPlantel()">🖨️ PDF / Imprimir</button>
+      </div>
+    </div></div>
+
+    <!-- Wellness -->
+    <div class="card"><div class="ch"><span class="ct">💊 Wellness</span></div><div class="cb">
+      <div class="fr">
+        <div class="form-g"><label class="fl">Tipo de Relatório</label>
+          <select class="fc" id="rep-well-mode" onchange="_repWellMode=this.value;renderRelatorios()">
+            <option value="diario" ${_repWellMode==='diario'?'selected':''}>Diário — todas as atletas</option>
+            <option value="mensal" ${_repWellMode==='mensal'?'selected':''}>Mensal — 1 atleta</option>
+          </select>
+        </div>
+        ${_repWellMode==='diario'
+          ?`<div class="form-g"><label class="fl">Data</label><input class="fc" type="date" id="rep-well-date" value="${td}"></div>`
+          :`<div class="form-g"><label class="fl">Atleta</label><select class="fc" id="rep-well-at">${atOpts}</select></div>
+            <div class="form-g"><label class="fl">Mês</label><input class="fc" type="month" id="rep-well-month" value="${ym}"></div>`
+        }
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-g btn-sm" onclick="exportWellnessCSV()">📊 Exportar CSV</button>
+        <button class="btn btn-gh btn-sm" onclick="printWellness()">🖨️ PDF / Imprimir</button>
+      </div>
+      <div id="rep-well-preview" style="margin-top:14px"></div>
+    </div></div>
+
+    <!-- PSE -->
+    <div class="card"><div class="ch"><span class="ct">📊 PSE</span></div><div class="cb">
+      <div class="fr">
+        <div class="form-g"><label class="fl">Tipo de Relatório</label>
+          <select class="fc" id="rep-pse-mode" onchange="_repPseMode=this.value;renderRelatorios()">
+            <option value="diario" ${_repPseMode==='diario'?'selected':''}>Diário — todas as atletas</option>
+            <option value="mensal" ${_repPseMode==='mensal'?'selected':''}>Mensal — 1 atleta</option>
+          </select>
+        </div>
+        ${_repPseMode==='diario'
+          ?`<div class="form-g"><label class="fl">Data</label><input class="fc" type="date" id="rep-pse-date" value="${td}"></div>`
+          :`<div class="form-g"><label class="fl">Atleta</label><select class="fc" id="rep-pse-at">${atOpts}</select></div>
+            <div class="form-g"><label class="fl">Mês</label><input class="fc" type="month" id="rep-pse-month" value="${ym}"></div>`
+        }
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-g btn-sm" onclick="exportPseCSV()">📊 Exportar CSV</button>
+        <button class="btn btn-gh btn-sm" onclick="printPse()">🖨️ PDF / Imprimir</button>
+      </div>
+      <div id="rep-pse-preview" style="margin-top:14px"></div>
+    </div></div>
+
+  </div>`;
+}
+
+// ── Export helpers ────────────────────────────────────────────────────────────
+function _dlCSV(rows,filename){
+  const csv=rows.map(r=>r.map(c=>{const s=String(c==null?'':c);return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')).join('\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function _printWin(title,bodyHtml){
+  const club=APP.config.clubName||'Sport Performance';
+  const season=APP.config.season||'';
+  const logo=APP.config.clubLogo?`<img src="${APP.config.clubLogo}" style="height:48px;object-fit:contain">`:club.slice(0,1);
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:Arial,sans-serif;font-size:11pt;color:#111;background:#fff;padding:18mm 15mm}
+    .pr-header{display:flex;align-items:center;gap:14px;border-bottom:2px solid #1d6f3b;padding-bottom:10px;margin-bottom:18px}
+    .pr-logo{width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:#1d6f3b}
+    .pr-club{font-size:13pt;font-weight:700;color:#1d6f3b}
+    .pr-sub{font-size:9pt;color:#666;margin-top:2px}
+    .pr-title{font-size:14pt;font-weight:700;margin-bottom:14px;color:#1d6f3b;border-left:4px solid #1d6f3b;padding-left:8px}
+    .pr-footer{margin-top:20px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#999;display:flex;justify-content:space-between}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px}
+    th{background:#1d6f3b;color:#fff;padding:6px 8px;text-align:left;font-size:9pt}
+    td{padding:5px 8px;border-bottom:1px solid #eee;font-size:9pt}
+    tr:nth-child(even) td{background:#f9f9f9}
+    .badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:8pt;font-weight:700}
+    .bg-g{background:#d4edda;color:#155724}
+    .bg-y{background:#fff3cd;color:#856404}
+    .bg-r{background:#f8d7da;color:#721c24}
+    .profile-header{display:flex;gap:18px;align-items:flex-start;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #ddd}
+    .profile-photo{width:80px;height:80px;border-radius:8px;object-fit:cover;background:#eee;flex-shrink:0}
+    .profile-photo-ph{width:80px;height:80px;border-radius:8px;background:#1d6f3b22;display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0}
+    .kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+    .kpi{flex:1;min-width:80px;background:#f5f5f5;border-radius:6px;padding:8px;text-align:center}
+    .kpi-v{font-size:16pt;font-weight:900;color:#1d6f3b}
+    .kpi-l{font-size:7pt;color:#666;text-transform:uppercase;margin-top:2px}
+    h3{font-size:11pt;font-weight:700;color:#1d6f3b;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid #eee}
+    @media print{body{padding:10mm 10mm}@page{margin:8mm}}
+  </style>
+  </head><body>
+  <div class="pr-header">
+    <div class="pr-logo">${logo}</div>
+    <div><div class="pr-club">${club}</div><div class="pr-sub">${season} · Gerado em ${new Date().toLocaleDateString('pt-PT',{day:'2-digit',month:'long',year:'numeric'})}</div></div>
+    <div style="margin-left:auto;font-size:9pt;color:#666;text-align:right">${title}</div>
+  </div>
+  ${bodyHtml}
+  <div class="pr-footer"><span>${club} · ${season}</span><span>Gerado em ${new Date().toLocaleDateString('pt-PT')}</span></div>
+  </body></html>`;
+  const w=window.open('','_blank','width=900,height=700');
+  w.document.write(html);w.document.close();
+  setTimeout(()=>w.print(),600);
+}
+
+// ── Ficha de Atleta ───────────────────────────────────────────────────────────
+function printFichaAtleta(){
+  const id=document.getElementById('rep-at-sel').value;
+  if(!id)return toast('Seleciona uma atleta','err');
+  const at=APP.athletes.find(a=>a.id===id);
+  if(!at)return;
+  const td=today();
+  // KPIs
+  const pseRecs=APP.pse.filter(p=>p.athleteId===id);
+  const wellRecs=APP.wellness.filter(w=>w.athleteId===id);
+  const injRecs=APP.injuries.filter(i=>i.athleteId===id);
+  const attRecs=APP.attendance.filter(a=>a.athleteId===id);
+  const last28=new Date(Date.now()-28*864e5).toISOString().slice(0,10);
+  const pse28=pseRecs.filter(p=>p.date>=last28);
+  const well14=wellRecs.slice(-14);
+  const pseAvg=pse28.length?Math.round(pse28.reduce((s,p)=>s+p.pse,0)/pse28.length*10)/10:'—';
+  const wellAvg=well14.length?Math.round(well14.reduce((s,w)=>s+w.score,0)/well14.length):'—';
+  const totalUA=pse28.reduce((s,p)=>s+p.ua,0);
+  const attPct=attRecs.length?Math.round(attRecs.filter(a=>a.present).length/attRecs.length*100):'—';
+  const age=at.dob?Math.floor((new Date()-new Date(at.dob))/31557600000):'—';
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const activeInj=injRecs.filter(i=>!i.returnDate||i.returnDate>=td);
+  const kpis=[
+    {v:pseAvg,l:'PSE Médio (28d)'},
+    {v:wellAvg,l:'Wellness Médio'},
+    {v:totalUA,l:'Carga Total (28d)'},
+    {v:(attPct==='-'?attPct:attPct+'%'),l:'Presenças'},
+  ];
+  const lastWell=wellRecs.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  const lastPse=pseRecs.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  const wellTable=lastWell.length?`<table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th></tr></thead><tbody>${lastWell.map(w=>{const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td></tr>`;}).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem registos</p>';
+  const pseTable=lastPse.length?`<table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${lastPse.map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem registos</p>';
+  const injTable=injRecs.length?`<table><thead><tr><th>Data</th><th>Lesão</th><th>Zona</th><th>Grau</th><th>Retorno</th></tr></thead><tbody>${injRecs.sort((a,b)=>b.date.localeCompare(a.date)).map(i=>`<tr><td>${fmtDate(i.date)}</td><td>${i.type||'—'}</td><td>${i.zone||'—'}</td><td>${i.grade||'—'}</td><td>${i.returnDate?fmtDate(i.returnDate):'Em tratamento'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem lesões registadas</p>';
+  const clubHist=(at.clubs||[]).length?`<table><thead><tr><th>Clube</th><th>Época</th></tr></thead><tbody>${(at.clubs||[]).map(c=>`<tr><td>${c.name}</td><td>${c.season||'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem histórico</p>';
+  const body=`
+    <div class="pr-title">Ficha de Atleta</div>
+    <div class="profile-header">
+      ${photoHtml}
+      <div style="flex:1">
+        <div style="font-size:18pt;font-weight:900;color:#111">${at.name}</div>
+        <div style="font-size:10pt;color:#555;margin-top:4px">${at.pos||'—'} · Nº ${at.number||'—'} · ${age} anos</div>
+        <div style="margin-top:6px;font-size:9pt;color:#444;display:flex;gap:16px;flex-wrap:wrap">
+          <span>📅 <strong>Nasc.:</strong> ${at.dob?fmtDate(at.dob):'—'}</span>
+          <span>📏 <strong>Alt.:</strong> ${at.height?at.height+'cm':'—'}</span>
+          <span>⚖️ <strong>Peso:</strong> ${at.weight?at.weight+'kg':'—'}</span>
+          <span>🦶 <strong>Pé:</strong> ${at.foot||'—'}</span>
+          <span>🌍 <strong>Nat.:</strong> ${at.nat||'—'}</span>
+          ${activeInj.length?`<span style="color:#c00;font-weight:700">⚠️ ${activeInj.length} lesão ativa</span>`:''}
+        </div>
+      </div>
+    </div>
+    <div class="kpi-row">${kpis.map(k=>`<div class="kpi"><div class="kpi-v">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('')}</div>
+    <h3>💊 Wellness (últimos 10 registos)</h3>${wellTable}
+    <h3>📊 PSE — Carga de Treino (últimos 10)</h3>${pseTable}
+    <h3>🩺 Histórico de Lesões</h3>${injTable}
+    <h3>🏟️ Histórico de Clubes</h3>${clubHist}
+  `;
+  _printWin(`Ficha — ${at.name}`,body);
+}
+
+// ── Plantel ───────────────────────────────────────────────────────────────────
+function exportPlantelCSV(){
+  const teamId=document.getElementById('rep-team-sel').value;
+  const ats=APP.athletes.filter(a=>!teamId||a.teamId===teamId).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!ats.length)return toast('Sem atletas para exportar','err');
+  const headers=['Nome','Nº','Posição','Data Nascimento','Naturalidade','Altura (cm)','Peso (kg)','Pé','Estado','Equipa'];
+  const rows=[headers,...ats.map(a=>{const t=APP.teams.find(t=>t.id===a.teamId);return[a.name,a.number||'',a.pos||'',a.dob||'',a.nat||'',a.height||'',a.weight||'',a.foot||'',a.status||'',t?t.name:''];})];
+  _dlCSV(rows,`plantel_${(APP.config.clubName||'clube').replace(/\s/g,'_')}_${today()}.csv`);
+  toast('CSV exportado ✓');
+}
+function printPlantel(){
+  const teamId=document.getElementById('rep-team-sel').value;
+  const ats=APP.athletes.filter(a=>!teamId||a.teamId===teamId).sort((a,b)=>(+a.number||99)-(+b.number||99));
+  if(!ats.length)return toast('Sem atletas','err');
+  const teamName=teamId?(APP.teams.find(t=>t.id===teamId)||{}).name||'':' — Todas as Equipas';
+  const body=`
+    <div class="pr-title">Plantel${teamName?(' — '+teamName):''}</div>
+    <table><thead><tr><th>Nº</th><th>Nome</th><th>Posição</th><th>Nasc.</th><th>Alt.</th><th>Peso</th><th>Pé</th><th>Estado</th></tr></thead>
+    <tbody>${ats.map(a=>`<tr><td>${a.number||'—'}</td><td><strong>${a.name}</strong></td><td>${a.pos||'—'}</td><td>${a.dob?fmtDate(a.dob):'—'}</td><td>${a.height?a.height+'cm':'—'}</td><td>${a.weight?a.weight+'kg':'—'}</td><td>${a.foot||'—'}</td><td>${a.status||'—'}</td></tr>`).join('')}
+    </tbody></table>
+    <p style="font-size:8pt;color:#999;margin-top:8px">Total: ${ats.length} atletas</p>
+  `;
+  _printWin('Plantel',body);
+}
+
+// ── Wellness ──────────────────────────────────────────────────────────────────
+function _getWellData(){
+  const mode=_repWellMode;
+  if(mode==='diario'){
+    const dt=document.getElementById('rep-well-date')?.value||today();
+    const recs=APP.wellness.filter(w=>w.date===dt);
+    return {mode,dt,recs};
+  } else {
+    const aid=document.getElementById('rep-well-at')?.value;
+    const ym=document.getElementById('rep-well-month')?.value||today().slice(0,7);
+    const recs=APP.wellness.filter(w=>w.athleteId===aid&&w.date.startsWith(ym)).sort((a,b)=>a.date.localeCompare(b.date));
+    const at=APP.athletes.find(a=>a.id===aid);
+    return {mode,ym,aid,at,recs};
+  }
+}
+function exportWellnessCSV(){
+  const d=_getWellData();
+  const headers=['Data','Atleta','Sono','Fadiga','Stress','Dor Muscular','Humor','Score','Ciclo'];
+  const rows=[headers,...d.recs.map(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);return[w.date,at?at.name:'—',w.sleep,w.fatigue,w.stress,w.pain,w.mood,w.score,w.cycle||''];})];
+  if(!d.recs.length)return toast('Sem dados para exportar','err');
+  _dlCSV(rows,`wellness_${d.mode==='diario'?(d.dt||today()):((d.at?.name||'atleta')+'_'+d.ym)}.csv`);
+  toast('CSV exportado ✓');
+}
+function printWellness(){
+  const d=_getWellData();
+  if(!d.recs.length)return toast('Sem dados para imprimir','err');
+  const title=d.mode==='diario'?`Wellness Diário — ${fmtDate(d.dt)}`:`Wellness Mensal — ${d.at?.name||'Atleta'} — ${d.ym}`;
+  const body=`
+    <div class="pr-title">${title}</div>
+    <table><thead><tr><th>Data</th>${d.mode==='diario'?'<th>Atleta</th>':''}<th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
+    <tbody>${d.recs.map(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td>${d.mode==='diario'?`<td>${at?at.name:'—'}</td>`:''}<td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')}</tbody></table>
+    <p style="font-size:8pt;color:#999">Total: ${d.recs.length} registos · Média score: ${d.recs.length?Math.round(d.recs.reduce((s,w)=>s+w.score,0)/d.recs.length):'—'}</p>
+  `;
+  _printWin(title,body);
+}
+
+// ── PSE ───────────────────────────────────────────────────────────────────────
+function _getPseData(){
+  const mode=_repPseMode;
+  if(mode==='diario'){
+    const dt=document.getElementById('rep-pse-date')?.value||today();
+    const recs=APP.pse.filter(p=>p.date===dt);
+    return {mode,dt,recs};
+  } else {
+    const aid=document.getElementById('rep-pse-at')?.value;
+    const ym=document.getElementById('rep-pse-month')?.value||today().slice(0,7);
+    const recs=APP.pse.filter(p=>p.athleteId===aid&&p.date.startsWith(ym)).sort((a,b)=>a.date.localeCompare(b.date));
+    const at=APP.athletes.find(a=>a.id===aid);
+    return {mode,ym,aid,at,recs};
+  }
+}
+function exportPseCSV(){
+  const d=_getPseData();
+  const headers=['Data','Atleta','PSE (0-10)','Duração (min)','UA (PSE×Dur)','Tipo de Sessão'];
+  const rows=[headers,...d.recs.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return[p.date,at?at.name:'—',p.pse,p.duration,p.ua,p.sessionType||''];})];
+  if(!d.recs.length)return toast('Sem dados para exportar','err');
+  _dlCSV(rows,`pse_${d.mode==='diario'?(d.dt||today()):((d.at?.name||'atleta')+'_'+d.ym)}.csv`);
+  toast('CSV exportado ✓');
+}
+function printPse(){
+  const d=_getPseData();
+  if(!d.recs.length)return toast('Sem dados para imprimir','err');
+  const title=d.mode==='diario'?`PSE Diário — ${fmtDate(d.dt)}`:`PSE Mensal — ${d.at?.name||'Atleta'} — ${d.ym}`;
+  const totalUA=d.recs.reduce((s,p)=>s+p.ua,0);
+  const avgPse=d.recs.length?Math.round(d.recs.reduce((s,p)=>s+p.pse,0)/d.recs.length*10)/10:'—';
+  const body=`
+    <div class="pr-title">${title}</div>
+    <table><thead><tr><th>Data</th>${d.mode==='diario'?'<th>Atleta</th>':''}<th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead>
+    <tbody>${d.recs.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return`<tr><td>${fmtDate(p.date)}</td>${d.mode==='diario'?`<td>${at?at.name:'—'}</td>`:''}<td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`;}).join('')}</tbody></table>
+    <div class="kpi-row" style="margin-top:12px">
+      <div class="kpi"><div class="kpi-v">${d.recs.length}</div><div class="kpi-l">Registos</div></div>
+      <div class="kpi"><div class="kpi-v">${avgPse}</div><div class="kpi-l">PSE Médio</div></div>
+      <div class="kpi"><div class="kpi-v">${totalUA}</div><div class="kpi-l">UA Total</div></div>
+    </div>
+  `;
+  _printWin(title,body);
+}
 
 // ─── CONFIGURAÇÕES ────────────────────────────────────────
 function renderConfig(){
