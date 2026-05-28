@@ -2569,7 +2569,7 @@ function openTrainingUnit(eventId,eventDate){
   let tr=APP.trainings.find(t=>t.eventId===eventId);
   if(!tr){
     tr={id:_TUID(),eventId,date:eventDate||today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,
-        notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
+        horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
     APP.trainings.push(tr);saveData();
   }
   _trId=tr.id;_trView='detail';_trExTab='aquecimento';
@@ -2586,7 +2586,7 @@ function renderTreinos(){
     return`<div class="card" style="cursor:pointer;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px" onclick="_trId='${tr.id}';_trView='detail';_trExTab='aquecimento';renderTreinos()">
       <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
         <div style="font-weight:700;font-size:14px">${escHtml(tr.title||'Unidade de Treino')}</div>
-        <div style="font-size:12px;color:var(--t2)">${tr.date?fmtDate(tr.date):''}${tr.local?' · '+escHtml(tr.local):''}</div>
+        <div style="font-size:12px;color:var(--t2)">${tr.date?fmtDate(tr.date):''}${tr.horaInicio?' '+tr.horaInicio:''}${tr.horaFim?'–'+tr.horaFim:''}${tr.local?' · '+escHtml(tr.local):''}</div>
         <div style="font-size:11px;color:var(--t2);margin-top:2px">${totalEx} exercício${totalEx!==1?'s':''} · ${tr.duracao||0} min${tr.objetivo?' · '+escHtml(tr.objetivo):''}</div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0">
@@ -2605,7 +2605,7 @@ function renderTreinos(){
 
 function _createNewUT(){
   if(!APP.trainings)APP.trainings=[];
-  const tr={id:_TUID(),eventId:null,date:today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
+  const tr={id:_TUID(),eventId:null,date:today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
   APP.trainings.push(tr);saveData();
   _trId=tr.id;_trView='detail';_trExTab='aquecimento';renderTreinos();
 }
@@ -2650,6 +2650,8 @@ function _renderTrDetail(){
     </div>
     <div class="fr3" style="gap:10px;flex-wrap:wrap;margin-top:8px">
       <div class="form-g"><label class="fl">Data</label><input class="fc" id="tr-date" type="date" value="${tr.date||today()}"></div>
+      <div class="form-g"><label class="fl">Hora início</label><input class="fc" id="tr-hinicio" type="time" value="${tr.horaInicio||''}" placeholder="09:00"></div>
+      <div class="form-g"><label class="fl">Hora fim</label><input class="fc" id="tr-hfim" type="time" value="${tr.horaFim||''}" placeholder="10:30"></div>
       <div class="form-g"><label class="fl">Local</label><input class="fc" id="tr-local" value="${escHtml(tr.local||'')}" placeholder="Campo principal"></div>
       <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="tr-dur" type="number" value="${tr.duracao||90}"></div>
       <div class="form-g"><label class="fl">Nº Jogadoras</label><input class="fc" id="tr-jog" type="number" value="${tr.jogadoras||18}"></div>
@@ -2815,6 +2817,19 @@ function saveTreinoPatch(trId){
   if(g('tr-title'))tr.title=g('tr-title').value.trim();
   if(g('tr-obj'))tr.objetivo=g('tr-obj').value.trim();
   if(g('tr-date'))tr.date=g('tr-date').value;
+  if(g('tr-hinicio'))tr.horaInicio=g('tr-hinicio').value;
+  if(g('tr-hfim'))tr.horaFim=g('tr-hfim').value;
+  // Sync hora início/fim to linked schedule event so PSE timing stays correct
+  if(tr.eventId&&tr.horaInicio&&tr.horaFim){
+    const ev=APP.schedule.find(e=>e.id===tr.eventId);
+    if(ev){
+      ev.time=tr.horaInicio;
+      const [sh,sm]=tr.horaInicio.split(':').map(Number);
+      const [eh,em]=tr.horaFim.split(':').map(Number);
+      const durMin=(eh*60+em)-(sh*60+sm);
+      if(durMin>0)ev.dur=durMin;
+    }
+  }
   if(g('tr-local'))tr.local=g('tr-local').value.trim();
   if(g('tr-dur'))tr.duracao=+g('tr-dur').value||tr.duracao;
   if(g('tr-jog'))tr.jogadoras=+g('tr-jog').value||tr.jogadoras;
@@ -2865,7 +2880,7 @@ function exportTreinoPDF(trId){
         <div style="font-size:12px;color:#666;margin-top:4px">${escHtml(tr.objetivo||'')}</div>
       </div>
       <div style="text-align:right;font-size:12px;color:#666">
-        <div><strong>Data:</strong> ${fmtDate(tr.date)}</div>
+        <div><strong>Data:</strong> ${fmtDate(tr.date)}${tr.horaInicio?' — '+tr.horaInicio:''}${tr.horaFim?' às '+tr.horaFim:''}</div>
         ${tr.local?`<div><strong>Local:</strong> ${escHtml(tr.local)}</div>`:''}
         <div><strong>Duração:</strong> ${tr.duracao||0} min</div>
         <div><strong>Jogadoras:</strong> ${tr.jogadoras||'—'}</div>
