@@ -1890,62 +1890,102 @@ function openMcSession(id){
 function deleteMcSession(id){APP.sessions=APP.sessions.filter(s=>s.id!==id);saveData();toast('Sessão apagada');closeMod();renderMicrociclos();}
 
 // ─── JOGOS ────────────────────────────────────────────────
-let _showJogoForm=false, _editJogoId=null, _jogoTab='proximos';
+const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+let _jogoView='list',_jogoDetailId=null,_jogoDetailTab='info';
+let _showJogoForm=false,_editJogoId=null,_jogoTab='proximos';
+let _pitchDragging=null,_pitchWasDrag=false;
+
+const _FPOS={
+  '4-3-3':[[150,30],[40,85],[110,80],[190,80],[260,85],[60,185],[150,175],[240,185],[55,305],[150,320],[245,305]],
+  '4-4-2':[[150,30],[40,85],[110,80],[190,80],[260,85],[40,190],[120,185],[180,185],[260,190],[100,315],[200,315]],
+  '4-2-3-1':[[150,30],[40,85],[110,80],[190,80],[260,85],[105,160],[195,160],[45,245],[150,235],[255,245],[150,330]],
+  '3-5-2':[[150,30],[75,78],[150,72],[225,78],[35,175],[105,180],[150,168],[195,180],[265,175],[100,315],[200,315]],
+  '5-3-2':[[150,30],[25,85],[90,78],[150,72],[210,78],[275,85],[85,190],[150,183],[215,190],[100,315],[200,315]]
+};
+
+function _initG(g){
+  if(!g.formation)g.formation='4-3-3';
+  if(!g.convocatoria)g.convocatoria=[];
+  if(!g.lineup)g.lineup=[];
+  if(!g.subs)g.subs=[];
+  if(!g.playerPositions)g.playerPositions={};
+  if(!g.playerTasks)g.playerTasks={};
+  if(!g.captain)g.captain='';
+  if(!g.viceCaptain)g.viceCaptain='';
+  if(!g.oppFormation)g.oppFormation='';
+  if(!g.oppStrengths)g.oppStrengths='';
+  if(!g.oppWeaknesses)g.oppWeaknesses='';
+  if(!g.oppSetPieces)g.oppSetPieces='';
+  if(!g.oppScoutLink)g.oppScoutLink='';
+  if(!g.preGameNotes)g.preGameNotes='';
+  if(!g.postGameNotes)g.postGameNotes='';
+  if(!g.fpfUrl)g.fpfUrl='';
+  if(!g.playerStats)g.playerStats=[];
+  if(!g.setpieces)g.setpieces={corners:'',freeKicks:'',penalty:''};
+  return g;
+}
+
+function openJogo(id){
+  const g=APP.games.find(x=>x.id===id);
+  if(!g)return;
+  _initG(g);saveData();
+  _jogoDetailId=id;_jogoView='detail';_jogoDetailTab='info';
+  renderJogos();
+}
+
 function renderJogos(){
+  if(_jogoView==='detail'&&_jogoDetailId){_renderJogoDetailFull();return;}
   const td=today();
-  const teamTabs=APP.teams.map(t=>`<button class="tab-btn" onclick="" style="cursor:default">${t.name}</button>`).join('');
   const formHtml=_showJogoForm?`
   <div class="ipanel">
-    <div class="sh"><div class="sh-t">${_editJogoId?'Editar Jogo':'Novo Jogo'}</div><button class="btn btn-sm btn-gh" onclick="_showJogoForm=false;_editJogoId=null;renderJogos()">✕</button></div>
+    <div class="sh"><div class="sh-t">${_editJogoId?'Editar':'Novo Jogo'}</div><button class="btn btn-sm btn-gh" onclick="_showJogoForm=false;_editJogoId=null;renderJogos()">✕</button></div>
     <div class="fr"><div class="form-g" style="position:relative"><label class="fl">Adversário *</label>
     <div style="display:flex;gap:8px;align-items:center">
-      <div style="position:relative;flex:1">
-        <input class="fc" id="jf-opp" placeholder="Escrever para pesquisar clube..." autocomplete="off" oninput="searchClub(this.value)">
-        <div id="jf-club-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
-      </div>
-      <div id="jf-logo-preview" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:8px;border:1px solid var(--brd);flex-shrink:0">
-        <span style="font-size:18px">⚽</span>
-      </div>
-    </div>
-    <input type="hidden" id="jf-logo">
-    </div>
+      <div style="position:relative;flex:1"><input class="fc" id="jf-opp" placeholder="Pesquisar clube..." autocomplete="off" oninput="searchClub(this.value)">
+      <div id="jf-club-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div></div>
+      <div id="jf-logo-preview" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:8px;border:1px solid var(--brd);flex-shrink:0"><span style="font-size:18px">⚽</span></div>
+    </div><input type="hidden" id="jf-logo"></div>
     <div class="form-g"><label class="fl">Equipa</label><select class="fc" id="jf-team">${APP.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select></div></div>
-    <div class="fr3"><div class="form-g"><label class="fl">Data *</label><input class="fc" id="jf-date" type="date"></div>
-    <div class="form-g"><label class="fl">Hora</label><input class="fc" id="jf-time" type="time"></div>
-    <div class="form-g"><label class="fl">Casa/Fora</label><select class="fc" id="jf-ha"><option value="casa">Casa</option><option value="fora">Fora</option><option value="neutro">Neutro</option></select></div></div>
-    <div class="fr"><div class="form-g"><label class="fl">Local</label><input class="fc" id="jf-loc" placeholder="Estádio / Campo"></div>
-    <div class="form-g"><label class="fl">Competição</label><input class="fc" id="jf-comp" placeholder="Ex: Liga, Taça..."></div></div>
-    <div class="fr3"><div class="form-g"><label class="fl">Resultado (Nós)</label><input class="fc" id="jf-g1" type="number" min="0" placeholder="0"></div>
-    <div class="form-g"><label class="fl">Resultado (Adv)</label><input class="fc" id="jf-g2" type="number" min="0" placeholder="0"></div>
-    <div class="form-g"><label class="fl">Status</label><select class="fc" id="jf-status"><option value="agendado">Agendado</option><option value="realizado">Realizado</option><option value="cancelado">Cancelado</option></select></div></div>
-    <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="jf-notes" rows="2"></textarea></div>
+    <div class="fr3">
+      <div class="form-g"><label class="fl">Data *</label><input class="fc" id="jf-date" type="date"></div>
+      <div class="form-g"><label class="fl">Hora</label><input class="fc" id="jf-time" type="time"></div>
+      <div class="form-g"><label class="fl">Casa/Fora</label><select class="fc" id="jf-ha"><option value="casa">Casa</option><option value="fora">Fora</option><option value="neutro">Neutro</option></select></div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Local</label><input class="fc" id="jf-loc" placeholder="Estádio / Campo"></div>
+      <div class="form-g"><label class="fl">Competição</label><input class="fc" id="jf-comp" placeholder="Liga, Taça..."></div>
+    </div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveJogo()">💾 Guardar</button><button class="btn btn-gh" onclick="_showJogoForm=false;_editJogoId=null;renderJogos()">Cancelar</button></div>
-  </div>`:'';
+  </div>`:'' ;
 
   const proximos=APP.games.filter(g=>g.date>=td&&g.status!=='cancelado').sort((a,b)=>a.date.localeCompare(b.date));
   const realizados=APP.games.filter(g=>g.date<td||g.status==='realizado').sort((a,b)=>b.date.localeCompare(a.date));
-  const haTabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button></div>`;
+  const tabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button></div>`;
 
-  const makeRow=(g)=>{
-    const ha={casa:'🏠 Casa',fora:'✈️ Fora',neutro:'⚖️ Neutro'}[g.ha]||'';
-    const result=g.g1!=null&&g.g2!=null?`<strong>${g.g1}–${g.g2}</strong>`:'—';
-    const won=g.g1!=null&&g.g2!=null&&g.g1>g.g2, drew=g.g1!=null&&g.g2!=null&&g.g1==g.g2, lost=g.g1!=null&&g.g2!=null&&g.g1<g.g2;
-    const rBadge=won?`<span class="bdg bg-g">V</span>`:drew?`<span class="bdg bg-y">E</span>`:lost?`<span class="bdg bg-r">D</span>`:'';
+  const makeRow=g=>{
+    const ha={casa:'🏠',fora:'✈️',neutro:'⚖️'}[g.ha]||'';
+    const res=g.g1!=null&&g.g2!=null?`<strong>${g.g1}–${g.g2}</strong>`:'—';
+    const won=g.g1!=null&&g.g2!=null&&g.g1>g.g2,drew=g.g1!=null&&g.g2!=null&&g.g1===g.g2,lost=g.g1!=null&&g.g2!=null&&g.g1<g.g2;
+    const rb=won?`<span class="bdg bg-g">V</span>`:drew?`<span class="bdg bg-y">E</span>`:lost?`<span class="bdg bg-r">D</span>`:'';
     const team=APP.teams.find(t=>t.id===g.teamId);
-    return`<tr><td>${fmtDate(g.date)} ${g.time?'<span style="color:var(--t2)">'+g.time.slice(0,5)+'</span>':''}</td>
-    <td><div style="display:flex;align-items:center;gap:8px">${g.oppLogo?`<img src="${g.oppLogo}" style="width:28px;height:28px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`:'<span style="font-size:20px">⚽</span>'}<div><strong>${g.opp}</strong>${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${g.comp}</span>`:''}</div></div></td>
-    <td>${ha}</td><td>${g.loc||'—'}</td>
-    <td>${team?team.name:'—'}</td>
-    <td style="text-align:center">${result} ${rBadge}</td>
-    <td><button class="btn btn-xs btn-gh" onclick="editJogo('${g.id}')">✏️</button> <button class="btn btn-xs btn-r" onclick="deleteJogo('${g.id}')">🗑️</button></td></tr>`;
+    return `<tr>
+      <td>${fmtDate(g.date)}${g.time?' <span style="color:var(--t2)">'+g.time.slice(0,5)+'</span>':''}</td>
+      <td><div style="display:flex;align-items:center;gap:8px">${g.oppLogo?`<img src="${g.oppLogo}" style="width:24px;height:24px;object-fit:contain;border-radius:3px" onerror="this.style.display='none'">`:'<span>⚽</span>'}<div><strong>${escHtml(g.opp)}</strong>${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${escHtml(g.comp)}</span>`:''}</div></div></td>
+      <td>${ha} ${escHtml(g.loc||'')}</td>
+      <td>${team?escHtml(team.name):'—'}</td>
+      <td style="text-align:center">${res} ${rb}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-xs btn-g" onclick="openJogo('${g.id}')">📂 Abrir</button>
+        <button class="btn btn-xs btn-r" onclick="deleteJogo('${g.id}')">🗑️</button>
+      </td></tr>`;
   };
 
   const list=_jogoTab==='proximos'?proximos:realizados;
-  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Campo</th><th>Equipa</th><th>Resultado</th><th>Ações</th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`;
+  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Equipa</th><th>Resultado</th><th></th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`;
 
-  // Stats
-  const vit=realizados.filter(g=>g.g1>g.g2).length, emp=realizados.filter(g=>g.g1==g.g2&&g.g1!=null).length, der=realizados.filter(g=>g.g1<g.g2).length;
-  const gm=realizados.reduce((s,g)=>s+(+g.g1||0),0), gs=realizados.reduce((s,g)=>s+(+g.g2||0),0);
+  const vit=realizados.filter(g=>g.g1!=null&&g.g1>g.g2).length,emp=realizados.filter(g=>g.g1!=null&&g.g2!=null&&g.g1===g.g2).length,der=realizados.filter(g=>g.g1!=null&&g.g1<g.g2).length;
+  const gm=realizados.reduce((s,g)=>s+(+g.g1||0),0),gs=realizados.reduce((s,g)=>s+(+g.g2||0),0);
 
   document.getElementById('pg-jogos').innerHTML=`
   <div class="sh"><div class="sh-t">⚽ Jogos</div>
@@ -1955,103 +1995,563 @@ function renderJogos(){
     <div class="kpi grn"><div class="kpi-lbl">Vitórias</div><div class="kpi-val" style="color:#4ade80">${vit}</div></div>
     <div class="kpi yel"><div class="kpi-lbl">Empates</div><div class="kpi-val" style="color:#fbbf24">${emp}</div></div>
     <div class="kpi red"><div class="kpi-lbl">Derrotas</div><div class="kpi-val" style="color:#f87171">${der}</div></div>
-    <div class="kpi"><div class="kpi-lbl">Golos Marcados</div><div class="kpi-val">${gm}</div></div>
-    <div class="kpi"><div class="kpi-lbl">Golos Sofridos</div><div class="kpi-val">${gs}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Golos</div><div class="kpi-val">${gm}–${gs}</div></div>
   </div>`:''}
-  ${haTabHtml}
+  ${tabHtml}
   ${tableHtml}`;
+
   if(_editJogoId&&_showJogoForm){
     const g=APP.games.find(x=>x.id===_editJogoId);
-    if(g){['opp','date','time','loc','comp','notes'].forEach(f=>{const el=document.getElementById('jf-'+f);if(el)el.value=g[f]||'';});
-    const logoEl=document.getElementById('jf-logo');if(logoEl)logoEl.value=g.oppLogo||'';
-    const prevEl=document.getElementById('jf-logo-preview');if(prevEl){if(g.oppLogo){prevEl.innerHTML=`<img src="${g.oppLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:6px" onerror="this.parentElement.innerHTML='<span style=font-size:18px>⚽</span>'">`;}else{prevEl.innerHTML='<span style="font-size:18px">⚽</span>';}}
-    document.getElementById('jf-ha').value=g.ha||'casa';
-    document.getElementById('jf-status').value=g.status||'agendado';
-    document.getElementById('jf-team').value=g.teamId||'T1';
-    if(g.g1!=null)document.getElementById('jf-g1').value=g.g1;
-    if(g.g2!=null)document.getElementById('jf-g2').value=g.g2;}
+    if(g){
+      ['opp','date','time','loc','comp'].forEach(f=>{const el=document.getElementById('jf-'+f);if(el)el.value=g[f]||'';});
+      const li=document.getElementById('jf-logo');if(li)li.value=g.oppLogo||'';
+      const prev=document.getElementById('jf-logo-preview');
+      if(prev&&g.oppLogo){const img=document.createElement('img');img.src=g.oppLogo;img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:6px';prev.innerHTML='';prev.appendChild(img);}
+      const haEl=document.getElementById('jf-ha');if(haEl)haEl.value=g.ha||'casa';
+      const tEl=document.getElementById('jf-team');if(tEl)tEl.value=g.teamId||'';
+    }
   }
 }
-let _clubSearchTimer=null;
-async function _doClubSearch(q,ddId,onSelect){
-  const dd=document.getElementById(ddId);
-  if(!dd)return;
-  clearTimeout(_clubSearchTimer);
-  if(!q||q.length<2){dd.style.display='none';return;}
-  _clubSearchTimer=setTimeout(async()=>{
-    dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">🔍 A pesquisar...</div>';
-    dd.style.display='block';
-    try{
-      const [ptR,enR]=await Promise.allSettled([
-        fetch('https://pt.wikipedia.org/w/api.php?action=opensearch&search='+encodeURIComponent(q)+'&limit=4&namespace=0&format=json&origin=*').then(r=>r.json()),
-        fetch('https://en.wikipedia.org/w/api.php?action=opensearch&search='+encodeURIComponent(q+' football club')+'&limit=4&namespace=0&format=json&origin=*').then(r=>r.json())
-      ]);
-      const ptT=(ptR.status==='fulfilled'?(ptR.value[1]||[]):[]).map(t=>({t,lang:'pt'}));
-      const enT=(enR.status==='fulfilled'?(enR.value[1]||[]):[]).map(t=>({t,lang:'en'}));
-      const seen=new Set();
-      const combined=[...ptT,...enT].filter(({t})=>{const k=t.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;}).slice(0,6);
-      if(!combined.length){dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Nenhum clube encontrado</div>';return;}
-      const results=await Promise.all(combined.map(async({t,lang})=>{
-        try{const r=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(t.replace(/ /g,'_')));const s=await r.json();return{title:s.title||t,desc:s.description||'',logo:s.thumbnail?s.thumbnail.source:''};}
-        catch(e){return{title:t,desc:'',logo:''};}
-      }));
-      dd.innerHTML='';
-      results.forEach(s=>{
-        const row=document.createElement('div');
-        row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--brd)';
-        row.onmouseover=()=>row.style.background='var(--bg3)';
-        row.onmouseout=()=>row.style.background='';
-        row.onclick=()=>{onSelect(s.title,s.logo,s.desc);dd.style.display='none';};
-        const ic=document.createElement('div');
-        ic.style.cssText='width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
-        if(s.logo){const img=document.createElement('img');img.src=s.logo;img.style.cssText='width:32px;height:32px;object-fit:contain;border-radius:4px';img.onerror=()=>{ic.innerHTML='<span style="font-size:22px">⚽</span>';};ic.appendChild(img);}
-        else{ic.innerHTML='<span style="font-size:22px">⚽</span>';}
-        row.appendChild(ic);
-        const tx=document.createElement('div');
-        const n=document.createElement('div');n.style.cssText='font-size:13px;font-weight:600';n.textContent=s.title;
-        const d=document.createElement('div');d.style.cssText='font-size:10px;color:var(--t2)';d.textContent=s.desc;
-        tx.appendChild(n);tx.appendChild(d);row.appendChild(tx);dd.appendChild(row);
-      });
-    }catch(e){dd.innerHTML='<div style="padding:10px;text-align:center;font-size:12px;color:var(--t2)">Erro na pesquisa</div>';}
-  },400);
+
+function _renderJogoDetailFull(){
+  const g=APP.games.find(x=>x.id===_jogoDetailId);
+  if(!g){_jogoView='list';renderJogos();return;}
+  _initG(g);
+  const ha={casa:'🏠 Casa',fora:'✈️ Fora',neutro:'⚖️ Neutro'}[g.ha]||'';
+  const res=g.g1!=null&&g.g2!=null?`${g.g1}–${g.g2}`:'vs';
+  const tDefs={info:'📋 Info',adversario:'🔍 Adversário',prejogo:'📋 Pré-Jogo',campo:'🏟️ Campo',posjogo:'📊 Pós-Jogo',exportar:'📥 Exportar'};
+  const tabBtns=Object.keys(tDefs).map(t=>`<button class="tab-btn ${_jogoDetailTab===t?'on':''}" onclick="_jogoDetailTab='${t}';_renderJogoDetailFull()">${tDefs[t]}</button>`).join('');
+  let tc='';
+  if(_jogoDetailTab==='info')tc=_jogoInfoHtml(g);
+  else if(_jogoDetailTab==='adversario')tc=_jogoAdvHtml(g);
+  else if(_jogoDetailTab==='prejogo')tc=_jogoPreHtml(g);
+  else if(_jogoDetailTab==='campo')tc=_jogoCampoHtml(g);
+  else if(_jogoDetailTab==='posjogo')tc=_jogoPosHtml(g);
+  else if(_jogoDetailTab==='exportar')tc=_jogoExpHtml(g);
+  document.getElementById('pg-jogos').innerHTML=`
+  <div class="sh">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-sm btn-gh" onclick="_jogoView='list';renderJogos()">← Voltar</button>
+      <div>
+        <div class="sh-t" style="display:flex;align-items:center;gap:8px">
+          ${g.oppLogo?`<img src="${g.oppLogo}" style="width:26px;height:26px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`:''}
+          ${escHtml(res)} ${escHtml(g.opp)}
+        </div>
+        <div style="font-size:12px;color:var(--t2)">${fmtDate(g.date)}${g.time?' '+g.time.slice(0,5):''} • ${ha}${g.comp?' • '+escHtml(g.comp):''}</div>
+      </div>
+    </div>
+    <button class="btn btn-r btn-sm" onclick="deleteJogo('${g.id}')">🗑️ Apagar</button>
+  </div>
+  <div class="tabs" style="flex-wrap:wrap;margin-bottom:16px">${tabBtns}</div>
+  <div id="jogo-tab-content">${tc}</div>`;
+  if(_jogoDetailTab==='campo')setTimeout(()=>_initPitchEvents(g.id),80);
 }
-function searchClub(q){_doClubSearch(q,'jf-club-dropdown',(name,logo)=>selectClub(name,logo));}
-function searchMyClub(q){_doClubSearch(q,'cfg-club-dropdown',(name,logo,desc)=>selectMyClub(name,logo,desc));}
-function selectClub(name,logo){
-  const inp=document.getElementById('jf-opp');if(inp)inp.value=name;
-  const logoInp=document.getElementById('jf-logo');if(logoInp)logoInp.value=logo;
-  const prev=document.getElementById('jf-logo-preview');
-  if(prev){
-    if(logo){
-      const img=document.createElement('img');
-      img.src=logo;img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:6px';
-      img.onerror=()=>{prev.innerHTML='<span style="font-size:22px">⚽</span>';};
-      prev.innerHTML='';prev.appendChild(img);
-    }else{prev.innerHTML='<span style="font-size:22px">⚽</span>';}
+
+function _jogoInfoHtml(g){
+  const sOpts=['agendado','realizado','cancelado'].map(s=>`<option value="${s}" ${g.status===s?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('');
+  const haOpts=[['casa','🏠 Casa'],['fora','✈️ Fora'],['neutro','⚖️ Neutro']].map(([v,l])=>`<option value="${v}" ${g.ha===v?'selected':''}>${l}</option>`).join('');
+  const tOpts=APP.teams.map(t=>`<option value="${t.id}" ${g.teamId===t.id?'selected':''}>${escHtml(t.name)}</option>`).join('');
+  return `<div class="ipanel">
+    <div class="fr"><div class="form-g" style="position:relative"><label class="fl">Adversário *</label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="position:relative;flex:1"><input class="fc" id="ji-opp" value="${escHtml(g.opp||'')}" placeholder="Pesquisar clube..." oninput="searchClubDetail(this.value)">
+      <div id="ji-club-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div></div>
+      <div id="ji-logo-preview" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:8px;border:1px solid var(--brd);flex-shrink:0">
+        ${g.oppLogo?`<img src="${g.oppLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:6px" onerror="this.innerHTML='<span style=font-size:18px>&#x26BD;</span>'">`:'<span style="font-size:18px">⚽</span>'}
+      </div>
+    </div><input type="hidden" id="ji-logo" value="${escHtml(g.oppLogo||'')}"></div>
+    <div class="form-g"><label class="fl">Equipa</label><select class="fc" id="ji-team">${tOpts}</select></div></div>
+    <div class="fr3">
+      <div class="form-g"><label class="fl">Data *</label><input class="fc" id="ji-date" type="date" value="${g.date||''}"></div>
+      <div class="form-g"><label class="fl">Hora</label><input class="fc" id="ji-time" type="time" value="${g.time||''}"></div>
+      <div class="form-g"><label class="fl">Casa/Fora</label><select class="fc" id="ji-ha">${haOpts}</select></div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Local</label><input class="fc" id="ji-loc" value="${escHtml(g.loc||'')}"></div>
+      <div class="form-g"><label class="fl">Competição</label><input class="fc" id="ji-comp" value="${escHtml(g.comp||'')}"></div>
+    </div>
+    <div class="fr3">
+      <div class="form-g"><label class="fl">Golos (Nós)</label><input class="fc" id="ji-g1" type="number" min="0" value="${g.g1!=null?g.g1:''}"></div>
+      <div class="form-g"><label class="fl">Golos (Adv)</label><input class="fc" id="ji-g2" type="number" min="0" value="${g.g2!=null?g.g2:''}"></div>
+      <div class="form-g"><label class="fl">Estado</label><select class="fc" id="ji-status">${sOpts}</select></div>
+    </div>
+    <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="ji-notes" rows="3">${escHtml(g.notes||'')}</textarea></div>
+    <button class="btn btn-g" onclick="saveJogoInfo()">💾 Guardar Informações</button>
+  </div>`;
+}
+
+function saveJogoInfo(){
+  const g=APP.games.find(x=>x.id===_jogoDetailId);if(!g)return;
+  const opp=document.getElementById('ji-opp').value.trim();
+  const date=document.getElementById('ji-date').value;
+  if(!opp||!date)return toast('Adversário e data obrigatórios','err');
+  g.opp=opp;g.date=date;g.time=document.getElementById('ji-time').value;
+  g.ha=document.getElementById('ji-ha').value;g.loc=document.getElementById('ji-loc').value;
+  g.comp=document.getElementById('ji-comp').value;g.status=document.getElementById('ji-status').value;
+  g.teamId=document.getElementById('ji-team').value;g.notes=document.getElementById('ji-notes').value;
+  const g1v=document.getElementById('ji-g1').value,g2v=document.getElementById('ji-g2').value;
+  g.g1=g1v!==''?+g1v:null;g.g2=g2v!==''?+g2v:null;
+  g.oppLogo=document.getElementById('ji-logo').value||'';
+  saveData();toast('Informações guardadas ✓');
+}
+
+function searchClubDetail(q){_doClubSearch(q,'ji-club-dropdown',(name,logo)=>selectClubDetail(name,logo));}
+function selectClubDetail(name,logo){
+  const inp=document.getElementById('ji-opp');if(inp)inp.value=name;
+  const li=document.getElementById('ji-logo');if(li)li.value=logo;
+  const prev=document.getElementById('ji-logo-preview');
+  if(prev){if(logo){const img=document.createElement('img');img.src=logo;img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:6px';img.onerror=()=>{prev.innerHTML='<span style="font-size:18px">⚽</span>';};prev.innerHTML='';prev.appendChild(img);}else prev.innerHTML='<span style="font-size:18px">⚽</span>';}
+  const dd=document.getElementById('ji-club-dropdown');if(dd)dd.style.display='none';
+}
+
+function _jogoAdvHtml(g){
+  return `<div class="ipanel">
+    <div class="fr3" style="margin-bottom:0">
+      <div class="form-g"><label class="fl">Sistema Habitual</label><input class="fc" id="ja-form" value="${escHtml(g.oppFormation||'')}" placeholder="4-3-3"></div>
+      <div class="form-g" style="grid-column:span 2"><label class="fl">Link Scout / Vídeo</label>
+        <div style="display:flex;gap:6px"><input class="fc" id="ja-link" value="${escHtml(g.oppScoutLink||'')}" placeholder="https://...">
+        ${g.oppScoutLink?`<a href="${escHtml(g.oppScoutLink)}" target="_blank" class="btn btn-gh btn-sm" style="flex-shrink:0">🔗</a>`:''}</div></div>
+    </div>
+    <div class="form-g"><label class="fl">💪 Pontos Fortes</label><textarea class="fc" id="ja-str" rows="4" placeholder="Organização ofensiva, transições rápidas, pressão alta...">${escHtml(g.oppStrengths||'')}</textarea></div>
+    <div class="form-g"><label class="fl">🎯 Pontos a Explorar / Fracos</label><textarea class="fc" id="ja-wk" rows="4" placeholder="Dificuldades defensivas, bola longa, remate de fora...">${escHtml(g.oppWeaknesses||'')}</textarea></div>
+    <div class="form-g"><label class="fl">⚽ Bolas Paradas Adversário</label><textarea class="fc" id="ja-sp" rows="4" placeholder="Rotinas de canto (ex: canto curto pelo lado direito)...">${escHtml(g.oppSetPieces||'')}</textarea></div>
+    <button class="btn btn-g" onclick="saveJogoAdv()">💾 Guardar Análise</button>
+  </div>`;
+}
+
+function saveJogoAdv(){
+  const g=APP.games.find(x=>x.id===_jogoDetailId);if(!g)return;
+  g.oppFormation=document.getElementById('ja-form').value;
+  g.oppScoutLink=document.getElementById('ja-link').value;
+  g.oppStrengths=document.getElementById('ja-str').value;
+  g.oppWeaknesses=document.getElementById('ja-wk').value;
+  g.oppSetPieces=document.getElementById('ja-sp').value;
+  saveData();toast('Análise guardada ✓');_renderJogoDetailFull();
+}
+
+function _jogoPreHtml(g){
+  const team=APP.teams.find(t=>t.id===g.teamId);
+  const athletes=APP.athletes.filter(a=>a.teamId===g.teamId).sort((a,b)=>(+a.number||99)-(+b.number||99));
+  const convSet=new Set(g.convocatoria),lineSet=new Set(g.lineup),subSet=new Set(g.subs);
+  const convRows=athletes.map(a=>{
+    const isC=convSet.has(a.id),isS=lineSet.has(a.id),isSu=subSet.has(a.id);
+    const isCap=g.captain===a.id,isVc=g.viceCaptain===a.id;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isC?'var(--bg2)':'var(--bg3)'};border:1px solid var(--brd);border-radius:6px;margin-bottom:4px;flex-wrap:wrap">
+      <input type="checkbox" ${isC?'checked':''} onchange="toggleConvocado('${g.id}','${a.id}',this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
+      <div style="width:22px;height:22px;background:var(--pri);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||'?'}</div>
+      <div style="flex:1;min-width:90px">
+        <div style="font-size:13px;font-weight:600">${escHtml(a.name)}</div>
+        <div style="font-size:10px;color:var(--t2)">${a.pos||'—'}</div>
+      </div>
+      ${isCap?'<span style="background:#ffd700;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">CAP</span>':''}
+      ${isVc?'<span style="background:#c0c0c0;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">VCap</span>':''}
+      ${isS?'<span class="bdg bg-g" style="font-size:9px">Titular</span>':isSu?'<span class="bdg bg-y" style="font-size:9px">Suplente</span>':''}
+      ${isC?`<div style="display:flex;gap:3px">
+        <button class="btn btn-xs ${isS?'btn-g':'btn-gh'}" onclick="setStarter('${g.id}','${a.id}')" title="Titular">11</button>
+        <button class="btn btn-xs ${isSu?'btn-y':'btn-gh'}" onclick="setSub('${g.id}','${a.id}')" title="Suplente">S</button>
+        <button class="btn btn-xs ${isCap?'btn-g':'btn-gh'}" onclick="setCaptain('${g.id}','${a.id}','cap')" title="Capitã">C</button>
+        <button class="btn btn-xs ${isVc?'btn-g':'btn-gh'}" onclick="setCaptain('${g.id}','${a.id}','vc')" title="Vice">VC</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+  const lSum=g.lineup.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg2);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.number||'?'} ${escHtml(a.name)}</span>`:''}).join('');
+  const sSum=g.subs.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.number||'?'} ${escHtml(a.name)}</span>`:''}).join('');
+  return `<div>
+  <div class="ipanel" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="sh-t" style="font-size:15px">📋 Convocatória — ${team?escHtml(team.name):'Equipa'}</div>
+      <span style="font-size:11px;color:var(--t2)">${g.convocatoria.length} convocadas • ${g.lineup.length}/11 titulares • ${g.subs.length} suplentes</span>
+    </div>
+    ${g.lineup.length?`<div style="margin-bottom:8px"><strong style="font-size:10px;color:var(--t2)">ONZE INICIAL (${g.formation}):</strong><div style="margin-top:4px">${lSum}</div></div>`:''}
+    ${g.subs.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">SUPLENTES:</strong><div style="margin-top:4px">${sSum}</div></div>`:''}
+    <div class="form-g"><label class="fl">Notas Pré-Jogo</label><textarea class="fc" id="jp-notes" rows="2" onblur="savePreNotes('${g.id}',this.value)">${escHtml(g.preGameNotes||'')}</textarea></div>
+  </div>
+  <div class="ipanel">
+    <div class="sh-t" style="font-size:15px;margin-bottom:12px">👥 Atletas da Equipa</div>
+    ${athletes.length?convRows:`<div class="empty"><p>Sem atletas registados nesta equipa</p></div>`}
+  </div>
+  </div>`;
+}
+
+function toggleConvocado(gid,aid,checked){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(checked){if(!g.convocatoria.includes(aid))g.convocatoria.push(aid);}
+  else{g.convocatoria=g.convocatoria.filter(x=>x!==aid);g.lineup=g.lineup.filter(x=>x!==aid);g.subs=g.subs.filter(x=>x!==aid);if(g.captain===aid)g.captain='';if(g.viceCaptain===aid)g.viceCaptain='';}
+  saveData();_renderJogoDetailFull();
+}
+
+function setStarter(gid,aid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(g.lineup.includes(aid)){g.lineup=g.lineup.filter(x=>x!==aid);}
+  else{if(g.lineup.length>=11)return toast('Já tens 11 titulares','err');g.lineup.push(aid);g.subs=g.subs.filter(x=>x!==aid);}
+  saveData();_renderJogoDetailFull();
+}
+
+function setSub(gid,aid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(g.subs.includes(aid)){g.subs=g.subs.filter(x=>x!==aid);}
+  else{g.subs.push(aid);g.lineup=g.lineup.filter(x=>x!==aid);}
+  saveData();_renderJogoDetailFull();
+}
+
+function setCaptain(gid,aid,type){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(type==='cap')g.captain=g.captain===aid?'':aid;
+  else g.viceCaptain=g.viceCaptain===aid?'':aid;
+  saveData();_renderJogoDetailFull();
+}
+
+function savePreNotes(gid,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  g.preGameNotes=val;saveData();
+}
+
+function _jogoCampoHtml(g){
+  const PW=300,PH=420;
+  const fBtns=Object.keys(_FPOS).map(f=>`<button class="tab-btn ${g.formation===f?'on':''}" onclick="setFormation('${g.id}','${f}')">${f}</button>`).join('');
+  const players=g.lineup.map((aid,i)=>{
+    const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
+    const preset=_FPOS[g.formation]||_FPOS['4-3-3'];
+    const def=preset[i]||[PW/2,PH/2];
+    const pos=(g.playerPositions||{})[aid]||{x:def[0],y:def[1]};
+    const isCap=g.captain===aid,isVc=g.viceCaptain===aid,isGK=i===0;
+    const fill=isGK?'#27ae60':'#ffd700';
+    const tf=isGK?'#fff':'#1a1a2e';
+    const nm=escHtml(a.name.split(' ').pop());
+    const task=(g.playerTasks||{})[aid]||'';
+    return `<g class="pitch-pl" data-aid="${aid}" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}')" onclick="pitchPlayerClick(event,'${g.id}','${aid}')">
+      <circle r="15" fill="${fill}" stroke="white" stroke-width="2.5"/>
+      <text text-anchor="middle" dy="4" font-size="10" font-weight="bold" fill="${tf}">${a.number||i+1}</text>
+      <text text-anchor="middle" y="26" font-size="7.5" fill="rgba(255,255,255,.9)">${nm}</text>
+      ${isCap?'<text x="12" y="-10" font-size="9" fill="#ffd700" font-weight="bold">C</text>':''}
+      ${isVc?'<text x="12" y="-10" font-size="9" fill="#ddd" font-weight="bold">VC</text>':''}
+      <title>${escHtml(a.name)}${task?' — '+escHtml(task):''}</title>
+    </g>`;
+  }).join('');
+  const taskRows=g.lineup.map((aid,i)=>{
+    const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
+    const task=(g.playerTasks||{})[aid]||'';
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+      <div style="width:22px;height:22px;background:${i===0?'#27ae60':'var(--pri)'};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||i+1}</div>
+      <div style="font-size:11px;font-weight:600;width:80px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.name)}">${escHtml(a.name.split(' ')[0])}</div>
+      <input class="fc" style="font-size:11px;padding:3px 6px;flex:1" placeholder="Tarefa..." value="${escHtml(task)}" onblur="savePlayerTask('${g.id}','${aid}',this.value)">
+    </div>`;
+  }).join('');
+  return `<div>
+  <div class="ipanel" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="sh-t" style="font-size:15px">🏟️ Campo Tático Interativo</div>
+      <span style="font-size:11px;color:var(--t2)">Arrasta atletas • Clica para tarefa</span>
+    </div>
+    <div class="tabs" style="margin-bottom:10px;flex-wrap:wrap">${fBtns}</div>
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} ${PH}" style="width:100%;max-width:280px;display:block;border-radius:8px;flex-shrink:0;touch-action:none" onmousemove="pitchDragMove(event)" onmouseup="pitchDragEnd(event)" onmouseleave="pitchDragEnd(event)">
+        <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
+        <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <circle cx="150" cy="210" r="38" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <circle cx="150" cy="210" r="3" fill="rgba(255,255,255,.45)"/>
+        <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="122" y="15" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="122" y="359" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="132" y="8" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
+        <rect x="132" y="403" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
+        <circle cx="150" cy="58" r="2.5" fill="rgba(255,255,255,.45)"/>
+        <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>
+        ${g.lineup.length?players:`<text x="150" y="215" text-anchor="middle" fill="rgba(255,255,255,.35)" font-size="11">Define o onze no Pré-Jogo</text>`}
+      </svg>
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px;letter-spacing:.5px">TAREFAS INDIVIDUAIS</div>
+        ${g.lineup.length?taskRows:`<p style="font-size:12px;color:var(--t2)">Adiciona titulares no Pré-Jogo.</p>`}
+      </div>
+    </div>
+  </div>
+  <div class="ipanel">
+    <div class="sh-t" style="font-size:15px;margin-bottom:12px">⚽ Bolas Paradas</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+      <div><div style="font-size:12px;font-weight:700;margin-bottom:6px">🔄 Cantos</div>
+      <textarea class="fc" style="font-size:11px" rows="5" placeholder="Rotinas de canto..." onblur="saveSetPiece('${g.id}','corners',this.value)">${escHtml((g.setpieces||{}).corners||'')}</textarea></div>
+      <div><div style="font-size:12px;font-weight:700;margin-bottom:6px">🎯 Livres</div>
+      <textarea class="fc" style="font-size:11px" rows="5" placeholder="Situações de livre direto..." onblur="saveSetPiece('${g.id}','freeKicks',this.value)">${escHtml((g.setpieces||{}).freeKicks||'')}</textarea></div>
+      <div><div style="font-size:12px;font-weight:700;margin-bottom:6px">🥅 Penalty</div>
+      <textarea class="fc" style="font-size:11px" rows="5" placeholder="Ordem de marcação, executante..." onblur="saveSetPiece('${g.id}','penalty',this.value)">${escHtml((g.setpieces||{}).penalty||'')}</textarea></div>
+    </div>
+  </div>
+  </div>`;
+}
+
+function setFormation(gid,f){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  g.formation=f;
+  const preset=_FPOS[f]||_FPOS['4-3-3'];
+  g.playerPositions={};
+  g.lineup.forEach((aid,i)=>{if(preset[i])g.playerPositions[aid]={x:preset[i][0],y:preset[i][1]};});
+  saveData();_renderJogoDetailFull();
+}
+
+function savePlayerTask(gid,aid,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!g.playerTasks)g.playerTasks={};
+  g.playerTasks[aid]=val;saveData();
+}
+
+function saveSetPiece(gid,type,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!g.setpieces)g.setpieces={corners:'',freeKicks:'',penalty:''};
+  g.setpieces[type]=val;saveData();
+}
+
+function pitchDragStart(e,gid,aid){
+  e.preventDefault();e.stopPropagation();
+  _pitchWasDrag=false;
+  const svg=document.getElementById('pitch-svg-'+gid);if(!svg)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const g=APP.games.find(x=>x.id===gid);
+  const pos=(g&&g.playerPositions&&g.playerPositions[aid])||{x:150,y:210};
+  _pitchDragging={gid,aid,sx:svgP.x,sy:svgP.y,ox:pos.x,oy:pos.y};
+}
+
+function pitchDragMove(e){
+  if(!_pitchDragging)return;
+  const svg=document.getElementById('pitch-svg-'+_pitchDragging.gid);if(!svg)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const dx=svgP.x-_pitchDragging.sx,dy=svgP.y-_pitchDragging.sy;
+  if(Math.abs(dx)>4||Math.abs(dy)>4)_pitchWasDrag=true;
+  const nx=Math.max(16,Math.min(284,_pitchDragging.ox+dx));
+  const ny=Math.max(16,Math.min(404,_pitchDragging.oy+dy));
+  const el=svg.querySelector('[data-aid="'+_pitchDragging.aid+'"]');
+  if(el)el.setAttribute('transform','translate('+nx.toFixed(1)+','+ny.toFixed(1)+')');
+}
+
+function pitchDragEnd(e){
+  if(!_pitchDragging)return;
+  if(_pitchWasDrag){
+    const svg=document.getElementById('pitch-svg-'+_pitchDragging.gid);
+    if(svg&&e.clientX!==undefined){
+      const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+      const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+      const dx=svgP.x-_pitchDragging.sx,dy=svgP.y-_pitchDragging.sy;
+      const nx=Math.max(16,Math.min(284,_pitchDragging.ox+dx));
+      const ny=Math.max(16,Math.min(404,_pitchDragging.oy+dy));
+      const g=APP.games.find(x=>x.id===_pitchDragging.gid);
+      if(g){if(!g.playerPositions)g.playerPositions={};g.playerPositions[_pitchDragging.aid]={x:nx,y:ny};saveData();}
+    }
   }
-  const dd=document.getElementById('jf-club-dropdown');if(dd)dd.style.display='none';
+  _pitchDragging=null;
 }
-function selectMyClub(name,logo,desc){
-  const inp=document.getElementById('cfg-club');if(inp)inp.value=name;
-  const logoInp=document.getElementById('cfg-club-logo');if(logoInp)logoInp.value=logo;
-  const prev=document.getElementById('cfg-logo-preview');
-  if(prev){if(logo){const img=document.createElement('img');img.src=logo;img.style.cssText='width:38px;height:38px;object-fit:contain';img.onerror=()=>{prev.innerHTML='<span style="font-size:22px">⚽</span>';};prev.innerHTML='';prev.appendChild(img);}else{prev.innerHTML='<span style="font-size:22px">⚽</span>';}}
+
+function pitchPlayerClick(e,gid,aid){
+  if(_pitchWasDrag){_pitchWasDrag=false;return;}
+  const a=APP.athletes.find(x=>x.id===aid);if(!a)return;
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const task=(g.playerTasks||{})[aid]||'';
+  const nt=prompt('Tarefa tática — '+a.name+':',task);
+  if(nt!==null){
+    if(!g.playerTasks)g.playerTasks={};
+    g.playerTasks[aid]=nt;saveData();
+    const svg=document.getElementById('pitch-svg-'+gid);
+    if(svg){const ttl=svg.querySelector('[data-aid="'+aid+'"] title');if(ttl)ttl.textContent=a.name+(nt?' — '+nt:'');}
+    document.querySelectorAll('input[onblur*="\''+aid+'\'"]').forEach(inp=>{inp.value=nt;});
+  }
 }
+
+function _initPitchEvents(gid){
+  const svg=document.getElementById('pitch-svg-'+gid);if(!svg)return;
+  svg.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;
+    const t=e.touches[0],target=t.target.closest('.pitch-pl');
+    if(target){e.preventDefault();pitchDragStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},gid,target.dataset.aid);}
+  },{passive:false});
+  svg.addEventListener('touchmove',e=>{
+    if(!_pitchDragging||e.touches.length!==1)return;
+    e.preventDefault();pitchDragMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY});
+  },{passive:false});
+  svg.addEventListener('touchend',e=>{
+    if(!_pitchDragging)return;
+    const t=e.changedTouches[0];
+    const dgid=_pitchDragging.gid,daid=_pitchDragging.aid,wasD=_pitchWasDrag;
+    pitchDragEnd({clientX:t.clientX,clientY:t.clientY});
+    if(!wasD){
+      const a=APP.athletes.find(x=>x.id===daid);
+      const g=APP.games.find(x=>x.id===dgid);
+      if(a&&g){const task=(g.playerTasks||{})[daid]||'';const nt=prompt('Tarefa — '+a.name+':',task);
+      if(nt!==null){if(!g.playerTasks)g.playerTasks={};g.playerTasks[daid]=nt;saveData();}}
+    }
+  });
+}
+
+function _jogoPosHtml(g){
+  const ats=[...g.lineup,...g.subs].map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+  const sRows=ats.map(a=>{
+    const st=(g.playerStats||[]).find(s=>s.aid===a.id)||{mins:0,goals:0,yellow:0,red:0,subIn:'',subOut:''};
+    const isS=g.lineup.includes(a.id);
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:6px">
+        <div style="width:20px;height:20px;background:${isS?'var(--pri)':'var(--bg3)'};color:${isS?'#fff':'var(--t1)'};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;flex-shrink:0">${a.number||'?'}</div>
+        <span style="font-size:11px">${escHtml(a.name)}</span></div></td>
+      <td><input class="fc" type="number" min="0" max="120" style="width:50px;padding:2px 5px;font-size:11px" value="${st.mins||0}" data-aid="${a.id}" data-field="mins"></td>
+      <td><input class="fc" type="number" min="0" max="20" style="width:42px;padding:2px 5px;font-size:11px" value="${st.goals||0}" data-aid="${a.id}" data-field="goals"></td>
+      <td><input class="fc" type="number" min="0" max="2" style="width:42px;padding:2px 5px;font-size:11px" value="${st.yellow||0}" data-aid="${a.id}" data-field="yellow"></td>
+      <td><input class="fc" type="number" min="0" max="1" style="width:42px;padding:2px 5px;font-size:11px" value="${st.red||0}" data-aid="${a.id}" data-field="red"></td>
+      <td><input class="fc" type="number" min="0" max="120" style="width:50px;padding:2px 5px;font-size:11px" value="${st.subIn||''}" placeholder="—" data-aid="${a.id}" data-field="subIn"></td>
+      <td><input class="fc" type="number" min="0" max="120" style="width:50px;padding:2px 5px;font-size:11px" value="${st.subOut||''}" placeholder="—" data-aid="${a.id}" data-field="subOut"></td>
+    </tr>`;
+  }).join('');
+  return `<div>
+  <div class="ipanel" style="margin-bottom:12px">
+    <div class="sh-t" style="font-size:15px;margin-bottom:10px">🇵🇹 Importação FPF</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div class="form-g" style="flex:1;min-width:180px;margin-bottom:0"><label class="fl">URL do jogo no fpf.pt</label>
+      <input class="fc" id="fpf-url" value="${escHtml(g.fpfUrl||'')}" placeholder="https://www.fpf.pt/competicoes/..."></div>
+      <button class="btn btn-g" onclick="importFpf('${g.id}')">📥 Importar</button>
+    </div>
+    <div id="fpf-msg" style="font-size:11px;color:var(--t2);margin-top:6px">⚠️ O site da FPF usa JavaScript — a importação automática pode falhar. Nesse caso, preenche os dados manualmente.</div>
+  </div>
+  <div class="ipanel" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="sh-t" style="font-size:15px">📊 Estatísticas Individuais</div>
+      ${ats.length?`<button class="btn btn-g btn-sm" onclick="savePostStats('${g.id}')">💾 Guardar</button>`:''}
+    </div>
+    ${ats.length?`<div class="tw"><table><thead><tr><th>Atleta</th><th>Min.</th><th>⚽</th><th>🟨</th><th>🟥</th><th>Sub↑</th><th>Sub↓</th></tr></thead><tbody>${sRows}</tbody></table></div>
+    <button class="btn btn-g" style="margin-top:10px" onclick="savePostStats('${g.id}')">💾 Guardar Estatísticas</button>`:`<p style="color:var(--t2);font-size:12px">Define convocatória e onze no separador Pré-Jogo.</p>`}
+  </div>
+  <div class="ipanel">
+    <div class="sh-t" style="font-size:15px;margin-bottom:10px">📝 Análise Pós-Jogo</div>
+    <textarea class="fc" id="pos-notes" rows="6" placeholder="Reflexão sobre o desempenho da equipa, aspetos positivos e a melhorar...">${escHtml(g.postGameNotes||'')}</textarea>
+    <button class="btn btn-g" style="margin-top:8px" onclick="savePosNotes('${g.id}')">💾 Guardar Análise</button>
+  </div>
+  </div>`;
+}
+
+function importFpf(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const urlEl=document.getElementById('fpf-url');if(!urlEl)return;
+  const url=urlEl.value.trim();if(!url)return toast('Introduz o URL do jogo FPF','err');
+  g.fpfUrl=url;saveData();
+  const msg=document.getElementById('fpf-msg');
+  if(msg)msg.textContent='🔄 A tentar importar...';
+  fetch(url).then(r=>r.text()).then(()=>{
+    if(msg)msg.innerHTML='✅ Conteúdo obtido. Verifica e ajusta os dados manualmente.';
+  }).catch(()=>{
+    if(msg)msg.innerHTML='⚠️ Importação automática falhou (CORS/JavaScript). Preenche os dados manualmente.';
+  });
+}
+
+function savePostStats(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const inputs=document.querySelectorAll('[data-aid][data-field]');
+  const map={};
+  inputs.forEach(inp=>{
+    const aid=inp.dataset.aid,field=inp.dataset.field;
+    if(!map[aid])map[aid]={aid,mins:0,goals:0,yellow:0,red:0,subIn:null,subOut:null};
+    const v=inp.value!==''?+inp.value:null;
+    if(field==='mins')map[aid].mins=v||0;
+    else if(field==='goals')map[aid].goals=v||0;
+    else if(field==='yellow')map[aid].yellow=v||0;
+    else if(field==='red')map[aid].red=v||0;
+    else map[aid][field]=v;
+  });
+  g.playerStats=Object.values(map);saveData();toast('Estatísticas guardadas ✓');
+}
+
+function savePosNotes(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const el=document.getElementById('pos-notes');if(el){g.postGameNotes=el.value;saveData();toast('Análise guardada ✓');}
+}
+
+function _jogoExpHtml(g){
+  const exps=[['prejogo','📋','Ficha Pré-Jogo','Convocatória, onze e notas'],['campo','🏟️','Folha Tática','Campo com posições e tarefas'],['posjogo','📊','Relatório Pós-Jogo','Estatísticas e análise'],['full','📄','Relatório Completo','Toda a informação do jogo']];
+  const cards=exps.map(([t,ic,lb,desc])=>`
+    <div onclick="exportJogoPDF('${g.id}','${t}')" style="background:var(--bg2);border:1.5px solid var(--brd);border-radius:10px;padding:20px;text-align:center;cursor:pointer" onmouseover="this.style.borderColor='var(--pri)'" onmouseout="this.style.borderColor='var(--brd)'">
+      <div style="font-size:30px;margin-bottom:8px">${ic}</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">${lb}</div>
+      <div style="font-size:11px;color:var(--t2)">${desc}</div>
+    </div>`).join('');
+  return `<div class="ipanel">
+    <div class="sh-t" style="font-size:15px;margin-bottom:16px">📥 Exportar como PDF</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${cards}</div>
+  </div>`;
+}
+
+function exportJogoPDF(gid,type){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  _initG(g);
+  const club=APP.config.clubName||'Clube';
+  const dateStr=fmtDate(g.date)+(g.time?' '+g.time.slice(0,5):'');
+  const haStr={casa:'Casa',fora:'Fora',neutro:'Neutro'}[g.ha]||'';
+  const comp=g.comp?' — '+g.comp:'';
+  let body='';
+  if(type==='prejogo'||type==='full'){
+    const ats=g.lineup.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+    const sus=g.subs.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+    const cap=APP.athletes.find(a=>a.id===g.captain);
+    const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
+    const lR=ats.map((a,i)=>`<tr><td>${a.number||i+1}</td><td>${a.name}</td><td>${a.pos||'—'}</td><td>${(g.playerTasks||{})[a.id]||''}</td></tr>`).join('');
+    const sR=sus.map((a,i)=>`<tr><td>${a.number||'S'+(i+1)}</td><td>${a.name}</td><td>${a.pos||'—'}</td><td></td></tr>`).join('');
+    body+=`<div><h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Ficha Pré-Jogo</h2>
+      <p><b>Adversário:</b> ${g.opp} (${haStr})${g.loc?' — '+g.loc:''}</p>
+      ${cap?`<p><b>Capitã:</b> ${cap.name}${vc?' &nbsp;|&nbsp; <b>Vice-Capitã:</b> '+vc.name:''}</p>`:''}
+      ${g.preGameNotes?`<p><b>Notas:</b> ${g.preGameNotes}</p>`:''}
+      <h3>Onze Inicial — ${g.formation}</h3>
+      <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Posição</th><th>Tarefa Tática</th></tr></thead><tbody>${lR}</tbody></table>
+      ${sus.length?`<h3>Suplentes</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Posição</th><th></th></tr></thead><tbody>${sR}</tbody></table>`:''}
+    </div>`;
+  }
+  if(type==='campo'||type==='full'){
+    const svgEl=document.getElementById('pitch-svg-'+gid);
+    const svgStr=svgEl?svgEl.outerHTML.replace(/ on\w+="[^"]*"/g,'').replace(/style="([^"]*)cursor:[^;";]*;?/g,'style="$1'):'<p>Campo não disponível — abre o separador Campo primeiro.</p>';
+    const sp=g.setpieces||{};
+    body+=`<div style="${type==='full'?'page-break-before:always':''}">
+      <h2 style="border-bottom:2px solid #333;padding-bottom:8px">🏟️ Campo Tático</h2>
+      <div style="max-width:260px;margin:0 auto 16px">${svgStr}</div>
+      ${sp.corners||sp.freeKicks||sp.penalty?`<h3>Bolas Paradas</h3>${sp.corners?`<p><b>Cantos:</b> ${sp.corners}</p>`:''}${sp.freeKicks?`<p><b>Livres:</b> ${sp.freeKicks}</p>`:''}${sp.penalty?`<p><b>Penalty:</b> ${sp.penalty}</p>`:''}`:''}</div>`;
+  }
+  if(type==='posjogo'||type==='full'){
+    const stats=g.playerStats||[];
+    const ats=[...g.lineup,...g.subs].map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+    const sR=ats.map(a=>{const st=stats.find(s=>s.aid===a.id)||{mins:0,goals:0,yellow:0,red:0};const isS=g.lineup.includes(a.id);return `<tr><td>${a.number||'?'}</td><td>${a.name}${isS?'':' (S)'}</td><td>${a.pos||''}</td><td>${st.mins||0}'</td><td>${st.goals||0}</td><td>${st.yellow||0}</td><td>${st.red||0}</td></tr>`;}).join('');
+    const res=g.g1!=null&&g.g2!=null?`${g.g1}–${g.g2}`:'—';
+    body+=`<div style="${type==='full'?'page-break-before:always':''}">
+      <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📊 Relatório Pós-Jogo</h2>
+      <p><b>Resultado:</b> ${club} ${res} ${g.opp}</p>
+      ${g.oppStrengths?`<p><b>Análise adversário:</b> ${g.oppStrengths}</p>`:''}
+      ${ats.length?`<h3>Estatísticas Individuais</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Pos.</th><th>Min.</th><th>⚽</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${sR}</tbody></table>`:''}
+      ${g.postGameNotes?`<h3>Análise do Treinador</h3><p style="white-space:pre-line">${g.postGameNotes}</p>`:''}
+    </div>`;
+  }
+  _printWin(`${type==='full'?'Relatório Completo':type==='prejogo'?'Ficha Pré-Jogo':type==='campo'?'Folha Tática':'Relatório Pós-Jogo'} — ${g.opp} ${dateStr}`,
+    `<div style="font-family:Arial,sans-serif;padding:20px">
+      <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:20px">
+        <h1 style="font-size:20px;margin:0">${club}</h1>
+        <p style="margin:6px 0 0;font-size:14px;color:#555">${g.opp} • ${dateStr}${comp}${g.loc?' • '+g.loc:''}</p>
+      </div>${body}</div>`);
+}
+
 function saveJogo(){
   const opp=document.getElementById('jf-opp').value.trim();
   const date=document.getElementById('jf-date').value;
   if(!opp||!date)return toast('Adversário e data obrigatórios','err');
-  const g1v=document.getElementById('jf-g1').value;
-  const g2v=document.getElementById('jf-g2').value;
   const oppLogo=document.getElementById('jf-logo').value||'';
-  const g={id:_editJogoId||uid(),teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,comp:document.getElementById('jf-comp').value,status:document.getElementById('jf-status').value,g1:g1v!==''?+g1v:null,g2:g2v!==''?+g2v:null,notes:document.getElementById('jf-notes').value,oppLogo};
-  if(_editJogoId){const i=APP.games.findIndex(x=>x.id===_editJogoId);if(i>=0)APP.games[i]=g;}
-  else APP.games.push(g);
-  saveData();_showJogoForm=false;_editJogoId=null;toast('Jogo guardado ✓');renderJogos();
+  if(_editJogoId){
+    const g=APP.games.find(x=>x.id===_editJogoId);
+    if(g){g.opp=opp;g.date=date;g.time=document.getElementById('jf-time').value;g.ha=document.getElementById('jf-ha').value;g.loc=document.getElementById('jf-loc').value;g.comp=document.getElementById('jf-comp').value;if(oppLogo)g.oppLogo=oppLogo;}
+    saveData();_showJogoForm=false;_editJogoId=null;toast('Jogo atualizado ✓');renderJogos();
+  }else{
+    const id=uid();
+    const g={id,teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,comp:document.getElementById('jf-comp').value,status:'agendado',g1:null,g2:null,notes:'',oppLogo};
+    _initG(g);APP.games.push(g);saveData();_showJogoForm=false;toast('Jogo criado ✓');openJogo(id);
+  }
 }
-function editJogo(id){_editJogoId=id;_showJogoForm=true;renderJogos();}
-function deleteJogo(id){if(!confirm('Apagar jogo?'))return;APP.games=APP.games.filter(g=>g.id!==id);saveData();toast('Jogo apagado');renderJogos();}
 
+function editJogo(id){openJogo(id);}
+function deleteJogo(id){
+  if(!confirm('Apagar este jogo e todos os seus dados?'))return;
+  APP.games=APP.games.filter(g=>g.id!==id);saveData();toast('Jogo apagado');
+  _jogoView='list';_jogoDetailId=null;renderJogos();
+}
 // ─── PSE & WELLNESS ───────────────────────────────────────
 let _pwTab='pse', _pwTeam='T1', _pwPeriod=14;
 function renderPSEWellness(){
