@@ -46,6 +46,19 @@ ul{list-style:none}
 .ctrl:focus{border-color:var(--c1)}
 .btn-login{width:100%;padding:12px;background:linear-gradient(135deg,var(--c1),var(--c1l));color:#fff;border-radius:var(--rs);font-size:14px;font-weight:700;cursor:pointer;border:none;margin-top:10px;transition:opacity .2s;box-shadow:0 4px 15px rgba(29,111,59,.3)}
 .btn-login:hover{opacity:.9}
+.btn-login:disabled{opacity:.45;cursor:not-allowed}
+.login-err{color:#f87171;font-size:11px;min-height:16px;margin:6px 0 2px;text-align:left}
+.login-divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--t3);font-size:11px}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--brd)}
+.link-btn{background:none;border:none;color:var(--t2);font-size:11px;cursor:pointer;padding:4px;text-decoration:underline;text-underline-offset:2px}
+.link-btn:hover{color:var(--t1)}
+.user-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd);font-size:12px}
+.user-role-badge{padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
+.urb-tec{background:#1d6f3b33;color:#4caf76}
+.urb-fis{background:#e07b3922;color:#f0a060}
+.urb-nut{background:#9c5ae022;color:#c080f0}
+.urb-atl{background:#0284c722;color:#60b0f0}
+.cred-box{background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:14px;margin:10px 0;font-size:12px;font-family:monospace;word-break:break-all}
 .btn-login:disabled{opacity:.35;cursor:not-allowed}
 
 /* STAFF SHELL */
@@ -293,35 +306,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="login-brand" id="lb">⚽</div>
     <div class="login-title" id="lclub">Sport Performance</div>
     <div class="login-sub">Plataforma de Alto Rendimento</div>
-    <div class="role-grid">
-      <div class="role-card" onclick="selectRole('tecnico',this)"><span class="ri">🧑‍💼</span>Técnico</div>
-      <div class="role-card" onclick="selectRole('fisio',this)"><span class="ri">🏥</span>Fisioterapia</div>
-      <div class="role-card" onclick="selectRole('nutri',this)"><span class="ri">🥗</span>Nutrição</div>
-      <div class="role-card" onclick="selectRole('atleta',this)"><span class="ri">⚡</span>Atleta</div>
-    </div>
-    <div id="athlete-picker">
-      <div class="fg"><label class="lbl">Equipa</label>
-        <select class="ctrl" id="login-team" onchange="fillLoginAthletes()">
-          <option value="">-- Escolhe a equipa --</option>
-        </select>
-      </div>
-      <div class="fg"><label class="lbl">O teu nome</label>
-        <select class="ctrl" id="login-athlete">
-          <option value="">-- Escolhe o teu nome --</option>
-        </select>
-      </div>
-    </div>
-    <div id="pin-box" style="display:none;text-align:left">
-      <div class="fg"><label class="lbl">PIN de acesso</label>
-        <input class="ctrl" id="login-pin" type="password" maxlength="8" placeholder="••••••"
-          oninput="document.getElementById('btn-enter').disabled=this.value.length<4"
-          onkeydown="if(event.key==='Enter')doLogin()">
-      </div>
-    </div>
-    <div id="no-pin-note" style="display:none" class="al al-b" style="font-size:11px;margin-bottom:8px">
-      ℹ️ Sem PIN definido — entra diretamente. Define um PIN nas Configurações.
-    </div>
-    <button class="btn-login" id="btn-enter" onclick="doLogin()" disabled>Entrar na Plataforma</button>
+    <div id="login-main" style="text-align:left"></div>
   </div>
 </div>
 
@@ -418,7 +403,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 // ============================================================
 
 const DK='sps_plat_v2', SK='sps_supa2';
-let APP={}, ROLE=null, AID=null, _curPg='dashboard';
+let APP={}, ROLE=null, AID=null, _curPg='dashboard', _SESSION=null;
 let _supa=null,_cid=null,_sync=false;
 
 // ─── DEFAULT DATA ─────────────────────────────────────────
@@ -429,7 +414,8 @@ function defApp(){
     athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
     exercises:defEx(),games:[],scouting:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
-    injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[]
+    injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],
+    users:[]
   };
 }
 function defEx(){
@@ -456,91 +442,133 @@ function loadData(){
   for(const k in def){if(!APP[k])APP[k]=def[k];}
   if(!APP.config)APP.config=def.config;
   for(const k in def.config){if(APP.config[k]===undefined)APP.config[k]=def.config[k];}
+  if(!APP.users)APP.users=[];
 }
 function saveData(){localStorage.setItem(DK,JSON.stringify(APP));}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const today=()=>new Date().toISOString().slice(0,10);
 
-// ─── AUTH ─────────────────────────────────────────────────
-let _selRole=null;
-function selectRole(r,el){
-  _selRole=r;
-  document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('sel'));
-  el.classList.add('sel');
-  const picker=document.getElementById('athlete-picker');
-  const pinBox=document.getElementById('pin-box');
-  const noPinNote=document.getElementById('no-pin-note');
-  const btn=document.getElementById('btn-enter');
-  const pinInput=document.getElementById('login-pin');
-  pinInput.value='';
-  if(r==='atleta'){
-    picker.classList.add('show');
-    pinBox.style.display='none';
-    noPinNote.style.display='none';
-    fillLoginTeams();
-    btn.disabled=true;
-  } else {
-    picker.classList.remove('show');
-    const pinMap={tecnico:APP.config.pinTec,fisio:APP.config.pinFis,nutri:APP.config.pinNut};
-    const hasPin=pinMap[r]&&pinMap[r].length>=4;
-    if(hasPin){
-      pinBox.style.display='block';
-      noPinNote.style.display='none';
-      btn.disabled=true;
-    } else {
-      pinBox.style.display='none';
-      noPinNote.style.display='block';
-      btn.disabled=false;
-    }
+// ─── AUTH (multi-user) ──────────────────────────────────────
+async function hashPwd(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function getSession(){
+  if(_SESSION)return _SESSION;
+  try{return JSON.parse(sessionStorage.getItem('_sps_sess')||'null');}catch{return null;}
+}
+function setSession(data){_SESSION=data;sessionStorage.setItem('_sps_sess',JSON.stringify(data));}
+function clearSession(){_SESSION=null;sessionStorage.removeItem('_sps_sess');}
+function genPwd(len=8){
+  const chars='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#';
+  return Array.from({length:len},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+}
+function renderLoginScreen(){
+  const el=document.getElementById('login-main');if(!el)return;
+  if(APP.users.length===0){
+    el.innerHTML=`
+      <div class="al al-b" style="font-size:11px;margin-bottom:14px;text-align:center">
+        👋 Primeira configuração — cria a conta de administrador
+      </div>
+      <div class="fg"><label class="lbl">Nome</label>
+        <input class="ctrl" id="setup-name" placeholder="O teu nome">
+      </div>
+      <div class="fg"><label class="lbl">Email</label>
+        <input class="ctrl" type="email" id="setup-email" placeholder="email@clube.pt">
+      </div>
+      <div class="fg"><label class="lbl">Password (mín. 6 caracteres)</label>
+        <input class="ctrl" type="password" id="setup-pwd" placeholder="••••••"
+          onkeydown="if(event.key==='Enter')createFirstAdmin()">
+      </div>
+      <div class="login-err" id="setup-err"></div>
+      <button class="btn-login" onclick="createFirstAdmin()">🚀 Criar Conta</button>`;
+    setTimeout(()=>document.getElementById('setup-name')?.focus(),80);
+    return;
   }
+  el.innerHTML=`
+    <div class="fg"><label class="lbl">Utilizador</label>
+      <input class="ctrl" id="login-user" placeholder="Nome ou email"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-pwd').focus()">
+    </div>
+    <div class="fg"><label class="lbl">Password</label>
+      <input class="ctrl" type="password" id="login-pwd" placeholder="••••••"
+        onkeydown="if(event.key==='Enter')handleLogin()">
+    </div>
+    <div class="login-err" id="login-err"></div>
+    <button class="btn-login" onclick="handleLogin()">→ Entrar</button>
+    <div class="login-divider">ou</div>
+    <button class="btn-login" style="background:linear-gradient(135deg,#0e6251,#1a8a6e);box-shadow:0 4px 15px rgba(14,98,81,.3)" onclick="showAthleteLoginForm()">⚽ Entrar como Atleta</button>`;
+  setTimeout(()=>document.getElementById('login-user')?.focus(),80);
 }
-function fillLoginTeams(){
-  const sel=document.getElementById('login-team');
-  sel.innerHTML='<option value="">-- Equipa --</option>';
-  APP.teams.forEach(t=>{sel.innerHTML+=`<option value="${t.id}">${t.name}</option>`;});
+function showAthleteLoginForm(){
+  const el=document.getElementById('login-main');
+  el.innerHTML=`
+    <div style="font-size:13px;font-weight:800;color:var(--c1l);margin-bottom:14px;text-align:center">⚽ Acesso Atleta</div>
+    <div class="fg"><label class="lbl">Nº de atleta, nome ou email</label>
+      <input class="ctrl" id="at-login-user" placeholder="Ex: 10 ou Ana Silva"
+        onkeydown="if(event.key==='Enter')document.getElementById('at-login-pwd').focus()">
+    </div>
+    <div class="fg"><label class="lbl">Password</label>
+      <input class="ctrl" type="password" id="at-login-pwd" placeholder="••••••"
+        onkeydown="if(event.key==='Enter')handleAthleteLogin()">
+    </div>
+    <div class="login-err" id="at-login-err"></div>
+    <button class="btn-login" onclick="handleAthleteLogin()">→ Entrar</button>
+    <button class="link-btn" style="display:block;margin:10px auto 0" onclick="renderLoginScreen()">← Voltar</button>`;
+  setTimeout(()=>document.getElementById('at-login-user')?.focus(),80);
 }
-function fillLoginAthletes(){
-  const tid=document.getElementById('login-team').value;
-  const sel=document.getElementById('login-athlete');
-  sel.innerHTML='<option value="">-- Atleta --</option>';
-  APP.athletes.filter(a=>a.teamId===tid).sort((a,b)=>a.name.localeCompare(b.name))
-    .forEach(a=>{sel.innerHTML+=`<option value="${a.id}">${a.name}</option>`;});
-  sel.onchange=()=>document.getElementById('btn-enter').disabled=!sel.value;
+async function createFirstAdmin(){
+  const name=document.getElementById('setup-name').value.trim();
+  const email=document.getElementById('setup-email').value.trim();
+  const pwd=document.getElementById('setup-pwd').value;
+  const err=document.getElementById('setup-err');
+  if(!name||!email||!pwd){err.textContent='⚠️ Preenche todos os campos.';return;}
+  if(pwd.length<6){err.textContent='⚠️ Password com mínimo 6 caracteres.';return;}
+  err.textContent='';
+  const hash=await hashPwd(pwd);
+  const user={id:uid(),name,email,role:'tecnico',passwordHash:hash,isAdmin:true,active:true,createdAt:today()};
+  APP.users.push(user);saveData();
+  setSession({userId:user.id,role:'tecnico',isAdmin:true,name:user.name});
+  ROLE='tecnico';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
 }
-function doLogin(){
-  ROLE=_selRole;
-  if(ROLE==='atleta'){
-    AID=document.getElementById('login-athlete').value;
-    if(!AID)return;
-    const at=APP.athletes.find(a=>a.id===AID);
-    if(!at)return;
-    showAtletaApp(at);
-  } else {
-    // Check PIN if defined
-    const pinMap={tecnico:APP.config.pinTec,fisio:APP.config.pinFis,nutri:APP.config.pinNut};
-    const storedPin=pinMap[ROLE];
-    if(storedPin&&storedPin.length>=4){
-      const entered=document.getElementById('login-pin').value;
-      if(entered!==storedPin){
-        document.getElementById('login-pin').style.borderColor='var(--red)';
-        document.getElementById('login-pin').value='';
-        document.getElementById('login-pin').placeholder='PIN incorreto — tenta novamente';
-        document.getElementById('btn-enter').disabled=true;
-        setTimeout(()=>{document.getElementById('login-pin').style.borderColor='';document.getElementById('login-pin').placeholder='••••••';},2000);
-        return;
-      }
-    }
-    showStaffApp();
-  }
+async function handleLogin(){
+  const username=(document.getElementById('login-user')?.value||'').trim();
+  const pwd=document.getElementById('login-pwd')?.value||'';
+  const err=document.getElementById('login-err');
+  if(!username||!pwd){err.textContent='⚠️ Preenche todos os campos.';return;}
+  err.textContent='A verificar...';
+  const hash=await hashPwd(pwd);
+  const user=APP.users.find(u=>u.active!==false&&u.passwordHash===hash&&
+    (u.email.toLowerCase()===username.toLowerCase()||u.name.toLowerCase()===username.toLowerCase()));
+  if(!user){err.textContent='❌ Utilizador ou password incorretos.';document.getElementById('login-pwd').value='';return;}
+  err.textContent='';
+  setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
+  ROLE=user.role;showStaffApp();
+}
+async function handleAthleteLogin(){
+  const username=(document.getElementById('at-login-user')?.value||'').trim();
+  const pwd=document.getElementById('at-login-pwd')?.value||'';
+  const err=document.getElementById('at-login-err');
+  if(!username||!pwd){err.textContent='⚠️ Preenche todos os campos.';return;}
+  err.textContent='A verificar...';
+  const hash=await hashPwd(pwd);
+  const athlete=APP.athletes.find(a=>
+    a.passwordHash===hash&&
+    (String(a.number||a.num)===username||
+     a.name.toLowerCase()===username.toLowerCase()||
+     (a.email&&a.email.toLowerCase()===username.toLowerCase())));
+  if(!athlete){err.textContent='❌ Dados incorretos.';document.getElementById('at-login-pwd').value='';return;}
+  err.textContent='';
+  AID=athlete.id;ROLE='atleta';
+  setSession({userId:athlete.id,role:'atleta',name:athlete.name});
+  showAtletaApp(athlete);
 }
 function logout(){
-  ROLE=null;AID=null;_selRole=null;
+  clearSession();ROLE=null;AID=null;
   document.getElementById('staff-app').classList.remove('on');
   document.getElementById('atleta-app').classList.remove('on');
   document.getElementById('screen-login').style.display='flex';
-  document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('sel'));
-  document.getElementById('athlete-picker').classList.remove('show');
-  document.getElementById('btn-enter').disabled=true;
+  renderLoginScreen();
 }
 
 // ─── STAFF APP INIT ───────────────────────────────────────
@@ -552,6 +580,11 @@ function showStaffApp(){
   document.getElementById('sb-club').textContent=cfg.clubName;
   document.getElementById('sb-sea').textContent=cfg.season;
   document.getElementById('lclub').textContent=cfg.clubName;
+  const sess=getSession();
+  if(sess&&sess.name){
+    const el=document.getElementById('sb-uname');if(el)el.textContent=sess.name;
+    const av=document.getElementById('sb-av');if(av)av.textContent=sess.name.slice(0,1).toUpperCase();
+  }
   renderSidebar();
   navTo('dashboard');
   if(_sync)pullCloud();
@@ -1040,7 +1073,7 @@ function renderPlantel(teamId){
     <div class="form-g"><label class="fl">Pé Dominante</label><select class="fc" id="af-foot"><option value="">—</option><option>Direito</option><option>Esquerdo</option><option>Ambidestro</option></select></div></div>
     <div class="fr"><div class="form-g"><label class="fl">Clube Anterior</label><input class="fc" id="af-club" placeholder="Clube de origem"></div>
     <div class="form-g"><label class="fl">FPF Player ID</label><input class="fc" id="af-fpf-id" placeholder="Ex: 1759779" style="font-size:11px"></div></div>
-    <div class="form-g"><label class="fl">URL Foto</label><input class="fc" id="af-photo" placeholder="https://..."></div>
+    <div class="fr"><div class="form-g"><label class="fl">Email</label><input class="fc" type="email" id="af-email" placeholder="email@clube.pt"></div><div class="form-g"><label class="fl">URL Foto</label><input class="fc" id="af-photo" placeholder="https://..."></div></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-g" onclick="saveAthlete()">💾 Guardar</button>
       <button class="btn btn-gh" onclick="_showAtForm=false;_editAtId=null;renderPlantel()">Cancelar</button>
@@ -1415,12 +1448,23 @@ function saveAthlete(){
   if(_editAtId){
     const idx=APP.athletes.findIndex(a=>a.id===_editAtId);
     if(idx>=0){
-      APP.athletes[idx]={...APP.athletes[idx],name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,fpfId:document.getElementById('af-fpf-id').value};
+      APP.athletes[idx]={...APP.athletes[idx],name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:document.getElementById('af-email').value||APP.athletes[idx].email||'',fpfId:document.getElementById('af-fpf-id').value};
     }
   } else {
-    const at={id:uid(),teamId:_plantelTeam,name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today()};
-    APP.athletes.push(at);
-    if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
+    const atEmail=document.getElementById('af-email').value||'';
+    const at={id:uid(),teamId:_plantelTeam,name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,number:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today()};
+    const rawPwd=genPwd(8);
+    hashPwd(rawPwd).then(h=>{
+      at.passwordHash=h;
+      APP.athletes.push(at);
+      saveData();
+      if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
+      _showAtForm=false;_editAtId=null;
+      toast('Atleta guardada ✓');
+      renderPlantel();
+      showAthleteCredsModal(at,rawPwd);
+    });
+    return;
   }
   saveData();_showAtForm=false;_editAtId=null;toast('Atleta guardada ✓');renderPlantel();
 }
@@ -3027,6 +3071,63 @@ function printPse(){
   _printWin(title,body);
 }
 
+// ─── CREDENTIALS HELPERS ─────────────────────────
+function showAthleteCredsModal(at,rawPwd){
+  const url=window.location.href.split('?')[0];
+  const login=at.email||String(at.number||at.num||at.name);
+  const club=APP.config.clubName||'Clube';
+  const emailSubj=encodeURIComponent('Acesso à Plataforma '+club);
+  const emailBody=encodeURIComponent('Olá '+at.name+',\n\nAqui tens os teus dados de acesso à plataforma de desempenho do '+club+':\n\n🔗 URL: '+url+'\n👤 Utilizador: '+login+'\n🔑 Password: '+rawPwd+'\n\nAcede com o botão "Entrar como Atleta".\n\nCumprimentos,\n'+club);
+  const mailHref='mailto:'+(at.email||'')+'?subject='+emailSubj+'&body='+emailBody;
+  openMod('🔑 Credenciais de '+at.name,`<div style="font-size:13px;margin-bottom:14px">Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${login}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:8px;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('Utilizador: ${login}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${mailHref}" target="_blank">📧 Enviar por Email</a></div><div class="al al-b" style="margin-top:12px;font-size:11px">Para repor a password: Plantel → Perfil da atleta → 🔑 Repor Password</div>`);
+}
+function showUserCredsModal(user,rawPwd){
+  const url=window.location.href.split('?')[0];
+  const club=APP.config.clubName||'Clube';
+  const emailSubj=encodeURIComponent('Acesso à Plataforma '+club);
+  const emailBody=encodeURIComponent('Olá '+user.name+',\n\nAqui tens os teus dados de acesso à plataforma de desempenho do '+club+':\n\n🔗 URL: '+url+'\n👤 Utilizador: '+user.email+'\n🔑 Password: '+rawPwd+'\n\nCumprimentos,\n'+club);
+  const mailHref='mailto:'+user.email+'?subject='+emailSubj+'&body='+emailBody;
+  openMod('🔑 Credenciais de '+user.name,`<div style="font-size:13px;margin-bottom:14px">Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${user.email}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:8px;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('Utilizador: ${user.email}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${mailHref}" target="_blank">📧 Enviar por Email</a></div>`);
+}
+async function addUserFromConfig(){
+  const name=document.getElementById('new-user-name').value.trim();
+  const email=document.getElementById('new-user-email').value.trim();
+  const role=document.getElementById('new-user-role').value;
+  if(!name||!email)return toast('Nome e email obrigatórios','err');
+  if(APP.users.find(u=>u.email.toLowerCase()===email.toLowerCase()))return toast('Email já existe','err');
+  const rawPwd=genPwd(8);
+  const hash=await hashPwd(rawPwd);
+  const user={id:uid(),name,email,role,passwordHash:hash,isAdmin:false,active:true,createdAt:today()};
+  APP.users.push(user);saveData();toast('Utilizador criado ✓');renderConfig();showUserCredsModal(user,rawPwd);
+}
+async function resetUserPwd(id){
+  const user=APP.users.find(u=>u.id===id);if(!user)return;
+  const rawPwd=genPwd(8);const hash=await hashPwd(rawPwd);
+  user.passwordHash=hash;saveData();toast('Password reposta ✓');showUserCredsModal(user,rawPwd);
+}
+function toggleUserActive(id){
+  const sess=getSession();
+  if(sess&&sess.userId===id)return toast('Não podes desativar a tua própria conta','err');
+  const user=APP.users.find(u=>u.id===id);if(!user)return;
+  user.active=!user.active;saveData();toast(user.active?'Utilizador ativado':'Utilizador desativado');renderConfig();
+}
+function deleteUser(id){
+  const sess=getSession();
+  if(sess&&sess.userId===id)return toast('Não podes apagar a tua própria conta','err');
+  if(!confirm('Apagar utilizador?'))return;
+  APP.users=APP.users.filter(u=>u.id!==id);saveData();toast('Apagado');renderConfig();
+}
+async function resetAthletePwd(id){
+  const at=APP.athletes.find(a=>a.id===id);if(!at)return;
+  const rawPwd=genPwd(8);const hash=await hashPwd(rawPwd);
+  at.passwordHash=hash;saveData();toast('Password reposta ✓');showAthleteCredsModal(at,rawPwd);
+}
+function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();renderPlantel();}
+function showAthleteCredsFromProfile(id){
+  const at=APP.athletes.find(a=>a.id===id);if(!at)return;
+  if(at.passwordHash){if(confirm('Gerar nova password para '+at.name+'?'))resetAthletePwd(id);}
+  else resetAthletePwd(id);
+}
 // ─── CONFIGURAÇÕES ────────────────────────────────────────
 function renderConfig(){
   document.getElementById('pg-config').innerHTML=`
@@ -3051,6 +3152,39 @@ function renderConfig(){
         <div class="form-g"><label class="fl">Estádio / Campo Principal</label><input class="fc" id="cfg-ground" placeholder="Nome do estádio" value="${APP.config.homeGround||''}"></div>
       </div>
       <button class="btn btn-g btn-sm" onclick="saveConfig()">💾 Guardar</button>
+    </div></div>
+    <div class="card"><div class="ch"><span class="ct">👥 Utilizadores</span></div><div class="cb">
+      <div class="al al-b" style="margin-bottom:12px;font-size:11px">Cada utilizador tem acesso independente com email e password.</div>
+      ${(()=>{
+        const roles={tecnico:{label:'Técnico',cls:'urb-tec'},fisio:{label:'Fisioterapeuta',cls:'urb-fis'},nutri:{label:'Nutricionista',cls:'urb-nut'}};
+        const sess=getSession();
+        return APP.users.map(u=>{
+          const r=roles[u.role]||{label:u.role,cls:''};
+          const isMe=sess&&sess.userId===u.id;
+          return `<div class="user-row">
+          <div style="flex:1"><strong>${u.name}</strong><div style="font-size:10px;color:var(--t2)">${u.email}</div></div>
+          <span class="user-role-badge ${r.cls}">${r.label}</span>
+          ${u.isAdmin?'<span class="bdg bg-gr" style="font-size:9px">admin</span>':''}
+          ${u.active===false?'<span class="bdg bg-r" style="font-size:9px">inativo</span>':''}
+          ${isMe?'':`<button class="btn btn-xs btn-gh" title="Repor password" onclick="resetUserPwd('${u.id}')">🔑</button><button class="btn btn-xs btn-gh" onclick="toggleUserActive('${u.id}')">${u.active===false?'▶':'⏸'}</button><button class="btn btn-xs btn-r" onclick="deleteUser('${u.id}')">🗑️</button>`}
+          </div>`;
+        }).join('');
+      })()}
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--brd)">
+        <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">➕ Novo Utilizador</div>
+        <div class="fr">
+          <div class="form-g"><label class="fl">Nome</label><input class="fc" id="new-user-name" placeholder="Nome completo"></div>
+          <div class="form-g"><label class="fl">Email</label><input class="fc" type="email" id="new-user-email" placeholder="email@clube.pt"></div>
+        </div>
+        <div class="form-g"><label class="fl">Função</label>
+          <select class="fc" id="new-user-role">
+            <option value="tecnico">🧑‍💼 Técnico</option>
+            <option value="fisio">🏥 Fisioterapeuta</option>
+            <option value="nutri">🥗 Nutricionista</option>
+          </select>
+        </div>
+        <button class="btn btn-g btn-sm" onclick="addUserFromConfig()">📤 Criar + Gerar Credenciais</button>
+      </div>
     </div></div>
     <div class="card"><div class="ch"><span class="ct">🔐 PINs de Acesso</span></div><div class="cb">
       <div class="al al-b" style="margin-bottom:12px;font-size:11px">Define um PIN de 4-8 dígitos para cada função. Deixa em branco para acesso livre.</div>
@@ -3515,7 +3649,7 @@ async function cloudUpsert(table,row){
   try{await _supa.from(table).upsert({...row,club_id:_cid},{onConflict:'id'});}
   catch(e){console.warn('cloudUpsert error',e);}
 }
-// ─── INIT ────────────────────────────────────────────────
+// ─── INIT ──────────────────────────────────────────
 loadData();
 // Restore session if active
 (function initSession(){
@@ -3526,11 +3660,8 @@ loadData();
       AID=sess.userId;
       const at=APP.athletes.find(a=>a.id===AID);
       if(at){showAtletaApp(at);return;}
-    } else {
-      showStaffApp();return;
-    }
+    } else {showStaffApp();return;}
   }
-  // No valid session — show login
   document.getElementById('screen-login').style.display='flex';
   renderLoginScreen();
 })();
