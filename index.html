@@ -1732,8 +1732,9 @@ function renderPlaneamento(){
     <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="ef-dur" type="number" placeholder="90"></div></div>
     <div class="form-g"><label class="fl">Local</label><input class="fc" id="ef-loc" placeholder="Campo principal..."></div>
     <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="ef-notes" rows="2"></textarea></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveEvent()">💾 Guardar</button>
-    <button class="btn btn-gh" onclick="_showEvForm=false;_editEvId=null;renderPlaneamento()">Cancelar</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="saveEvent()">💾 Guardar</button>
+    <button class="btn btn-gh" onclick="_showEvForm=false;_editEvId=null;renderPlaneamento()">Cancelar</button>
+    ${_editEvId?`<button class="btn btn-r" onclick="deleteEvent('${_editEvId}')">🗑️ Apagar</button>`:''}</div>
   </div>`:'';
 
   // Build calendar grid
