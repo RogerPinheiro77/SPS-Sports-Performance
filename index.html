@@ -339,6 +339,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-planeamento"></div>
       <div class="pg" id="pg-microciclos"></div>
       <div class="pg" id="pg-jogos"></div>
+      <div class="pg" id="pg-treinos"></div>
       <div class="pg" id="pg-pse-wellness"></div>
       <div class="pg" id="pg-scouting"></div>
       <div class="pg" id="pg-avaliacoes"></div>
@@ -412,7 +413,7 @@ function defApp(){
     config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
-    exercises:defEx(),games:[],scouting:[],evaluations:[],
+    exercises:defEx(),games:[],trainings:[],scouting:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],
     users:[]
@@ -606,6 +607,7 @@ const NAV_TEC=[
   {id:'planeamento',icon:'📅',label:'Planeamento'},
   {id:'microciclos',icon:'🔄',label:'Microciclos'},
   {id:'jogos',icon:'⚽',label:'Jogos'},
+  {id:'treinos',icon:'📋',label:'Unidades de Treino'},
   {id:'formacao',icon:'🌱',label:'Formação'},
   {sec:'Análise'},
   {id:'pse-wellness',icon:'📊',label:'PSE & Wellness'},
@@ -652,9 +654,9 @@ function navTo(id){
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
-  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',microciclos:'Microciclos',jogos:'Jogos',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
+  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
   document.getElementById('pg-title').textContent=titles[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,microciclos:renderMicrociclos,jogos:renderJogos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   window.scrollTo(0,0);
 }
@@ -1746,7 +1748,7 @@ function renderPlaneamento(){
     const dt=`${_calYear}-${String(_calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const isToday=dt===td;
     const evs=APP.schedule.filter(e=>e.date===dt).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';const isTraining=e.type==='Treino'||e.type==='Ativação'||e.type==='Recuperação'||e.type==='Ginásio';return`<div class="cal-ev" style="background:${c}22;color:${c};border-left:2px solid ${c};display:flex;align-items:center;justify-content:space-between;gap:4px"><span onclick="event.stopPropagation();editEvent('${e.id}')" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.time?e.time.slice(0,5)+' ':''} ${e.title}</span>${isTraining?`<span onclick="event.stopPropagation();openAttendanceModal('${e.id}')" title="Marcar presenças" style="cursor:pointer;font-size:11px;flex-shrink:0;padding:0 3px;opacity:.8">📋</span>`:''}</div>`;}).join('');
+    const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';const isTraining=e.type==='Treino'||e.type==='Ativação'||e.type==='Recuperação'||e.type==='Ginásio';return`<div class="cal-ev" style="background:${c}22;color:${c};border-left:2px solid ${c};display:flex;align-items:center;justify-content:space-between;gap:4px"><span onclick="event.stopPropagation();editEvent('${e.id}')" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.time?e.time.slice(0,5)+' ':''} ${e.title}</span>${isTraining?`<span onclick="event.stopPropagation();openAttendanceModal('${e.id}')" title="Marcar presenças" style="cursor:pointer;font-size:11px;flex-shrink:0;padding:0 3px;opacity:.8">📋</span><span onclick="event.stopPropagation();openTrainingUnit('${e.id}','${e.date||''}')" title="Unidade de Treino" style="cursor:pointer;font-size:11px;flex-shrink:0;padding:0 3px;opacity:.8">🗒️</span>`:''}</div>`;}).join('');
     calHtml+=`<div class="cal-day ${isToday?'today':''}" onclick="clickDay('${dt}')"><div class="cal-dn">${day}</div>${evsHtml}</div>`;
   }
   calHtml+=`</div></div>`;
@@ -2551,6 +2553,330 @@ function deleteJogo(id){
   if(!confirm('Apagar este jogo e todos os seus dados?'))return;
   APP.games=APP.games.filter(g=>g.id!==id);saveData();toast('Jogo apagado');
   _jogoView='list';_jogoDetailId=null;renderJogos();
+}
+// ─── TREINOS (UNIDADES DE TREINO) ─────────────────────────
+const _PHASES=[
+  {id:'aquecimento',label:'Aquecimento',color:'#BA7517',bg:'#FAEEDA'},
+  {id:'principal',label:'Parte Principal',color:'#1D9E75',bg:'#E1F5EE'},
+  {id:'jogo',label:'Jogo / Forma Jogada',color:'#185FA5',bg:'#E6F1FB'},
+  {id:'retorno',label:'Retorno à Calma',color:'#5F5E5A',bg:'#F1EFE8'}
+];
+let _trView='list',_trId=null,_trExTab='aquecimento';
+const _TUID=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+function openTrainingUnit(eventId,eventDate){
+  if(!APP.trainings)APP.trainings=[];
+  let tr=APP.trainings.find(t=>t.eventId===eventId);
+  if(!tr){
+    tr={id:_TUID(),eventId,date:eventDate||today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,
+        notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
+    APP.trainings.push(tr);saveData();
+  }
+  _trId=tr.id;_trView='detail';_trExTab='aquecimento';
+  navTo('treinos');
+}
+
+function renderTreinos(){
+  if(!APP.trainings)APP.trainings=[];
+  if(_trView==='detail'&&_trId){_renderTrDetail();return;}
+  _trView='list';_trId=null;
+  const list=[...APP.trainings].sort((a,b)=>b.date.localeCompare(a.date));
+  const cards=list.length?list.map(tr=>{
+    const totalEx=Object.values(tr.exercises||{}).flat().length;
+    return`<div class="card" style="cursor:pointer;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px" onclick="_trId='${tr.id}';_trView='detail';_trExTab='aquecimento';renderTreinos()">
+      <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px">${escHtml(tr.title||'Unidade de Treino')}</div>
+        <div style="font-size:12px;color:var(--t2)">${tr.date?fmtDate(tr.date):''}${tr.local?' · '+escHtml(tr.local):''}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">${totalEx} exercício${totalEx!==1?'s':''} · ${tr.duracao||0} min${tr.objetivo?' · '+escHtml(tr.objetivo):''}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-sm btn-g" onclick="event.stopPropagation();_trId='${tr.id}';_trView='detail';_trExTab='aquecimento';renderTreinos()">Abrir</button>
+        <button class="btn btn-sm btn-r" onclick="event.stopPropagation();deleteTreino('${tr.id}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join(''):`<div style="text-align:center;padding:48px 20px;color:var(--t2);font-size:14px">Ainda não tens unidades de treino.<br><small>Cria uma pelo Planeamento clicando em 🗒️ num evento de treino, ou clica em "+ Nova Unidade".</small></div>`;
+  document.getElementById('pg-treinos').innerHTML=`
+  <div class="sh">
+    <div style="font-size:15px;font-weight:800">Unidades de Treino</div>
+    <div class="sh-a"><button class="btn btn-g" onclick="_createNewUT()">+ Nova Unidade</button></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">${cards}</div>`;
+}
+
+function _createNewUT(){
+  if(!APP.trainings)APP.trainings=[];
+  const tr={id:_TUID(),eventId:null,date:today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
+  APP.trainings.push(tr);saveData();
+  _trId=tr.id;_trView='detail';_trExTab='aquecimento';renderTreinos();
+}
+
+function deleteTreino(id){
+  if(!confirm('Apagar esta unidade de treino?'))return;
+  APP.trainings=APP.trainings.filter(t=>t.id!==id);
+  if(_trId===id){_trId=null;_trView='list';}
+  saveData();toast('Unidade apagada');renderTreinos();
+}
+
+function _getTr(){return APP.trainings.find(t=>t.id===_trId);}
+
+function _renderTrDetail(){
+  const tr=_getTr();if(!tr){_trView='list';renderTreinos();return;}
+  const tabsHtml=_PHASES.map(ph=>{
+    const cnt=(tr.exercises[ph.id]||[]).length;
+    const active=_trExTab===ph.id;
+    return`<button class="btn btn-sm" onclick="_trExTab='${ph.id}';_renderTrDetail()" style="border:1px solid ${ph.color};color:${active?'#fff':ph.color};background:${active?ph.color:'transparent'};font-size:12px">${ph.label}${cnt>0?' ('+cnt+')':''}</button>`;
+  }).join('');
+  const ph=_PHASES.find(p=>p.id===_trExTab);
+  const exs=(tr.exercises[_trExTab]||[]);
+  const exHtml=exs.length?exs.map((ex,i)=>_exCardHtml(tr.id,_trExTab,ex,i)).join(''):`
+  <div style="border:1.5px dashed var(--brd);border-radius:10px;padding:24px;text-align:center;color:var(--t2);font-size:13px">
+    Sem exercícios em "${ph.label}".<br><small>Clica em "Adicionar Exercício" abaixo.</small>
+  </div>`;
+  const usedKB=Math.round(JSON.stringify(APP.trainings).length/1024);
+  const maxKB=5120;const pct=Math.min(100,Math.round(usedKB/maxKB*100));
+  const stColor=pct>80?'#c0392b':pct>50?'#e67e22':'#1D9E75';
+  document.getElementById('pg-treinos').innerHTML=`
+  <div class="sh" style="flex-wrap:wrap;gap:8px">
+    <button class="btn btn-gh btn-sm" onclick="_trView='list';_trId=null;renderTreinos()">← Todas as UTs</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="exportTreinoPDF('${tr.id}')">📄 Exportar PDF</button>
+      <button class="btn btn-g btn-sm" onclick="saveTreinoPatch('${tr.id}')">💾 Guardar</button>
+    </div>
+  </div>
+  <div class="card" style="padding:14px 16px;margin-bottom:12px">
+    <div class="fr" style="gap:10px;flex-wrap:wrap">
+      <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Título da Unidade</label><input class="fc" id="tr-title" value="${escHtml(tr.title||'')}" placeholder="Ex: Bloco Defensivo — Treino #14"></div>
+      <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Objetivo Principal</label><input class="fc" id="tr-obj" value="${escHtml(tr.objetivo||'')}" placeholder="Ex: Organização defensiva 1-4-3-3"></div>
+    </div>
+    <div class="fr3" style="gap:10px;flex-wrap:wrap;margin-top:8px">
+      <div class="form-g"><label class="fl">Data</label><input class="fc" id="tr-date" type="date" value="${tr.date||today()}"></div>
+      <div class="form-g"><label class="fl">Local</label><input class="fc" id="tr-local" value="${escHtml(tr.local||'')}" placeholder="Campo principal"></div>
+      <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="tr-dur" type="number" value="${tr.duracao||90}"></div>
+      <div class="form-g"><label class="fl">Nº Jogadoras</label><input class="fc" id="tr-jog" type="number" value="${tr.jogadoras||18}"></div>
+    </div>
+    <div class="form-g" style="margin-top:8px"><label class="fl">Notas Gerais</label><textarea class="fc" id="tr-notes" rows="2" placeholder="Observações, contexto, situação da equipa...">${escHtml(tr.notes||'')}</textarea></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--t2)">
+      <span>Storage imagens:</span>
+      <div style="flex:1;max-width:120px;height:5px;border-radius:3px;background:var(--bg3);overflow:hidden"><div style="height:100%;width:${pct}%;background:${stColor};border-radius:3px"></div></div>
+      <span style="color:${stColor};font-weight:700">${usedKB}KB / ${maxKB}KB (${pct}%)</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabsHtml}</div>
+  <div id="tr-ex-list" style="display:flex;flex-direction:column;gap:10px">${exHtml}</div>
+  <button class="btn btn-g" style="margin-top:12px;width:100%" onclick="addExercicioUT('${tr.id}','${_trExTab}')">+ Adicionar Exercício — ${ph.label}</button>
+  `;
+}
+
+function _exCardHtml(trId,phase,ex,idx){
+  const ph=_PHASES.find(p=>p.id===phase);
+  const hasImg=!!ex.drawing;
+  const imgHtml=hasImg
+    ?`<img src="${ex.drawing}" style="width:100%;height:100%;object-fit:cover;display:block" alt="Exercício">`
+    :`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:100%;padding:12px;text-align:center;color:var(--t2)">
+        <div style="font-size:28px">📷</div>
+        <div style="font-size:11px">Importar do<br>Tactical Pad</div>
+        <div style="font-size:10px;opacity:.6">PNG / JPG</div>
+      </div>`;
+  const videoBtn=ex.videoUrl
+    ?`<a href="${escHtml(ex.videoUrl)}" target="_blank" class="btn btn-sm" style="color:#c0392b;border-color:#c0392b;font-size:11px;text-decoration:none">▶ Vídeo</a>`
+    :'';
+  return`<div class="card" style="padding:0;overflow:hidden">
+    <div style="display:grid;grid-template-columns:1fr 180px;min-height:140px">
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="background:${ph.bg};color:${ph.color};font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${ph.label}</span>
+          <span style="font-size:11px;color:var(--t2)">#${idx+1}</span>
+        </div>
+        <div style="font-weight:700;font-size:14px">${escHtml(ex.name||'Exercício sem nome')}</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.5;flex:1">${escHtml(ex.desc||'')}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${(ex.tags||[]).map(t=>`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--bg3);color:var(--t2)">${escHtml(t)}</span>`).join('')}</div>
+        <div style="display:flex;gap:12px;font-size:12px;margin-top:4px">
+          ${ex.series?`<span style="color:var(--t2)">Séries: <strong>${escHtml(String(ex.series))}</strong></span>`:''}
+          ${ex.durSerie?`<span style="color:var(--t2)">Duração: <strong>${escHtml(String(ex.durSerie))} min</strong></span>`:''}
+          ${ex.pausa?`<span style="color:var(--t2)">Pausa: <strong>${escHtml(String(ex.pausa))} min</strong></span>`:''}
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-left:1px solid var(--brd);position:relative;cursor:pointer;min-height:140px;overflow:hidden" onclick="uploadExImg('${trId}','${phase}',${idx})">
+        ${imgHtml}
+        ${hasImg?`<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;padding:2px 6px;border-radius:20px">trocar</div>`:''}
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--brd);padding:8px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <div style="display:flex;gap:8px;align-items:center">
+        ${videoBtn}
+        <button class="btn btn-sm btn-gh" onclick="setVideoUrl('${trId}','${phase}',${idx})" style="font-size:11px">${ex.videoUrl?'✏️ Editar vídeo':'+ Link vídeo'}</button>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-gh" onclick="editExercicioUT('${trId}','${phase}',${idx})">✏️ Editar</button>
+        <button class="btn btn-sm btn-r" onclick="deleteExercicioUT('${trId}','${phase}',${idx})">🗑️</button>
+      </div>
+    </div>
+    <input type="file" id="img-inp-${trId}-${phase}-${idx}" accept="image/*" style="display:none" onchange="handleExImgUpload('${trId}','${phase}',${idx},this)">
+  </div>`;
+}
+
+function uploadExImg(trId,phase,idx){
+  const el=document.getElementById('img-inp-'+trId+'-'+phase+'-'+idx);
+  if(el)el.click();
+}
+
+function handleExImgUpload(trId,phase,idx,input){
+  const file=input.files[0];if(!file)return;
+  if(file.size>3*1024*1024)return toast('Imagem demasiado grande. Máx 3MB.','err');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const maxDim=800;let w=img.width,h=img.height;
+      if(w>maxDim||h>maxDim){if(w>h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      const compressed=cv.toDataURL('image/jpeg',0.82);
+      const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
+      if(!tr.exercises[phase])tr.exercises[phase]=[];
+      if(tr.exercises[phase][idx])tr.exercises[phase][idx].drawing=compressed;
+      saveData();toast('Imagem importada ✓');_renderTrDetail();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function setVideoUrl(trId,phase,idx){
+  const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
+  const ex=(tr.exercises[phase]||[])[idx];if(!ex)return;
+  const url=prompt('URL do vídeo (YouTube, Google Drive, Vimeo):',ex.videoUrl||'');
+  if(url===null)return;
+  ex.videoUrl=url.trim();
+  saveData();toast('Link de vídeo guardado ✓');_renderTrDetail();
+}
+
+function addExercicioUT(trId,phase){
+  _openExModal(trId,phase,-1,{id:'',name:'',desc:'',series:'',durSerie:'',pausa:'',tags:[],drawing:'',videoUrl:''});
+}
+
+function editExercicioUT(trId,phase,idx){
+  const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
+  const ex=(tr.exercises[phase]||[])[idx];if(!ex)return;
+  _openExModal(trId,phase,idx,Object.assign({},ex));
+}
+
+function deleteExercicioUT(trId,phase,idx){
+  if(!confirm('Apagar este exercício?'))return;
+  const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
+  tr.exercises[phase].splice(idx,1);
+  saveData();toast('Exercício apagado');_renderTrDetail();
+}
+
+function _openExModal(trId,phase,idx,ex){
+  const ph=_PHASES.find(p=>p.id===phase);
+  const isNew=idx<0;
+  const tagsVal=(ex.tags||[]).join(', ');
+  openMod((isNew?'Novo':'Editar')+' Exercício — '+ph.label,`
+  <div class="form-g"><label class="fl">Nome *</label><input class="fc" id="ex-name" value="${escHtml(ex.name||'')}" placeholder="Ex: Rondo 5v2"></div>
+  <div class="form-g"><label class="fl">Descrição</label><textarea class="fc" id="ex-desc" rows="3" placeholder="Objectivos, variantes, pontos-chave...">${escHtml(ex.desc||'')}</textarea></div>
+  <div class="fr3">
+    <div class="form-g"><label class="fl">Séries</label><input class="fc" id="ex-series" type="number" value="${escHtml(String(ex.series||''))}" placeholder="3"></div>
+    <div class="form-g"><label class="fl">Duração/série (min)</label><input class="fc" id="ex-dur" type="number" value="${escHtml(String(ex.durSerie||''))}" placeholder="5"></div>
+    <div class="form-g"><label class="fl">Pausa (min)</label><input class="fc" id="ex-pausa" type="number" value="${escHtml(String(ex.pausa||''))}" placeholder="1"></div>
+  </div>
+  <div class="form-g"><label class="fl">Tags (separadas por vírgula)</label><input class="fc" id="ex-tags" value="${escHtml(tagsVal)}" placeholder="posse, pressão, espaço reduzido"></div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-g" onclick="_saveExModal('${trId}','${phase}',${idx})">💾 Guardar</button>
+    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+  </div>`,'lg');
+  setTimeout(()=>{const el=document.getElementById('ex-name');if(el)el.focus();},100);
+}
+
+function _saveExModal(trId,phase,idx){
+  const name=document.getElementById('ex-name').value.trim();
+  if(!name)return toast('Nome obrigatório','err');
+  const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
+  if(!tr.exercises[phase])tr.exercises[phase]=[];
+  const oldEx=idx>=0?tr.exercises[phase][idx]:{};
+  const ex={
+    id:oldEx.id||_TUID(),name,
+    desc:document.getElementById('ex-desc').value.trim(),
+    series:document.getElementById('ex-series').value.trim(),
+    durSerie:document.getElementById('ex-dur').value.trim(),
+    pausa:document.getElementById('ex-pausa').value.trim(),
+    tags:document.getElementById('ex-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+    drawing:oldEx.drawing||'',
+    videoUrl:oldEx.videoUrl||''
+  };
+  if(idx<0)tr.exercises[phase].push(ex);
+  else tr.exercises[phase][idx]=ex;
+  saveData();closeMod();toast(idx<0?'Exercício adicionado ✓':'Exercício actualizado ✓');_renderTrDetail();
+}
+
+function saveTreinoPatch(trId){
+  const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
+  const g=id=>document.getElementById(id);
+  if(g('tr-title'))tr.title=g('tr-title').value.trim();
+  if(g('tr-obj'))tr.objetivo=g('tr-obj').value.trim();
+  if(g('tr-date'))tr.date=g('tr-date').value;
+  if(g('tr-local'))tr.local=g('tr-local').value.trim();
+  if(g('tr-dur'))tr.duracao=+g('tr-dur').value||tr.duracao;
+  if(g('tr-jog'))tr.jogadoras=+g('tr-jog').value||tr.jogadoras;
+  if(g('tr-notes'))tr.notes=g('tr-notes').value;
+  saveData();toast('Unidade de Treino guardada ✓');
+}
+
+function exportTreinoPDF(trId){
+  saveTreinoPatch(trId);
+  const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
+  const cfg=APP.config||{};
+  const clubName=escHtml(cfg.clubName||'Sport Performance');
+  const totalEx=Object.values(tr.exercises||{}).flat().length;
+  let phasesHtml='';
+  for(const ph of _PHASES){
+    const exs=tr.exercises[ph.id]||[];
+    if(!exs.length)continue;
+    const exRows=exs.map((ex,i)=>{
+      const imgPart=ex.drawing?`<div style="margin:8px 0"><img src="${ex.drawing}" style="max-width:280px;max-height:220px;border-radius:6px;border:1px solid #ddd" alt="${escHtml(ex.name)}"></div>`:'';
+      const stats=[];
+      if(ex.series)stats.push('Séries: <strong>'+escHtml(String(ex.series))+'</strong>');
+      if(ex.durSerie)stats.push('Duração: <strong>'+escHtml(String(ex.durSerie))+'min</strong>');
+      if(ex.pausa)stats.push('Pausa: <strong>'+escHtml(String(ex.pausa))+'min</strong>');
+      const tagsPart=(ex.tags||[]).map(t=>`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:#f0f0f0;color:#555;margin-right:4px">${escHtml(t)}</span>`).join('');
+      const videoPart=ex.videoUrl?`<div style="margin-top:6px;font-size:11px;color:#555">🎥 Vídeo: <span style="color:#185FA5">${escHtml(ex.videoUrl)}</span></div>`:'';
+      return`<div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:8px;page-break-inside:avoid">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+          <span style="font-size:11px;color:#888;font-weight:700">#${i+1}</span>
+          <strong style="font-size:13px">${escHtml(ex.name)}</strong>
+        </div>
+        ${ex.desc?`<div style="font-size:12px;color:#444;margin-bottom:6px;line-height:1.5">${escHtml(ex.desc)}</div>`:''}
+        ${imgPart}
+        ${stats.length?`<div style="font-size:12px;color:#444;display:flex;gap:16px;flex-wrap:wrap;margin-bottom:4px">${stats.join(' &nbsp;|&nbsp; ')}</div>`:''}
+        ${tagsPart?`<div style="margin-top:4px">${tagsPart}</div>`:''}
+        ${videoPart}
+      </div>`;
+    }).join('');
+    phasesHtml+=`<div style="margin-bottom:20px">
+      <div style="background:${ph.bg};color:${ph.color};font-weight:700;font-size:13px;padding:6px 12px;border-radius:6px;margin-bottom:10px;border-left:4px solid ${ph.color}">${ph.label}</div>
+      ${exRows}
+    </div>`;
+  }
+  const bodyHtml=`<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:740px;margin:0 auto;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1D9E75;padding-bottom:12px;margin-bottom:16px">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:#1D9E75">${clubName}</div>
+        <div style="font-size:16px;font-weight:700;margin-top:4px">${escHtml(tr.title||'Unidade de Treino')}</div>
+        <div style="font-size:12px;color:#666;margin-top:4px">${escHtml(tr.objetivo||'')}</div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:#666">
+        <div><strong>Data:</strong> ${fmtDate(tr.date)}</div>
+        ${tr.local?`<div><strong>Local:</strong> ${escHtml(tr.local)}</div>`:''}
+        <div><strong>Duração:</strong> ${tr.duracao||0} min</div>
+        <div><strong>Jogadoras:</strong> ${tr.jogadoras||'—'}</div>
+        <div><strong>Total exercícios:</strong> ${totalEx}</div>
+      </div>
+    </div>
+    ${tr.notes?`<div style="background:#f9f9f9;border-left:3px solid #1D9E75;padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:16px;font-size:12px;color:#444">${escHtml(tr.notes)}</div>`:''}
+    ${phasesHtml}
+    <div style="margin-top:24px;border-top:1px solid #e0e0e0;padding-top:10px;font-size:10px;color:#aaa;text-align:center">${clubName} · Unidade de Treino · ${new Date().toLocaleDateString('pt-PT')}</div>
+  </div>`;
+  _printWin('Unidade de Treino — '+(tr.title||fmtDate(tr.date)),bodyHtml);
 }
 // ─── PSE & WELLNESS ───────────────────────────────────────
 let _pwTab='pse', _pwTeam='T1', _pwPeriod=14;
