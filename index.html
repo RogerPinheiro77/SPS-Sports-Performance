@@ -3514,6 +3514,23 @@ async function cloudUpsert(table,row){
 }
 // ─── INIT ────────────────────────────────────────────────
 loadData();
+// Restore session if active
+(function initSession(){
+  const sess=getSession();
+  if(sess&&sess.role){
+    ROLE=sess.role;
+    if(sess.role==='atleta'){
+      AID=sess.userId;
+      const at=APP.athletes.find(a=>a.id===AID);
+      if(at){showAtletaApp(at);return;}
+    } else {
+      showStaffApp();return;
+    }
+  }
+  // No valid session — show login
+  document.getElementById('screen-login').style.display='flex';
+  renderLoginScreen();
+})();
 const _sc=getSupaCfg();
 if(_sc.url&&_sc.anonKey){
   try{
