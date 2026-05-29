@@ -584,7 +584,7 @@ function showStaffApp(){
   const sess=getSession();
   if(sess&&sess.name){
     const el=document.getElementById('sb-uname');if(el)el.textContent=sess.name;
-    const av=document.getElementById('sb-av');if(av)av.textContent=sess.name.slice(0,1).toUpperCase();
+    const av=document.getElementById('sb-av');if(av){if(sess.photo)av.innerHTML='<img src="'+sess.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';else av.textContent=sess.name.slice(0,1).toUpperCase();}
   }
   renderSidebar();
   navTo('dashboard');
@@ -636,7 +636,10 @@ function renderSidebar(){
   const nav= ROLE==='fisio'?NAV_FIS: ROLE==='nutri'?NAV_NUT: NAV_TEC;
   const roleLabel={tecnico:'Técnico',fisio:'Fisioterapeuta',nutri:'Nutricionista'}[ROLE]||ROLE;
   const roleInit={tecnico:'T',fisio:'F',nutri:'N'}[ROLE]||'S';
-  document.getElementById('sb-av').textContent=roleInit;
+  const _sbAvEl=document.getElementById('sb-av');
+  const _sbSess=getSession();
+  if(_sbSess&&_sbSess.photo){_sbAvEl.innerHTML='<img src="'+_sbSess.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';}
+  else{_sbAvEl.textContent=_sbSess?_sbSess.name.slice(0,1).toUpperCase():roleInit;}
   document.getElementById('sb-uname').textContent=roleLabel;
   document.getElementById('sb-urole').textContent='Staff';
   let h='';
@@ -671,10 +674,86 @@ function fmtDateShort(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');retu
 function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/(86400000));}
 function ageYears(dob){if(!dob)return'';const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;}
 function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase():'?';}
+function _avHtml(name,photo,size,fs){
+  size=size||28;fs=fs||Math.round(size*0.42);
+  const ini=initials(name);
+  const img=photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`:''  ;
+  const fb=`<span style="display:${photo?'none':'flex'};width:100%;height:100%;align-items:center;justify-content:center">${ini}</span>`;
+  return`<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--c1l);color:var(--c1);display:flex;align-items:center;justify-content:center;font-size:${fs}px;font-weight:700;flex-shrink:0;overflow:hidden">${img}${fb}</div>`;
+}
 function wellnessColor(score){if(!score)return'wd0';if(score>=70)return'wdg';if(score>=45)return'wdy';return'wdr';}
 function sevBadge(s){const m={ligeira:'bg-g',moderada:'bg-y',grave:'bg-o','muito grave':'bg-r'};return`<span class="bdg ${m[s]||'bg-gr'}">${s||'—'}</span>`;}
 function statusBadge(s){const m={ativo:'bg-r',reabilitação:'bg-y',alta:'bg-g',disponivel:'bg-g',indisponivel:'bg-r'};return`<span class="bdg ${m[s]||'bg-gr'}">${s||'—'}</span>`;}
 
+
+function _handleStaffPhoto(input,previewId){
+  const file=input.files[0];if(!file)return;
+  if(file.size>3*1024*1024)return toast('Foto demasiado grande. Máx 3MB.','err');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const max=200;let w=img.width,h=img.height;
+      if(w>max||h>max){if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      const b64=cv.toDataURL('image/jpeg',0.85);
+      const el=document.getElementById(previewId);
+      if(el){el.setAttribute('data-val',b64);el.innerHTML='<img src="'+b64+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';}
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function _handleMyPhoto(input){
+  const file=input.files[0];if(!file)return;
+  if(file.size>3*1024*1024)return toast('Foto demasiado grande. Máx 3MB.','err');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const max=200;let w=img.width,h=img.height;
+      if(w>max||h>max){if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      const b64=cv.toDataURL('image/jpeg',0.85);
+      // Save to current user
+      const sess=getSession();
+      if(!sess)return;
+      const u=APP.users.find(u=>u.id===sess.userId);
+      if(u){u.photo=b64;sess.photo=b64;setSession(sess);saveData();}
+      // Update preview
+      const prev=document.getElementById('my-photo-prev');
+      if(prev)prev.innerHTML='<img src="'+b64+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+      // Update sidebar avatar
+      const sbAv=document.getElementById('sb-av');
+      if(sbAv)sbAv.innerHTML='<img src="'+b64+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+      toast('Foto atualizada ✓');
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function _handleAthletePhoto(input){
+  const file=input.files[0];if(!file)return;
+  if(file.size>4*1024*1024)return toast('Foto demasiado grande. Máx 4MB.','err');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const max=400;let w=img.width,h=img.height;
+      if(w>max||h>max){if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      const b64=cv.toDataURL('image/jpeg',0.88);
+      document.getElementById('af-photo').value=b64;
+      const prev=document.getElementById('af-photo-prev');
+      if(prev)prev.innerHTML='<img src="'+b64+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
 // ─── DASHBOARD ────────────────────────────────────────────
 function svgRing(pct,color,sz){
   const r=sz*.38,c=sz/2,ci=2*Math.PI*r,d=ci*(Math.min(pct,100)/100);
@@ -1075,7 +1154,16 @@ function renderPlantel(teamId){
     <div class="form-g"><label class="fl">Pé Dominante</label><select class="fc" id="af-foot"><option value="">—</option><option>Direito</option><option>Esquerdo</option><option>Ambidestro</option></select></div></div>
     <div class="fr"><div class="form-g"><label class="fl">Clube Anterior</label><input class="fc" id="af-club" placeholder="Clube de origem"></div>
     <div class="form-g"><label class="fl">FPF Player ID</label><input class="fc" id="af-fpf-id" placeholder="Ex: 1759779" style="font-size:11px"></div></div>
-    <div class="fr"><div class="form-g"><label class="fl">Email</label><input class="fc" type="email" id="af-email" placeholder="email@clube.pt"></div><div class="form-g"><label class="fl">URL Foto</label><input class="fc" id="af-photo" placeholder="https://..."></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Email</label><input class="fc" type="email" id="af-email" placeholder="email@clube.pt"></div><div class="form-g"><label class="fl">Foto</label>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <div id="af-photo-prev" style="width:42px;height:42px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden;flex-shrink:0;cursor:pointer" onclick="document.getElementById('af-photo-file').click()">📷</div>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+                    <input class="fc" id="af-photo" placeholder="https://... ou carrega ficheiro" style="font-size:11px">
+                    <input type="file" id="af-photo-file" accept="image/*" style="display:none" onchange="_handleAthletePhoto(this)">
+                    <button type="button" class="btn btn-xs btn-gh" onclick="document.getElementById('af-photo-file').click()" style="font-size:11px;width:fit-content">📂 Carregar foto</button>
+                  </div>
+                </div>
+              </div></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-g" onclick="saveAthlete()">💾 Guardar</button>
       <button class="btn btn-gh" onclick="_showAtForm=false;_editAtId=null;renderPlantel()">Cancelar</button>
@@ -1127,6 +1215,8 @@ function renderPlantel(teamId){
       document.getElementById('af-foot').value=at.foot||'';
       document.getElementById('af-club').value=at.club||'';
       document.getElementById('af-photo').value=at.photo||'';
+      const _afPrev=document.getElementById('af-photo-prev');
+      if(_afPrev&&at.photo)_afPrev.innerHTML='<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
       document.getElementById('af-fpf-id').value=at.fpfId||'';
       const zzEl=document.getElementById('af-zz-url');if(zzEl&&at.zzUrl)zzEl.value=at.zzUrl||'';
     }
@@ -2919,7 +3009,7 @@ function renderPSEWellness(){
       const acwr=chronic?Math.round(acute/chronic*100)/100:0;
       const acwrClass=acwr>1.5||acwr<0.8?'bg-r':acwr>=1.0?'bg-g':'bg-y';
       const lastSub=atPSE[0];
-      return`<tr><td><strong>${at.name}</strong></td><td>${at.pos||'—'}</td>
+      return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.pse:'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.duration+'min':'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.ua:'—'}</td>
@@ -3038,7 +3128,7 @@ function renderScouting(){
 
   const cardsHtml=list.length?list.map(s=>`
   <div class="card" style="padding:14px;display:flex;gap:12px;align-items:flex-start;margin-bottom:10px">
-    <div class="at-av" style="width:44px;height:44px;font-size:16px;flex-shrink:0">${s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+    ${_avHtml(s.name,s.photo||'',44,16)}
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div>
@@ -3106,7 +3196,7 @@ function renderAvaliacoes(){
     const last=evals[0];
     const avg=last?Math.round((last.tec+last.fis+last.tac+last.men)/4*10)/10:'—';
     const bar=v=>`<div style="display:flex;align-items:center;gap:4px"><div class="prog-bar" style="width:60px"><div class="prog-fill" style="width:${(v/10)*100}%;background:var(--c1)"></div></div><span style="font-size:10px">${v}</span></div>`;
-    return`<tr><td><strong>${at.name}</strong></td><td>${at.pos||'—'}</td>
+    return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
     <td>${last?bar(last.tec):'—'}</td><td>${last?bar(last.fis):'—'}</td>
     <td>${last?bar(last.tac):'—'}</td><td>${last?bar(last.men):'—'}</td>
     <td style="text-align:center;font-weight:800">${avg}</td>
@@ -3143,7 +3233,7 @@ function renderConvocatorias(){
           const inj=APP.injuries.find(i=>i.athleteId===at.id&&(i.status==='ativo'||i.status==='reabilitação'));
           return`<label style="display:flex;align-items:center;gap:7px;padding:6px 8px;background:var(--bg4);border-radius:var(--rs);cursor:pointer;font-size:12px">
             <input type="checkbox" value="${at.id}" ${inj?'disabled title="Lesionada"':''}>
-            <span>${at.num?'#'+at.num+' ':''}<strong>${at.name}</strong> ${inj?'🩺':''}</span>
+            ${_avHtml(at.name,at.photo,22)}<span>${at.num?'#'+at.num+' ':''}<strong>${at.name}</strong> ${inj?'🩺':''}</span>
           </label>`;}).join('')}
       </div>
     </div>
@@ -3264,7 +3354,7 @@ function renderTreinosInd(){
     const plans=APP.trainingPlans.filter(p=>p.athleteId===at.id).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||''));
     const active=plans.filter(p=>!p.done).length;
     const done=plans.filter(p=>p.done).length;
-    return`<tr><td><strong>${at.name}</strong></td><td>${at.pos||'—'}</td>
+    return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
     <td style="text-align:center"><span class="bdg bg-b">${active} ativa${active!==1?'s':''}</span></td>
     <td style="text-align:center"><span class="bdg bg-g">${done} concluída${done!==1?'s':''}</span></td>
     <td><button class="btn btn-xs btn-g" onclick="_tiAtId='${at.id}';_showTiForm=true;renderTreinosInd()">+ Ficha</button>
@@ -3324,7 +3414,7 @@ function renderFormacao(){
   </div>
   <div class="pgrid">${currentAt.length?currentAt.sort((a,b)=>(a.num||99)-(b.num||99)).map(at=>`
     <div class="at-card" onclick="openAthleteModal('${at.id}')">
-      <div class="at-av">${initials(at.name)}</div>
+      <div class="at-av">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:initials(at.name)}</div>
       <div class="at-name">${at.name}</div><div class="at-pos">${at.pos||'—'}</div>
       <div class="at-num">${at.num?'#'+at.num:''}</div>
     </div>`).join(''):'<div class="empty" style="grid-column:1/-1"><p>Sem atletas</p></div>'}
@@ -3486,7 +3576,7 @@ function renderNutriDash(){
     const plan=APP.nutritionPlans.find(p=>p.athleteId===at.id&&p.active);
     const bmi=last?.bmi?+last.bmi:null;
     const bmiClass=bmi?(bmi<18.5?'bg-y':bmi<25?'bg-g':bmi<30?'bg-y':'bg-r'):'bg-gr';
-    return`<tr><td><strong>${at.name}</strong></td><td>${at.pos||'—'}</td>
+    return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
     <td style="text-align:center">${last?last.weight+'kg':'—'}</td>
     <td style="text-align:center">${bmi?`<span class="bdg ${bmiClass}">${bmi}</span>`:'—'}</td>
     <td style="text-align:center">${last?last.bodyFat+'%':'—'}</td>
@@ -3865,7 +3955,7 @@ function printWellness(){
   const body=`
     <div class="pr-title">${title}</div>
     <table><thead><tr><th>Data</th>${d.mode==='diario'?'<th>Atleta</th>':''}<th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
-    <tbody>${d.recs.map(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td>${d.mode==='diario'?`<td>${at?at.name:'—'}</td>`:''}<td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')}</tbody></table>
+    <tbody>${d.recs.map(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td>${d.mode==='diario'?`<td>${at?'<div style="display:flex;align-items:center;gap:6px">'+_avHtml(at.name,at.photo,22)+'<span>'+escHtml(at.name)+'</span></div>':'—'}</td>`:''}<td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')}</tbody></table>
     <p style="font-size:8pt;color:#999">Total: ${d.recs.length} registos · Média score: ${d.recs.length?Math.round(d.recs.reduce((s,w)=>s+w.score,0)/d.recs.length):'—'}</p>
   `;
   _printWin(title,body);
@@ -3903,7 +3993,7 @@ function printPse(){
   const body=`
     <div class="pr-title">${title}</div>
     <table><thead><tr><th>Data</th>${d.mode==='diario'?'<th>Atleta</th>':''}<th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead>
-    <tbody>${d.recs.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return`<tr><td>${fmtDate(p.date)}</td>${d.mode==='diario'?`<td>${at?at.name:'—'}</td>`:''}<td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`;}).join('')}</tbody></table>
+    <tbody>${d.recs.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return`<tr><td>${fmtDate(p.date)}</td>${d.mode==='diario'?`<td>${at?'<div style="display:flex;align-items:center;gap:6px">'+_avHtml(at.name,at.photo,22)+'<span>'+escHtml(at.name)+'</span></div>':'—'}</td>`:''}<td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`;}).join('')}</tbody></table>
     <div class="kpi-row" style="margin-top:12px">
       <div class="kpi"><div class="kpi-v">${d.recs.length}</div><div class="kpi-l">Registos</div></div>
       <div class="kpi"><div class="kpi-v">${avgPse}</div><div class="kpi-l">PSE Médio</div></div>
@@ -3945,7 +4035,8 @@ async function addUserFromConfig(){
   if(APP.users.find(u=>u.email.toLowerCase()===email.toLowerCase()))return toast('Email já existe','err');
   const rawPwd=genPwd(8);
   const hash=await hashPwd(rawPwd);
-  const user={id:uid(),name,email,role,passwordHash:hash,isAdmin:false,active:true,createdAt:today()};
+  const uPhoto=document.getElementById('new-user-photo')?document.getElementById('new-user-photo').getAttribute('data-val')||'':'';
+  const user={id:uid(),name,email,role,photo:uPhoto,passwordHash:hash,isAdmin:false,active:true,createdAt:today()};
   APP.users.push(user);saveData();toast('Utilizador criado ✓');renderConfig();showUserCredsModal(user,rawPwd);
 }
 async function resetUserPwd(id){
@@ -4010,6 +4101,7 @@ function renderConfig(){
           const r=roles[u.role]||{label:u.role,cls:''};
           const isMe=sess&&sess.userId===u.id;
           return `<div class="user-row">
+          ${_avHtml(u.name,u.photo||'',36)}
           <div style="flex:1"><strong>${u.name}</strong><div style="font-size:10px;color:var(--t2)">${u.email}</div></div>
           <span class="user-role-badge ${r.cls}">${r.label}</span>
           ${u.isAdmin?'<span class="bdg bg-gr" style="font-size:9px">admin</span>':''}
@@ -4019,9 +4111,30 @@ function renderConfig(){
         }).join('');
       })()}
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--brd)">
+        <div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--brd)">
+          <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">📷 A Minha Foto</div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div id="my-photo-prev" style="width:52px;height:52px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;cursor:pointer;border:2px dashed var(--c1)" onclick="document.getElementById('my-photo-inp').click()">
+              ${(()=>{const s=getSession();return s&&s.photo?'<img src="'+s.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':'📷';})()}
+            </div>
+            <input type="file" id="my-photo-inp" accept="image/*" style="display:none" onchange="_handleMyPhoto(this)">
+            <div>
+              <div style="font-size:12px;font-weight:600">Clica na foto para alterar</div>
+              <div style="font-size:11px;color:var(--t2)">Aparece na sidebar e em toda a plataforma</div>
+            </div>
+          </div>
+        </div>
         <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">➕ Novo Utilizador</div>
         <div class="fr">
-          <div class="form-g"><label class="fl">Nome</label><input class="fc" id="new-user-name" placeholder="Nome completo"></div>
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div style="position:relative;cursor:pointer" onclick="document.getElementById('new-user-photo-inp').click()">
+              <div id="new-user-photo" data-val="" style="width:48px;height:48px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;overflow:hidden;border:2px dashed var(--c1)">📷</div>
+              <input type="file" id="new-user-photo-inp" accept="image/*" style="display:none" onchange="_handleStaffPhoto(this,'new-user-photo')">
+            </div>
+            <div style="flex:1;min-width:160px">
+              <div class="form-g"><label class="fl">Nome</label><input class="fc" id="new-user-name" placeholder="Nome completo"></div>
+            </div>
+          </div>
           <div class="form-g"><label class="fl">Email</label><input class="fc" type="email" id="new-user-email" placeholder="email@clube.pt"></div>
         </div>
         <div class="form-g"><label class="fl">Função</label>
