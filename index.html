@@ -594,6 +594,8 @@ function showAtletaApp(at){
   document.getElementById('screen-login').style.display='none';
   document.getElementById('atleta-app').classList.add('on');
   document.getElementById('at-name').textContent=at.name;
+  const _atAvEl=document.getElementById('at-topbar-av');
+  if(_atAvEl){if(at.photo){_atAvEl.innerHTML='<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';}else{_atAvEl.textContent=initials(at.name);}}
   const d=new Date();
   document.getElementById('at-date').textContent=d.toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'});
   atNav('home',document.querySelector('.at-ni'));
@@ -4275,9 +4277,15 @@ function renderAtHome(){
   const notifs=(!todayW?1:0)+(!todayP.length?1:0);
 
   document.getElementById('atp-home').innerHTML=`
-  <div style="margin-bottom:16px">
-    <div style="font-size:18px;font-weight:900;margin-bottom:2px">Olá, ${at.name.split(' ')[0]}! 👋</div>
-    <div style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;flex-shrink:0;overflow:hidden;border:3px solid var(--c1)">
+      ${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover" alt="${at.name}">`+'' :initials(at.name)}
+    </div>
+    <div>
+      <div style="font-size:18px;font-weight:900;margin-bottom:2px">Olá, ${at.name.split(' ')[0]}! 👋</div>
+      <div style="font-size:12px;color:var(--t2)">${at.pos||''}${at.num?' · #'+at.num:''}</div>
+      <div style="font-size:11px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+    </div>
   </div>
   ${notifs?`<div class="al al-y">📌 ${notifs} tarefa${notifs>1?'s':''} pendente${notifs>1?'s':''} hoje — ${!todayW?'Wellness ':''} ${!todayP.length?'PSE':''}</div>`:''}
   ${inj?`<div class="al al-r">🩺 Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
