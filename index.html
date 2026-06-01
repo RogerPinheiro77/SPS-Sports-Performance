@@ -5219,6 +5219,48 @@ function disconnectCloud(){
   updateCloudDot(false);
   toast('Cloud desligado');
 }
+function exportAppData(){
+  // Export all data as base64 string (strip photos to keep small)
+  const exp=JSON.parse(JSON.stringify(APP));
+  // Keep photos for athletes but strip exercise drawings
+  if(exp.trainings)exp.trainings=exp.trainings.map(t=>{
+    const c={...t};
+    if(c.exercises)Object.keys(c.exercises).forEach(k=>{
+      c.exercises[k]=(c.exercises[k]||[]).map(e=>{const e2={...e};delete e2.drawing;return e2;});
+    });
+    return c;
+  });
+  const json=JSON.stringify(exp);
+  const b64=btoa(unescape(encodeURIComponent(json)));
+  navigator.clipboard.writeText(b64).then(()=>toast('Dados copiados! Cola no outro dispositivo ✓')).catch(()=>{
+    // Fallback: show in modal
+    openMod('📦 Exportar Dados',`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Copia este código e importa no outro dispositivo:</div>
+    <textarea class="fc" style="font-size:9px;height:120px;word-break:break-all" readonly>${b64}</textarea>
+    <button class="btn btn-g" style="margin-top:8px" onclick="navigator.clipboard.writeText('${b64}');toast('Copiado ✓')">📋 Copiar</button>`,'lg');
+  });
+}
+function importAppData(){
+  openMod('📥 Importar Dados',`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">Cola aqui o código exportado do outro dispositivo:</div>
+  <textarea class="fc" id="import-data" style="height:120px;font-size:9px" placeholder="Cola o código aqui..."></textarea>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button class="btn btn-g" onclick="_doImport()">✅ Importar</button>
+    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+  </div>`,'lg');
+}
+function _doImport(){
+  const raw=document.getElementById('import-data')?.value?.trim();
+  if(!raw)return toast('Cola o código primeiro','err');
+  try{
+    const json=decodeURIComponent(escape(atob(raw)));
+    const data=JSON.parse(json);
+    if(!data.users||!Array.isArray(data.users))return toast('Código inválido','err');
+    Object.assign(APP,data);
+    saveData();
+    closeMod();
+    toast('Dados importados ✓ A recarregar...');
+    setTimeout(()=>location.reload(),1200);
+  }catch(e){toast('Erro ao importar: '+e.message,'err');}
+}
 async function pullCloud(){
   if(!_supa||!_cid)return;
   try{
