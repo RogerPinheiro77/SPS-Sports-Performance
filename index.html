@@ -5333,8 +5333,9 @@ async function pullCloud(){
       if(data&&data.length)setter(data);
     }
     // Pull app_meta (users, config, games, evaluations, etc.)
-    const {data:meta,error:metaErr}=await _supa.from('app_meta').select('data').eq('club_id',_cid).maybeSingle();
-    console.log('[pullCloud] club_id=',_cid,'meta rows=',meta?1:0,'error=',metaErr);
+    const {data:clubRow,error:metaErr}=await _supa.from('clubs').select('meta').eq('id',_cid).maybeSingle();
+    const meta=clubRow&&clubRow.meta?{data:clubRow.meta}:null;
+    console.log('[pullCloud] club_id=',_cid,'meta found=',!!(meta&&meta.data),'error=',metaErr);
     if(meta&&meta.data){
       const m=meta.data;
       if(m.users&&m.users.length)APP.users=m.users;
@@ -5382,7 +5383,7 @@ async function pushAppMeta(){
       microcycles:APP.microcycles||[],
       sessions:APP.sessions||[]
     };
-    await _supa.from('app_meta').upsert({club_id:_cid,data:meta,updated_at:new Date().toISOString()},{onConflict:'club_id'});
+    await _supa.from('clubs').update({meta:meta,updated_at:new Date().toISOString()}).eq('id',_cid);
   }catch(e){console.warn('pushAppMeta error',e);}
 }
 async function cloudUpsert(table,row){
