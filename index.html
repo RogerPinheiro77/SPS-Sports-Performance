@@ -3254,7 +3254,10 @@ function renderAvaliacoes(){
   document.getElementById('pg-avaliacoes').innerHTML=`
   <div class="sh" style="flex-wrap:wrap;gap:8px">
     <div style="font-size:15px;font-weight:800">⭐ Avaliações</div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${teamSel}</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      ${teamSel}
+      <button class="btn btn-sm btn-gh" onclick="pullCloud().then(()=>renderAvaliacoes())" title="Buscar dados mais recentes das atletas">🔄 Sincronizar</button>
+    </div>
   </div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${tabsHtml}</div>
   ${body}`;
@@ -3471,10 +3474,16 @@ function saveEvalResponse(){
   if(idx>=0)APP.evalResponses[idx]=resp;
   else APP.evalResponses.push(resp);
   saveData();
-  toast('Avaliação guardada ✓');
+  // Force push to cloud immediately after eval submission
+  if(_supa&&_cid){
+    pushAppMeta().then(()=>toast('Avaliação guardada e enviada para a cloud ✓')).catch(()=>toast('Avaliação guardada localmente ✓'));
+  } else {
+    toast('Avaliação guardada ✓');
+  }
   window._evalDraft=null;
+  const _wasAuto=resp.type==='auto';
   _evalType=null;
-  if(_evalType==='auto'||resp.type==='auto')renderAtAval();
+  if(_wasAuto)renderAtAval();
   else renderAvaliacoes();
 }
 
