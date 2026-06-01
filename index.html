@@ -383,6 +383,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-ni" onclick="atNav('nutri',this)"><span class="ic">🥗</span>Nutri</div>
     <div class="at-ni" onclick="atNav('fisio',this)"><span class="ic">🏥</span>Fisio</div>
     <div class="at-ni" onclick="atNav('treino',this)"><span class="ic">🏋️</span>Treino</div>
+    <div class="at-ni" onclick="atNav('aval',this)"><span class="ic">⭐</span>Aval.</div>
   </nav>
 </div>
 
@@ -4262,7 +4263,7 @@ function atNav(page,el){
   const pg=document.getElementById('atp-'+page);if(pg)pg.classList.add('on');
   document.querySelectorAll('.at-ni').forEach(n=>n.classList.remove('on'));
   if(el)el.classList.add('on');
-  const renders={home:renderAtHome,wellness:renderAtWellness,pse:renderAtPSE,agenda:renderAtAgenda,nutri:renderAtNutri,fisio:renderAtFisio,treino:renderAtTreino,convoc:renderAtConvoc};
+  const renders={home:renderAtHome,wellness:renderAtWellness,pse:renderAtPSE,agenda:renderAtAgenda,nutri:renderAtNutri,fisio:renderAtFisio,treino:renderAtTreino,convoc:renderAtConvoc,aval:renderAtAval};
   if(renders[page])renders[page]();
 }
 function renderAtHome(){
@@ -4274,7 +4275,8 @@ function renderAtHome(){
   const nextEvs=APP.schedule.filter(e=>e.date>td&&(e.teamId===at.teamId||!e.teamId)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
   const inj=APP.injuries.find(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação'));
   const convoc=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
-  const notifs=(!todayW?1:0)+(!todayP.length?1:0);
+  const openEvals=(APP.evalPeriods||[]).filter(p=>{const at2=APP.athletes.find(a=>a.id===AID);return(p.status==='open')&&(!p.teamId||p.teamId===at2?.teamId)&&!(APP.evalResponses||[]).find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto');});
+  const notifs=(!todayW?1:0)+(!todayP.length?1:0)+openEvals.length;
 
   document.getElementById('atp-home').innerHTML=`
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
@@ -4287,7 +4289,7 @@ function renderAtHome(){
       <div style="font-size:11px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
     </div>
   </div>
-  ${notifs?`<div class="al al-y">📌 ${notifs} tarefa${notifs>1?'s':''} pendente${notifs>1?'s':''} hoje — ${!todayW?'Wellness ':''} ${!todayP.length?'PSE':''}</div>`:''}
+  ${notifs?`<div class="al al-y">📌 ${notifs} tarefa${notifs>1?'s':''} pendente${notifs>1?'s':''} hoje — ${!todayW?'Wellness ':''} ${!todayP.length?'PSE ':''} ${openEvals.length?'⭐ Avaliação ':''}</div>`:''}
   ${inj?`<div class="al al-r">🩺 Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
   ${convoc?`<div class="al al-g">📋 Convocada! — ${fmtDate(convoc.date)} ${APP.games.find(g=>g.id===convoc.gameId)?'vs '+APP.games.find(g=>g.id===convoc.gameId).opp:''}</div>`:''}
   <div class="g2" style="margin-bottom:16px">
