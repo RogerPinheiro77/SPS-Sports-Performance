@@ -3558,15 +3558,17 @@ function exportEvalPDF(periodId,athleteId){
   const _atPh=at.photo?('<img src="'+at.photo+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #1D9E75" alt="">'):('<div style="width:72px;height:72px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:#1D9E75">'+initials(at.name)+'</div>');
   const _fbHtml=(()=>{
     if(!tec)return '';
+    const _fval=v=>v&&v.trim()?escHtml(v):'<span style="color:#aaa;font-style:italic">Não preenchido</span>';
     let h='<div style="background:#f8f9fa;border-radius:8px;padding:14px;margin-bottom:16px;page-break-inside:avoid"><div style="font-size:13px;font-weight:700;margin-bottom:10px;color:#333;border-bottom:1px solid #e0e0e0;padding-bottom:6px">Avaliação Técnica — Feedback</div>';
     if(_cl)h+='<div style="display:inline-block;background:'+_qC[_cl]+'22;color:'+_qC[_cl]+';border:1.5px solid '+_qC[_cl]+';border-radius:6px;padding:6px 14px;font-weight:700;font-size:13px;margin-bottom:12px">'+_qL[_cl]+'</div>';
+    else h+='<div style="display:inline-block;background:#f0f0f0;color:#999;border:1px solid #ddd;border-radius:6px;padding:6px 14px;font-size:12px;margin-bottom:12px;font-style:italic">Classificação não atribuída</div>';
     h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">';
-    if(tec.pontosFortes)h+='<div><div style="font-size:9px;font-weight:700;color:#1D9E75;text-transform:uppercase;margin-bottom:4px">Pontos Fortes</div><div style="font-size:11px;color:#444;line-height:1.6">'+escHtml(tec.pontosFortes)+'</div></div>';
-    if(tec.pontosFracos)h+='<div><div style="font-size:9px;font-weight:700;color:#c0392b;text-transform:uppercase;margin-bottom:4px">Pontos Fracos</div><div style="font-size:11px;color:#444;line-height:1.6">'+escHtml(tec.pontosFracos)+'</div></div>';
-    if(tec.areasAprimoramento)h+='<div><div style="font-size:9px;font-weight:700;color:#BA7517;text-transform:uppercase;margin-bottom:4px">Áreas de Aprimoramento</div><div style="font-size:11px;color:#444;line-height:1.6">'+escHtml(tec.areasAprimoramento)+'</div></div>';
-    if(tec.metasObjetivos)h+='<div><div style="font-size:9px;font-weight:700;color:#185FA5;text-transform:uppercase;margin-bottom:4px">Metas / Objetivos</div><div style="font-size:11px;color:#444;line-height:1.6">'+escHtml(tec.metasObjetivos)+'</div></div>';
+    h+='<div><div style="font-size:9px;font-weight:700;color:#1D9E75;text-transform:uppercase;margin-bottom:4px">Pontos Fortes</div><div style="font-size:11px;color:#444;line-height:1.6">'+_fval(tec.pontosFortes)+'</div></div>';
+    h+='<div><div style="font-size:9px;font-weight:700;color:#c0392b;text-transform:uppercase;margin-bottom:4px">Pontos Fracos</div><div style="font-size:11px;color:#444;line-height:1.6">'+_fval(tec.pontosFracos)+'</div></div>';
+    h+='<div><div style="font-size:9px;font-weight:700;color:#BA7517;text-transform:uppercase;margin-bottom:4px">Áreas de Aprimoramento</div><div style="font-size:11px;color:#444;line-height:1.6">'+_fval(tec.areasAprimoramento)+'</div></div>';
+    h+='<div><div style="font-size:9px;font-weight:700;color:#185FA5;text-transform:uppercase;margin-bottom:4px">Metas / Objetivos</div><div style="font-size:11px;color:#444;line-height:1.6">'+_fval(tec.metasObjetivos)+'</div></div>';
     h+='</div>';
-    if(tec.avaliacaoGeral)h+='<div style="border-top:1px solid #e0e0e0;padding-top:8px;font-size:11px;color:#444"><strong>Avaliação geral:</strong> '+escHtml(tec.avaliacaoGeral)+'</div>';
+    h+='<div style="border-top:1px solid #e0e0e0;padding-top:8px;font-size:11px;color:#444"><strong>Avaliação geral:</strong> '+_fval(tec.avaliacaoGeral)+'</div>';
     h+='</div>';
     return h;
   })();
