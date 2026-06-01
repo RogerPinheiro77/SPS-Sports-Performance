@@ -414,7 +414,7 @@ function defApp(){
     config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
-    exercises:defEx(),games:[],trainings:[],scouting:[],evaluations:[],
+    exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],
     users:[]
@@ -3179,45 +3179,459 @@ function editScout(id){_editScoutId=id;_showScoutForm=true;renderScouting();}
 function deleteScout(id){if(!confirm('Apagar?'))return;APP.scouting=APP.scouting.filter(s=>s.id!==id);saveData();toast('Apagado');renderScouting();}
 
 // ─── AVALIAÇÕES ───────────────────────────────────────────
-let _evalTeam='T1', _evalAtId=null, _showEvalForm=false;
-function renderAvaliacoes(){
-  const athletes=APP.athletes.filter(a=>a.teamId===_evalTeam);
-  const formHtml=_showEvalForm&&_evalAtId?`
-  <div class="ipanel" id="eval-form">
-    <div class="sh"><div class="sh-t">Nova Avaliação — ${APP.athletes.find(a=>a.id===_evalAtId)?.name||''}</div><button class="btn btn-sm btn-gh" onclick="_showEvalForm=false;renderAvaliacoes()">✕</button></div>
-    <label class="fl">Data</label><input class="fc" id="evf-date" type="date" value="${today()}" style="margin-bottom:10px">
-    <div class="eval-row"><span class="eval-label">Técnico</span><input type="range" class="eval-slider" id="evf-tec" min="1" max="10" value="5" oninput="document.getElementById('evv-tec').textContent=this.value"><span class="eval-val" id="evv-tec">5</span></div>
-    <div class="eval-row"><span class="eval-label">Físico</span><input type="range" class="eval-slider" id="evf-fis" min="1" max="10" value="5" oninput="document.getElementById('evv-fis').textContent=this.value"><span class="eval-val" id="evv-fis">5</span></div>
-    <div class="eval-row"><span class="eval-label">Tático</span><input type="range" class="eval-slider" id="evf-tac" min="1" max="10" value="5" oninput="document.getElementById('evv-tac').textContent=this.value"><span class="eval-val" id="evv-tac">5</span></div>
-    <div class="eval-row"><span class="eval-label">Mental</span><input type="range" class="eval-slider" id="evf-men" min="1" max="10" value="5" oninput="document.getElementById('evv-men').textContent=this.value"><span class="eval-val" id="evv-men">5</span></div>
-    <div class="form-g" style="margin-top:10px"><label class="fl">Notas</label><textarea class="fc" id="evf-notes" rows="3"></textarea></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveEval()">💾 Guardar</button><button class="btn btn-gh" onclick="_showEvalForm=false;renderAvaliacoes()">Cancelar</button></div>
-  </div>`:'';
+// Criteria from "Avaliação individual.xlsx"
+const _EC={
+  fisico:['Percepção/Orientação','Lateralidade','Técnica de corrida','Equilíbrio','Noção de ritmo','Vel. reação','Vel. Execução','Vel. Decisão','Vel. Deslocamento','Vel. Máxima','Vel. Resistente','Cap. Aceleração','Agilidade','Força Resistente','Força Máxima','Força explosiva','Força Reativa','Resistência','Flexibilidade'],
+  tecOfens:['Passe Curto','Passe Longo','Receção','Condução','Drible/Finta','"Atacar" a bola','Remate','Cabeceamento Ofens.','Cruzamento','Penalty','Cantos','Livres'],
+  tecDefens:['Desarme','Interceção','Antecipação','Carga','Carrinho','Cabeceamento Defens.','Barreira','Defesa nos cantos'],
+  tatOfens:['Progressão/Penetração','Cobertura Ofensiva','Mobilidade','Ocupação de espaço','Procura do espaço Vazio','Dar linhas de passe','Desmarcações','Desdobramentos Ofens.','Combinações diretas','Paredes/Tabelas','Temporização','Esquemas Tát. Ofens.'],
+  tatDefens:['Acertos de Marcação','Compensações','Dobras','Coberturas','Saltar na pressão','Temporização Defens.','Esquemas Tát. Defens.'],
+  mental:['Responsabilidade','Autonomia','Prazer pelo jogo/treino','Respeito','Concentração','Equilíbrio Emocional','Atitude Competitiva','Agressividade','Superação','Companheirismo','Rigor','Comunicação','Ambição','Determinação','Desinibição','Lidar com pressão','Auto-crítica','Tomada de decisão','Criatividade']
+};
+const _EC_LABELS={fisico:'Capacidades Físicas',tecOfens:'Técnico — Ofensivas',tecDefens:'Técnico — Defensivas',tatOfens:'Tático — Ofensivas',tatDefens:'Tático — Defensivas',mental:'Capacidades Mentais'};
+const _EC_COLORS={fisico:'#BA7517',tecOfens:'#1D9E75',tecDefens:'#0F6E56',tatOfens:'#185FA5',tatDefens:'#0C447C',mental:'#993556'};
+const _EC_BG={fisico:'#FAEEDA',tecOfens:'#E1F5EE',tecDefens:'#E1F5EE',tatOfens:'#E6F1FB',tatDefens:'#E6F1FB',mental:'#FBEAF0'};
 
-  const rows=athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(at=>{
-    const evals=APP.evaluations.filter(e=>e.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
-    const last=evals[0];
-    const avg=last?Math.round((last.tec+last.fis+last.tac+last.men)/4*10)/10:'—';
-    const bar=v=>`<div style="display:flex;align-items:center;gap:4px"><div class="prog-bar" style="width:60px"><div class="prog-fill" style="width:${(v/10)*100}%;background:var(--c1)"></div></div><span style="font-size:10px">${v}</span></div>`;
-    return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
-    <td>${last?bar(last.tec):'—'}</td><td>${last?bar(last.fis):'—'}</td>
-    <td>${last?bar(last.tac):'—'}</td><td>${last?bar(last.men):'—'}</td>
-    <td style="text-align:center;font-weight:800">${avg}</td>
-    <td style="font-size:10px;color:var(--t2)">${last?last.date:'—'}</td>
-    <td><button class="btn btn-xs btn-g" onclick="_evalAtId='${at.id}';_showEvalForm=true;renderAvaliacoes()">+ Aval.</button></td></tr>`;
-  }).join('');
+function _calcRatios(r){
+  if(!r)return{};
+  const avg=arr=>arr.length?Math.round(arr.reduce((s,v)=>s+(v||0),0)/arr.length*10)/10:0;
+  const vals=k=>(r[k]||[]).map(Number).filter(v=>v>0);
+  const fisVals=vals('fisico');
+  const velIdx=[5,6,7,8,9,10,11];
+  const velVals=(_EC.fisico.map((c,i)=>velIdx.includes(i)?r.fisico?.[i]||0:null)).filter(v=>v!==null).map(Number);
+  const fisNonVel=(_EC.fisico.map((c,i)=>!velIdx.includes(i)?r.fisico?.[i]||0:null)).filter(v=>v!==null).map(Number);
+  return{
+    ofensivo:avg([...vals('tecOfens'),...vals('tatOfens')]),
+    fisico:avg(fisNonVel),
+    velocidade:avg(velVals),
+    tecnico:avg([...vals('tecOfens'),...vals('tecDefens')]),
+    criatividade:avg([r.tecOfens?.[4]||0,r.mental?.[18]||0].filter(v=>v>0)),
+    mental:avg(vals('mental')),
+    defensivo:avg([...vals('tecDefens'),...vals('tatDefens')]),
+    aereo:avg([r.tecOfens?.[7]||0,r.tecDefens?.[5]||0].filter(v=>v>0))
+  };
+}
+
+function _emptyResponse(periodId,athleteId,type){
+  const obj={id:uid(),periodId,athleteId,type,date:today(),
+    fisico:Array(_EC.fisico.length).fill(0),
+    tecOfens:Array(_EC.tecOfens.length).fill(0),
+    tecDefens:Array(_EC.tecDefens.length).fill(0),
+    tatOfens:Array(_EC.tatOfens.length).fill(0),
+    tatDefens:Array(_EC.tatDefens.length).fill(0),
+    mental:Array(_EC.mental.length).fill(0),
+    notas:'',avaliacaoGeral:'',classificacao:'',pontosFortes:'',pontosFracos:'',areasAprimoramento:'',metasObjetivos:'',ratios:{}};
+  return obj;
+}
+
+let _evalTab='periodos',_evalPeriodId=null,_evalAtId2=null,_evalType=null,_evalTeam='T1';
+
+function renderAvaliacoes(){
+  if(!APP.evalPeriods)APP.evalPeriods=[];
+  if(!APP.evalResponses)APP.evalResponses=[];
+
+  if(_evalType&&_evalAtId2&&_evalPeriodId){_renderEvalForm();return;}
+
+  const tabs=[
+    {id:'periodos',label:'📅 Períodos'},
+    {id:'avaliar',label:'📝 Avaliar'},
+    {id:'comparar',label:'🔍 Comparação'}
+  ];
+  const tabsHtml=tabs.map(t=>`<button class="btn btn-sm" onclick="_evalTab='${t.id}';renderAvaliacoes()" style="border-color:${_evalTab===t.id?'var(--c1)':'var(--brd)'};background:${_evalTab===t.id?'var(--c1)':'transparent'};color:${_evalTab===t.id?'#fff':'var(--t1)'}">${t.label}</button>`).join('');
+  const teamSel=`<select class="fc" style="width:auto;font-size:11px" onchange="_evalTeam=this.value;renderAvaliacoes()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_evalTeam?'selected':''}>${t.name}</option>`).join('')}</select>`;
+
+  let body='';
+  if(_evalTab==='periodos') body=_renderEvalPeriodos();
+  else if(_evalTab==='avaliar') body=_renderEvalAvaliar();
+  else body=_renderEvalComparar();
 
   document.getElementById('pg-avaliacoes').innerHTML=`
-  <div class="sh"><div class="sh-t">⭐ Avaliações de Desempenho</div>
-    <select class="fc" style="width:auto;font-size:11px" onchange="_evalTeam=this.value;renderAvaliacoes()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_evalTeam?'selected':''}>${t.name}</option>`).join('')}</select>
+  <div class="sh" style="flex-wrap:wrap;gap:8px">
+    <div style="font-size:15px;font-weight:800">⭐ Avaliações</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${teamSel}</div>
   </div>
-  ${formHtml}
-  <div class="card"><div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Técnico</th><th>Físico</th><th>Tático</th><th>Mental</th><th>Média</th><th>Data</th><th>Ação</th></tr></thead>
-  <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>`;
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${tabsHtml}</div>
+  ${body}`;
 }
-function saveEval(){
-  const ev={id:uid(),athleteId:_evalAtId,date:document.getElementById('evf-date').value||today(),tec:+document.getElementById('evf-tec').value,fis:+document.getElementById('evf-fis').value,tac:+document.getElementById('evf-tac').value,men:+document.getElementById('evf-men').value,notes:document.getElementById('evf-notes').value};
-  APP.evaluations.push(ev);saveData();_showEvalForm=false;toast('Avaliação guardada ✓');renderAvaliacoes();
+
+function _renderEvalPeriodos(){
+  const periods=APP.evalPeriods.filter(p=>!p.teamId||p.teamId===_evalTeam).sort((a,b)=>b.openDate.localeCompare(a.openDate));
+  const listHtml=periods.length?periods.map(p=>{
+    const total=APP.athletes.filter(a=>a.teamId===_evalTeam).length;
+    const autoCount=APP.evalResponses.filter(r=>r.periodId===p.id&&r.type==='auto').length;
+    const tecCount=APP.evalResponses.filter(r=>r.periodId===p.id&&r.type==='tecnica').length;
+    const isOpen=p.status==='open';
+    return`<div class="card" style="padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="font-weight:700;font-size:14px">${escHtml(p.title)}</span>
+          <span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;background:${isOpen?'#E1F5EE':'var(--bg3)'};color:${isOpen?'#085041':'var(--t2)'}">${isOpen?'Aberto':'Fechado'}</span>
+        </div>
+        <div style="font-size:12px;color:var(--t2)">${fmtDate(p.openDate)} → ${fmtDate(p.closeDate)}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:4px">Auto: ${autoCount}/${total} · Técnica: ${tecCount}/${total}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-gh" onclick="togglePeriod('${p.id}')">${isOpen?'⏸ Fechar':'▶ Reabrir'}</button>
+        <button class="btn btn-sm btn-r" onclick="deletePeriod('${p.id}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join(''):`<div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">Nenhum período criado ainda.</div>`;
+
+  return`<div class="card" style="padding:14px 16px;margin-bottom:14px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">Novo período de avaliação</div>
+    <div class="fr">
+      <div class="form-g" style="flex:2"><label class="fl">Título *</label><input class="fc" id="ep-title" placeholder="Ex: Avaliação Jan 2026"></div>
+      <div class="form-g"><label class="fl">Data abertura *</label><input class="fc" type="date" id="ep-open" value="${today()}"></div>
+      <div class="form-g"><label class="fl">Data fecho *</label><input class="fc" type="date" id="ep-close"></div>
+    </div>
+    <button class="btn btn-g btn-sm" onclick="createEvalPeriod()">✚ Criar Período</button>
+  </div>
+  ${listHtml}`;
+}
+
+function _renderEvalAvaliar(){
+  if(!APP.evalPeriods.length)return`<div style="text-align:center;padding:40px;color:var(--t2);font-size:13px">Cria primeiro um período de avaliação no separador "Períodos".</div>`;
+  const periods=APP.evalPeriods.filter(p=>!p.teamId||p.teamId===_evalTeam).sort((a,b)=>b.openDate.localeCompare(a.openDate));
+  if(!_evalPeriodId||!periods.find(p=>p.id===_evalPeriodId))_evalPeriodId=periods[0]?.id;
+  const periodSel=`<select class="fc" style="width:auto" onchange="_evalPeriodId=this.value;renderAvaliacoes()">${periods.map(p=>`<option value="${p.id}" ${p.id===_evalPeriodId?'selected':''}>${escHtml(p.title)} (${p.status==='open'?'aberto':'fechado'})</option>`).join('')}</select>`;
+  const athletes=APP.athletes.filter(a=>a.teamId===_evalTeam).sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=athletes.map(at=>{
+    const auto=APP.evalResponses.find(r=>r.periodId===_evalPeriodId&&r.athleteId===at.id&&r.type==='auto');
+    const tec=APP.evalResponses.find(r=>r.periodId===_evalPeriodId&&r.athleteId===at.id&&r.type==='tecnica');
+    const autoStatus=auto?'<span style="color:#1D9E75;font-weight:700;font-size:11px">✓ Preenchida</span>':'<span style="color:var(--t2);font-size:11px">— Pendente</span>';
+    const tecStatus=tec?'<span style="color:#1D9E75;font-weight:700;font-size:11px">✓ Preenchida</span>':'<span style="color:var(--t2);font-size:11px">— Pendente</span>';
+    return`<tr>
+      <td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td>
+      <td>${at.pos||'—'}</td>
+      <td>${autoStatus}</td>
+      <td>${tecStatus}</td>
+      <td>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-xs btn-g" onclick="_evalAtId2='${at.id}';_evalType='tecnica';_evalPeriodId='${_evalPeriodId}';renderAvaliacoes()">📝 Avaliar</button>
+          ${auto&&tec?`<button class="btn btn-xs btn-gh" onclick="_evalTab='comparar';_evalAtId2='${at.id}';renderAvaliacoes()">🔍 Comparar</button>`:''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  return`<div style="margin-bottom:12px">${periodSel}</div>
+  <div class="card"><div class="cb"><div class="tw"><table>
+    <thead><tr><th>Atleta</th><th>Pos</th><th>Autoavaliação</th><th>Av. Técnica</th><th>Ação</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--t2)">Sem atletas</td></tr>'}</tbody>
+  </table></div></div></div>`;
+}
+
+function _renderEvalComparar(){
+  if(!APP.evalPeriods.length)return`<div style="text-align:center;padding:40px;color:var(--t2)">Sem períodos criados.</div>`;
+  const periods=APP.evalPeriods.filter(p=>!p.teamId||p.teamId===_evalTeam).sort((a,b)=>b.openDate.localeCompare(a.openDate));
+  if(!_evalPeriodId)_evalPeriodId=periods[0]?.id;
+  const athletes=APP.athletes.filter(a=>a.teamId===_evalTeam);
+  if(!_evalAtId2)_evalAtId2=athletes[0]?.id;
+  const periodSel=`<select class="fc" style="width:auto" onchange="_evalPeriodId=this.value;renderAvaliacoes()">${periods.map(p=>`<option value="${p.id}" ${p.id===_evalPeriodId?'selected':''}>${escHtml(p.title)}</option>`).join('')}</select>`;
+  const atSel=`<select class="fc" style="width:auto" onchange="_evalAtId2=this.value;renderAvaliacoes()">${athletes.map(a=>`<option value="${a.id}" ${a.id===_evalAtId2?'selected':''}>${escHtml(a.name)}</option>`).join('')}</select>`;
+  const auto=APP.evalResponses.find(r=>r.periodId===_evalPeriodId&&r.athleteId===_evalAtId2&&r.type==='auto');
+  const tec=APP.evalResponses.find(r=>r.periodId===_evalPeriodId&&r.athleteId===_evalAtId2&&r.type==='tecnica');
+  if(!auto&&!tec)return`<div style="display:flex;gap:8px;margin-bottom:12px">${periodSel}${atSel}</div><div style="text-align:center;padding:40px;color:var(--t2)">Ainda não há avaliações para esta atleta neste período.</div>`;
+  const at=APP.athletes.find(a=>a.id===_evalAtId2);
+  let compHtml='';
+  for(const [key,criteria] of Object.entries(_EC)){
+    const color=_EC_COLORS[key];const bg=_EC_BG[key];
+    compHtml+=`<div style="margin-bottom:16px">
+      <div style="background:${bg};color:${color};font-weight:700;font-size:12px;padding:5px 10px;border-radius:6px;margin-bottom:8px;border-left:3px solid ${color}">${_EC_LABELS[key]}</div>
+      ${criteria.map((c,i)=>{
+        const av=auto?Number(auto[key]?.[i]||0):null;
+        const tv=tec?Number(tec[key]?.[i]||0):null;
+        const diff=av!==null&&tv!==null&&av>0&&tv>0?tv-av:null;
+        const diffHtml=diff!==null?`<span style="font-size:11px;font-weight:700;color:${diff>0?'#1D9E75':diff<0?'#c0392b':'var(--t2)'}">${diff>0?'+'+diff:diff===0?'=':diff}</span>`:'';
+        const stars=v=>v>0?[1,2,3,4,5].map(s=>`<span style="color:${s<=v?'#FAC775':'var(--brd)'}">★</span>`).join(''):'<span style="color:var(--t2);font-size:10px">—</span>';
+        return`<div style="display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--brd);font-size:12px">
+          <span style="color:var(--t2)">${escHtml(c)}</span>
+          <span title="Autoavaliação" style="font-size:13px">${stars(av)}</span>
+          <span title="Técnica" style="font-size:13px">${stars(tv)}</span>
+          ${diffHtml}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+  const ratiosAuto=auto?_calcRatios(auto):{};
+  const ratiosTec=tec?_calcRatios(tec):{};
+  const ratioKeys=['ofensivo','fisico','velocidade','tecnico','criatividade','mental','defensivo','aereo'];
+  const ratioLabels={ofensivo:'Ofensivo',fisico:'Físico',velocidade:'Velocidade',tecnico:'Técnico',criatividade:'Criatividade',mental:'Mental',defensivo:'Defensivo',aereo:'Aéreo'};
+  const ratioHtml=ratioKeys.map(k=>`<div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+    <div style="font-size:10px;color:var(--t2);margin-bottom:2px">${ratioLabels[k]}</div>
+    ${auto&&ratiosAuto[k]>0?`<div style="font-size:11px;color:#1D9E75">A: <strong>${ratiosAuto[k].toFixed(1)}</strong></div>`:''}
+    ${tec&&ratiosTec[k]>0?`<div style="font-size:11px;color:#185FA5">T: <strong>${ratiosTec[k].toFixed(1)}</strong></div>`:''}
+  </div>`).join('');
+  return`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${periodSel}${atSel}
+    <button class="btn btn-sm" onclick="exportEvalPDF('${_evalPeriodId}','${_evalAtId2}')">📄 PDF</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;font-size:12px;align-items:center">
+    <span style="color:#FAC775">★</span> Autoavaliação &nbsp;|&nbsp; <span style="color:#FAC775">★</span> Avaliação Técnica &nbsp;|&nbsp; diferença (+/=/-) à direita
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px">${ratioHtml}</div>
+  ${compHtml}
+  <button class="btn btn-g" style="margin-top:8px" onclick="exportEvalPDF('${_evalPeriodId}','${_evalAtId2}')">📄 Exportar PDF completo</button>`;
+}
+
+function _renderEvalForm(){
+  if(!APP.evalPeriods)APP.evalPeriods=[];
+  if(!APP.evalResponses)APP.evalResponses=[];
+  const period=APP.evalPeriods.find(p=>p.id===_evalPeriodId);
+  const at=APP.athletes.find(a=>a.id===_evalAtId2);
+  if(!period||!at){_evalType=null;renderAvaliacoes();return;}
+  const isAuto=_evalType==='auto';
+  const existing=APP.evalResponses.find(r=>r.periodId===_evalPeriodId&&r.athleteId===_evalAtId2&&r.type===_evalType);
+  const resp=existing||_emptyResponse(_evalPeriodId,_evalAtId2,_evalType);
+
+  let formHtml='';
+  for(const [key,criteria] of Object.entries(_EC)){
+    const color=_EC_COLORS[key];const bg=_EC_BG[key];
+    formHtml+=`<div style="margin-bottom:16px">
+      <div style="background:${bg};color:${color};font-weight:700;font-size:12px;padding:5px 10px;border-radius:6px;margin-bottom:8px;border-left:3px solid ${color}">${_EC_LABELS[key]}</div>
+      ${criteria.map((c,i)=>{
+        const val=Number(resp[key]?.[i]||0);
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--brd)">
+          <span style="font-size:12px;flex:1">${escHtml(c)}</span>
+          <div style="display:flex;gap:2px">
+            ${[1,2,3,4,5].map(s=>`<span onclick="_setEvalStar('${key}',${i},${s})" id="es-${key}-${i}-${s}" style="cursor:pointer;font-size:18px;color:${s<=val?'#FAC775':'var(--brd)'}">★</span>`).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  const pg=isAuto?'atp-aval':'pg-avaliacoes';
+  document.getElementById(pg).innerHTML=`
+  <div class="sh" style="flex-wrap:wrap;gap:8px">
+    <button class="btn btn-gh btn-sm" onclick="_evalType=null;${isAuto?'renderAtAval()':'renderAvaliacoes()'}">← Voltar</button>
+    <div style="font-size:14px;font-weight:700">${isAuto?'Autoavaliação':'Avaliação Técnica'} — ${escHtml(at.name)}</div>
+    <button class="btn btn-g btn-sm" onclick="saveEvalResponse()">💾 Guardar</button>
+  </div>
+  <div style="font-size:12px;color:var(--t2);margin-bottom:14px">Período: ${escHtml(period.title)} · Avalia de 1 (⭐) a 5 (⭐⭐⭐⭐⭐)</div>
+  <div id="eval-form-body">${formHtml}</div>
+  ${!isAuto?(()=>{
+    const _qOpts=[{l:'A',txt:'A — Elevado potencial · Reter',c:'#1D9E75'},{l:'B',txt:'B — Com potencial · Reter',c:'#185FA5'},{l:'C',txt:'C — Algum potencial · Acompanhar',c:'#BA7517'},{l:'D',txt:'D — Não se enquadra · Dispensar',c:'#c0392b'}];
+    const _qHtml=_qOpts.map(o=>{const sel=resp.classificacao===o.l;return '<label style="display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;border:1.5px solid '+(sel?o.c:'var(--brd)')+';background:'+(sel?o.c+'22':'transparent')+';cursor:pointer;font-size:12px"><input type="radio" name="eval-classif" value="'+o.l+'" '+(sel?'checked':'')+' style="flex-shrink:0"><span style="font-weight:'+(sel?'700':'400')+';color:'+(sel?o.c:'var(--t1)')+'">'+o.txt+'</span></label>';}).join('');
+    return `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--brd)">
+      <div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:10px">📊 Classificação Qualitativa</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">${_qHtml}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:10px">💬 Feedback</div>
+      <div class="fr">
+        <div class="form-g"><label class="fl">Pontos Fortes</label><textarea class="fc" id="eval-fortes" rows="2" placeholder="Principais pontos fortes...">${escHtml(resp.pontosFortes||'')}</textarea></div>
+        <div class="form-g"><label class="fl">Pontos Fracos</label><textarea class="fc" id="eval-fracos" rows="2" placeholder="Aspectos a melhorar...">${escHtml(resp.pontosFracos||'')}</textarea></div>
+      </div>
+      <div class="fr">
+        <div class="form-g"><label class="fl">Áreas de Aprimoramento</label><textarea class="fc" id="eval-areas" rows="2" placeholder="Áreas de trabalho específico...">${escHtml(resp.areasAprimoramento||'')}</textarea></div>
+        <div class="form-g"><label class="fl">Metas / Objetivos</label><textarea class="fc" id="eval-metas" rows="2" placeholder="Objetivos para o próximo período...">${escHtml(resp.metasObjetivos||'')}</textarea></div>
+      </div>
+      <div class="form-g"><label class="fl">Avaliação Geral</label><textarea class="fc" id="eval-geral" rows="2" placeholder="Impressão geral do treinador...">${escHtml(resp.avaliacaoGeral||'')}</textarea></div>
+      <div class="form-g"><label class="fl">Notas internas</label><textarea class="fc" id="eval-notas" rows="2" placeholder="Notas apenas para a equipa técnica...">${escHtml(resp.notas||'')}</textarea></div>
+    </div>`;
+  })():''}
+  <input type="hidden" id="eval-resp-id" value="${resp.id}">
+  <button class="btn btn-g" style="margin-top:12px;width:100%" onclick="saveEvalResponse()">💾 Guardar Avaliação</button>`;
+
+  // Store draft in window for star clicks
+  window._evalDraft=JSON.parse(JSON.stringify(resp));
+}
+
+function _setEvalStar(key,idx,val){
+  if(!window._evalDraft)return;
+  if(!window._evalDraft[key])window._evalDraft[key]=Array(_EC[key].length).fill(0);
+  window._evalDraft[key][idx]=val;
+  // Update star display
+  for(let s=1;s<=5;s++){
+    const el=document.getElementById(`es-${key}-${idx}-${s}`);
+    if(el)el.style.color=s<=val?'#FAC775':'var(--brd)';
+  }
+}
+
+function saveEvalResponse(){
+  if(!window._evalDraft)return;
+  const resp=window._evalDraft;
+  resp.date=today();
+  resp.ratios=_calcRatios(resp);
+  const geral=document.getElementById('eval-geral');
+  const notas=document.getElementById('eval-notas');
+  if(geral)resp.avaliacaoGeral=geral.value;
+  if(notas)resp.notas=notas.value;
+  const classifEl=document.querySelector('input[name="eval-classif"]:checked');
+  if(classifEl)resp.classificacao=classifEl.value;
+  const _fbMap={fortes:'pontosFortes',fracos:'pontosFracos',areas:'areasAprimoramento',metas:'metasObjetivos'};
+  Object.entries(_fbMap).forEach(([k,v])=>{const el=document.getElementById('eval-'+k);if(el)resp[v]=el.value;});
+  if(!APP.evalResponses)APP.evalResponses=[];
+  const idx=APP.evalResponses.findIndex(r=>r.id===resp.id);
+  if(idx>=0)APP.evalResponses[idx]=resp;
+  else APP.evalResponses.push(resp);
+  saveData();
+  toast('Avaliação guardada ✓');
+  window._evalDraft=null;
+  _evalType=null;
+  if(_evalType==='auto'||resp.type==='auto')renderAtAval();
+  else renderAvaliacoes();
+}
+
+function createEvalPeriod(){
+  const title=document.getElementById('ep-title').value.trim();
+  const openDate=document.getElementById('ep-open').value;
+  const closeDate=document.getElementById('ep-close').value;
+  if(!title||!openDate||!closeDate)return toast('Preenche todos os campos','err');
+  if(closeDate<openDate)return toast('Data de fecho deve ser posterior à abertura','err');
+  if(!APP.evalPeriods)APP.evalPeriods=[];
+  APP.evalPeriods.push({id:uid(),title,openDate,closeDate,teamId:_evalTeam,status:'open',createdAt:today()});
+  saveData();toast('Período criado ✓');renderAvaliacoes();
+}
+
+function togglePeriod(id){
+  const p=APP.evalPeriods.find(p=>p.id===id);if(!p)return;
+  p.status=p.status==='open'?'closed':'open';
+  saveData();toast(p.status==='open'?'Período reaberto':'Período fechado');renderAvaliacoes();
+}
+
+function deletePeriod(id){
+  if(!confirm('Apagar período e todas as avaliações associadas?'))return;
+  APP.evalPeriods=APP.evalPeriods.filter(p=>p.id!==id);
+  APP.evalResponses=(APP.evalResponses||[]).filter(r=>r.periodId!==id);
+  saveData();toast('Período apagado');renderAvaliacoes();
+}
+
+function exportEvalPDF(periodId,athleteId){
+  const period=APP.evalPeriods.find(p=>p.id===periodId);
+  const at=APP.athletes.find(a=>a.id===athleteId);
+  if(!period||!at)return;
+  const auto=APP.evalResponses.find(r=>r.periodId===periodId&&r.athleteId===athleteId&&r.type==='auto');
+  const tec=APP.evalResponses.find(r=>r.periodId===periodId&&r.athleteId===athleteId&&r.type==='tecnica');
+  const ratiosAuto=auto?_calcRatios(auto):{};
+  const ratiosTec=tec?_calcRatios(tec):{};
+  const ratioKeys=['ofensivo','fisico','velocidade','tecnico','criatividade','mental','defensivo','aereo'];
+  const ratioLabels={ofensivo:'Ofensivo',fisico:'Físico',velocidade:'Velocidade',tecnico:'Técnico',criatividade:'Criatividade',mental:'Mental',defensivo:'Defensivo',aereo:'Aéreo'};
+  const stars=v=>v>0?'★'.repeat(v)+'☆'.repeat(5-v):'—';
+  let criteriaHtml='';
+  for(const [key,criteria] of Object.entries(_EC)){
+    const color=_EC_COLORS[key];const bg=_EC_BG[key];
+    criteriaHtml+=`<div style="margin-bottom:14px;page-break-inside:avoid">
+      <div style="background:${bg};color:${color};font-weight:700;font-size:12px;padding:5px 10px;border-radius:4px;margin-bottom:6px;border-left:3px solid ${color}">${_EC_LABELS[key]}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:#f5f5f5"><th style="text-align:left;padding:3px 6px">Critério</th><th style="text-align:center;padding:3px 6px">Autoav.</th><th style="text-align:center;padding:3px 6px">Técnica</th><th style="text-align:center;padding:3px 6px">Δ</th></tr></thead>
+        <tbody>${criteria.map((c,i)=>{
+          const av=auto?Number(auto[key]?.[i]||0):null;
+          const tv=tec?Number(tec[key]?.[i]||0):null;
+          const diff=av&&tv?tv-av:null;
+          return`<tr style="border-bottom:1px solid #eee"><td style="padding:3px 6px">${escHtml(c)}</td><td style="text-align:center;color:#c7a000">${av?stars(av):'—'}</td><td style="text-align:center;color:#c7a000">${tv?stars(tv):'—'}</td><td style="text-align:center;font-weight:700;color:${diff>0?'#1D9E75':diff<0?'#c0392b':'#666'}">${diff!==null?(diff>0?'+'+diff:diff===0?'=':diff):'—'}</td></tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+  }
+  const ratioRow=ratioKeys.map(k=>`<td style="text-align:center;padding:4px 6px"><div style="font-weight:700;color:#1D9E75">${auto&&ratiosAuto[k]>0?ratiosAuto[k].toFixed(1):'—'}</div><div style="color:#185FA5">${tec&&ratiosTec[k]>0?ratiosTec[k].toFixed(1):'—'}</div></td>`).join('');
+  const _qL={A:'A — Atleta com elevado potencial — Reter',B:'B — Atleta com potencial — Reter',C:'C — Atleta com algum potencial — Acompanhar',D:'D — Atleta não se enquadra — Dispensar'};
+  const _qC={A:'#1D9E75',B:'#185FA5',C:'#BA7517',D:'#c0392b'};
+  const _cl=tec&&tec.classificacao;
+  const _clubN=APP.config&&APP.config.clubName?APP.config.clubName:'Sport Performance';
+  const _atPh=at.photo?('<img src="'+at.photo+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #1D9E75" alt="">'):('<div style="width:72px;height:72px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:#1D9E75">'+initials(at.name)+'</div>');
+  const _fbHtml=(()=>{
+    if(!tec)return '';
+    let h='<div style="background:#f8f9fa;border-radius:8px;padding:14px;margin-bottom:16px;page-break-inside:avoid"><div style="font-size:13px;font-weight:700;margin-bottom:10px;color:#333;border-bottom:1px solid #e0e0e0;padding-bottom:6px">Avaliação Técnica — Feedback</div>';
+    if(_cl)h+='<div style="display:inline-block;background:'+_qC[_cl]+'22;color:'+_qC[_cl]+';border:1.5px solid '+_qC[_cl]+';border-radius:6px;padding:6px 14px;font-weight:700;font-size:13px;margin-bottom:12px">'+_qL[_cl]+'</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">';
+    if(tec.pontosFortes)h+='<div><div style="font-size:9px;font-weight:700;color:#1D9E75;text-transform:uppercase;margin-bottom:4px">Pontos Fortes</div><div style="font-size:11px;color:#444;line-height:1.6">'+escHtml(tec.pontosFortes)+'</div></div>';
+    if(tec.pontosFracos)h+='<div><div style="font-size:9px;font-weight:700;color:#c0392b;text-transform:uppercase;margin-bottom:4px">Pontos Fracos</div><div style="font-size:11px;color:#444;line-height:1.6">'+escHtml(tec.pontosFracos)+'</div></div>';
+    if(tec.areasAprimoramento)h+='<div><div style="font-size:9px;font-weight:700;color:#BA7517;text-transform:uppercase;margin-bottom:4px">Áreas de Aprimoramento</div><div style="font-size:11px;color:#444;line-height:1.6">'+escHtml(tec.areasAprimoramento)+'</div></div>';
+    if(tec.metasObjetivos)h+='<div><div style="font-size:9px;font-weight:700;color:#185FA5;text-transform:uppercase;margin-bottom:4px">Metas / Objetivos</div><div style="font-size:11px;color:#444;line-height:1.6">'+escHtml(tec.metasObjetivos)+'</div></div>';
+    h+='</div>';
+    if(tec.avaliacaoGeral)h+='<div style="border-top:1px solid #e0e0e0;padding-top:8px;font-size:11px;color:#444"><strong>Avaliação geral:</strong> '+escHtml(tec.avaliacaoGeral)+'</div>';
+    h+='</div>';
+    return h;
+  })();
+  const bodyHtml=`<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:740px;margin:0 auto;padding:24px">
+    <div style="border-bottom:2px solid #1D9E75;padding-bottom:12px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
+        ${_atPh}
+        <div style="flex:1">
+          <div style="font-size:20px;font-weight:800;color:#1D9E75">${escHtml(at.name)}</div>
+          <div style="font-size:13px;color:#555;margin-top:2px">${escHtml(at.pos||'—')}${at.num?' · #'+at.num:''}${at.dob?' · Nasc. '+fmtDate(at.dob):''}</div>
+          <div style="font-size:11px;color:#888;margin-top:2px">${escHtml(_clubN)}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#666">${escHtml(period.title)} · ${fmtDate(period.openDate)} a ${fmtDate(period.closeDate)} · Gerado em ${new Date().toLocaleDateString('pt-PT')}</div>
+    </div>
+    ${_fbHtml}
+    <div style="background:#f9f9f9;border-radius:6px;padding:10px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;margin-bottom:6px">Rácios — <span style="color:#1D9E75">Autoavaliação</span> / <span style="color:#185FA5">Técnica</span></div>
+      <table style="width:100%;text-align:center;font-size:11px"><thead><tr>${ratioKeys.map(k=>`<th style="padding:4px 6px;color:#666">${ratioLabels[k]}</th>`).join('')}</tr></thead><tbody><tr>${ratioRow}</tr></tbody></table>
+    </div>
+    ${criteriaHtml}
+    ${tec&&tec.avaliacaoGeral?`<div style="background:#f9f9f9;border-left:3px solid #1D9E75;padding:8px 12px;border-radius:0 6px 6px 0;margin-top:12px;font-size:11px"><strong>Avaliação geral (técnica):</strong> ${escHtml(tec.avaliacaoGeral)}</div>`:''}
+    <div style="margin-top:20px;border-top:1px solid #ddd;padding-top:8px;font-size:9px;color:#aaa;text-align:center">${escHtml(_clubN)} · Avaliação Individual · ${new Date().toLocaleDateString('pt-PT')}</div>
+  </div>`;
+  _printWin('Avaliação — '+at.name,bodyHtml);
+}
+
+// ─── ATLETA — AVALIAÇÃO ────────────────────────────────────
+function renderAtAval(){
+  if(!APP.evalPeriods)APP.evalPeriods=[];
+  if(!APP.evalResponses)APP.evalResponses=[];
+  const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
+
+  if(_evalType==='auto'&&_evalAtId2===AID&&_evalPeriodId){
+    _renderEvalForm();return;
+  }
+
+  const openPeriods=APP.evalPeriods.filter(p=>{
+    const forTeam=!p.teamId||p.teamId===at.teamId;
+    return forTeam&&p.status==='open';
+  });
+  const closedPeriods=APP.evalPeriods.filter(p=>{
+    const forTeam=!p.teamId||p.teamId===at.teamId;
+    return forTeam&&p.status==='closed';
+  }).sort((a,b)=>b.openDate.localeCompare(a.openDate)).slice(0,5);
+
+  let body='';
+  if(openPeriods.length){
+    body+=openPeriods.map(p=>{
+      const myResp=APP.evalResponses.find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto');
+      return`<div class="card" style="padding:14px 16px;margin-bottom:10px;border-left:3px solid #1D9E75">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${escHtml(p.title)}</div>
+        <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Até ${fmtDate(p.closeDate)}</div>
+        ${myResp
+          ?`<div style="color:#1D9E75;font-size:13px;font-weight:700;margin-bottom:8px">✓ Autoavaliação submetida em ${fmtDate(myResp.date)}</div>
+             <button class="btn btn-sm btn-gh" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()">✏️ Rever/Editar</button>`
+          :`<button class="btn btn-g" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()">✍️ Preencher Autoavaliação</button>`
+        }
+      </div>`;
+    }).join('');
+  } else {
+    body+=`<div class="card" style="padding:24px;text-align:center;color:var(--t2)">
+      <div style="font-size:32px;margin-bottom:8px">📋</div>
+      <div style="font-size:13px">Nenhuma avaliação em aberto de momento.</div>
+      <div style="font-size:11px;margin-top:4px">A equipa técnica irá notificar quando houver uma nova avaliação.</div>
+    </div>`;
+  }
+
+  if(closedPeriods.length){
+    body+=`<div style="font-size:12px;font-weight:700;color:var(--t2);margin:14px 0 8px">Avaliações anteriores</div>`;
+    body+=closedPeriods.map(p=>{
+      const myResp=APP.evalResponses.find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto');
+      const tecResp=APP.evalResponses.find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='tecnica');
+      const ratiosAuto=myResp?_calcRatios(myResp):{};
+      return`<div class="card" style="padding:12px 16px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">${escHtml(p.title)}</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:8px">${fmtDate(p.openDate)} a ${fmtDate(p.closeDate)}</div>
+        ${myResp
+          ?`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px">
+              ${['ofensivo','fisico','mental','defensivo'].map(k=>`<div style="background:var(--bg3);border-radius:6px;padding:6px;text-align:center">
+                <div style="font-size:16px;font-weight:700;color:var(--c1)">${ratiosAuto[k]>0?ratiosAuto[k].toFixed(1):'—'}</div>
+                <div style="font-size:10px;color:var(--t2)">${k.charAt(0).toUpperCase()+k.slice(1)}</div>
+              </div>`).join('')}
+            </div>`
+          :`<div style="font-size:11px;color:var(--t2)">Autoavaliação não submetida</div>`
+        }
+        ${myResp?`<button class="btn btn-xs btn-gh" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()">👁 Ver avaliação</button>`:''}
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('atp-aval').innerHTML=`
+  <div style="font-size:15px;font-weight:900;margin-bottom:14px">📋 Avaliação</div>
+  ${body}`;
 }
 
 // ─── CONVOCATÓRIAS ────────────────────────────────────────
