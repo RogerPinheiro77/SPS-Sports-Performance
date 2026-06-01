@@ -5333,7 +5333,8 @@ async function pullCloud(){
       if(data&&data.length)setter(data);
     }
     // Pull app_meta (users, config, games, evaluations, etc.)
-    const {data:meta}=await _supa.from('app_meta').select('data').eq('club_id',_cid).maybeSingle();
+    const {data:meta,error:metaErr}=await _supa.from('app_meta').select('data').eq('club_id',_cid).maybeSingle();
+    console.log('[pullCloud] club_id=',_cid,'meta rows=',meta?1:0,'error=',metaErr);
     if(meta&&meta.data){
       const m=meta.data;
       if(m.users&&m.users.length)APP.users=m.users;
@@ -5342,21 +5343,24 @@ async function pullCloud(){
       if(m.games&&m.games.length)APP.games=m.games;
       if(m.evaluations)APP.evaluations=m.evaluations;
       if(m.evalPeriods)APP.evalPeriods=m.evalPeriods;
-      if(m.evalResponses)APP.evalResponses=m.evalResponses;
+      if(m.evalResponses){APP.evalResponses=m.evalResponses;console.log('[pullCloud] evalResponses=',m.evalResponses.length);}
       if(m.trainings)APP.trainings=m.trainings;
       if(m.convocatorias)APP.convocatorias=m.convocatorias;
       if(m.scouting)APP.scouting=m.scouting;
       if(m.microcycles)APP.microcycles=m.microcycles;
       if(m.sessions)APP.sessions=m.sessions;
+      toast('Sincronizado ✓ — '+((m.evalResponses||[]).length)+' avaliações');
+    } else {
+      toast('Cloud: sem dados de meta (club_id='+_cid+')','err');
     }
     saveData();
     if(_curPg)navTo(_curPg);
-    toast('Dados sincronizados ✓');
   }catch(e){console.warn('pullCloud error',e);toast('Erro sync: '+e.message,'err');}
 }
 async function pushAppMeta(){
-  if(!_supa||!_cid)return;
+  if(!_supa||!_cid){console.log('[pushAppMeta] skipped: supa=',!!_supa,'cid=',_cid);return;}
   try{
+    console.log('[pushAppMeta] pushing for club_id=',_cid,'evalResponses=',((APP.evalResponses||[]).length));
     // Strip large base64 photos to keep payload small
     const stripPhotos=arr=>(arr||[]).map(o=>{const c={...o};delete c.photo;delete c.drawing;return c;});
     const meta={
