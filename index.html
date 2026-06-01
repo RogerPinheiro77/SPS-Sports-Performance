@@ -3306,8 +3306,9 @@ function _renderEvalAvaliar(){
       <td>${autoStatus}</td>
       <td>${tecStatus}</td>
       <td>
-        <div style="display:flex;gap:5px">
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
           <button class="btn btn-xs btn-g" onclick="_evalAtId2='${at.id}';_evalType='tecnica';_evalPeriodId='${_evalPeriodId}';renderAvaliacoes()">📝 Avaliar</button>
+          ${tec?`<button class="btn btn-xs btn-gh" onclick="exportEvalPDF('${_evalPeriodId}','${at.id}')">📄 PDF</button>`:''}
           ${auto&&tec?`<button class="btn btn-xs btn-gh" onclick="_evalTab='comparar';_evalAtId2='${at.id}';renderAvaliacoes()">🔍 Comparar</button>`:''}
         </div>
       </td>
@@ -3541,6 +3542,7 @@ function exportEvalPDF(periodId,athleteId){
     h+='</div>';
     return h;
   })();
+  const _radarImg=_evalRadarB64(ratiosAuto,ratiosTec);
   const bodyHtml=`<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:740px;margin:0 auto;padding:24px">
     <div style="border-bottom:2px solid #1D9E75;padding-bottom:12px;margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
@@ -3558,6 +3560,7 @@ function exportEvalPDF(periodId,athleteId){
       <div style="font-size:11px;font-weight:700;margin-bottom:6px">Rácios — <span style="color:#1D9E75">Autoavaliação</span> / <span style="color:#185FA5">Técnica</span></div>
       <table style="width:100%;text-align:center;font-size:11px"><thead><tr>${ratioKeys.map(k=>`<th style="padding:4px 6px;color:#666">${ratioLabels[k]}</th>`).join('')}</tr></thead><tbody><tr>${ratioRow}</tr></tbody></table>
     </div>
+    ${_radarImg?'<div style="margin:16px 0;text-align:center;page-break-inside:avoid"><div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-align:left">Radar de Desempenho</div><img src="'+_radarImg+'" style="max-width:380px;width:100%;display:block;margin:0 auto" alt="Radar"></div>':''}
     ${criteriaHtml}
     ${tec&&tec.avaliacaoGeral?`<div style="background:#f9f9f9;border-left:3px solid #1D9E75;padding:8px 12px;border-radius:0 6px 6px 0;margin-top:12px;font-size:11px"><strong>Avaliação geral (técnica):</strong> ${escHtml(tec.avaliacaoGeral)}</div>`:''}
     <div style="margin-top:20px;border-top:1px solid #ddd;padding-top:8px;font-size:9px;color:#aaa;text-align:center">${escHtml(_clubN)} · Avaliação Individual · ${new Date().toLocaleDateString('pt-PT')}</div>
