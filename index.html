@@ -484,7 +484,14 @@ function renderLoginScreen(){
           onkeydown="if(event.key==='Enter')createFirstAdmin()">
       </div>
       <div class="login-err" id="setup-err"></div>
-      <button class="btn-login" onclick="createFirstAdmin()">🚀 Criar Conta</button>`;
+      <button class="btn-login" onclick="createFirstAdmin()">🚀 Criar Conta</button>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);text-align:center">
+        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-bottom:10px">Já tens dados exportados?</div>
+        <label class="btn-login" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);cursor:pointer;display:block;text-align:center;padding:12px">
+          📥 Importar dados de outro dispositivo
+          <input type="file" accept=".json" style="display:none" onchange="importData(event)">
+        </label>
+      </div>`;
     setTimeout(()=>document.getElementById('setup-name')?.focus(),80);
     return;
   }
