@@ -5208,8 +5208,10 @@ async function connectCloud(){
     setSupaCfg({url,anonKey:key,clubId});
     updateCloudDot(true);
     const cidEl=document.getElementById('supa-cid');if(cidEl)cidEl.value=clubId;
-    toast('☁️ Cloud ligado! A sincronizar...');
+    toast('☁️ Cloud ligado! A enviar dados...');
+    await pushAppMeta();
     await pullCloud();
+    toast('☁️ Cloud ligado e sincronizado ✓');
   }catch(e){toast('Erro: '+e.message,'err');}
 }
 function disconnectCloud(){
