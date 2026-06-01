@@ -447,7 +447,7 @@ function loadData(){
   for(const k in def.config){if(APP.config[k]===undefined)APP.config[k]=def.config[k];}
   if(!APP.users)APP.users=[];
 }
-function saveData(){localStorage.setItem(DK,JSON.stringify(APP));}
+function saveData(){localStorage.setItem(DK,JSON.stringify(APP));if(_sync&&_supa&&_cid)pushAppMeta();}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const today=()=>new Date().toISOString().slice(0,10);
 
@@ -5235,15 +5235,61 @@ async function pullCloud(){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
       if(data&&data.length)setter(data);
     }
+    // Pull app_meta (users, config, games, evaluations, etc.)
+    const {data:meta}=await _supa.from('app_meta').select('data').eq('club_id',_cid).maybeSingle();
+    if(meta&&meta.data){
+      const m=meta.data;
+      if(m.users&&m.users.length)APP.users=m.users;
+      if(m.config)APP.config=Object.assign(APP.config||{},m.config);
+      if(m.teams&&m.teams.length)APP.teams=m.teams;
+      if(m.games&&m.games.length)APP.games=m.games;
+      if(m.evaluations)APP.evaluations=m.evaluations;
+      if(m.evalPeriods)APP.evalPeriods=m.evalPeriods;
+      if(m.evalResponses)APP.evalResponses=m.evalResponses;
+      if(m.trainings)APP.trainings=m.trainings;
+      if(m.convocatorias)APP.convocatorias=m.convocatorias;
+      if(m.scouting)APP.scouting=m.scouting;
+      if(m.microcycles)APP.microcycles=m.microcycles;
+      if(m.sessions)APP.sessions=m.sessions;
+    }
     saveData();
     if(_curPg)navTo(_curPg);
     toast('Dados sincronizados ✓');
-  }catch(e){toast('Erro sync: '+e.message,'err');}
+  }catch(e){console.warn('pullCloud error',e);toast('Erro sync: '+e.message,'err');}
+}
+async function pushAppMeta(){
+  if(!_supa||!_cid)return;
+  try{
+    // Strip large base64 photos to keep payload small
+    const stripPhotos=arr=>(arr||[]).map(o=>{const c={...o};delete c.photo;delete c.drawing;return c;});
+    const meta={
+      users:stripPhotos(APP.users||[]),
+      config:APP.config||{},
+      teams:APP.teams||[],
+      games:(APP.games||[]).map(g=>{const c={...g};return c;}),
+      evaluations:APP.evaluations||[],
+      evalPeriods:APP.evalPeriods||[],
+      evalResponses:APP.evalResponses||[],
+      trainings:(APP.trainings||[]).map(t=>{
+        const c={...t};
+        // Strip exercise drawings to save space
+        if(c.exercises)Object.keys(c.exercises).forEach(k=>{c.exercises[k]=(c.exercises[k]||[]).map(e=>{const e2={...e};delete e2.drawing;return e2;});});
+        return c;
+      }),
+      convocatorias:APP.convocatorias||[],
+      scouting:APP.scouting||[],
+      microcycles:APP.microcycles||[],
+      sessions:APP.sessions||[]
+    };
+    await _supa.from('app_meta').upsert({club_id:_cid,data:meta,updated_at:new Date().toISOString()},{onConflict:'club_id'});
+  }catch(e){console.warn('pushAppMeta error',e);}
 }
 async function cloudUpsert(table,row){
   if(!_supa||!_cid)return;
   try{await _supa.from(table).upsert({...row,club_id:_cid},{onConflict:'id'});}
   catch(e){console.warn('cloudUpsert error',e);}
+  // Also push app meta to keep users/config/etc in sync
+  pushAppMeta();
 }
 // ─── INIT ──────────────────────────────────────────
 loadData();
@@ -5261,12 +5307,30 @@ loadData();
   document.getElementById('screen-login').style.display='flex';
   renderLoginScreen();
 })();
+// Default Supabase credentials — auto-connect on any device
+const _DEFAULT_SUPA_URL='https://dgpltxembsnnypushsxh.supabase.co';
+const _DEFAULT_SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRncGx0eGVtYnNubnlwdXNoc3hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjQyNzIsImV4cCI6MjA5NDk0MDI3Mn0.TNguE_3nqHC7aLXGOVKoDHrzQ5rIxZsDU_ZL3JehuNk';
 const _sc=getSupaCfg();
-if(_sc.url&&_sc.anonKey){
+const _supaUrl=_sc.url||_DEFAULT_SUPA_URL;
+const _supaKey=_sc.anonKey||_DEFAULT_SUPA_KEY;
+if(_supaUrl&&_supaKey){
   try{
-    _supa=supabase.createClient(_sc.url,_sc.anonKey);
+    _supa=supabase.createClient(_supaUrl,_supaKey);
     _cid=_sc.clubId||null;
-    if(_cid){_sync=true;}
+    // If no clubId saved yet, try to find it from Supabase
+    if(!_cid){
+      _supa.from('clubs').select('id').limit(1).then(r=>{
+        if(r.data&&r.data.length){
+          _cid=r.data[0].id;_sync=true;
+          setSupaCfg({url:_supaUrl,anonKey:_supaKey,clubId:_cid});
+          updateCloudDot(true);
+          // Sync data from cloud to local on first connect
+          pullCloud().then(()=>renderLoginScreen()).catch(e=>console.warn('pullCloud err',e));
+        }
+      }).catch(e=>console.warn('club fetch error',e));
+    } else {
+      _sync=true;
+    }
     setTimeout(()=>updateCloudDot(_sync),200);
   }catch(e){console.warn('Supabase init error',e);}
 }
