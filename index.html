@@ -3308,7 +3308,7 @@ function _renderEvalAvaliar(){
       <td>
         <div style="display:flex;gap:5px;flex-wrap:wrap">
           <button class="btn btn-xs btn-g" onclick="_evalAtId2='${at.id}';_evalType='tecnica';_evalPeriodId='${_evalPeriodId}';renderAvaliacoes()">📝 Avaliar</button>
-          ${tec?`<button class="btn btn-xs btn-gh" onclick="exportEvalPDF('${_evalPeriodId}','${at.id}')">📄 PDF</button>`:''}
+          ${tec?`<button class="btn btn-xs btn-gh" onclick="exportEvalPDF('${_evalPeriodId}','${at.id}')">📄 Téc.</button><button class="btn btn-xs btn-g" onclick="exportEvalPDFAtleta('${_evalPeriodId}','${at.id}')">📋 Atleta</button>`:''}
           ${auto&&tec?`<button class="btn btn-xs btn-gh" onclick="_evalTab='comparar';_evalAtId2='${at.id}';renderAvaliacoes()">🔍 Comparar</button>`:''}
         </div>
       </td>
@@ -3363,14 +3363,15 @@ function _renderEvalComparar(){
     ${tec&&ratiosTec[k]>0?`<div style="font-size:11px;color:#185FA5">T: <strong>${ratiosTec[k].toFixed(1)}</strong></div>`:''}
   </div>`).join('');
   return`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${periodSel}${atSel}
-    <button class="btn btn-sm" onclick="exportEvalPDF('${_evalPeriodId}','${_evalAtId2}')">📄 PDF</button>
+    <button class="btn btn-sm btn-gh" onclick="exportEvalPDF('${_evalPeriodId}','${_evalAtId2}')">📄 PDF Técnico</button>
+    <button class="btn btn-sm btn-g" onclick="exportEvalPDFAtleta('${_evalPeriodId}','${_evalAtId2}')">📋 Relatório Atleta</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;font-size:12px;align-items:center">
     <span style="color:#FAC775">★</span> Autoavaliação &nbsp;|&nbsp; <span style="color:#FAC775">★</span> Avaliação Técnica &nbsp;|&nbsp; diferença (+/=/-) à direita
   </div>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px">${ratioHtml}</div>
   ${compHtml}
-  <button class="btn btn-g" style="margin-top:8px" onclick="exportEvalPDF('${_evalPeriodId}','${_evalAtId2}')">📄 Exportar PDF completo</button>`;
+  <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-gh" onclick="exportEvalPDF('${_evalPeriodId}','${_evalAtId2}')">📄 PDF Técnico</button><button class="btn btn-g" onclick="exportEvalPDFAtleta('${_evalPeriodId}','${_evalAtId2}')">📋 Relatório Atleta</button></div>`;
 }
 
 function _renderEvalForm(){
@@ -3493,6 +3494,182 @@ function deletePeriod(id){
   APP.evalPeriods=APP.evalPeriods.filter(p=>p.id!==id);
   APP.evalResponses=(APP.evalResponses||[]).filter(r=>r.periodId!==id);
   saveData();toast('Período apagado');renderAvaliacoes();
+}
+
+function _evalAutoAnalysis(auto,tec){
+  // Generates narrative analysis paragraphs from scores
+  // Uses tec if available, falls back to auto
+  const resp=tec||auto;
+  if(!resp)return'';
+  const keys=['fisico','tecOfens','tecDefens','tatOfens','tatDefens','mental'];
+
+  // Collect all criteria with their values
+  const allScores=[];
+  keys.forEach(k=>{
+    (_EC[k]||[]).forEach((c,i)=>{
+      const v=Number((resp[k]||[])[i]||0);
+      if(v>0)allScores.push({cat:k,label:c,val:v});
+    });
+  });
+  if(!allScores.length)return'';
+
+  // Sort: top 3 strengths, bottom 3 weaknesses
+  const sorted=[...allScores].sort((a,b)=>b.val-a.val);
+  const top3=sorted.slice(0,3);
+  const bot3=sorted.filter(s=>s.val>0).slice(-3).reverse();
+
+  const ratios=_calcRatios(resp);
+  const rKeys=['ofensivo','fisico','velocidade','tecnico','criatividade','mental','defensivo','aereo'];
+  const rLabels={ofensivo:'ofensivo',fisico:'físico',velocidade:'velocidade',tecnico:'técnico',criatividade:'criativo',mental:'mental',defensivo:'defensivo',aereo:'aéreo'};
+
+  // Classify overall level
+  const allVals=allScores.map(s=>s.val);
+  const globalAvg=allVals.reduce((a,b)=>a+b,0)/allVals.length;
+  const levelText=globalAvg>=4?'elevado nível de desempenho':globalAvg>=3?'bom nível de desempenho':globalAvg>=2?'nível de desempenho em desenvolvimento':'nível de desempenho a necessitar de atenção';
+
+  // Best and worst rácios
+  const rSorted=rKeys.filter(k=>ratios[k]>0).sort((a,b)=>ratios[b]-ratios[a]);
+  const bestR=rSorted.slice(0,2);
+  const worstR=rSorted.slice(-2);
+
+  // Dimension-specific phrases
+  const dimPhrases={
+    ofensivo:v=>v>=4?'forte componente ofensiva':v>=3?'componente ofensiva satisfatória':'componente ofensiva a desenvolver',
+    fisico:v=>v>=4?'excelente capacidade física':v>=3?'boa condição física':'capacidade física a melhorar',
+    velocidade:v=>v>=4?'velocidade acima da média':v>=3?'velocidade adequada':'velocidade como área a trabalhar prioritariamente',
+    tecnico:v=>v>=4?'sólida base técnica':v>=3?'boa base técnica':'aspetos técnicos a consolidar',
+    criatividade:v=>v>=4?'elevada criatividade e imprevisibilidade':v>=3?'boa criatividade':'criatividade a estimular',
+    mental:v=>v>=4?'excelente perfil mental e competitivo':v>=3?'bom perfil mental':'componente mental como área de foco',
+    defensivo:v=>v>=4?'forte componente defensiva':v>=3?'boa organização defensiva':'organização defensiva a aprimorar',
+    aereo:v=>v>=4?'excelente jogo aéreo':v>=3?'bom jogo aéreo':'jogo aéreo como área de melhoria'
+  };
+
+  // Paragraph 1: Overall summary
+  const p1='A atleta apresenta um '+levelText+', com média geral de '+globalAvg.toFixed(1)+'/5. '
+    +(bestR.length>=2?'As suas maiores valências são a dimensão '+rLabels[bestR[0]]+' ('+ratios[bestR[0]].toFixed(1)+') e '+rLabels[bestR[1]]+' ('+ratios[bestR[1]].toFixed(1)+').':'');
+
+  // Paragraph 2: Top strengths
+  const p2='Os pontos de maior destaque são '
+    +top3.map((s,i)=>(i===top3.length-1&&i>0?'e ':'')+('"'+s.label+'" ('+s.val+'/5)').toLowerCase()).join(', ')
+    +'. '+(bestR.length?'Destaca-se especialmente a '+dimPhrases[bestR[0]](ratios[bestR[0]])+'.':'');
+
+  // Paragraph 3: Areas to develop
+  const p3='As principais áreas de aprimoramento identificadas incluem '
+    +bot3.map((s,i)=>(i===bot3.length-1&&i>0?'e ':'')+('"'+s.label+'" ('+s.val+'/5)').toLowerCase()).join(', ')
+    +'.'+(worstR.length?' Recomenda-se especial foco na dimensão '+rLabels[worstR[0]]
+    +' ('+ratios[worstR[0]].toFixed(1)+')'+
+    (worstR[1]&&worstR[1]!==worstR[0]?' e '+rLabels[worstR[1]]+' ('+ratios[worstR[1]].toFixed(1)+')':'')
+    +' no próximo ciclo de treino.':'');
+
+  // Compare auto vs tec if both exist
+  const p4=auto&&tec?
+    (()=>{
+      const ratA=_calcRatios(auto);const ratT=_calcRatios(tec);
+      const diffs=rKeys.filter(k=>ratA[k]>0&&ratT[k]>0).map(k=>({k,d:ratT[k]-ratA[k]}));
+      const overest=diffs.filter(d=>d.d<-0.5).sort((a,b)=>a.d-b.d);
+      const underest=diffs.filter(d=>d.d>0.5).sort((a,b)=>b.d-a.d);
+      if(!overest.length&&!underest.length)return'A autoavaliação da atleta está bem alinhada com a avaliação técnica, o que demonstra boa capacidade de autocrítica.';
+      let txt='';
+      if(underest.length)txt+='A avaliação técnica reconhece maior potencial do que a atleta perceciona em si própria, especialmente em '+underest.map(d=>rLabels[d.k]).join(' e ')+'. ';
+      if(overest.length)txt+='A atleta tende a sobrevalorizar a sua performance em '+overest.map(d=>rLabels[d.k]).join(' e ')+', o que é uma oportunidade de reflexão e crescimento.';
+      return txt;
+    })()
+  :'';
+
+  return [p1,p2,p3,p4].filter(Boolean).join('\n\n');
+}
+
+function exportEvalPDFAtleta(periodId,athleteId){
+  const period=(APP.evalPeriods||[]).find(p=>p.id===periodId);
+  const at=APP.athletes.find(a=>a.id===athleteId);
+  if(!period||!at)return toast('Dados insuficientes para gerar PDF','err');
+  const auto=(APP.evalResponses||[]).find(r=>r.periodId===periodId&&r.athleteId===athleteId&&r.type==='auto');
+  const tec=(APP.evalResponses||[]).find(r=>r.periodId===periodId&&r.athleteId===athleteId&&r.type==='tecnica');
+  if(!auto&&!tec)return toast('Ainda não há avaliações para esta atleta neste período','err');
+
+  const ratiosAuto=auto?_calcRatios(auto):{};
+  const ratiosTec=tec?_calcRatios(tec):{};
+  const _radarImg=_evalRadarB64(ratiosAuto,ratiosTec);
+
+  const ratioKeys=['ofensivo','fisico','velocidade','tecnico','criatividade','mental','defensivo','aereo'];
+  const ratioLabels={ofensivo:'Ofensivo',fisico:'Físico',velocidade:'Velocidade',tecnico:'Técnico',criatividade:'Criatividade',mental:'Mental',defensivo:'Defensivo',aereo:'Aéreo'};
+  const ratioColors={ofensivo:'#1D9E75',fisico:'#BA7517',velocidade:'#185FA5',tecnico:'#0F6E56',criatividade:'#993556',mental:'#534AB7',defensivo:'#993C1D',aereo:'#0C447C'};
+
+  const clubN=APP.config&&APP.config.clubName?APP.config.clubName:'Sport Performance';
+  const atPh=at.photo?('<img src="'+at.photo+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #1D9E75" alt="">'):('<div style="width:80px;height:80px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#1D9E75">'+initials(at.name)+'</div>');
+
+  // Rácios cards
+  const ratioHtml=ratioKeys.map(k=>{
+    const vA=ratiosAuto[k];const vT=ratiosTec[k];
+    const hasA=vA&&vA>0;const hasT=vT&&vT>0;
+    if(!hasA&&!hasT)return'';
+    const pct=Math.round((hasT?vT:vA)/5*100);
+    const color=ratioColors[k]||'#1D9E75';
+    return'<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:10px 12px;text-align:center">'
+      +'<div style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;margin-bottom:6px">'+ratioLabels[k]+'</div>'
+      +(hasA?'<div style="font-size:11px;color:#1D9E75;margin-bottom:2px">Auto: <strong>'+vA.toFixed(1)+'</strong>/5</div>':'')
+      +(hasT?'<div style="font-size:11px;color:#185FA5;margin-bottom:4px">Técnica: <strong>'+vT.toFixed(1)+'</strong>/5</div>':'')
+      +'<div style="height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:3px"></div></div>'
+      +'</div>';
+  }).join('');
+
+  // Auto-analysis
+  const analysis=_evalAutoAnalysis(auto,tec);
+  const analysisHtml=analysis?
+    '<div style="background:#f0f7f4;border-left:4px solid #1D9E75;border-radius:0 8px 8px 0;padding:14px;margin-bottom:16px">'
+    +'<div style="font-size:12px;font-weight:700;color:#1D9E75;margin-bottom:10px">📊 Análise de Desempenho</div>'
+    +'<div style="font-size:11px;color:#333;line-height:1.8;white-space:pre-line">'+escHtml(analysis)+'</div>'
+    +'</div>':''  ;
+
+  // Staff feedback (only if filled)
+  const _fval=v=>v&&v.trim()?escHtml(v):null;
+  let feedbackHtml='';
+  if(tec){
+    const fb=[
+      {label:'Pontos Fortes',val:_fval(tec.pontosFortes),color:'#1D9E75'},
+      {label:'Pontos Fracos',val:_fval(tec.pontosFracos),color:'#c0392b'},
+      {label:'Áreas de Aprimoramento',val:_fval(tec.areasAprimoramento),color:'#BA7517'},
+      {label:'Metas / Objetivos',val:_fval(tec.metasObjetivos),color:'#185FA5'}
+    ].filter(f=>f.val);
+    if(fb.length||tec.avaliacaoGeral){
+      feedbackHtml='<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:14px;margin-bottom:16px">'
+        +'<div style="font-size:12px;font-weight:700;color:#333;margin-bottom:12px;border-bottom:1px solid #eee;padding-bottom:6px">💬 Nota do Treinador</div>'
+        +(fb.length?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:'+(tec.avaliacaoGeral?'10px':'0')+'">'+fb.map(f=>'<div><div style="font-size:9px;font-weight:700;color:'+f.color+';text-transform:uppercase;margin-bottom:4px">'+f.label+'</div><div style="font-size:11px;color:#444;line-height:1.6">'+f.val+'</div></div>').join('')+'</div>':'')
+        +(tec.avaliacaoGeral?'<div style="border-top:1px solid #eee;padding-top:8px;font-size:11px;color:#444"><strong>Avaliação geral:</strong> '+escHtml(tec.avaliacaoGeral)+'</div>':'')
+        +'</div>';
+    }
+  }
+
+  const bodyHtml='<div style="font-family:\'Segoe UI\',Arial,sans-serif;max-width:680px;margin:0 auto;padding:20px">'
+    // Header
+    +'<div style="display:flex;align-items:center;gap:18px;border-bottom:3px solid #1D9E75;padding-bottom:14px;margin-bottom:18px">'
+    +atPh
+    +'<div style="flex:1">'
+    +'<div style="font-size:22px;font-weight:800;color:#1D9E75">'+escHtml(at.name)+'</div>'
+    +'<div style="font-size:13px;color:#555;margin-top:3px">'+escHtml(at.pos||'—')+(at.num?' &nbsp;·&nbsp; #'+at.num:'')+(at.dob?' &nbsp;·&nbsp; Nasc. '+fmtDate(at.dob):'')+'</div>'
+    +'<div style="font-size:11px;color:#888;margin-top:2px">'+escHtml(clubN)+' &nbsp;·&nbsp; '+escHtml(period.title)+'</div>'
+    +'</div>'
+    +'<div style="text-align:right;font-size:10px;color:#aaa">Relatório Pessoal<br>'+new Date().toLocaleDateString('pt-PT')+'</div>'
+    +'</div>'
+    // Radar
+    +(_radarImg?'<div style="text-align:center;margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px;text-align:left">Perfil de Desempenho</div>'
+    +'<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#666;margin-bottom:8px">'
+    +'<span style="display:inline-block;width:12px;height:3px;background:#1D9E75;border-radius:2px"></span>Autoavaliação &nbsp;&nbsp;'
+    +'<span style="display:inline-block;width:12px;height:3px;background:#185FA5;border-radius:2px"></span>Avaliação Técnica</div>'
+    +'<img src="'+_radarImg+'" style="max-width:400px;width:100%;display:block;margin:0 auto" alt="Radar"></div>':'')
+    // Rácios
+    +'<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">Rácios de Desempenho</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'+ratioHtml+'</div></div>'
+    // Analysis
+    +analysisHtml
+    // Staff feedback
+    +feedbackHtml
+    // Footer
+    +'<div style="margin-top:20px;border-top:1px solid #e0e0e0;padding-top:8px;font-size:9px;color:#aaa;text-align:center">'
+    +escHtml(clubN)+' &nbsp;·&nbsp; Relatório Pessoal &nbsp;·&nbsp; '+new Date().toLocaleDateString('pt-PT')
+    +'</div></div>';
+
+  _printWin('Relatório — '+at.name, bodyHtml);
 }
 
 function _evalRadarB64(rA,rT){
