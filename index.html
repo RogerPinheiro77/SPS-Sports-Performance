@@ -486,11 +486,8 @@ function renderLoginScreen(){
       <div class="login-err" id="setup-err"></div>
       <button class="btn-login" onclick="createFirstAdmin()">🚀 Criar Conta</button>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);text-align:center">
-        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-bottom:10px">Já tens dados exportados?</div>
-        <label class="btn-login" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);cursor:pointer;display:block;text-align:center;padding:12px">
-          📥 Importar dados de outro dispositivo
-          <input type="file" accept=".json" style="display:none" onchange="importData(event)">
-        </label>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-bottom:10px">Já tens dados exportados de outro dispositivo?</div>
+        <button class="btn-login" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2)" onclick="showPasteImport()">📥 Importar por código</button>
       </div>`;
     setTimeout(()=>document.getElementById('setup-name')?.focus(),80);
     return;
@@ -4884,7 +4881,16 @@ function addTeamQuick(){
   saveData();toast('Equipa adicionada');renderConfig();
 }
 function deleteTeam(id){if(!confirm('Apagar equipa?'))return;APP.teams=APP.teams.filter(t=>t.id!==id);APP.athletes.forEach(a=>{if(a.teamId===id)a.teamId='T1';});saveData();toast('Equipa apagada');renderConfig();}
-function exportData(){const blob=new Blob([JSON.stringify(APP,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sps_backup_'+today()+'.json';a.click();}
+function exportData(){
+  // Download JSON file
+  const blob=new Blob([JSON.stringify(APP,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sps_backup_'+today()+'.json';a.click();
+  // Also copy base64 code to clipboard for mobile paste import
+  try{
+    const b64=btoa(unescape(encodeURIComponent(JSON.stringify(APP))));
+    navigator.clipboard.writeText(b64).then(()=>toast('✓ Ficheiro guardado + código copiado para a área de transferência!')).catch(()=>toast('✓ Ficheiro guardado'));
+  }catch(e){toast('✓ Ficheiro guardado');}
+}
 function importData(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{try{APP=JSON.parse(ev.target.result);saveData();toast('Dados importados ✓');navTo(_curPg);}catch{toast('Erro no ficheiro','err');}};reader.readAsText(file);}
 
 // ─── ATLETA APP ───────────────────────────────────────────
@@ -5245,6 +5251,36 @@ function exportAppData(){
     <textarea class="fc" style="font-size:9px;height:120px;word-break:break-all" readonly>${b64}</textarea>
     <button class="btn btn-g" style="margin-top:8px" onclick="navigator.clipboard.writeText('${b64}');toast('Copiado ✓')">📋 Copiar</button>`,'lg');
   });
+}
+function showPasteImport(){
+  const el=document.getElementById('login-main');
+  if(!el)return;
+  el.innerHTML=`
+    <div style="font-size:13px;font-weight:800;color:var(--c1l);margin-bottom:8px;text-align:center">📥 Importar Dados</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.6);margin-bottom:12px;text-align:center">Cola aqui o código copiado do outro dispositivo</div>
+    <textarea id="paste-import-data" style="width:100%;height:120px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:10px;color:#fff;padding:10px;font-size:11px;resize:none" placeholder="Cola o código aqui..."></textarea>
+    <div class="login-err" id="paste-err"></div>
+    <button class="btn-login" style="margin-top:10px" onclick="_doPasteImport()">✅ Importar</button>
+    <button class="btn-login" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);margin-top:8px" onclick="renderLoginScreen()">← Voltar</button>`;
+  setTimeout(()=>document.getElementById('paste-import-data')?.focus(),100);
+}
+function _doPasteImport(){
+  const raw=(document.getElementById('paste-import-data')?.value||'').trim();
+  const err=document.getElementById('paste-err');
+  if(!raw){if(err)err.textContent='Cola o código primeiro';return;}
+  try{
+    // Try base64 first, then plain JSON
+    let data;
+    try{data=JSON.parse(decodeURIComponent(escape(atob(raw))));}
+    catch{data=JSON.parse(raw);}
+    if(!data||typeof data!=='object'){throw new Error('Formato inválido');}
+    // Accept even if no users (might be older export)
+    Object.assign(APP,data);
+    saveData();
+    if(err)err.textContent='';
+    toast('✓ Dados importados! A recarregar...');
+    setTimeout(()=>location.reload(),1200);
+  }catch(e){if(err)err.textContent='Erro: '+e.message;}
 }
 function importAppData(){
   openMod('📥 Importar Dados',`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">Cola aqui o código exportado do outro dispositivo:</div>
