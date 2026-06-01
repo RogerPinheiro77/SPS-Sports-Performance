@@ -260,8 +260,9 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 .at-topbar .atd{font-size:10px;color:var(--t2)}
 .at-content{padding:13px}
 .at-page{display:none}.at-page.on{display:block}
-.at-bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:500px;background:var(--bg1);border-top:1px solid var(--brd);display:flex;z-index:100}
-.at-ni{flex:1;padding:8px 3px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;color:var(--t3);cursor:pointer;transition:color .15s}
+.at-bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:500px;background:var(--bg1);border-top:1px solid var(--brd);display:flex;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;z-index:100}
+.at-bnav::-webkit-scrollbar{display:none}
+.at-ni{flex:0 0 auto;min-width:56px;padding:8px 6px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;color:var(--t3);cursor:pointer;transition:color .15s}
 .at-ni.on{color:var(--c1l)}
 .at-ni .ic{font-size:16px}
 
