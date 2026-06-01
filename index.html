@@ -3379,6 +3379,7 @@ function _renderEvalComparar(){
     <span style="color:#FAC775">★</span> Autoavaliação &nbsp;|&nbsp; <span style="color:#FAC775">★</span> Avaliação Técnica &nbsp;|&nbsp; diferença (+/=/-) à direita
   </div>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px">${ratioHtml}</div>
+  ${_generateNarrativeAnalysis(auto,tec)}
   ${compHtml}
   <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-gh" onclick="exportEvalPDF('${_evalPeriodId}','${_evalAtId2}')">📄 PDF Técnico</button><button class="btn btn-g" onclick="exportEvalPDFAtleta('${_evalPeriodId}','${_evalAtId2}')">📋 Relatório Atleta</button></div>`;
 }
@@ -3511,88 +3512,91 @@ function deletePeriod(id){
   saveData();toast('Período apagado');renderAvaliacoes();
 }
 
-function _evalAutoAnalysis(auto,tec){
-  // Generates narrative analysis paragraphs from scores
-  // Uses tec if available, falls back to auto
-  const resp=tec||auto;
-  if(!resp)return'';
-  const keys=['fisico','tecOfens','tecDefens','tatOfens','tatDefens','mental'];
-
-  // Collect all criteria with their values
-  const allScores=[];
-  keys.forEach(k=>{
-    (_EC[k]||[]).forEach((c,i)=>{
-      const v=Number((resp[k]||[])[i]||0);
-      if(v>0)allScores.push({cat:k,label:c,val:v});
+function _generateNarrativeAnalysis(auto, tec){
+  if(!auto&&!tec)return'';
+  const allKeys=['fisico','tecOfens','tecDefens','tatOfens','tatDefens','mental'];
+  const dimLabels={fisico:'Capacidades Físicas',tecOfens:'Técnico Ofensivo',tecDefens:'Técnico Defensivo',tatOfens:'Tático Ofensivo',tatDefens:'Tático Defensivo',mental:'Capacidades Mentais'};
+  const criteria=[];
+  allKeys.forEach(k=>{
+    (_EC[k]||[]).forEach((name,i)=>{
+      const av=auto?Number((auto[k]||[])[i]||0):0;
+      const tv=tec?Number((tec[k]||[])[i]||0):0;
+      if(av>0||tv>0)criteria.push({name,key:k,dim:dimLabels[k],av,tv,diff:tv-av});
     });
   });
-  if(!allScores.length)return'';
+  if(!criteria.length)return'';
+  let html='';
 
-  // Sort: top 3 strengths, bottom 3 weaknesses
-  const sorted=[...allScores].sort((a,b)=>b.val-a.val);
-  const top3=sorted.slice(0,3);
-  const bot3=sorted.filter(s=>s.val>0).slice(-3).reverse();
+  // ── Auto-perception section
+  if(auto){
+    const autoScored=criteria.filter(c=>c.av>0).sort((a,b)=>b.av-a.av);
+    if(autoScored.length){
+      const top5=autoScored.slice(0,5);
+      const bot3=autoScored.slice(-3).reverse();
+      const avgAuto=autoScored.reduce((s,c)=>s+c.av,0)/autoScored.length;
+      const dimAvgs={};
+      allKeys.forEach(k=>{
+        const vals=criteria.filter(c=>c.key===k&&c.av>0).map(c=>c.av);
+        if(vals.length)dimAvgs[k]=vals.reduce((a,b)=>a+b,0)/vals.length;
+      });
+      const dimArr=Object.entries(dimAvgs).sort((a,b)=>b[1]-a[1]);
+      const bestDim=dimArr[0];const worstDim=dimArr[dimArr.length-1];
+      const levelWord=avgAuto>=4.2?'muito elevada':avgAuto>=3.5?'elevada':avgAuto>=2.8?'moderada':'baixa';
+      const selfConf=avgAuto>=3.5?'elevada autoconfiança':'autocrítica acentuada';
+      let p1=`A atleta apresenta uma autopercepção de desempenho <strong>${levelWord}</strong> (média ${avgAuto.toFixed(1)}/5), revelando ${selfConf} na avaliação das suas capacidades. `;
+      if(bestDim)p1+=`A dimensão onde se sente mais competente é <strong>${dimLabels[bestDim[0]]}</strong> (${bestDim[1].toFixed(1)}/5)`;
+      if(worstDim&&worstDim[0]!==bestDim[0])p1+=`, enquanto perceciona <strong>${dimLabels[worstDim[0]]}</strong> como a sua área mais limitada (${worstDim[1].toFixed(1)}/5).`;
+      else p1+='.';
+      let p2='Os critérios onde demonstra maior confiança são '+top5.map((c,i)=>(i===top5.length-1&&i>0?'e ':'')+`<em>${escHtml(c.name)}</em> (${c.av}/5)`).join(', ')+'. ';
+      p2+='Identifica como áreas de maior dificuldade pessoal: '+bot3.map((c,i)=>(i===2&&i>0?'e ':'')+`<em>${escHtml(c.name)}</em> (${c.av}/5)`).join(', ')+'.';
+      html+=`<div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:#185FA5;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <span style="background:#E6F1FB;color:#185FA5;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">A</span>
+          Perspectiva da Atleta — Como se percepciona
+        </div>
+        <div style="font-size:12px;color:var(--t1);line-height:1.8;background:var(--bg3);border-radius:8px;padding:12px 14px;border-left:3px solid #185FA5">
+          <p style="margin-bottom:8px">${p1}</p><p>${p2}</p>
+        </div>
+      </div>`;
+    }
+  }
 
-  const ratios=_calcRatios(resp);
-  const rKeys=['ofensivo','fisico','velocidade','tecnico','criatividade','mental','defensivo','aereo'];
-  const rLabels={ofensivo:'ofensivo',fisico:'físico',velocidade:'velocidade',tecnico:'técnico',criatividade:'criativo',mental:'mental',defensivo:'defensivo',aereo:'aéreo'};
+  // ── Comparative section
+  if(auto&&tec){
+    const withBoth=criteria.filter(c=>c.av>0&&c.tv>0);
+    if(withBoth.length){
+      const sube=withBoth.filter(c=>c.diff>=1.5).sort((a,b)=>b.diff-a.diff);
+      const sobre=withBoth.filter(c=>c.diff<=-1.5).sort((a,b)=>a.diff-b.diff);
+      const notSube=withBoth.filter(c=>c.diff>=1&&c.diff<1.5).sort((a,b)=>b.diff-a.diff);
+      const notSobre=withBoth.filter(c=>c.diff<=-1&&c.diff>-1.5).sort((a,b)=>a.diff-b.diff);
+      const aligned=withBoth.filter(c=>Math.abs(c.diff)<=0.5).sort((a,b)=>b.av-a.av);
+      const avgDiff=withBoth.reduce((s,c)=>s+Math.abs(c.diff),0)/withBoth.length;
+      const alignWord=avgDiff<0.5?'muito elevado':avgDiff<1?'bom':avgDiff<1.5?'moderado':'baixo';
+      let ct=`<p style="margin-bottom:10px">O grau de alinhamento entre a autoavaliação e a avaliação técnica é <strong>${alignWord}</strong> (diferença média de ${avgDiff.toFixed(1)} por critério).${aligned.length>=5?' Há consenso em '+aligned.length+' critérios, o que revela boa capacidade de auto-conhecimento.':''}</p>`;
+      if(sube.length||notSube.length){
+        const all=[...sube,...notSube].slice(0,4);
+        ct+=`<p style="margin-bottom:10px;padding:8px 10px;background:#E1F5EE;border-radius:6px;border-left:3px solid #1D9E75"><strong style="color:#085041">📈 Subestimação</strong> — A técnica avalia acima da atleta em: `+all.map(c=>`<em>${escHtml(c.name)}</em> (auto: ${c.av} / téc: ${c.tv})`).join(', ')+`. A atleta poderá não estar a reconhecer plenamente estas capacidades — recomenda-se reforço positivo nestas dimensões.</p>`;
+      }
+      if(sobre.length||notSobre.length){
+        const all=[...sobre,...notSobre].slice(0,4);
+        ct+=`<p style="margin-bottom:10px;padding:8px 10px;background:#FAEEDA;border-radius:6px;border-left:3px solid #BA7517"><strong style="color:#633806">📉 Sobrevalorização</strong> — A atleta avalia-se acima da técnica em: `+all.map(c=>`<em>${escHtml(c.name)}</em> (auto: ${c.av} / téc: ${c.tv})`).join(', ')+`. Vale explorar em conversa em que contextos estas capacidades surgem e por que razão a percepção diverge.</p>`;
+      }
+      if(aligned.length){
+        ct+=`<p style="padding:8px 10px;background:var(--bg3);border-radius:6px"><strong>✓ Consenso</strong> em: `+aligned.slice(0,4).map(c=>`<em>${escHtml(c.name)}</em> (${c.av}/5)`).join(', ')+(aligned.length>4?' e mais '+(aligned.length-4):'')+'.</p>';
+      }
+      html+=`<div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:#1D9E75;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <span style="background:#E1F5EE;color:#1D9E75;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">C</span>
+          Análise Comparativa — Auto vs. Equipa Técnica
+        </div>
+        <div style="font-size:12px;color:var(--t1);line-height:1.8;background:var(--bg3);border-radius:8px;padding:12px 14px;border-left:3px solid #1D9E75">${ct}</div>
+      </div>`;
+    }
+  }
 
-  // Classify overall level
-  const allVals=allScores.map(s=>s.val);
-  const globalAvg=allVals.reduce((a,b)=>a+b,0)/allVals.length;
-  const levelText=globalAvg>=4?'elevado nível de desempenho':globalAvg>=3?'bom nível de desempenho':globalAvg>=2?'nível de desempenho em desenvolvimento':'nível de desempenho a necessitar de atenção';
-
-  // Best and worst rácios
-  const rSorted=rKeys.filter(k=>ratios[k]>0).sort((a,b)=>ratios[b]-ratios[a]);
-  const bestR=rSorted.slice(0,2);
-  const worstR=rSorted.slice(-2);
-
-  // Dimension-specific phrases
-  const dimPhrases={
-    ofensivo:v=>v>=4?'forte componente ofensiva':v>=3?'componente ofensiva satisfatória':'componente ofensiva a desenvolver',
-    fisico:v=>v>=4?'excelente capacidade física':v>=3?'boa condição física':'capacidade física a melhorar',
-    velocidade:v=>v>=4?'velocidade acima da média':v>=3?'velocidade adequada':'velocidade como área a trabalhar prioritariamente',
-    tecnico:v=>v>=4?'sólida base técnica':v>=3?'boa base técnica':'aspetos técnicos a consolidar',
-    criatividade:v=>v>=4?'elevada criatividade e imprevisibilidade':v>=3?'boa criatividade':'criatividade a estimular',
-    mental:v=>v>=4?'excelente perfil mental e competitivo':v>=3?'bom perfil mental':'componente mental como área de foco',
-    defensivo:v=>v>=4?'forte componente defensiva':v>=3?'boa organização defensiva':'organização defensiva a aprimorar',
-    aereo:v=>v>=4?'excelente jogo aéreo':v>=3?'bom jogo aéreo':'jogo aéreo como área de melhoria'
-  };
-
-  // Paragraph 1: Overall summary
-  const p1='A atleta apresenta um '+levelText+', com média geral de '+globalAvg.toFixed(1)+'/5. '
-    +(bestR.length>=2?'As suas maiores valências são a dimensão '+rLabels[bestR[0]]+' ('+ratios[bestR[0]].toFixed(1)+') e '+rLabels[bestR[1]]+' ('+ratios[bestR[1]].toFixed(1)+').':'');
-
-  // Paragraph 2: Top strengths
-  const p2='Os pontos de maior destaque são '
-    +top3.map((s,i)=>(i===top3.length-1&&i>0?'e ':'')+('"'+s.label+'" ('+s.val+'/5)').toLowerCase()).join(', ')
-    +'. '+(bestR.length?'Destaca-se especialmente a '+dimPhrases[bestR[0]](ratios[bestR[0]])+'.':'');
-
-  // Paragraph 3: Areas to develop
-  const p3='As principais áreas de aprimoramento identificadas incluem '
-    +bot3.map((s,i)=>(i===bot3.length-1&&i>0?'e ':'')+('"'+s.label+'" ('+s.val+'/5)').toLowerCase()).join(', ')
-    +'.'+(worstR.length?' Recomenda-se especial foco na dimensão '+rLabels[worstR[0]]
-    +' ('+ratios[worstR[0]].toFixed(1)+')'+
-    (worstR[1]&&worstR[1]!==worstR[0]?' e '+rLabels[worstR[1]]+' ('+ratios[worstR[1]].toFixed(1)+')':'')
-    +' no próximo ciclo de treino.':'');
-
-  // Compare auto vs tec if both exist
-  const p4=auto&&tec?
-    (()=>{
-      const ratA=_calcRatios(auto);const ratT=_calcRatios(tec);
-      const diffs=rKeys.filter(k=>ratA[k]>0&&ratT[k]>0).map(k=>({k,d:ratT[k]-ratA[k]}));
-      const overest=diffs.filter(d=>d.d<-0.5).sort((a,b)=>a.d-b.d);
-      const underest=diffs.filter(d=>d.d>0.5).sort((a,b)=>b.d-a.d);
-      if(!overest.length&&!underest.length)return'A autoavaliação da atleta está bem alinhada com a avaliação técnica, o que demonstra boa capacidade de autocrítica.';
-      let txt='';
-      if(underest.length)txt+='A avaliação técnica reconhece maior potencial do que a atleta perceciona em si própria, especialmente em '+underest.map(d=>rLabels[d.k]).join(' e ')+'. ';
-      if(overest.length)txt+='A atleta tende a sobrevalorizar a sua performance em '+overest.map(d=>rLabels[d.k]).join(' e ')+', o que é uma oportunidade de reflexão e crescimento.';
-      return txt;
-    })()
-  :'';
-
-  return [p1,p2,p3,p4].filter(Boolean).join('\n\n');
+  return html?`<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px">🧠 Análise Narrativa <span style="font-size:10px;font-weight:400;color:var(--t2)">gerada automaticamente</span></div>${html}</div>`:'';
 }
+
 
 function exportEvalPDFAtleta(periodId,athleteId){
   const period=(APP.evalPeriods||[]).find(p=>p.id===periodId);
@@ -3629,12 +3633,8 @@ function exportEvalPDFAtleta(periodId,athleteId){
   }).join('');
 
   // Auto-analysis
-  const analysis=_evalAutoAnalysis(auto,tec);
-  const analysisHtml=analysis?
-    '<div style="background:#f0f7f4;border-left:4px solid #1D9E75;border-radius:0 8px 8px 0;padding:14px;margin-bottom:16px">'
-    +'<div style="font-size:12px;font-weight:700;color:#1D9E75;margin-bottom:10px">📊 Análise de Desempenho</div>'
-    +'<div style="font-size:11px;color:#333;line-height:1.8;white-space:pre-line">'+escHtml(analysis)+'</div>'
-    +'</div>':''  ;
+  const analysis=_generateNarrativeAnalysis(auto,tec);
+  const analysisHtml=analysis||'';
 
   // Staff feedback (only if filled)
   const _fval=v=>v&&v.trim()?escHtml(v):null;
