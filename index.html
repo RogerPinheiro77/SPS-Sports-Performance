@@ -5663,40 +5663,50 @@ async function _welcomeCriarPass(aid, tok){
   if(pwd1 !== pwd2){if(err)err.textContent='As passwords não coincidem.';return;}
   if(err) err.textContent='';
 
+  var ws = document.getElementById('welcome-screen');
+  var btn = ws ? ws.querySelector('button') : null;
+  if(btn){btn.textContent='A guardar...';btn.disabled=true;}
+
   var hash = await hashPwd(pwd1);
+
+  // Aguardar Supabase inicializar (máx 4 segundos)
+  for(var i=0; i<8; i++){
+    if(_supa && _cid) break;
+    await new Promise(function(r){setTimeout(r,500);});
+  }
 
   // Tentar encontrar atleta nos dados locais ou via Supabase
   var at = APP.athletes.find(function(a){return a.id===aid;});
-
-  if(!at){
-    // Sem dados locais — tentar sync
-    var ws = document.getElementById('welcome-screen');
-    if(ws){var btn=ws.querySelector('button');if(btn){btn.textContent='A sincronizar...';btn.disabled=true;}}
+  if(!at && _supa && _cid){
     try{ await pullCloud(); }catch(e){}
     at = APP.athletes.find(function(a){return a.id===aid;});
   }
 
-  if(at){
+  // Fallback: usar dados do URL se Supabase não disponível
+  if(!at){
+    var params = new URLSearchParams(location.search);
+    var nome = params.get('n')||'Atleta';
+    var pos  = params.get('p')||'';
+    var num  = params.get('num')||'';
+    at = {id:aid, name:decodeURIComponent(nome), pos:decodeURIComponent(pos), num:decodeURIComponent(num), photo:'', passwordHash:hash};
+    APP.athletes.push(at);
+    saveData();
+  } else {
     at.passwordHash = hash;
     saveData();
-    if(_sync) cloudUpsert('athletes',{...at, club_id:_cid, team_id:at.teamId});
+    if(_sync && _cid) cloudUpsert('athletes',{...at, club_id:_cid, team_id:at.teamId});
   }
 
   // Sessão persistente
-  var sessData = {userId:aid, role:'atleta', name:at?at.name:'Atleta'};
+  var sessData = {userId:aid, role:'atleta', name:at.name};
   AID=aid; ROLE='atleta';
   setSession(sessData);
   _setAtSess(sessData);
 
-  var ws = document.getElementById('welcome-screen');
+  ws = document.getElementById('welcome-screen');
   if(ws) ws.remove();
   window.history.replaceState({},'',location.pathname);
-
-  if(at){ showAtletaApp(at); }
-  else {
-    document.getElementById('screen-login').style.display='flex';
-    renderLoginScreen();
-  }
+  showAtletaApp(at);
 }
 
 // ── Entrar com password existente ─────────────────────────────────────────────
@@ -5707,9 +5717,13 @@ async function _welcomeEntrar(aid){
 
   var at = APP.athletes.find(function(a){return a.id===aid;});
   if(!at){
-    // Tentar sync
-    var ws = document.getElementById('welcome-screen');
-    if(ws){var btn=ws.querySelector('button');if(btn){btn.textContent='A verificar...';btn.disabled=true;}}
+    var ws2 = document.getElementById('welcome-screen');
+    if(ws2){var btn2=ws2.querySelector('button');if(btn2){btn2.textContent='A verificar...';btn2.disabled=true;}}
+    // Aguardar Supabase (máx 4s)
+    for(var i=0; i<8; i++){
+      if(_supa && _cid) break;
+      await new Promise(function(r){setTimeout(r,500);});
+    }
     try{ await pullCloud(); }catch(e){}
     at = APP.athletes.find(function(a){return a.id===aid;});
   }
