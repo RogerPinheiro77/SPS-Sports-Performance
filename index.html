@@ -4740,16 +4740,6 @@ function renderConfig(){
       </div>
       <button class="btn btn-g btn-sm" onclick="saveConfig()">💾 Guardar</button>
     </div></div>
-    <div class="card"><div class="ch"><span class="ct">📱 Aplicação Móvel (PWA)</span></div><div class="cb">
-      <div class="al al-b" style="margin-bottom:12px;font-size:11px">Instala esta plataforma como app no teu telemóvel ou tablet. Funciona offline e abre sem barra do browser.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-g btn-sm" onclick="installPWA()">📲 Instalar App</button>
-        <button class="btn btn-sm" style="background:var(--bg3);border:1px solid var(--brd)" onclick="_showIOSInstructions()">🍎 Instruções iOS</button>
-      </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--t2)">
-        ${_isInStandaloneMode()?'<span style="color:var(--grn)">✅ App instalada e a correr em modo standalone</span>':'ℹ️ A correr no browser — clica "Instalar App" para adicionar ao ecrã inicial'}
-      </div>
-    </div></div>
     <div class="card"><div class="ch"><span class="ct">👥 Utilizadores</span></div><div class="cb">
       <div class="al al-b" style="margin-bottom:12px;font-size:11px">Cada utilizador tem acesso independente com email e password.</div>
       ${(()=>{
@@ -4872,7 +4862,6 @@ function saveConfig(){
   document.getElementById('sb-sea').textContent=APP.config.season;
   document.getElementById('lclub').textContent=APP.config.clubName;
   updateSidebarLogo();
-  _pwaInit(); // atualizar manifest com novo nome/cor do clube
   toast('Configurações guardadas ✓');
 }
 function updateSidebarLogo(){
@@ -5410,13 +5399,92 @@ async function cloudUpsert(table,row){
   // Also push app meta to keep users/config/etc in sync
   pushAppMeta();
 }
-// ─── PWA ────────────────────────────────────────────
-function _pwaInit(){
-  const cfg=APP.config||{};
-  const clubName=cfg.clubName||'SPS';
-  const clubColor=cfg.color||'#1d6f3b';
-  const shortName=cfg.clubName?(cfg.clubName.split(' ').map(w=>w[0]).join('').slice(0,4).toUpperCase()):'SPS';
+// ─── INIT ──────────────────────────────────────────
+loadData();
+// Restore session if active
+(function initSession(){
+  const sess=getSession();
+  if(sess&&sess.role){
+    ROLE=sess.role;
+    if(sess.role==='atleta'){
+      AID=sess.userId;
+      const at=APP.athletes.find(a=>a.id===AID);
+      if(at){showAtletaApp(at);return;}
+    } else {showStaffApp();return;}
+  }
+  document.getElementById('screen-login').style.display='flex';
+  renderLoginScreen();
+})();
+// Default Supabase credentials — auto-connect on any device
+const _DEFAULT_SUPA_URL='https://dgpltxembsnnypushsxh.supabase.co';
+const _DEFAULT_SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRncGx0eGVtYnNubnlwdXNoc3hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjQyNzIsImV4cCI6MjA5NDk0MDI3Mn0.TNguE_3nqHC7aLXGOVKoDHrzQ5rIxZsDU_ZL3JehuNk';
+const _sc=getSupaCfg();
+const _supaUrl=_sc.url||_DEFAULT_SUPA_URL;
+const _supaKey=_sc.anonKey||_DEFAULT_SUPA_KEY;
+if(_supaUrl&&_supaKey){
+  try{
+    _supa=supabase.createClient(_supaUrl,_supaKey);
+    _cid=_sc.clubId||null;
+    // If no clubId saved yet, try to find it from Supabase
+    if(!_cid){
+      _supa.from('clubs').select('id').limit(1).then(r=>{
+        if(r.data&&r.data.length){
+          _cid=r.data[0].id;_sync=true;
+          setSupaCfg({url:_supaUrl,anonKey:_supaKey,clubId:_cid});
+          updateCloudDot(true);
+          // Sync data from cloud to local on first connect
+          pullCloud().then(()=>renderLoginScreen()).catch(e=>console.warn('pullCloud err',e));
+        }
+      }).catch(e=>console.warn('club fetch error',e));
+    } else {
+      _sync=true;
+    }
+    setTimeout(()=>updateCloudDot(_sync),200);
+  }catch(e){console.warn('Supabase init error',e);}
+}
+// ─── PWA ─────────────────────────────────────────────────────
+(function initPWA(){
+  try{
+    var cfg=APP.config||{};
+    var clubColor=cfg.color||'#1d6f3b';
+    var raw=(cfg.clubName||'SPS').split(' ').map(function(w){return w[0]||'';}).join('').slice(0,3).toUpperCase()||'SPS';
+    var shortName=raw;
+    var clubName=cfg.clubName||'Sport Performance';
+    // Manifest
+    var manifest={name:clubName+' · App',short_name:shortName,start_url:location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:clubColor,icons:[{src:'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192"><rect width="192" height="192" rx="38" fill="'+clubColor+'"/><text x="96" y="120" text-anchor="middle" font-family="system-ui" font-weight="900" font-size="80" fill="white">'+shortName+'</text></svg>',sizes:'192x192',type:'image/svg+xml',purpose:'any maskable'}]};
+    var blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+    var link=document.getElementById('pwa-manifest');
+    if(link)link.href=URL.createObjectURL(blob);
+    var tc=document.querySelector('meta[name="theme-color"]');
+    if(tc)tc.content=clubColor;
+    // Service Worker
+    if('serviceWorker' in navigator){
+      var sw='self.addEventListener("install",()=>self.skipWaiting());self.addEventListener("activate",e=>e.waitUntil(clients.claim()));self.addEventListener("fetch",e=>{if(e.request.method!=="GET")return;e.respondWith(caches.open("sps1").then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(nr=>{c.put(e.request,nr.clone());return nr;}))));});';
+      navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(function(){});
+    }
+    // Banner Android
+    window.addEventListener('beforeinstallprompt',function(e){
+      e.preventDefault();window._pwaE=e;
+      if(document.getElementById('pwa-bar'))return;
+      var b=document.createElement('div');
+      b.id='pwa-bar';
+      b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:'+clubColor+';color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:9999;font-size:13px;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,.5)';
+      b.innerHTML='<span>\u{1F4F1} Instala a app no teu dispositivo</span><div style="display:flex;gap:8px"><button onclick="installPWA()" style="background:#fff;color:'+clubColor+';border:none;padding:7px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">Instalar</button><button onclick="document.getElementById(\'pwa-bar\').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 10px;border-radius:6px;cursor:pointer">\u2715</button></div>';
+      document.body.appendChild(b);
+    });
+    window.addEventListener('appinstalled',function(){var b=document.getElementById('pwa-bar');if(b)b.remove();});
+  }catch(err){console.warn('PWA:',err);}
+})();
 
-  // Gerar ícone SVG como data URL
-  function _pwaIcon(sz){
-    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${s
+function installPWA(){
+  if(window._pwaE){
+    window._pwaE.prompt();
+    window._pwaE.userChoice.then(function(){var b=document.getElementById('pwa-bar');if(b)b.remove();window._pwaE=null;});
+  } else {
+    openMod('\u{1F4F1} Instalar no iPhone / iPad','<div style="font-size:13px;line-height:1.9"><div style="padding:12px;background:var(--bg3);border-radius:8px;margin-bottom:8px">1\uFE0F\u20E3&nbsp; Toca em <strong>Partilhar \u{2B06}\uFE0F</strong> no Safari</div><div style="padding:12px;background:var(--bg3);border-radius:8px;margin-bottom:8px">2\uFE0F\u20E3&nbsp; Escolhe <strong>"Adicionar ao Ecrã Inicial"</strong></div><div style="padding:12px;background:var(--bg3);border-radius:8px">3\uFE0F\u20E3&nbsp; Toca em <strong>"Adicionar"</strong></div></div>');
+  }
+}
+
+</script>
+</body>
+</html>
