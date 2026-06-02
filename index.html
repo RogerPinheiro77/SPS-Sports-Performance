@@ -5455,7 +5455,13 @@ function _atletaToken(at){
 }
 
 function _atletaLink(at){
-  return location.href.split('?')[0]+'?a='+at.id+'&t='+_atletaToken(at);
+  var base=location.href.split('?')[0];
+  var tok=_atletaToken(at);
+  // Embedir dados básicos para funcionar sem dados locais
+  var d={n:at.name,p:at.pos||'',num:at.num||'',ph:at.photo||''};
+  var enc='';
+  try{enc='&d='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));}catch(e){}
+  return base+'?a='+at.id+'&t='+tok+enc;
 }
 
 async function gerarLinkAtleta(id){
@@ -5509,14 +5515,29 @@ function _checkAtletaToken(){
   var aid=params.get('a');
   var tok=params.get('t');
   if(!aid||!tok)return false;
+
   var at=APP.athletes.find(function(a){return a.id===aid;});
-  if(!at)return false;
-  if(tok!==_atletaToken(at))return false;
-  _showWelcomeScreen(at);
+
+  // Se atleta não encontrada localmente, tentar usar dados do URL
+  if(!at){
+    var dParam=params.get('d');
+    if(dParam){
+      try{
+        var d=JSON.parse(decodeURIComponent(escape(atob(dParam))));
+        // Criar atleta temporária com dados do URL para mostrar welcome screen
+        at={id:aid,name:d.n||'Atleta',pos:d.p||'',num:d.num||'',photo:d.ph||'',_fromUrl:true};
+      }catch(e){return false;}
+    } else {return false;}
+  }
+
+  // Validar token apenas se temos dados reais (não temporários)
+  if(!at._fromUrl && tok!==_atletaToken(at))return false;
+
+  _showWelcomeScreen(at,tok);
   return true;
 }
 
-function _showWelcomeScreen(at){
+function _showWelcomeScreen(at,tok){
   var loginScr=document.getElementById('screen-login');
   if(loginScr)loginScr.style.display='none';
   var club=APP.config.clubName||'Sport Performance';
@@ -5550,11 +5571,37 @@ function _showWelcomeScreen(at){
 }
 
 function _welcomeEntrar(aid){
+  var ws=document.getElementById('welcome-screen');
+  // Tentar encontrar atleta localmente
   var at=APP.athletes.find(function(a){return a.id===aid;});
-  if(!at)return;
+  if(!at){
+    // Não temos dados locais — tentar sync Supabase e entrar
+    if(ws){ws.innerHTML='<div style="color:#fff;font-size:16px;text-align:center;padding:40px">A sincronizar dados...<br><br>⏳</div>';}
+    // Tentar pull do Supabase
+    pullCloud().then(function(){
+      var at2=APP.athletes.find(function(a){return a.id===aid;});
+      if(at2){
+        AID=at2.id; ROLE='atleta';
+        setSession({userId:at2.id,role:'atleta',name:at2.name});
+        if(ws)ws.remove();
+        showAtletaApp(at2);
+      } else {
+        // Sem dados — mostrar login normal
+        if(ws)ws.remove();
+        document.getElementById('screen-login').style.display='flex';
+        renderLoginScreen();
+      }
+      window.history.replaceState({},'',location.pathname);
+    }).catch(function(){
+      if(ws)ws.remove();
+      document.getElementById('screen-login').style.display='flex';
+      renderLoginScreen();
+      window.history.replaceState({},'',location.pathname);
+    });
+    return;
+  }
   AID=at.id; ROLE='atleta';
   setSession({userId:at.id,role:'atleta',name:at.name});
-  var ws=document.getElementById('welcome-screen');
   if(ws)ws.remove();
   showAtletaApp(at);
   window.history.replaceState({},'',location.pathname);
