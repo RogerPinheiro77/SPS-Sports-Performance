@@ -581,6 +581,7 @@ function logout(){
   clearSession();ROLE=null;AID=null;
   document.getElementById('staff-app').classList.remove('on');
   document.getElementById('atleta-app').classList.remove('on');
+  if(_checkAtletaToken()) return;
   document.getElementById('screen-login').style.display='flex';
   renderLoginScreen();
 }
@@ -1660,7 +1661,8 @@ function openAthleteModal(id){
         +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
           +(at.fpfId?'<a href="https://www.fpf.pt/pt/Jogadores/Ficha-de-Jogador/playerId/'+at.fpfId+'" target="_blank" style="font-size:11px;color:var(--c1);text-decoration:none;padding:3px 8px;border:1px solid var(--c1);border-radius:6px">🔗 FPF</a>':'')
           +'<button onclick="document.getElementById(\'athlete-profile-ov\').remove();_editAtId=\''+id+'\';_showAtForm=true;renderPlantel()" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;cursor:pointer;color:var(--t1)">✏️ Editar</button>'
-          +'<button onclick="if(confirm(\'Apagar atleta?\'))deleteAthlete(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid #f87171;border-radius:6px;cursor:pointer;color:#f87171">🗑️</button>'
+          +'<button onclick="if(confirm(\'Apagar atleta?\'))deleteAthlete(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid #f87171;border-radius:6px;cursor:pointer;color:#f87171">🗑️</button>
+          +'<button onclick="gerarLinkAtleta(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--c1);border-radius:6px;cursor:pointer;color:var(--c1)">📱 Link App</button>'
         +'</div>'
       +'</div>'
     +'</div>'
@@ -5412,6 +5414,7 @@ loadData();
       if(at){showAtletaApp(at);return;}
     } else {showStaffApp();return;}
   }
+  if(_checkAtletaToken()) return;
   document.getElementById('screen-login').style.display='flex';
   renderLoginScreen();
 })();
@@ -5442,6 +5445,118 @@ if(_supaUrl&&_supaKey){
     setTimeout(()=>updateCloudDot(_sync),200);
   }catch(e){console.warn('Supabase init error',e);}
 }
+
+// ─── FASE 2: LINK/TOKEN ATLETA ───────────────────────────────────────────────
+
+function _atletaToken(at){
+  var seed = at.passwordHash ? at.id+':'+at.passwordHash.slice(0,16) : at.id+':'+at.id;
+  try{ return btoa(seed).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_'); }
+  catch(e){ return btoa(unescape(encodeURIComponent(seed))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_'); }
+}
+
+function _atletaLink(at){
+  return location.href.split('?')[0]+'?a='+at.id+'&t='+_atletaToken(at);
+}
+
+async function gerarLinkAtleta(id){
+  var at=APP.athletes.find(function(a){return a.id===id;});
+  if(!at)return;
+  if(!at.passwordHash){
+    var rawPwd=genPwd(8);
+    var hash=await hashPwd(rawPwd);
+    at.passwordHash=hash;
+    saveData();
+    toast('Password gerada para '+at.name);
+  }
+  var link=_atletaLink(at);
+  var club=APP.config.clubName||'Sport Performance';
+  var nome=at.name.split(' ')[0];
+  var waMsg=encodeURIComponent('Ola '+nome+'!\n\nO teu acesso a app '+club+':\n\n'+link+'\n\nClica no link e instala a app no teu telemovel.\n\n'+club);
+  var qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data='+encodeURIComponent(link);
+  var avatarHtml=at.photo
+    ?'<img src="'+at.photo+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--c1)">'
+    :'<div style="width:56px;height:56px;border-radius:50%;background:var(--c1);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff">'+initials(at.name)+'</div>';
+  var linkEsc=link.replace(/'/g,"\\'");
+  openMod('📱 Link App — '+at.name,
+    '<div style="text-align:center;margin-bottom:16px">'
+    +avatarHtml
+    +'<div style="font-size:14px;font-weight:800;margin-top:8px">'+at.name+'</div>'
+    +'<div style="font-size:11px;color:var(--t2)">'+(at.pos||'')+(at.num?' · #'+at.num:'')+'</div>'
+    +'</div>'
+    +'<div style="text-align:center;margin-bottom:16px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📷 QR Code</div>'
+    +'<div style="display:inline-block;background:#fff;padding:10px;border-radius:12px">'
+    +'<img src="'+qrUrl+'" width="220" height="220" style="display:block;border-radius:6px" '
+    +'onerror="this.parentElement.innerHTML=\'<div style=padding:20px;color:#333;font-size:12px>QR indisponivel</div>\'">'
+    +'</div></div>'
+    +'<div style="background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:10px 12px;font-size:11px;font-family:monospace;word-break:break-all;color:var(--t2);margin-bottom:14px">'+link+'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<a href="https://wa.me/?text='+waMsg+'" target="_blank" class="btn btn-g" style="flex:1;justify-content:center;text-decoration:none;min-width:120px">💬 WhatsApp</a>'
+    +'<button class="btn" style="flex:1;background:var(--bg3);border:1px solid var(--brd);min-width:100px" '
+    +'onclick="navigator.clipboard.writeText(\''+linkEsc+'\').then(function(){toast(\'Link copiado ✓\')})">📋 Copiar</button>'
+    +'</div>'
+    +'<div style="padding:10px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--t2)">'
+    +'💡 A atleta clica no link &rarr; welcome screen &rarr; toca "Entrar" &rarr; app pronta.'
+    +'</div>'
+  );
+}
+
+function _checkAtletaToken(){
+  var params=new URLSearchParams(location.search);
+  var aid=params.get('a');
+  var tok=params.get('t');
+  if(!aid||!tok)return false;
+  var at=APP.athletes.find(function(a){return a.id===aid;});
+  if(!at)return false;
+  if(tok!==_atletaToken(at))return false;
+  _showWelcomeScreen(at);
+  return true;
+}
+
+function _showWelcomeScreen(at){
+  var loginScr=document.getElementById('screen-login');
+  if(loginScr)loginScr.style.display='none';
+  var club=APP.config.clubName||'Sport Performance';
+  var clubColor=APP.config.color||'#1d6f3b';
+  var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  var isStandalone=window.navigator.standalone||window.matchMedia('(display-mode:standalone)').matches;
+  var tip='';
+  if(!isStandalone){
+    tip=isIOS
+      ?'<div style="margin-top:20px;padding:12px 16px;background:rgba(255,255,255,.07);border-radius:10px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.7">📲 Para instalar: toca em <strong style="color:#fff">Partilhar ⬆️</strong> → <strong style="color:#fff">Adicionar ao Ecrã Inicial</strong></div>'
+      :'<div style="margin-top:20px;padding:12px 16px;background:rgba(255,255,255,.07);border-radius:10px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.7">📲 Para instalar: toca nos <strong style="color:#fff">⋮ três pontos</strong> → <strong style="color:#fff">Adicionar ao ecrã inicial</strong></div>';
+  }
+  var avatarHtml=at.photo
+    ?'<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover">'
+    :'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900;color:#fff">'+initials(at.name)+'</div>';
+  var logoHtml=APP.config.clubLogo
+    ?'<img src="'+APP.config.clubLogo+'" style="width:52px;height:52px;object-fit:contain">'
+    :(APP.config.logo||'⚽');
+  var ws=document.createElement('div');
+  ws.id='welcome-screen';
+  ws.style.cssText='position:fixed;inset:0;background:#0c0f14;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;z-index:5000;text-align:center;overflow-y:auto';
+  ws.innerHTML=
+    '<div style="width:64px;height:64px;border-radius:50%;background:'+clubColor+';display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:16px;box-shadow:0 0 24px '+clubColor+'55">'+logoHtml+'</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">'+club+'</div>'
+    +'<div style="width:96px;height:96px;border-radius:50%;border:3px solid '+clubColor+';overflow:hidden;margin-bottom:14px;box-shadow:0 0 20px '+clubColor+'44">'+avatarHtml+'</div>'
+    +'<div style="font-size:24px;font-weight:900;color:#fff;margin-bottom:4px">'+at.name+'</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.45);margin-bottom:28px">'+(at.pos||'')+(at.num?' · #'+at.num:'')+'</div>'
+    +'<button onclick="_welcomeEntrar(\''+at.id+'\')" style="width:100%;max-width:300px;padding:15px;border-radius:12px;background:'+clubColor+';border:none;color:#fff;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 4px 20px '+clubColor+'66">Entrar →</button>'
+    +tip;
+  document.body.appendChild(ws);
+}
+
+function _welcomeEntrar(aid){
+  var at=APP.athletes.find(function(a){return a.id===aid;});
+  if(!at)return;
+  AID=at.id; ROLE='atleta';
+  setSession({userId:at.id,role:'atleta',name:at.name});
+  var ws=document.getElementById('welcome-screen');
+  if(ws)ws.remove();
+  showAtletaApp(at);
+  window.history.replaceState({},'',location.pathname);
+}
+
 // ─── PWA ─────────────────────────────────────────────────────
 (function initPWA(){
   try{
