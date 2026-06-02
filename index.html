@@ -578,10 +578,21 @@ async function handleAthleteLogin(){
   showAtletaApp(athlete);
 }
 function logout(){
-  clearSession();ROLE=null;AID=null;
+  clearSession();_clearAtSess();ROLE=null;AID=null;
   document.getElementById('staff-app').classList.remove('on');
   document.getElementById('atleta-app').classList.remove('on');
   if(_checkAtletaToken()) return;
+  // Sessão persistente da atleta (localStorage)
+  var _atSess=_getAtSess();
+  if(_atSess&&_atSess.role==='atleta'){
+    var _atLocal=APP.athletes.find(function(a){return a.id===_atSess.userId;});
+    if(_atLocal){
+      AID=_atLocal.id;ROLE='atleta';
+      setSession(_atSess);
+      showAtletaApp(_atLocal);
+      return;
+    }
+  }
   document.getElementById('screen-login').style.display='flex';
   renderLoginScreen();
 }
@@ -5415,6 +5426,17 @@ loadData();
     } else {showStaffApp();return;}
   }
   if(_checkAtletaToken()) return;
+  // Sessão persistente da atleta (localStorage)
+  var _atSess=_getAtSess();
+  if(_atSess&&_atSess.role==='atleta'){
+    var _atLocal=APP.athletes.find(function(a){return a.id===_atSess.userId;});
+    if(_atLocal){
+      AID=_atLocal.id;ROLE='atleta';
+      setSession(_atSess);
+      showAtletaApp(_atLocal);
+      return;
+    }
+  }
   document.getElementById('screen-login').style.display='flex';
   renderLoginScreen();
 })();
@@ -5446,8 +5468,22 @@ if(_supaUrl&&_supaKey){
   }catch(e){console.warn('Supabase init error',e);}
 }
 
-// ─── FASE 2: LINK/TOKEN ATLETA ───────────────────────────────────────────────
+// ─── FASE 2 + 3: LINK/TOKEN + AUTH SIMPLIFICADA ─────────────────────────────
 
+// ── Sessão persistente da atleta ──────────────────────────────────────────────
+var AT_SESS_KEY = '_sps_at_sess';
+
+function _getAtSess(){
+  try{ return JSON.parse(localStorage.getItem(AT_SESS_KEY)||'null'); }catch(e){return null;}
+}
+function _setAtSess(data){
+  localStorage.setItem(AT_SESS_KEY, JSON.stringify(data));
+}
+function _clearAtSess(){
+  localStorage.removeItem(AT_SESS_KEY);
+}
+
+// ── Token ─────────────────────────────────────────────────────────────────────
 function _atletaToken(at){
   var seed = at.passwordHash ? at.id+':'+at.passwordHash.slice(0,16) : at.id+':'+at.id;
   try{ return btoa(seed).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_'); }
@@ -5455,37 +5491,40 @@ function _atletaToken(at){
 }
 
 function _atletaLink(at){
-  var base=location.href.split('?')[0];
-  var tok=_atletaToken(at);
-  // Embedir dados básicos (SEM foto — mantém URL curto para QR)
-  var d={n:at.name,p:at.pos||'',num:at.num||''};
-  var enc='';
-  try{enc='&d='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));}catch(e){}
-  return base+'?a='+at.id+'&t='+tok+enc;
+  var base = location.href.split('?')[0];
+  var tok  = _atletaToken(at);
+  var n    = encodeURIComponent(at.name||'');
+  var p    = encodeURIComponent(at.pos||'');
+  var num  = encodeURIComponent(at.num||'');
+  return base+'?a='+at.id+'&t='+tok+'&n='+n+'&p='+p+'&num='+num;
 }
 
+// ── Gerar link no Plantel ──────────────────────────────────────────────────────
 async function gerarLinkAtleta(id){
-  // Fechar overlay do perfil para o modal ficar visível
-  var ov=document.getElementById('athlete-profile-ov');
-  if(ov)ov.remove();
-  var at=APP.athletes.find(function(a){return a.id===id;});
-  if(!at)return;
+  var ov = document.getElementById('athlete-profile-ov');
+  if(ov) ov.remove();
+  var at = APP.athletes.find(function(a){return a.id===id;});
+  if(!at) return;
+
+  // Gerar password se ainda não tem (para o token funcionar)
   if(!at.passwordHash){
-    var rawPwd=genPwd(8);
-    var hash=await hashPwd(rawPwd);
-    at.passwordHash=hash;
+    var rawPwd = genPwd(8);
+    var hash   = await hashPwd(rawPwd);
+    at.passwordHash = hash;
     saveData();
-    toast('Password gerada para '+at.name);
   }
-  var link=_atletaLink(at);
-  var club=APP.config.clubName||'Sport Performance';
-  var nome=at.name.split(' ')[0];
-  var waMsg=encodeURIComponent('Ola '+nome+'!\n\nO teu acesso a app '+club+':\n\n'+link+'\n\nClica no link e instala a app no teu telemovel.\n\n'+club);
-  var qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data='+encodeURIComponent(link);
-  var avatarHtml=at.photo
-    ?'<img src="'+at.photo+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--c1)">'
-    :'<div style="width:56px;height:56px;border-radius:50%;background:var(--c1);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff">'+initials(at.name)+'</div>';
-  var linkEsc=link.replace(/'/g,"\\'");
+
+  var link    = _atletaLink(at);
+  var club    = APP.config.clubName||'Sport Performance';
+  var nome    = at.name.split(' ')[0];
+  var waMsg   = encodeURIComponent('Ola '+nome+'!\n\nO teu acesso a app '+club+':\n\n'+link+'\n\nClica no link, escolhe a tua password e instala a app.\n\n'+club);
+  var qrUrl   = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data='+encodeURIComponent(link);
+  var linkEsc = link.replace(/'/g,"\\'");
+
+  var avatarHtml = at.photo
+    ? '<img src="'+at.photo+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--c1)">'
+    : '<div style="width:56px;height:56px;border-radius:50%;background:var(--c1);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff">'+initials(at.name)+'</div>';
+
   openMod('📱 Link App — '+at.name,
     '<div style="text-align:center;margin-bottom:16px">'
     +avatarHtml
@@ -5496,7 +5535,7 @@ async function gerarLinkAtleta(id){
     +'<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📷 QR Code</div>'
     +'<div style="display:inline-block;background:#fff;padding:10px;border-radius:12px">'
     +'<img src="'+qrUrl+'" width="220" height="220" style="display:block;border-radius:6px" '
-    +'onerror="this.parentElement.innerHTML=\'<div style=padding:20px;color:#333;font-size:12px>QR indisponivel</div>\'">'
+    +'onerror="this.parentElement.innerHTML=\'<div style=padding:20px;color:#333;font-size:12px>QR indisponivel<br>Usa o link abaixo</div>\'">'
     +'</div></div>'
     +'<div style="background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:10px 12px;font-size:11px;font-family:monospace;word-break:break-all;color:var(--t2);margin-bottom:14px">'+link+'</div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
@@ -5505,106 +5544,203 @@ async function gerarLinkAtleta(id){
     +'onclick="navigator.clipboard.writeText(\''+linkEsc+'\').then(function(){toast(\'Link copiado ✓\')})">📋 Copiar</button>'
     +'</div>'
     +'<div style="padding:10px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--t2)">'
-    +'💡 A atleta clica no link &rarr; welcome screen &rarr; toca "Entrar" &rarr; app pronta.'
+    +'💡 1º acesso: a atleta cria a sua password. Acessos seguintes: entra automaticamente.<br>'
+    +'🔑 Se perder o acesso: gera um novo link aqui.'
     +'</div>'
   );
 }
 
+// ── Verificar token na URL ─────────────────────────────────────────────────────
 function _checkAtletaToken(){
-  var params=new URLSearchParams(location.search);
-  var aid=params.get('a');
-  var tok=params.get('t');
-  if(!aid||!tok)return false;
+  var params = new URLSearchParams(location.search);
+  var aid    = params.get('a');
+  var tok    = params.get('t');
+  if(!aid || !tok) return false;
 
-  var at=APP.athletes.find(function(a){return a.id===aid;});
+  // Tentar encontrar atleta localmente
+  var at = APP.athletes.find(function(a){ return a.id===aid; });
+  var isReset = false;
 
-  // Se atleta não encontrada localmente, tentar usar dados do URL
-  if(!at){
-    var dParam=params.get('d');
-    if(dParam){
-      try{
-        var d=JSON.parse(decodeURIComponent(escape(atob(dParam))));
-        // Criar atleta temporária com dados do URL para mostrar welcome screen
-        at={id:aid,name:d.n||'Atleta',pos:d.p||'',num:d.num||'',photo:d.ph||'',_fromUrl:true};
-      }catch(e){return false;}
-    } else {return false;}
+  if(at){
+    // Validar token — se não bate é novo link do técnico (reset)
+    isReset = (tok !== _atletaToken(at));
+  } else {
+    // Sem dados locais — usar params do URL
+    var nome = params.get('n')||'Atleta';
+    var pos  = params.get('p')||'';
+    var num  = params.get('num')||'';
+    at = {id:aid, name:decodeURIComponent(nome), pos:decodeURIComponent(pos), num:decodeURIComponent(num), photo:'', _fromUrl:true};
+    isReset = true; // sem dados locais = tratar como primeiro acesso
   }
 
-  // Validar token apenas se temos dados reais (não temporários)
-  if(!at._fromUrl && tok!==_atletaToken(at))return false;
-
-  _showWelcomeScreen(at,tok);
+  _showWelcomeScreen(at, tok, isReset);
   return true;
 }
 
-function _showWelcomeScreen(at,tok){
-  var loginScr=document.getElementById('screen-login');
-  if(loginScr)loginScr.style.display='none';
-  var club=APP.config.clubName||'Sport Performance';
-  var clubColor=APP.config.color||'#1d6f3b';
-  var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
-  var isStandalone=window.navigator.standalone||window.matchMedia('(display-mode:standalone)').matches;
-  var tip='';
+// ── Welcome Screen ────────────────────────────────────────────────────────────
+function _showWelcomeScreen(at, tok, isReset){
+  var loginScr = document.getElementById('screen-login');
+  if(loginScr) loginScr.style.display='none';
+
+  var club      = APP.config.clubName||'Sport Performance';
+  var clubColor = APP.config.color||'#1d6f3b';
+  var isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  var isStandalone = window.navigator.standalone||window.matchMedia('(display-mode:standalone)').matches;
+
+  // Determinar modo: criar password, reset, ou entrar com password
+  var hasPass = !!(at.passwordHash);
+  var mode = isReset ? 'criar' : (hasPass ? 'entrar' : 'criar');
+
+  var tip = '';
   if(!isStandalone){
-    tip=isIOS
-      ?'<div style="margin-top:20px;padding:12px 16px;background:rgba(255,255,255,.07);border-radius:10px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.7">📲 Para instalar: toca em <strong style="color:#fff">Partilhar ⬆️</strong> → <strong style="color:#fff">Adicionar ao Ecrã Inicial</strong></div>'
-      :'<div style="margin-top:20px;padding:12px 16px;background:rgba(255,255,255,.07);border-radius:10px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.7">📲 Para instalar: toca nos <strong style="color:#fff">⋮ três pontos</strong> → <strong style="color:#fff">Adicionar ao ecrã inicial</strong></div>';
+    tip = isIOS
+      ? '<div style="margin-top:16px;padding:10px 14px;background:rgba(255,255,255,.07);border-radius:10px;font-size:11px;color:rgba(255,255,255,.5);line-height:1.7">📲 Instalar: <strong style="color:#fff">Partilhar ⬆️</strong> → <strong style="color:#fff">Adicionar ao Ecrã Inicial</strong></div>'
+      : '<div style="margin-top:16px;padding:10px 14px;background:rgba(255,255,255,.07);border-radius:10px;font-size:11px;color:rgba(255,255,255,.5);line-height:1.7">📲 Instalar: menu <strong style="color:#fff">⋮</strong> → <strong style="color:#fff">Adicionar ao ecrã inicial</strong></div>';
   }
-  var avatarHtml=at.photo
-    ?'<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover">'
-    :'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900;color:#fff">'+initials(at.name)+'</div>';
-  var logoHtml=APP.config.clubLogo
-    ?'<img src="'+APP.config.clubLogo+'" style="width:52px;height:52px;object-fit:contain">'
-    :(APP.config.logo||'⚽');
-  var ws=document.createElement('div');
-  ws.id='welcome-screen';
-  ws.style.cssText='position:fixed;inset:0;background:#0c0f14;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;z-index:5000;text-align:center;overflow-y:auto';
-  ws.innerHTML=
-    '<div style="width:64px;height:64px;border-radius:50%;background:'+clubColor+';display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:16px;box-shadow:0 0 24px '+clubColor+'55">'+logoHtml+'</div>'
-    +'<div style="font-size:11px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">'+club+'</div>'
-    +'<div style="width:96px;height:96px;border-radius:50%;border:3px solid '+clubColor+';overflow:hidden;margin-bottom:14px;box-shadow:0 0 20px '+clubColor+'44">'+avatarHtml+'</div>'
-    +'<div style="font-size:24px;font-weight:900;color:#fff;margin-bottom:4px">'+at.name+'</div>'
-    +'<div style="font-size:13px;color:rgba(255,255,255,.45);margin-bottom:28px">'+(at.pos||'')+(at.num?' · #'+at.num:'')+'</div>'
-    +'<button onclick="_welcomeEntrar(\''+at.id+'\')" style="width:100%;max-width:300px;padding:15px;border-radius:12px;background:'+clubColor+';border:none;color:#fff;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 4px 20px '+clubColor+'66">Entrar →</button>'
-    +tip;
+
+  var avatarHtml = at.photo
+    ? '<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover">'
+    : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900;color:#fff">'+initials(at.name)+'</div>';
+
+  var logoHtml = APP.config.clubLogo
+    ? '<img src="'+APP.config.clubLogo+'" style="width:46px;height:46px;object-fit:contain">'
+    : (APP.config.logo||'⚽');
+
+  var formHtml = '';
+  if(mode === 'criar'){
+    formHtml = '<div style="width:100%;max-width:300px;margin-top:4px">'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:8px;text-align:center">'+(isReset&&hasPass?'Novo acesso — define uma nova password':'Bem-vinda! Cria a tua password de acesso')+'</div>'
+      +'<input id="ws-pwd1" type="password" placeholder="Nova password (mín. 6 caracteres)" autocomplete="new-password" '
+      +'style="width:100%;padding:13px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:14px;margin-bottom:8px;outline:none">'
+      +'<input id="ws-pwd2" type="password" placeholder="Confirmar password" autocomplete="new-password" '
+      +'style="width:100%;padding:13px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:14px;margin-bottom:4px;outline:none">'
+      +'<div id="ws-err" style="font-size:11px;color:#f87171;min-height:16px;margin-bottom:8px;text-align:center"></div>'
+      +'<button onclick="_welcomeCriarPass(\''+at.id+'\',\''+tok+'\')" '
+      +'style="width:100%;padding:14px;border-radius:12px;background:'+clubColor+';border:none;color:#fff;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 20px '+clubColor+'66">'
+      +(isReset&&hasPass?'Redefinir password →':'Criar password e entrar →')
+      +'</button>'
+      +'</div>';
+  } else {
+    formHtml = '<div style="width:100%;max-width:300px;margin-top:4px">'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:8px;text-align:center">Bem-vinda de volta! Introduz a tua password.</div>'
+      +'<input id="ws-pwd" type="password" placeholder="Password" autocomplete="current-password" '
+      +'onkeydown="if(event.key===\'Enter\')_welcomeEntrar(\''+at.id+'\')" '
+      +'style="width:100%;padding:13px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:14px;margin-bottom:4px;outline:none">'
+      +'<div id="ws-err" style="font-size:11px;color:#f87171;min-height:16px;margin-bottom:8px;text-align:center"></div>'
+      +'<button onclick="_welcomeEntrar(\''+at.id+'\')" '
+      +'style="width:100%;padding:14px;border-radius:12px;background:'+clubColor+';border:none;color:#fff;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 20px '+clubColor+'66">'
+      +'Entrar →'
+      +'</button>'
+      +'</div>';
+  }
+
+  var ws = document.createElement('div');
+  ws.id = 'welcome-screen';
+  ws.style.cssText = 'position:fixed;inset:0;background:#0c0f14;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 24px;z-index:5000;text-align:center;overflow-y:auto';
+  ws.innerHTML =
+    '<div style="width:56px;height:56px;border-radius:50%;background:'+clubColor+';display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;box-shadow:0 0 20px '+clubColor+'55">'+logoHtml+'</div>'
+    +'<div style="font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">'+club+'</div>'
+    +'<div style="width:88px;height:88px;border-radius:50%;border:3px solid '+clubColor+';overflow:hidden;margin-bottom:12px;box-shadow:0 0 16px '+clubColor+'44">'+avatarHtml+'</div>'
+    +'<div style="font-size:22px;font-weight:900;color:#fff;margin-bottom:3px">'+at.name+'</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:24px">'+(at.pos||'')+(at.num?' · #'+at.num:'')+'</div>'
+    + formHtml
+    + tip;
+
   document.body.appendChild(ws);
+  // Focus no primeiro input
+  setTimeout(function(){
+    var inp = ws.querySelector('input');
+    if(inp) inp.focus();
+  }, 100);
 }
 
-function _welcomeEntrar(aid){
-  var ws=document.getElementById('welcome-screen');
-  // Tentar encontrar atleta localmente
-  var at=APP.athletes.find(function(a){return a.id===aid;});
+// ── Criar password (1º acesso ou reset) ──────────────────────────────────────
+async function _welcomeCriarPass(aid, tok){
+  var pwd1 = (document.getElementById('ws-pwd1')||{}).value||'';
+  var pwd2 = (document.getElementById('ws-pwd2')||{}).value||'';
+  var err  = document.getElementById('ws-err');
+  if(pwd1.length < 6){if(err)err.textContent='Mínimo 6 caracteres.';return;}
+  if(pwd1 !== pwd2){if(err)err.textContent='As passwords não coincidem.';return;}
+  if(err) err.textContent='';
+
+  var hash = await hashPwd(pwd1);
+
+  // Tentar encontrar atleta nos dados locais ou via Supabase
+  var at = APP.athletes.find(function(a){return a.id===aid;});
+
   if(!at){
-    // Não temos dados locais — tentar sync Supabase e entrar
-    if(ws){ws.innerHTML='<div style="color:#fff;font-size:16px;text-align:center;padding:40px">A sincronizar dados...<br><br>⏳</div>';}
-    // Tentar pull do Supabase
-    pullCloud().then(function(){
-      var at2=APP.athletes.find(function(a){return a.id===aid;});
-      if(at2){
-        AID=at2.id; ROLE='atleta';
-        setSession({userId:at2.id,role:'atleta',name:at2.name});
-        if(ws)ws.remove();
-        showAtletaApp(at2);
-      } else {
-        // Sem dados — mostrar login normal
-        if(ws)ws.remove();
-        document.getElementById('screen-login').style.display='flex';
-        renderLoginScreen();
-      }
-      window.history.replaceState({},'',location.pathname);
-    }).catch(function(){
-      if(ws)ws.remove();
-      document.getElementById('screen-login').style.display='flex';
-      renderLoginScreen();
-      window.history.replaceState({},'',location.pathname);
-    });
+    // Sem dados locais — tentar sync
+    var ws = document.getElementById('welcome-screen');
+    if(ws){var btn=ws.querySelector('button');if(btn){btn.textContent='A sincronizar...';btn.disabled=true;}}
+    try{ await pullCloud(); }catch(e){}
+    at = APP.athletes.find(function(a){return a.id===aid;});
+  }
+
+  if(at){
+    at.passwordHash = hash;
+    saveData();
+    if(_sync) cloudUpsert('athletes',{...at, club_id:_cid, team_id:at.teamId});
+  }
+
+  // Sessão persistente
+  var sessData = {userId:aid, role:'atleta', name:at?at.name:'Atleta'};
+  AID=aid; ROLE='atleta';
+  setSession(sessData);
+  _setAtSess(sessData);
+
+  var ws = document.getElementById('welcome-screen');
+  if(ws) ws.remove();
+  window.history.replaceState({},'',location.pathname);
+
+  if(at){ showAtletaApp(at); }
+  else {
+    document.getElementById('screen-login').style.display='flex';
+    renderLoginScreen();
+  }
+}
+
+// ── Entrar com password existente ─────────────────────────────────────────────
+async function _welcomeEntrar(aid){
+  var pwd = (document.getElementById('ws-pwd')||{}).value||'';
+  var err = document.getElementById('ws-err');
+  if(!pwd){if(err)err.textContent='Introduz a tua password.';return;}
+
+  var at = APP.athletes.find(function(a){return a.id===aid;});
+  if(!at){
+    // Tentar sync
+    var ws = document.getElementById('welcome-screen');
+    if(ws){var btn=ws.querySelector('button');if(btn){btn.textContent='A verificar...';btn.disabled=true;}}
+    try{ await pullCloud(); }catch(e){}
+    at = APP.athletes.find(function(a){return a.id===aid;});
+  }
+
+  if(!at){
+    if(err) err.textContent='Não foi possível carregar os dados. Tenta de novo.';
+    var ws=document.getElementById('welcome-screen');
+    if(ws){var btn=ws.querySelector('button');if(btn){btn.textContent='Entrar →';btn.disabled=false;}}
     return;
   }
-  AID=at.id; ROLE='atleta';
-  setSession({userId:at.id,role:'atleta',name:at.name});
-  if(ws)ws.remove();
-  showAtletaApp(at);
+
+  var hash = await hashPwd(pwd);
+  if(hash !== at.passwordHash){
+    if(err) err.textContent='Password incorreta.';
+    var inp = document.getElementById('ws-pwd');
+    if(inp){inp.value='';inp.focus();}
+    var btn = document.querySelector('#welcome-screen button');
+    if(btn){btn.textContent='Entrar →';btn.disabled=false;}
+    return;
+  }
+
+  // Password correta
+  var sessData = {userId:aid, role:'atleta', name:at.name};
+  AID=aid; ROLE='atleta';
+  setSession(sessData);
+  _setAtSess(sessData);
+
+  var ws = document.getElementById('welcome-screen');
+  if(ws) ws.remove();
   window.history.replaceState({},'',location.pathname);
+  showAtletaApp(at);
 }
 
 // ─── PWA ─────────────────────────────────────────────────────
