@@ -5459,6 +5459,9 @@ function _atletaLink(at){
 }
 
 async function gerarLinkAtleta(id){
+  // Fechar overlay do perfil para o modal ficar visível
+  var ov=document.getElementById('athlete-profile-ov');
+  if(ov)ov.remove();
   var at=APP.athletes.find(function(a){return a.id===id;});
   if(!at)return;
   if(!at.passwordHash){
