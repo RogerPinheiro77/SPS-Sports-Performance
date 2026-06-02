@@ -5557,6 +5557,19 @@ function _checkAtletaToken(){
   var tok    = params.get('t');
   if(!aid || !tok) return false;
 
+  // Se já tem sessão activa para este atleta — auto-login sem pedir password
+  var existing = _getAtSess();
+  if(existing && existing.role==='atleta' && existing.userId===aid){
+    var atEx = APP.athletes.find(function(a){return a.id===aid;});
+    if(atEx){
+      AID=atEx.id; ROLE='atleta';
+      setSession(existing);
+      window.history.replaceState({},'',location.pathname);
+      showAtletaApp(atEx);
+      return true;
+    }
+  }
+
   // Tentar encontrar atleta localmente
   var at = APP.athletes.find(function(a){ return a.id===aid; });
   var isReset = false;
