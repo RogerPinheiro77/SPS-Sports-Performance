@@ -5457,8 +5457,8 @@ function _atletaToken(at){
 function _atletaLink(at){
   var base=location.href.split('?')[0];
   var tok=_atletaToken(at);
-  // Embedir dados básicos para funcionar sem dados locais
-  var d={n:at.name,p:at.pos||'',num:at.num||'',ph:at.photo||''};
+  // Embedir dados básicos (SEM foto — mantém URL curto para QR)
+  var d={n:at.name,p:at.pos||'',num:at.num||''};
   var enc='';
   try{enc='&d='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));}catch(e){}
   return base+'?a='+at.id+'&t='+tok+enc;
