@@ -1661,7 +1661,7 @@ function openAthleteModal(id){
         +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
           +(at.fpfId?'<a href="https://www.fpf.pt/pt/Jogadores/Ficha-de-Jogador/playerId/'+at.fpfId+'" target="_blank" style="font-size:11px;color:var(--c1);text-decoration:none;padding:3px 8px;border:1px solid var(--c1);border-radius:6px">🔗 FPF</a>':'')
           +'<button onclick="document.getElementById(\'athlete-profile-ov\').remove();_editAtId=\''+id+'\';_showAtForm=true;renderPlantel()" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;cursor:pointer;color:var(--t1)">✏️ Editar</button>'
-          +'<button onclick="if(confirm(\'Apagar atleta?\'))deleteAthlete(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid #f87171;border-radius:6px;cursor:pointer;color:#f87171">🗑️</button>
+          +'<button onclick="if(confirm(\'Apagar atleta?\'))deleteAthlete(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid #f87171;border-radius:6px;cursor:pointer;color:#f87171">🗑️</button>'
           +'<button onclick="gerarLinkAtleta(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--c1);border-radius:6px;cursor:pointer;color:var(--c1)">📱 Link App</button>'
         +'</div>'
       +'</div>'
