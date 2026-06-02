@@ -5560,6 +5560,10 @@ function _welcomeEntrar(aid){
 // ─── PWA ─────────────────────────────────────────────────────
 (function initPWA(){
   try{
+    // Limpar caches antigos do SW
+    if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}
+    // Remover SW antigo
+    if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(regs){regs.forEach(function(r){r.unregister();});});}
     var cfg=APP.config||{};
     var clubColor=cfg.color||'#1d6f3b';
     var raw=(cfg.clubName||'SPS').split(' ').map(function(w){return w[0]||'';}).join('').slice(0,3).toUpperCase()||'SPS';
@@ -5572,10 +5576,7 @@ function _welcomeEntrar(aid){
     if(link)link.href=URL.createObjectURL(blob);
     var tc=document.querySelector('meta[name="theme-color"]');
     if(tc)tc.content=clubColor;
-    // Service Worker
-    if('serviceWorker' in navigator){
-      var swV="sps-1780385925";var sw='const V="'+swV+'";self.addEventListener("install",e=>{self.skipWaiting();});self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))).then(()=>clients.claim()));});self.addEventListener("fetch",e=>{if(e.request.method!=="GET")return;e.respondWith(caches.open(V).then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(nr=>{c.put(e.request,nr.clone());return nr;}))));});';
-      navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(function(){});
+    // Service Worker desativado temporariamente
     }
     // Banner Android
     window.addEventListener('beforeinstallprompt',function(e){
