@@ -5773,10 +5773,8 @@ async function _welcomeEntrar(aid){
 // ─── PWA ─────────────────────────────────────────────────────
 (function initPWA(){
   try{
-    // Limpar caches antigos do SW
-    if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}
-    // Remover SW antigo
-    if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(regs){regs.forEach(function(r){r.unregister();});});}
+    // Registar Service Worker
+    if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(function(e){console.warn('SW register error:',e);});}
     var cfg=APP.config||{};
     var clubColor=cfg.color||'#1d6f3b';
     var raw=(cfg.clubName||'SPS').split(' ').map(function(w){return w[0]||'';}).join('').slice(0,3).toUpperCase()||'SPS';
