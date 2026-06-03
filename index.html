@@ -5650,6 +5650,16 @@ function _checkAtletaToken(){
       showAtletaApp(atEx);
       return true;
     }
+    // Atleta não encontrada localmente — tentar via Supabase
+    if(_supa && _cid){
+      window.history.replaceState({},'',location.pathname);
+      pullCloud().then(function(){
+        var atCloud=APP.athletes.find(function(a){return a.id===aid;});
+        if(atCloud){AID=atCloud.id;ROLE='atleta';setSession(existing);showAtletaApp(atCloud);}
+        else{document.getElementById('screen-login').style.display='flex';renderLoginScreen();}
+      }).catch(function(){document.getElementById('screen-login').style.display='flex';renderLoginScreen();});
+      return true;
+    }
   }
 
   // Tentar encontrar atleta localmente
@@ -5682,9 +5692,9 @@ function _showWelcomeScreen(at, tok, isReset){
   var isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
   var isStandalone = window.navigator.standalone||window.matchMedia('(display-mode:standalone)').matches;
 
-  // Determinar modo: criar password, reset, ou entrar com password
+  // Determinar modo: se já tem password → entrar; se nunca teve → criar
   var hasPass = !!(at.passwordHash);
-  var mode = isReset ? 'criar' : (hasPass ? 'entrar' : 'criar');
+  var mode = hasPass ? 'entrar' : 'criar';
 
   var tip = '';
   if(!isStandalone){
