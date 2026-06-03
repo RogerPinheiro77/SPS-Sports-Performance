@@ -625,6 +625,10 @@ function showAtletaApp(at){
   const d=new Date();
   document.getElementById('at-date').textContent=d.toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'});
   atNav('home',document.querySelector('.at-ni'));
+  // Sincronizar dados mais recentes ao abrir a app da atleta
+  if(_sync&&_supa&&_cid){
+    pullCloud().then(()=>{ if(_atPage==='home')renderAtHome(); }).catch(e=>console.warn('pullCloud atleta:',e));
+  }
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────
@@ -5226,12 +5230,37 @@ function renderAtFisio(){
   ${injs.filter(i=>i.status==='alta').length?`<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Historial</div>${injs.filter(i=>i.status==='alta').map(i=>`<div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--brd);color:var(--t2)">${fmtDate(i.date)} — ${i.diagnosis||i.type} <span class="bdg bg-g">Alta</span></div>`).join('')}</div>`:''}`;
 }
 function renderAtTreino(){
-  const plans=APP.trainingPlans.filter(p=>p.athleteId===AID).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||''));
+  const at=APP.athletes.find(a=>a.id===AID);
+  const td=today();
+  // Unidades de treino da equipa (próximas 14 dias + hoje)
+  const teamTreinos=(APP.trainings||[]).filter(tr=>{
+    if(!tr.date||tr.date<td)return false;
+    const dtDiff=(new Date(tr.date)-new Date(td))/(1000*60*60*24);
+    if(dtDiff>14)return false;
+    if(tr.eventId){const ev=APP.schedule.find(e=>e.id===tr.eventId);if(ev&&ev.teamId&&at&&ev.teamId!==at.teamId)return false;}
+    return true;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+  // Planos individuais
+  const plans=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||''));
   const active=plans.filter(p=>!p.done);
   const done=plans.filter(p=>p.done);
   document.getElementById('atp-treino').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏋️ Fichas de Treino</div>
-  ${active.length?`<div style="margin-bottom:14px">${active.map(p=>`<div class="card" style="margin-bottom:10px">
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏋️ Treino</div>
+  ${teamTreinos.length?`<div style="margin-bottom:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Treinos da equipa</div>
+    ${teamTreinos.map(tr=>`<div class="card" style="margin-bottom:8px;padding:12px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:800">${escHtml(tr.title||'Treino')}</div>
+        <span class="bdg bg-g">${fmtDate(tr.date)}</span>
+      </div>
+      ${tr.horaInicio?`<div style="font-size:11px;color:var(--t2)">${tr.horaInicio}${tr.horaFim?'–'+tr.horaFim:''} ${tr.local?'· '+escHtml(tr.local):''}</div>`:''}
+      ${tr.objetivo?`<div style="font-size:11px;color:var(--t2);margin-top:3px">${escHtml(tr.objetivo)}</div>`:''}
+      <div style="font-size:10px;color:var(--t3);margin-top:4px">${Object.values(tr.exercises||{}).flat().length} exercício(s) · ${tr.duracao||0} min</div>
+    </div>`).join('')}
+  </div>`:''}
+  ${active.length?`<div style="margin-bottom:14px">
+    <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Planos individuais</div>
+    ${active.map(p=>`<div class="card" style="margin-bottom:10px">
   <div class="ch"><span class="ct">${escHtml(p.title||'Treino')}</span><span class="bdg bg-b">${p.type||'Treino'}</span></div>
     <div class="cb" style="padding:12px 14px">
       ${p.description?`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">${p.description}</div>`:''}
@@ -5242,7 +5271,7 @@ function renderAtTreino(){
       </div>
       <button class="btn btn-g btn-sm" style="margin-top:10px" onclick="markTreinoDone('${p.id}')">✅ Marcar como concluído</button>
     </div>
-  </div>`).join('')}</div>`:`<div class="al al-g">✅ Sem treinos pendentes atribuídos</div>`}
+  </div>`).join('')}</div>`:`<div class="al al-g" style="margin-top:8px">✅ Sem treinos pendentes atribuídos</div>`}
   ${done.length?`<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">Concluídos</div>
   ${done.slice(0,5).map(p=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd);font-size:12px;opacity:.65">
     <span>✅ ${p.title}</span><span style="color:var(--t2)">${p.doneAt?fmtDate(p.doneAt):''}</span>
