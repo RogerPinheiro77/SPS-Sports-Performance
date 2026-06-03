@@ -392,6 +392,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-ni" onclick="atNav('fisio',this)"><span class="ic">🏥</span>Fisio</div>
     <div class="at-ni" onclick="atNav('treino',this)"><span class="ic">🏋️</span>Treino</div>
     <div class="at-ni" onclick="atNav('aval',this)"><span class="ic">⭐</span>Aval.</div>
+    <div class="at-ni" onclick="atNav('convoc',this)"><span class="ic">📋</span>Convoc.</div>
   </nav>
 </div>
 
@@ -2937,21 +2938,37 @@ function saveTreinoPatch(trId){
   if(g('tr-date'))tr.date=g('tr-date').value;
   if(g('tr-hinicio'))tr.horaInicio=g('tr-hinicio').value;
   if(g('tr-hfim'))tr.horaFim=g('tr-hfim').value;
-  // Sync hora início/fim to linked schedule event so PSE timing stays correct
-  if(tr.eventId&&tr.horaInicio&&tr.horaFim){
-    const ev=APP.schedule.find(e=>e.id===tr.eventId);
-    if(ev){
-      ev.time=tr.horaInicio;
-      const [sh,sm]=tr.horaInicio.split(':').map(Number);
-      const [eh,em]=tr.horaFim.split(':').map(Number);
-      const durMin=(eh*60+em)-(sh*60+sm);
-      if(durMin>0)ev.dur=durMin;
-    }
-  }
   if(g('tr-local'))tr.local=g('tr-local').value.trim();
   if(g('tr-dur'))tr.duracao=+g('tr-dur').value||tr.duracao;
   if(g('tr-jog'))tr.jogadoras=+g('tr-jog').value||tr.jogadoras;
   if(g('tr-notes'))tr.notes=g('tr-notes').value;
+  // Sincronizar com evento no Planeamento
+  if(tr.date){
+    if(!tr.eventId){
+      // Criar evento no schedule automaticamente
+      const newEv={id:uid(),date:tr.date,title:tr.title||'Treino',type:'Treino',
+        time:tr.horaInicio||'',location:tr.local||'',dur:tr.duracao||90,
+        notes:tr.notes||'',teamId:APP.config.teams?.[0]?.id||null};
+      if(!APP.schedule)APP.schedule=[];
+      APP.schedule.push(newEv);
+      tr.eventId=newEv.id;
+    } else {
+      // Atualizar evento existente
+      const ev=APP.schedule.find(e=>e.id===tr.eventId);
+      if(ev){
+        ev.title=tr.title||ev.title;
+        ev.date=tr.date;
+        ev.time=tr.horaInicio||ev.time;
+        ev.location=tr.local||ev.location;
+        if(tr.horaInicio&&tr.horaFim){
+          const [sh,sm]=tr.horaInicio.split(':').map(Number);
+          const [eh,em]=tr.horaFim.split(':').map(Number);
+          const durMin=(eh*60+em)-(sh*60+sm);
+          if(durMin>0)ev.dur=durMin;
+        }
+      }
+    }
+  }
   saveData();toast('Unidade de Treino guardada ✓');
 }
 
@@ -4933,46 +4950,82 @@ function atNav(page,el){
   const renders={home:renderAtHome,wellness:renderAtWellness,pse:renderAtPSE,agenda:renderAtAgenda,nutri:renderAtNutri,fisio:renderAtFisio,treino:renderAtTreino,convoc:renderAtConvoc,aval:renderAtAval};
   if(renders[page])renders[page]();
 }
+function _atNavTo(page){
+  const ni=Array.from(document.querySelectorAll('.at-ni')).find(n=>(n.getAttribute('onclick')||'').includes("'"+page+"'"));
+  atNav(page,ni||null);
+}
 function renderAtHome(){
   const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
   const td=today();
   const todayW=APP.wellness.find(w=>w.athleteId===AID&&w.date===td);
   const todayP=APP.pse.filter(p=>p.athleteId===AID&&p.date===td);
   const todayEvs=APP.schedule.filter(e=>e.date===td&&(e.teamId===at.teamId||!e.teamId)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-  const nextEvs=APP.schedule.filter(e=>e.date>td&&(e.teamId===at.teamId||!e.teamId)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  const nextEv=APP.schedule.filter(e=>e.date>td&&(e.teamId===at.teamId||!e.teamId)).sort((a,b)=>a.date.localeCompare(b.date))[0];
   const inj=APP.injuries.find(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação'));
+  const injCount=APP.injuries.filter(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação')).length;
   const convoc=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
-  const openEvals=(APP.evalPeriods||[]).filter(p=>{const at2=APP.athletes.find(a=>a.id===AID);return(p.status==='open')&&(!p.teamId||p.teamId===at2?.teamId)&&!(APP.evalResponses||[]).find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto');});
-  const notifs=(!todayW?1:0)+(!todayP.length?1:0)+openEvals.length;
+  const openEvals=(APP.evalPeriods||[]).filter(p=>(p.status==='open')&&(!p.teamId||p.teamId===at.teamId)&&!(APP.evalResponses||[]).find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto'));
+  const pendingTreinos=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID&&!p.done).length;
+  const hasNutriPlan=!!(APP.nutritionPlans||[]).find(p=>p.athleteId===AID&&p.active);
+
+  const _bdg=(n,color)=>n?`<div style="position:absolute;top:7px;right:7px;background:${color};color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${n}</div>`:'';
+  const _card=(page,icon,title,sub,subColor,badge,rgb)=>`
+  <div onclick="_atNavTo('${page}')" style="background:rgba(${rgb},.1);border:1px solid rgba(${rgb},.3);border-radius:12px;padding:13px 11px;cursor:pointer;position:relative;min-height:90px">
+    ${badge}
+    <div style="font-size:26px;margin-bottom:5px;line-height:1">${icon}</div>
+    <div style="font-size:12px;font-weight:800;color:var(--t1)">${title}</div>
+    <div style="font-size:10px;color:${subColor};margin-top:3px;line-height:1.3">${sub}</div>
+  </div>`;
+
+  const cards=[
+    _card('wellness','💊','Wellness',
+      todayW?`Score: ${todayW.score}/100 ✓`:'Por preencher',
+      todayW?'#38bdf8':'#f87171',
+      _bdg(todayW?'':'!','#dc2626'),'2,132,199'),
+    _card('pse','📊','PSE',
+      todayP.length?`PSE: ${todayP[0].pse}/10 ✓`:'Por registar',
+      todayP.length?'#4ade80':'#f87171',
+      _bdg(todayP.length?'':'!','#dc2626'),'22,163,74'),
+    _card('agenda','📅','Agenda',
+      todayEvs.length?`${todayEvs.length} evento${todayEvs.length>1?'s':''} hoje`:nextEv?`Próx: ${fmtDate(nextEv.date)}`:'Sem eventos',
+      todayEvs.length?'#a78bfa':'var(--t2)',
+      _bdg(todayEvs.length||'','#7c3aed'),'124,58,237'),
+    _card('aval','⭐','Avaliações',
+      openEvals.length?`${openEvals.length} pendente${openEvals.length>1?'s':''}`:'Em dia ✓',
+      openEvals.length?'#fbbf24':'#4ade80',
+      _bdg(openEvals.length||'','#d97706'),'217,119,6'),
+    _card('nutri','🥗','Nutrição',
+      hasNutriPlan?'Plano ativo ✓':'Sem plano',
+      hasNutriPlan?'#4ade80':'var(--t2)',
+      '','234,88,12'),
+    _card('fisio','🏥','Fisio',
+      injCount?`${injCount} lesão${injCount>1?'ões':''} ativa${injCount>1?'s':''}`:'Disponível ✓',
+      injCount?'#f87171':'#4ade80',
+      _bdg(injCount||'','#dc2626'),'220,38,38'),
+    _card('convoc','📋','Convocatórias',
+      convoc?`Convocada! ${fmtDate(convoc.date)}`:'Sem convocatórias',
+      convoc?'#2dd4bf':'var(--t2)',
+      convoc?_bdg('✓','#16a34a'):'',' 14,98,81'),
+    _card('treino','🏋️','Treino Ind.',
+      pendingTreinos?`${pendingTreinos} pendente${pendingTreinos>1?'s':''}`:'Em dia ✓',
+      pendingTreinos?'#fbbf24':'#4ade80',
+      _bdg(pendingTreinos||'','#d97706'),'71,85,105'),
+  ];
 
   document.getElementById('atp-home').innerHTML=`
-  <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
-    <div style="width:64px;height:64px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;flex-shrink:0;overflow:hidden;border:3px solid var(--c1)">
-      ${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover" alt="${at.name}">`+'' :initials(at.name)}
+  <div style="display:flex;align-items:center;gap:13px;margin-bottom:14px">
+    <div style="width:56px;height:56px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;flex-shrink:0;overflow:hidden;border:3px solid var(--c1)">
+      ${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover" alt="${at.name}">`:initials(at.name)}
     </div>
     <div>
-      <div style="font-size:18px;font-weight:900;margin-bottom:2px">Olá, ${at.name.split(' ')[0]}! 👋</div>
-      <div style="font-size:12px;color:var(--t2)">${at.pos||''}${at.num?' · #'+at.num:''}</div>
-      <div style="font-size:11px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+      <div style="font-size:17px;font-weight:900;margin-bottom:1px">Olá, ${at.name.split(' ')[0]}! 👋</div>
+      <div style="font-size:11px;color:var(--t2)">${at.pos||''}${at.num?' · #'+at.num:''}</div>
+      <div style="font-size:10px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
     </div>
   </div>
-  ${notifs?`<div class="al al-y">📌 ${notifs} tarefa${notifs>1?'s':''} pendente${notifs>1?'s':''} hoje — ${!todayW?'Wellness ':''} ${!todayP.length?'PSE ':''} ${openEvals.length?'⭐ Avaliação ':''}</div>`:''}
-  ${inj?`<div class="al al-r">🩺 Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
-  ${convoc?`<div class="al al-g">📋 Convocada! — ${fmtDate(convoc.date)} ${APP.games.find(g=>g.id===convoc.gameId)?'vs '+APP.games.find(g=>g.id===convoc.gameId).opp:''}</div>`:''}
-  <div class="g2" style="margin-bottom:16px">
-    <div class="kpi ${todayW?'grn':'red'}" onclick="atNav('wellness',document.querySelectorAll('.at-ni')[1])" style="cursor:pointer">
-      <div class="kpi-lbl">Wellness Hoje</div>
-      <div class="kpi-val" style="font-size:22px">${todayW?todayW.score+'<span style="font-size:12px">/100</span>':'⚠️'}</div>
-      <div class="kpi-sub">${todayW?'Submetido ✓':'Clica para responder'}</div>
-    </div>
-    <div class="kpi ${todayP.length?'grn':'red'}" onclick="atNav('pse',document.querySelectorAll('.at-ni')[2])" style="cursor:pointer">
-      <div class="kpi-lbl">PSE Hoje</div>
-      <div class="kpi-val" style="font-size:22px">${todayP.length?todayP[0].pse+'<span style="font-size:12px">/10</span>':'⚠️'}</div>
-      <div class="kpi-sub">${todayP.length?todayP[0].duration+'min registado':'Clica para registar'}</div>
-    </div>
-  </div>
-  ${todayEvs.length?`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">📅 Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--brd)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}
-  ${nextEvs.length?`<div class="card"><div class="ch"><span class="ct">📆 Próximos Eventos</span></div><div class="cb" style="padding:10px 14px">${nextEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--brd)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${fmtDate(e.date)} ${e.time?'· '+e.time.slice(0,5):''}${e.location?' · '+e.location:''}</div></div></div>`;}).join('')}</div></div>`:''}`;
+  ${inj?`<div class="al al-r" style="margin-bottom:10px">🩺 Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px">${cards.join('')}</div>
+  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct">📅 Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}`;
 }
 function renderAtWellness(){
   const td=today();
@@ -5179,7 +5232,7 @@ function renderAtTreino(){
   document.getElementById('atp-treino').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏋️ Fichas de Treino</div>
   ${active.length?`<div style="margin-bottom:14px">${active.map(p=>`<div class="card" style="margin-bottom:10px">
-bg-b">${p.type||'Treino'}</span></div>
+  <div class="ch"><span class="ct">${escHtml(p.title||'Treino')}</span><span class="bdg bg-b">${p.type||'Treino'}</span></div>
     <div class="cb" style="padding:12px 14px">
       ${p.description?`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">${p.description}</div>`:''}
       ${p.note?`<div class="al al-b" style="font-size:11px;margin-bottom:8px">📝 ${p.note}</div>`:''}
