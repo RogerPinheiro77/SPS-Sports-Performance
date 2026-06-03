@@ -2956,6 +2956,7 @@ function saveTreinoPatch(trId){
       if(!APP.schedule)APP.schedule=[];
       APP.schedule.push(newEv);
       tr.eventId=newEv.id;
+      if(_sync&&_supa&&_cid)cloudUpsert('schedule_events',{...newEv,team_id:newEv.teamId,club_id:_cid});
     } else {
       // Atualizar evento existente
       const ev=APP.schedule.find(e=>e.id===tr.eventId);
@@ -5447,16 +5448,17 @@ async function pullCloud(){
       if(m.evalPeriods)APP.evalPeriods=m.evalPeriods;
       if(m.evalResponses){APP.evalResponses=m.evalResponses;console.log('[pullCloud] evalResponses=',m.evalResponses.length);}
       if(m.trainings)APP.trainings=m.trainings;
+      if(m.schedule&&m.schedule.length)APP.schedule=m.schedule;
       if(m.convocatorias)APP.convocatorias=m.convocatorias;
       if(m.scouting)APP.scouting=m.scouting;
       if(m.microcycles)APP.microcycles=m.microcycles;
       if(m.sessions)APP.sessions=m.sessions;
-      toast('Sincronizado ✓ — '+((m.evalResponses||[]).length)+' avaliações');
+      toast('Sincronizado ✓');
     } else {
       toast('Cloud: sem dados de meta (club_id='+_cid+')','err');
     }
     saveData();
-    if(_curPg)navTo(_curPg);
+    if(ROLE!=='atleta'&&_curPg)navTo(_curPg);
   }catch(e){console.warn('pullCloud error',e);toast('Erro sync: '+e.message,'err');}
 }
 async function pushAppMeta(){
@@ -5480,6 +5482,7 @@ async function pushAppMeta(){
         return c;
       }),
       convocatorias:APP.convocatorias||[],
+      schedule:APP.schedule||[],
       scouting:APP.scouting||[],
       microcycles:APP.microcycles||[],
       sessions:APP.sessions||[]
