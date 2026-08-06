@@ -1320,6 +1320,54 @@ async function _fpfFindPhoto(id){
   const results=await Promise.all(patterns.map(p=>_fpfTestImg(p)));
   return results.find(r=>r!==null)||null;
 }
+// Remove acentos para comparar nomes de meses em PT sem depender de encoding exato
+function _stripAccents(s){return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');}
+const _PT_MONTHS={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+// Converte "11 de abril de 2004" ou "15/03/1998" para AAAA-MM-DD (formato do <input type=date>)
+function _parsePtDate(s){
+  if(!s)return '';
+  const clean=_stripAccents(s).toLowerCase();
+  const m=clean.match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})/);
+  if(m){
+    const mon=_PT_MONTHS[m[2]];
+    if(mon)return m[3]+'-'+String(mon).padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  }
+  const m2=s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if(m2)return m2[3]+'-'+m2[2].padStart(2,'0')+'-'+m2[1].padStart(2,'0');
+  const m3=s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m3)return s.slice(0,10);
+  return '';
+}
+// Converte HTML em texto simples (label numa linha, valor na linha seguinte) e extrai os
+// campos da secção "Bio" da ficha de jogador da FPF: Nome, Data de Nascimento, Naturalidade, Posição.
+// A ficha da FPF não usa uma API JSON — estes dados só existem como texto na própria página.
+function _fpfExtractBio(html){
+  try{
+    let text=html
+      .replace(/<script[\s\S]*?<\/script>/gi,' ')
+      .replace(/<style[\s\S]*?<\/style>/gi,' ')
+      .replace(/<(br|\/p|\/div|\/li|\/tr|\/td|\/dt|\/dd|\/h[1-6])[^>]*>/gi,'\n')
+      .replace(/<[^>]+>/g,'\n')
+      .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&')
+      .split('\n').map(l=>l.replace(/\s+/g,' ').trim()).filter(Boolean).join('\n');
+    const grab=(label)=>{
+      const re=new RegExp('^'+label+'\\s*:?$','im');
+      const lines=text.split('\n');
+      const idx=lines.findIndex(l=>re.test(l));
+      return idx>=0&&idx+1<lines.length?lines[idx+1].trim():'';
+    };
+    const nome=grab('Nome');
+    const dobRaw=grab('Data de Nascimento');
+    const nat=grab('Naturalidade');
+    const pos=grab('Posi[cç][aã]o');
+    const out={};
+    if(nome&&nome.length>2)out.fullName=nome;
+    if(dobRaw){const iso=_parsePtDate(dobRaw);if(iso)out.dob=iso;}
+    if(nat&&nat.length>1)out.nat=nat;
+    if(pos&&pos.length>1)out.pos=pos;
+    return out;
+  }catch(e){return{};}
+}
 async function _xtFPF(id,url){
   // Run photo search in parallel with data fetch
   const photoPromise=_fpfFindPhoto(id);
@@ -1340,9 +1388,11 @@ async function _xtFPF(id,url){
       }
     }catch(e){}
   }
-  // Try actual page HTML
+  // Try actual page HTML — buscada sempre (mesmo que já haja apiData) para poder ler a
+  // secção "Bio" (Data de Nascimento, Naturalidade, Posição), que nunca vem da API.
+  const pageHtml=await _proxyGet(url);
   if(!apiData){
-    const html=await _proxyGet(url);
+    const html=pageHtml;
     if(html&&html.length>500){
       const nd=html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>(\{[\s\S]+?\})<\/script>/);
       if(nd){try{const d=JSON.parse(nd[1]);const p=d.props?.pageProps?.player||d.props?.pageProps?.playerData;if(p){apiData=_parseFPFJ(p,id);}}catch(e){}}
@@ -1356,6 +1406,19 @@ async function _xtFPF(id,url){
         const metaImg=og('og:image');
         if(name&&name.length>2)apiData={name,photo:metaImg,bio:og('og:description').slice(0,200),fpfId:id,_ok:true,_source:'fpf'};
       }
+    }
+  }
+  // A ficha da FPF não tem API — Data de Nascimento, Naturalidade e Posição só existem
+  // como texto na secção "Bio" da própria página. Complementa sempre que possível,
+  // sem substituir dados já encontrados por outra via.
+  if(pageHtml){
+    const bio=_fpfExtractBio(pageHtml);
+    if(Object.keys(bio).length){
+      if(!apiData)apiData={fpfId:id,_source:'fpf'};
+      if(!apiData.name&&bio.fullName)apiData.name=bio.fullName;
+      if(!apiData.dob&&bio.dob)apiData.dob=bio.dob;
+      if(!apiData.nat&&bio.nat)apiData.nat=bio.nat;
+      if(!apiData.pos&&bio.pos)apiData.pos=bio.pos;
     }
   }
   // Wait for photo result
