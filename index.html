@@ -4054,7 +4054,9 @@ function renderTreinosInd(){
 }
 function saveTreinoInd(){
   const tp={id:uid(),athleteId:_tiAtId,title:document.getElementById('tf-title').value||'Ficha de Treino',type:document.getElementById('tf-type').value,week:document.getElementById('tf-week').value,volume:document.getElementById('tf-vol').value,description:document.getElementById('tf-desc').value,note:document.getElementById('tf-note').value,done:false,createdAt:today()};
-  APP.trainingPlans.push(tp);saveData();_showTiForm=false;toast('Ficha criada ✓');renderTreinosInd();
+  APP.trainingPlans.push(tp);
+  if(_sync)cloudUpsert('training_plans',tp);
+  saveData();_showTiForm=false;toast('Ficha criada ✓');renderTreinosInd();
 }
 function viewTreinosAt(aid){
   const at=APP.athletes.find(a=>a.id===aid);
@@ -4196,6 +4198,7 @@ function saveEpisodio(){
   const ep={id:_editEpId||uid(),athleteId:aid,date,type:document.getElementById('epf-type').value,bodyPart:document.getElementById('epf-body').value,diagnosis:document.getElementById('epf-diag').value,severity:document.getElementById('epf-sev').value,returnDate:document.getElementById('epf-ret').value,notes:document.getElementById('epf-notes').value,status:'ativo',phase:1,phaseDesc:'Avaliação inicial',progress:0};
   if(_editEpId){const i=APP.injuries.findIndex(x=>x.id===_editEpId);if(i>=0)APP.injuries[i]={...APP.injuries[i],...ep};}
   else APP.injuries.push(ep);
+  if(_sync)cloudUpsert('injuries',APP.injuries.find(x=>x.id===ep.id));
   saveData();_showEpForm=false;_editEpId=null;toast('Episódio registado ✓');renderFisioEp();
 }
 function editEpisodio(id){_editEpId=id;_showEpForm=true;renderFisioEp();}
@@ -4246,7 +4249,9 @@ function saveTratamento(){
   if(!date)return toast('Data obrigatória','err');
   const inj=APP.injuries.find(i=>i.id===_tratEpId);
   const t={id:uid(),injuryId:_tratEpId,athleteId:inj?.athleteId||null,date,type:document.getElementById('tr-type').value,description:document.getElementById('tr-desc').value,response:document.getElementById('tr-resp').value,professional:document.getElementById('tr-prof').value};
-  APP.treatments.push(t);saveData();toast('Tratamento registado ✓');renderFisioTrat();
+  APP.treatments.push(t);
+  if(_sync)cloudUpsert('treatments',t);
+  saveData();toast('Tratamento registado ✓');renderFisioTrat();
 }
 function deleteTrat(id){if(!confirm('Apagar?'))return;APP.treatments=APP.treatments.filter(t=>t.id!==id);saveData();toast('Apagado');renderFisioTrat();}
 
@@ -4326,7 +4331,9 @@ function saveNutriAval(){
   const date=document.getElementById('na-date').value;
   if(!aid||!date)return toast('Atleta e data obrigatórios','err');
   const a={id:uid(),athleteId:aid,date,weight:document.getElementById('na-wt').value,height:document.getElementById('na-ht').value,bmi:document.getElementById('na-bmi').value,bodyFat:document.getElementById('na-fat').value,muscle:document.getElementById('na-mus').value,hydration:document.getElementById('na-hyd').value,tricipital:document.getElementById('na-tri').value,suprailiaca:document.getElementById('na-sup').value,notes:document.getElementById('na-notes').value};
-  APP.nutritionAssessments.push(a);saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
+  APP.nutritionAssessments.push(a);
+  if(_sync)cloudUpsert('nutrition_records',a);
+  saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
 }
 function deleteNutriAval(id){if(!confirm('Apagar?'))return;APP.nutritionAssessments=APP.nutritionAssessments.filter(a=>a.id!==id);saveData();toast('Apagada');renderNutriAval();}
 
@@ -4381,9 +4388,10 @@ function saveNutriPlano(){
   const p={id:_editNpId||uid(),athleteId:aid,name,objective:document.getElementById('np-obj').value,kcal:document.getElementById('np-kcal').value,protein:document.getElementById('np-prot').value,carbs:document.getElementById('np-carb').value,fat:document.getElementById('np-fat').value,meals,active:true,startDate:today()};
   if(_editNpId){const i=APP.nutritionPlans.findIndex(x=>x.id===_editNpId);if(i>=0)APP.nutritionPlans[i]=p;}
   else APP.nutritionPlans.push(p);
+  if(_sync)cloudUpsert('nutrition_plans',p);
   saveData();_showNpForm=false;_editNpId=null;toast('Plano guardado ✓');renderNutriPlanos();
 }
-function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
+function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;if(_sync)cloudUpsert('nutrition_plans',p);saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
 
 // ─── RELATÓRIOS ──────────────────────────────────────────────
@@ -4850,10 +4858,12 @@ function renderConfig(){
       <div class="form-g"><label class="fl">Project URL</label><input class="fc" id="supa-url" placeholder="https://xxx.supabase.co" value="${getSupaCfg().url||''}"></div>
       <div class="form-g"><label class="fl">Anon Key</label><input class="fc" id="supa-key" placeholder="eyJ..." value="${getSupaCfg().anonKey||''}"></div>
       <div class="form-g"><label class="fl">Club ID (UUID)</label><input class="fc" id="supa-cid" placeholder="Deixar vazio para criar automaticamente" value="${getSupaCfg().clubId||''}"></div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-g btn-sm" onclick="connectCloud()">🔗 Conectar</button>
         <button class="btn btn-r btn-sm" onclick="disconnectCloud()">✕ Desligar</button>
+        <button class="btn btn-gh btn-sm" onclick="forceSyncAll()">🔄 Sincronizar Tudo Agora</button>
       </div>
+      <div class="al al-b" style="margin-top:10px;font-size:11px">🔄 Sincronizar Tudo Agora envia todos os dados deste dispositivo (atletas, wellness, PSE, lesões, tratamentos, nutrição, calendário, treinos individuais) para o Supabase. Usa isto se este dispositivo esteve algum tempo sem ligação à cloud.</div>
       <div id="cloud-status" style="margin-top:10px;font-size:11px;color:var(--t2)">${_sync?'🟢 Ligado':'🔴 Desligado'}</div>
     </div></div>
     <div class="card"><div class="ch"><span class="ct">📊 Dados</span></div><div class="cb">
@@ -5344,6 +5354,31 @@ function disconnectCloud(){
   updateCloudDot(false);
   toast('Cloud desligado');
 }
+// Envia TODOS os dados locais para o Supabase — útil quando um dispositivo esteve
+// offline ou desligado da cloud (ex: projeto pausado) e os dados só existem localmente.
+async function forceSyncAll(){
+  if(!_supa||!_cid)return toast('Liga primeiro ao Supabase','err');
+  toast('🔄 A sincronizar tudo — não feches a app...');
+  const upsertAll=async(table,rows)=>{
+    for(const r of (rows||[])){
+      try{ await cloudUpsert(table,r); }
+      catch(e){ console.warn('forceSyncAll',table,e); }
+    }
+  };
+  try{
+    await upsertAll('athletes',APP.athletes);
+    await upsertAll('wellness_records',APP.wellness);
+    await upsertAll('pse_records',APP.pse);
+    await upsertAll('injuries',APP.injuries);
+    await upsertAll('treatments',APP.treatments);
+    await upsertAll('nutrition_records',APP.nutritionAssessments);
+    await upsertAll('nutrition_plans',APP.nutritionPlans);
+    await upsertAll('schedule_events',APP.schedule);
+    await upsertAll('training_plans',APP.trainingPlans);
+    await pushAppMeta();
+    toast('✅ Sincronização completa!');
+  }catch(e){console.error(e);toast('Erro na sincronização: '+e.message,'err');}
+}
 function exportAppData(){
   // Export all data as base64 string (strip photos to keep small)
   const exp=JSON.parse(JSON.stringify(APP));
@@ -5420,7 +5455,7 @@ async function pullCloud(){
   if(!_supa||!_cid)return;
   try{
     const pulls=[
-      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id}))],
+      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash}))],
       ['wellness_records','wellness',(d)=>APP.wellness=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at}))],
       ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at}))],
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at}))],
@@ -5490,10 +5525,45 @@ async function pushAppMeta(){
     await _supa.from('clubs').update({meta:meta,updated_at:new Date().toISOString()}).eq('id',_cid);
   }catch(e){console.warn('pushAppMeta error',e);}
 }
+// Mapa das colunas REAIS de cada tabela no Supabase + renomeações de campos locais
+// (camelCase) para colunas (snake_case). Antes disto, cloudUpsert enviava o objeto local
+// tal e qual (incluindo campos camelCase que não existem como coluna), o que fazia o
+// Supabase rejeitar o pedido inteiro — ou seja, o sync individual nunca funcionava de facto.
+const _CLOUD_TABLE_SCHEMA={
+  athletes:{cols:['id','name','pos','num','dob','nationality','height','foot','photo','club','created_at','team_id','password_hash','email'],
+    rename:{teamId:'team_id',passwordHash:'password_hash'}},
+  wellness_records:{cols:['id','athlete_id','date','sleep','fatigue','stress','pain','mood','score','cycle','submitted_at'],
+    rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
+  pse_records:{cols:['id','athlete_id','date','pse','duration','ua','session_type','submitted_at'],
+    rename:{athleteId:'athlete_id',sessionType:'session_type',submittedAt:'submitted_at'}},
+  injuries:{cols:['id','athlete_id','date','type','diagnosis','severity','status','return_date','notes','phase','phase_desc','progress','registered_by','registered_at','body_part'],
+    rename:{athleteId:'athlete_id',returnDate:'return_date',bodyPart:'body_part',phaseDesc:'phase_desc',registeredAt:'registered_at',registeredBy:'registered_by'}},
+  treatments:{cols:['id','injury_id','athlete_id','date','type','description','response','professional_name','registered_at'],
+    rename:{injuryId:'injury_id',athleteId:'athlete_id',professional:'professional_name',registeredAt:'registered_at'}},
+  nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle'],
+    rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at'}},
+  nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at'],
+    rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at'}},
+  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id'],
+    rename:{createdAt:'created_at',teamId:'team_id'}},
+  training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at'],
+    rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at'}}
+};
 async function cloudUpsert(table,row){
   if(!_supa||!_cid)return;
-  try{await _supa.from(table).upsert({...row,club_id:_cid},{onConflict:'id'});}
-  catch(e){console.warn('cloudUpsert error',e);}
+  try{
+    const schema=_CLOUD_TABLE_SCHEMA[table];
+    let payload;
+    if(schema){
+      const src={...row};
+      Object.keys(schema.rename||{}).forEach(k=>{ if(src[k]!==undefined&&src[schema.rename[k]]===undefined)src[schema.rename[k]]=src[k]; });
+      payload={club_id:_cid};
+      schema.cols.forEach(c=>{ if(src[c]!==undefined)payload[c]=src[c]; });
+    } else {
+      payload={...row,club_id:_cid};
+    }
+    await _supa.from(table).upsert(payload,{onConflict:'id'});
+  }catch(e){console.warn('cloudUpsert error',table,e);}
   // Also push app meta to keep users/config/etc in sync
   pushAppMeta();
 }
@@ -5505,6 +5575,10 @@ loadData();
 // enquanto a sincronização com a nuvem ainda não terminou.
 const _DEFAULT_SUPA_URL='https://dgpltxembsnnypushsxh.supabase.co';
 const _DEFAULT_SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRncGx0eGVtYnNubnlwdXNoc3hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjQyNzIsImV4cCI6MjA5NDk0MDI3Mn0.TNguE_3nqHC7aLXGOVKoDHrzQ5rIxZsDU_ZL3JehuNk';
+// Clube ativo por defeito (Moreirense Futebol Clube) — antes disto, dispositivos novos
+// escolhiam um clube "ao calhas" entre os que existem no projeto Supabase (bug).
+// Isto fica fixo até existir uma funcionalidade explícita de "Mudar de Clube".
+const _DEFAULT_CLUB_ID='406d8b81-a759-4832-b871-37add6a91b18';
 const _sc=getSupaCfg();
 const _supaUrl=_sc.url||_DEFAULT_SUPA_URL;
 const _supaKey=_sc.anonKey||_DEFAULT_SUPA_KEY;
@@ -5513,16 +5587,12 @@ if(_supaUrl&&_supaKey){
   try{
     _supa=supabase.createClient(_supaUrl,_supaKey);
     _cid=_sc.clubId||null;
-    // If no clubId saved yet, try to find it from Supabase
+    // If no clubId saved yet, use the fixed default club instead of picking one at random
     if(!_cid){
-      _initialSyncPromise=_supa.from('clubs').select('id').limit(1).then(r=>{
-        if(r.data&&r.data.length){
-          _cid=r.data[0].id;_sync=true;
-          setSupaCfg({url:_supaUrl,anonKey:_supaKey,clubId:_cid});
-          updateCloudDot(true);
-          return pullCloud();
-        }
-      }).catch(e=>console.warn('club fetch error',e));
+      _cid=_DEFAULT_CLUB_ID;_sync=true;
+      setSupaCfg({url:_supaUrl,anonKey:_supaKey,clubId:_cid});
+      updateCloudDot(true);
+      _initialSyncPromise=pullCloud().catch(e=>console.warn('pullCloud err',e));
     } else {
       _sync=true;
       // Sincronizar sempre ao abrir — mesmo em dispositivos que já conhecem o clube,
