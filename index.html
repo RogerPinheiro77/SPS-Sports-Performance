@@ -5071,12 +5071,12 @@ function renderAtWellness(){
   <div class="card" style="margin-bottom:14px">
     <div class="cb" style="padding:12px 14px">
       <div class="wellness-form">
-        ${wDims.map(d=>`<div class="wf-row"><div><div class="wf-l">${d.label}</div><div class="wf-s">${d.sub}</div></div>${scaleHtml(d.k,d.min,d.max)}</div>`).join('')}
         <div class="wf-row"><div><div class="wf-l">Fase do Ciclo</div><div class="wf-s">Fase menstrual atual</div></div>
           <select class="fc" style="width:auto" onchange="_wfVals.cycle=this.value">
             ${cycleOpts.map(o=>`<option value="${o}" ${_wfVals.cycle===o?'selected':''}>${o}</option>`).join('')}
           </select>
         </div>
+        ${wDims.map(d=>`<div class="wf-row"><div><div class="wf-l">${d.label}</div><div class="wf-s">${d.sub}</div></div>${scaleHtml(d.k,d.min,d.max)}</div>`).join('')}
       </div>
     </div>
   </div>
@@ -5499,6 +5499,42 @@ async function cloudUpsert(table,row){
 }
 // ─── INIT ──────────────────────────────────────────
 loadData();
+
+// Ligar ao Supabase ANTES de decidir o que mostrar no ecrã de login — evita mostrar
+// "criar conta" ou validar password contra dados locais vazios/desatualizados
+// enquanto a sincronização com a nuvem ainda não terminou.
+const _DEFAULT_SUPA_URL='https://dgpltxembsnnypushsxh.supabase.co';
+const _DEFAULT_SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRncGx0eGVtYnNubnlwdXNoc3hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjQyNzIsImV4cCI6MjA5NDk0MDI3Mn0.TNguE_3nqHC7aLXGOVKoDHrzQ5rIxZsDU_ZL3JehuNk';
+const _sc=getSupaCfg();
+const _supaUrl=_sc.url||_DEFAULT_SUPA_URL;
+const _supaKey=_sc.anonKey||_DEFAULT_SUPA_KEY;
+let _initialSyncPromise=Promise.resolve();
+if(_supaUrl&&_supaKey){
+  try{
+    _supa=supabase.createClient(_supaUrl,_supaKey);
+    _cid=_sc.clubId||null;
+    // If no clubId saved yet, try to find it from Supabase
+    if(!_cid){
+      _initialSyncPromise=_supa.from('clubs').select('id').limit(1).then(r=>{
+        if(r.data&&r.data.length){
+          _cid=r.data[0].id;_sync=true;
+          setSupaCfg({url:_supaUrl,anonKey:_supaKey,clubId:_cid});
+          updateCloudDot(true);
+          return pullCloud();
+        }
+      }).catch(e=>console.warn('club fetch error',e));
+    } else {
+      _sync=true;
+      // Sincronizar sempre ao abrir — mesmo em dispositivos que já conhecem o clube,
+      // para apanhar alterações feitas noutros dispositivos (ex: password mudada no PC)
+      _initialSyncPromise=pullCloud().catch(e=>console.warn('pullCloud err',e));
+    }
+    setTimeout(()=>updateCloudDot(_sync),200);
+  }catch(e){console.warn('Supabase init error',e);}
+}
+// Nunca esperar mais de 4s pela nuvem — se estiver offline/lenta, segue com os dados locais
+const _initTimeout=new Promise(r=>setTimeout(r,4000));
+
 // Restore session if active
 (function initSession(){
   const sess=getSession();
@@ -5523,35 +5559,12 @@ loadData();
     }
   }
   document.getElementById('screen-login').style.display='flex';
-  renderLoginScreen();
+  // Mostrar um loading até a sincronização inicial terminar (ou 4s), para nunca
+  // mostrar "criar conta" nem validar login contra dados ainda desatualizados
+  const lm=document.getElementById('login-main');
+  if(lm) lm.innerHTML='<div style="text-align:center;padding:30px 10px;color:rgba(255,255,255,.5);font-size:12px">A sincronizar dados...</div>';
+  Promise.race([_initialSyncPromise,_initTimeout]).then(()=>renderLoginScreen()).catch(()=>renderLoginScreen());
 })();
-// Default Supabase credentials — auto-connect on any device
-const _DEFAULT_SUPA_URL='https://dgpltxembsnnypushsxh.supabase.co';
-const _DEFAULT_SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRncGx0eGVtYnNubnlwdXNoc3hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjQyNzIsImV4cCI6MjA5NDk0MDI3Mn0.TNguE_3nqHC7aLXGOVKoDHrzQ5rIxZsDU_ZL3JehuNk';
-const _sc=getSupaCfg();
-const _supaUrl=_sc.url||_DEFAULT_SUPA_URL;
-const _supaKey=_sc.anonKey||_DEFAULT_SUPA_KEY;
-if(_supaUrl&&_supaKey){
-  try{
-    _supa=supabase.createClient(_supaUrl,_supaKey);
-    _cid=_sc.clubId||null;
-    // If no clubId saved yet, try to find it from Supabase
-    if(!_cid){
-      _supa.from('clubs').select('id').limit(1).then(r=>{
-        if(r.data&&r.data.length){
-          _cid=r.data[0].id;_sync=true;
-          setSupaCfg({url:_supaUrl,anonKey:_supaKey,clubId:_cid});
-          updateCloudDot(true);
-          // Sync data from cloud to local on first connect
-          pullCloud().then(()=>renderLoginScreen()).catch(e=>console.warn('pullCloud err',e));
-        }
-      }).catch(e=>console.warn('club fetch error',e));
-    } else {
-      _sync=true;
-    }
-    setTimeout(()=>updateCloudDot(_sync),200);
-  }catch(e){console.warn('Supabase init error',e);}
-}
 
 // ─── FASE 2 + 3: LINK/TOKEN + AUTH SIMPLIFICADA ─────────────────────────────
 
