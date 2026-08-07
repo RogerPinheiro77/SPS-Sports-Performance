@@ -5642,6 +5642,10 @@ const _DEFAULT_SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 // escolhiam um clube "ao calhas" entre os que existem no projeto Supabase (bug).
 // Isto fica fixo até existir uma funcionalidade explícita de "Mudar de Clube".
 const _DEFAULT_CLUB_ID='406d8b81-a759-4832-b871-37add6a91b18';
+// Clube placeholder antigo ("Sport Performance") — alguns dispositivos/browsers guardaram
+// este id em cache antes da correção do clube por defeito. Sempre que o detectarmos,
+// corrigimos automaticamente para o clube real, sem exigir limpeza manual de dados do browser.
+const _PLACEHOLDER_CLUB_ID='a56297e9-8322-411c-9828-c0439cef36db';
 const _sc=getSupaCfg();
 const _supaUrl=_sc.url||_DEFAULT_SUPA_URL;
 const _supaKey=_sc.anonKey||_DEFAULT_SUPA_KEY;
@@ -5650,6 +5654,11 @@ if(_supaUrl&&_supaKey){
   try{
     _supa=supabase.createClient(_supaUrl,_supaKey);
     _cid=_sc.clubId||null;
+    if(_cid===_PLACEHOLDER_CLUB_ID){
+      console.warn('[init] clubId em cache era o placeholder antigo — a corrigir para o clube real');
+      _cid=_DEFAULT_CLUB_ID;
+      setSupaCfg({url:_supaUrl,anonKey:_supaKey,clubId:_cid});
+    }
     // If no clubId saved yet, use the fixed default club instead of picking one at random
     if(!_cid){
       _cid=_DEFAULT_CLUB_ID;_sync=true;
