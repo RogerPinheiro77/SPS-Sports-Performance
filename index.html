@@ -5606,7 +5606,7 @@ async function pullCloud(){
   if(!_supa||!_cid)return;
   try{
     const pulls=[
-      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash,nat:r.nationality||r.nat,clubHistory:r.clubHistory||r.history||[]}))],
+      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash,nat:r.nationality||r.nat}))],
       ['wellness_records','wellness',(d)=>APP.wellness=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at}))],
       ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at}))],
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at}))],
