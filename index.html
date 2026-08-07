@@ -708,18 +708,18 @@ function ageYears(dob){if(!dob)return'';const d=new Date(dob),n=new Date();let a
 function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase():'?';}
 // Mapa de posições (PT) -> coordenadas (%) num campo vertical, 0=linha de fundo adversária, 100=baliza própria
 const _POS_COORDS={
-  'guarda redes':[50,92],'gr':[50,92],
-  'defesa central':[50,76],'defesa':[50,76],'central':[50,76],'dc':[50,76],
-  'defesa direito':[80,74],'lateral direito':[80,74],'dd':[80,74],
-  'defesa esquerdo':[20,74],'lateral esquerdo':[20,74],'de':[20,74],
-  'médio defensivo':[50,60],'medio defensivo':[50,60],'mdc':[50,60],
-  'médio centro':[50,50],'medio centro':[50,50],'médio':[50,50],'medio':[50,50],'mc':[50,50],
-  'médio ofensivo':[50,36],'medio ofensivo':[50,36],'moc':[50,36],
-  'extremo direito':[82,28],'eld':[82,28],
-  'extremo esquerdo':[18,28],'ele':[18,28],
-  'extremo':[50,28],
-  'ponta de lança':[50,14],'ponta de lanca':[50,14],'pl':[50,14],
-  'avançado':[50,14],'avancado':[50,14],'av':[50,14]
+  'guarda redes':[50,134],'gr':[50,134],
+  'defesa central':[50,116],'defesa':[50,116],'central':[50,116],'dc':[50,116],
+  'defesa direito':[78,114],'lateral direito':[78,114],'dd':[78,114],
+  'defesa esquerdo':[22,114],'lateral esquerdo':[22,114],'de':[22,114],
+  'médio defensivo':[50,84],'medio defensivo':[50,84],'mdc':[50,84],
+  'médio centro':[50,70],'medio centro':[50,70],'médio':[50,70],'medio':[50,70],'mc':[50,70],
+  'médio ofensivo':[50,54],'medio ofensivo':[50,54],'moc':[50,54],
+  'extremo direito':[80,32],'eld':[80,32],
+  'extremo esquerdo':[20,32],'ele':[20,32],
+  'extremo':[50,32],
+  'ponta de lança':[50,20],'ponta de lanca':[50,20],'pl':[50,20],
+  'avançado':[50,20],'avancado':[50,20],'av':[50,20]
 };
 const _POS_CODES=['GR','DC','DD','DE','MDC','MC','MOC','ELD','ELE','PL','AV'];
 const _POS_TEXT_TO_CODE={'guarda redes':'GR','defesa central':'DC','defesa':'DC','central':'DC',
