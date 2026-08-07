@@ -1,7 +1,7 @@
 // SPS Sports Performance — Service Worker
 // Cache estratégico: app shell + CDN assets
 
-const CACHE = 'sps-v1';
+const CACHE = 'sps-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -31,12 +31,32 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Fetch: cache-first para assets locais, network-first para Supabase/APIs
+// Fetch: network-first para o app shell (HTML/navegação) — garante que o
+// utilizador vê sempre a versão mais recente após um deploy, com a cache só
+// como fallback offline. Cache-first para assets estáticos versionados (CDN).
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
   // Não interceptar chamadas Supabase nem APIs externas (dados sempre frescos)
   if (url.includes('supabase.co') || url.includes('api.qrserver')) {
+    return;
+  }
+
+  const isAppShell = e.request.mode === 'navigate' ||
+    url.endsWith('/') || url.endsWith('/index.html');
+
+  if (isAppShell) {
+    e.respondWith(
+      fetch(e.request)
+        .then(r => {
+          if (r && r.ok) {
+            const clone = r.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return r;
+        })
+        .catch(() => caches.match(e.request))
+    );
     return;
   }
 
