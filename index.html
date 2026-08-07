@@ -1798,7 +1798,7 @@ function openAthleteModal(id){
         +'<div style="font-size:12px;color:var(--t3);margin-top:2px">'+(at.height?at.height+'cm · ':'')+at.foot+' '+(at.foot?' · ':'')+'</div>'
         +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
           +(at.fpfId?'<a href="https://www.fpf.pt/pt/Jogadores/Ficha-de-Jogador/playerId/'+at.fpfId+'" target="_blank" style="font-size:11px;color:var(--c1);text-decoration:none;padding:3px 8px;border:1px solid var(--c1);border-radius:6px">🔗 FPF</a>':'')
-          +'<button onclick="document.getElementById(\'athlete-profile-ov\').remove();_editAtId=\''+id+'\';_showAtForm=true;renderPlantel()" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;cursor:pointer;color:var(--t1)">✏️ Editar</button>'
+          +'<button onclick="document.getElementById(\'athlete-profile-ov\').remove();_editAtId=\''+id+'\';_showAtForm=true;navTo(\'plantel\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;cursor:pointer;color:var(--t1)">✏️ Editar</button>'
           +'<button onclick="if(confirm(\'Apagar atleta?\'))deleteAthlete(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid #f87171;border-radius:6px;cursor:pointer;color:#f87171">🗑️</button>'
           +'<button onclick="gerarLinkAtleta(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--c1);border-radius:6px;cursor:pointer;color:var(--c1)">📱 Link App</button>'
         +'</div>'
@@ -1916,7 +1916,7 @@ function openAthleteModal(id){
   },80);
 }
 
-function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();renderPlantel();}
+function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();const ov=document.getElementById('athlete-profile-ov');if(ov)ov.remove();navTo('plantel');}
 
 // ─── PLANEAMENTO (CALENDÁRIO) ─────────────────────────────
 let _calYear=new Date().getFullYear(), _calMonth=new Date().getMonth();
@@ -4903,7 +4903,7 @@ async function resetAthletePwd(id){
   const rawPwd=genPwd(8);const hash=await hashPwd(rawPwd);
   at.passwordHash=hash;saveData();toast('Password reposta ✓');showAthleteCredsModal(at,rawPwd);
 }
-function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();renderPlantel();}
+function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();const ov=document.getElementById('athlete-profile-ov');if(ov)ov.remove();navTo('plantel');}
 function showAthleteCredsFromProfile(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
   if(at.passwordHash){if(confirm('Gerar nova password para '+at.name+'?'))resetAthletePwd(id);}
