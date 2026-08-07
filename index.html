@@ -709,15 +709,30 @@ function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join
 // Mapa de posições (PT) -> coordenadas (%) num campo vertical, 0=linha de fundo adversária, 100=baliza própria
 const _POS_COORDS={
   'guarda redes':[50,92],'gr':[50,92],
-  'defesa central':[50,76],'defesa':[50,76],'central':[50,76],
-  'defesa direito':[80,74],'lateral direito':[80,74],
-  'defesa esquerdo':[20,74],'lateral esquerdo':[20,74],
-  'médio defensivo':[50,60],'medio defensivo':[50,60],
-  'médio centro':[50,50],'medio centro':[50,50],'médio':[50,50],'medio':[50,50],
-  'médio ofensivo':[50,36],'medio ofensivo':[50,36],
-  'extremo direito':[82,28],'extremo esquerdo':[18,28],'extremo':[50,28],
-  'ponta de lança':[50,14],'ponta de lanca':[50,14],'avançado':[50,14],'avancado':[50,14]
+  'defesa central':[50,76],'defesa':[50,76],'central':[50,76],'dc':[50,76],
+  'defesa direito':[80,74],'lateral direito':[80,74],'dd':[80,74],
+  'defesa esquerdo':[20,74],'lateral esquerdo':[20,74],'de':[20,74],
+  'médio defensivo':[50,60],'medio defensivo':[50,60],'mdc':[50,60],
+  'médio centro':[50,50],'medio centro':[50,50],'médio':[50,50],'medio':[50,50],'mc':[50,50],
+  'médio ofensivo':[50,36],'medio ofensivo':[50,36],'moc':[50,36],
+  'extremo direito':[82,28],'eld':[82,28],
+  'extremo esquerdo':[18,28],'ele':[18,28],
+  'extremo':[50,28],
+  'ponta de lança':[50,14],'ponta de lanca':[50,14],'pl':[50,14],
+  'avançado':[50,14],'avancado':[50,14],'av':[50,14]
 };
+const _POS_CODES=['GR','DC','DD','DE','MDC','MC','MOC','ELD','ELE','PL','AV'];
+const _POS_TEXT_TO_CODE={'guarda redes':'GR','defesa central':'DC','defesa':'DC','central':'DC',
+  'defesa direito':'DD','lateral direito':'DD','defesa esquerdo':'DE','lateral esquerdo':'DE',
+  'médio defensivo':'MDC','medio defensivo':'MDC','médio centro':'MC','medio centro':'MC','médio':'MC','medio':'MC',
+  'médio ofensivo':'MOC','medio ofensivo':'MOC','extremo direito':'ELD','extremo esquerdo':'ELE','extremo':'ELD',
+  'ponta de lança':'PL','ponta de lanca':'PL','avançado':'AV','avancado':'AV'};
+function _posToCode(s){
+  if(!s)return null;
+  const t=String(s).trim();
+  if(_POS_CODES.includes(t.toUpperCase()))return t.toUpperCase();
+  return _POS_TEXT_TO_CODE[t.toLowerCase()]||null;
+}
 function _posCoords(posStr){
   if(!posStr)return null;
   const first=String(posStr).split('/')[0].trim().toLowerCase();
@@ -1211,7 +1226,8 @@ function renderPlantel(teamId){
       </div>
     </div>
     <div class="fr"><div class="form-g"><label class="fl">Nome Completo *</label><input class="fc" id="af-name" placeholder="Nome da atleta"></div>
-    <div class="form-g"><label class="fl">Posição</label><select class="fc" id="af-pos"><option value="">—</option><option>GR</option><option>DC</option><option>DD</option><option>DE</option><option>MDC</option><option>MC</option><option>MOC</option><option>ELD</option><option>ELE</option><option>PL</option><option>AV</option></select></div></div>
+    <div class="form-g"><label class="fl">Posição Principal</label><select class="fc" id="af-pos"><option value="">—</option>${_POS_CODES.map(c=>`<option>${c}</option>`).join('')}</select></div></div>
+    <div class="fr"><div class="form-g" style="grid-column:1/-1"><label class="fl">Posições Secundárias</label><select class="fc" id="af-pos-sec" multiple size="4" style="height:auto">${_POS_CODES.map(c=>`<option>${c}</option>`).join('')}</select><div style="font-size:10px;color:var(--t2);margin-top:2px">Ctrl/Cmd+clique para escolher várias — refletem-se no campinho</div></div></div>
     <div class="fr3"><div class="form-g"><label class="fl">Nº Camisola</label><input class="fc" id="af-num" type="number" min="1" max="99"></div>
     <div class="form-g"><label class="fl">Data Nasc.</label><input class="fc" id="af-dob" type="date"></div>
     <div class="form-g"><label class="fl">Nacionalidade</label><input class="fc" id="af-nat" placeholder="PT"></div></div>
@@ -1272,7 +1288,10 @@ function renderPlantel(teamId){
     const at=APP.athletes.find(a=>a.id===_editAtId);
     if(at){
       document.getElementById('af-name').value=at.name||'';
-      document.getElementById('af-pos').value=at.pos||'';
+      const _posArr=(at.pos||'').split('/').map(s=>s.trim()).filter(Boolean).map(_posToCode).filter(Boolean);
+      document.getElementById('af-pos').value=_posArr[0]||'';
+      const _posSecEl=document.getElementById('af-pos-sec');
+      if(_posSecEl)Array.from(_posSecEl.options).forEach(o=>{o.selected=_posArr.slice(1).includes(o.value);});
       document.getElementById('af-num').value=at.num||'';
       document.getElementById('af-dob').value=at.dob||'';
       document.getElementById('af-nat').value=at.nat||'';
@@ -1665,14 +1684,19 @@ function importFromZeroZero(){
 function saveAthlete(){
   const name=document.getElementById('af-name').value.trim();
   if(!name)return toast('Nome obrigatório','err');
+  const _posMain=document.getElementById('af-pos').value;
+  const _posSecEl=document.getElementById('af-pos-sec');
+  const _posSec=_posSecEl?Array.from(_posSecEl.selectedOptions).map(o=>o.value).filter(v=>v&&v!==_posMain):[];
+  const posCombined=[_posMain,..._posSec].filter(Boolean).join(' / ');
   if(_editAtId){
     const idx=APP.athletes.findIndex(a=>a.id===_editAtId);
     if(idx>=0){
-      APP.athletes[idx]={...APP.athletes[idx],name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:document.getElementById('af-email').value||APP.athletes[idx].email||'',fpfId:document.getElementById('af-fpf-id').value};
+      APP.athletes[idx]={...APP.athletes[idx],name,pos:posCombined,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:document.getElementById('af-email').value||APP.athletes[idx].email||'',fpfId:document.getElementById('af-fpf-id').value};
+      if(_sync)cloudUpsert('athletes',{...APP.athletes[idx],club_id:_cid,team_id:APP.athletes[idx].teamId});
     }
   } else {
     const atEmail=document.getElementById('af-email').value||'';
-    const at={id:uid(),teamId:_plantelTeam,name,pos:document.getElementById('af-pos').value,num:+document.getElementById('af-num').value||null,number:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today()};
+    const at={id:uid(),teamId:_plantelTeam,name,pos:posCombined,num:+document.getElementById('af-num').value||null,number:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today()};
     const rawPwd=genPwd(8);
     hashPwd(rawPwd).then(h=>{
       at.passwordHash=h;
@@ -1767,6 +1791,7 @@ function openAthleteModal(id){
     // ── Header ──
     +'<div style="padding:20px 16px 0;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">'
       +'<div style="width:80px;height:80px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;flex-shrink:0;overflow:hidden">'+(at.photo?'<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover">':initials(at.name))+'</div>'
+      +(at.pos?'<div style="flex-shrink:0;text-align:center">'+_pitchSvg(at.pos,86,120)+'<div style="font-size:9px;color:var(--t2);margin-top:2px;max-width:100px">'+at.pos+'</div></div>':'')
       +'<div style="flex:1;min-width:200px">'
         +'<div style="font-size:22px;font-weight:900">'+(at.num?'<span style="color:var(--c1);">#'+at.num+'</span> ':'')+at.name+'</div>'
         +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+(at.pos||'—')+' · '+(at.nat||'—')+' · '+(at.dob?ageYears(at.dob)+' anos':'—')+'</div>'
@@ -1778,7 +1803,6 @@ function openAthleteModal(id){
           +'<button onclick="gerarLinkAtleta(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--c1);border-radius:6px;cursor:pointer;color:var(--c1)">📱 Link App</button>'
         +'</div>'
       +'</div>'
-      +(at.pos?'<div style="flex-shrink:0;text-align:center">'+_pitchSvg(at.pos,74,104)+'<div style="font-size:9px;color:var(--t2);margin-top:2px;max-width:90px">'+at.pos+'</div></div>':'')
     +'</div>'
     // ── KPIs ──
     +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:16px">'
