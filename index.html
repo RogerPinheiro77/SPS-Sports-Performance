@@ -706,6 +706,39 @@ function fmtDateShort(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');retu
 function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/(86400000));}
 function ageYears(dob){if(!dob)return'';const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;}
 function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase():'?';}
+// Mapa de posições (PT) -> coordenadas (%) num campo vertical, 0=linha de fundo adversária, 100=baliza própria
+const _POS_COORDS={
+  'guarda redes':[50,92],'gr':[50,92],
+  'defesa central':[50,76],'defesa':[50,76],'central':[50,76],
+  'defesa direito':[80,74],'lateral direito':[80,74],
+  'defesa esquerdo':[20,74],'lateral esquerdo':[20,74],
+  'médio defensivo':[50,60],'medio defensivo':[50,60],
+  'médio centro':[50,50],'medio centro':[50,50],'médio':[50,50],'medio':[50,50],
+  'médio ofensivo':[50,36],'medio ofensivo':[50,36],
+  'extremo direito':[82,28],'extremo esquerdo':[18,28],'extremo':[50,28],
+  'ponta de lança':[50,14],'ponta de lanca':[50,14],'avançado':[50,14],'avancado':[50,14]
+};
+function _posCoords(posStr){
+  if(!posStr)return null;
+  const first=String(posStr).split('/')[0].trim().toLowerCase();
+  return _POS_COORDS[first]||null;
+}
+function _pitchSvg(posStr,w,h){
+  w=w||100;h=h||140;
+  const parts=posStr?String(posStr).split('/').map(s=>s.trim()).filter(Boolean):[];
+  const dots=parts.map((p,i)=>{const c=_posCoords(p);return c?{x:c[0],y:c[1],main:i===0}:null;}).filter(Boolean);
+  const dotSvg=dots.map(d=>`<circle cx="${d.x}" cy="${d.y}" r="${d.main?5:3.5}" fill="${d.main?'var(--c1)':'var(--c1)'}" fill-opacity="${d.main?1:.55}" stroke="#fff" stroke-width="1"/>`).join('');
+  return `<svg viewBox="0 0 100 140" width="${w}" height="${h}" style="display:block">
+    <rect x="2" y="2" width="96" height="136" rx="4" fill="rgba(29,111,59,.08)" stroke="var(--brd)" stroke-width="1"/>
+    <line x1="2" y1="70" x2="98" y2="70" stroke="var(--brd)" stroke-width="1"/>
+    <circle cx="50" cy="70" r="12" fill="none" stroke="var(--brd)" stroke-width="1"/>
+    <rect x="20" y="2" width="60" height="22" fill="none" stroke="var(--brd)" stroke-width="1"/>
+    <rect x="35" y="2" width="30" height="9" fill="none" stroke="var(--brd)" stroke-width="1"/>
+    <rect x="20" y="116" width="60" height="22" fill="none" stroke="var(--brd)" stroke-width="1"/>
+    <rect x="35" y="129" width="30" height="9" fill="none" stroke="var(--brd)" stroke-width="1"/>
+    ${dotSvg}
+  </svg>`;
+}
 function _avHtml(name,photo,size,fs){
   size=size||28;fs=fs||Math.round(size*0.42);
   const ini=initials(name);
@@ -1715,6 +1748,7 @@ function openAthleteModal(id){
   })();
   const clubHistBlock=(()=>{
     if(clubHistory.length)return clubHistory.map(c=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--brd)"><span>'+c.club+'</span><span style="color:var(--t2)">'+c.period+'</span></div>').join('');
+    if(at.history&&at.history.length)return at.history.map(h=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--brd)"><span>'+(h.equipa||'—')+'</span><span style="color:var(--t2)">'+(h.epoca||'')+(h.j!=null?' · '+h.j+'J':'')+(h.g?' · '+h.g+'G':'')+'</span></div>').join('');
     if(at.club)return '<div style="font-size:11px;color:var(--t2)">Anterior: '+at.club+'</div>';
     return '<div style="color:var(--t2);font-size:11px">Sem histórico disponível</div>';
   })();
@@ -1744,6 +1778,7 @@ function openAthleteModal(id){
           +'<button onclick="gerarLinkAtleta(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:var(--bg3);border:1px solid var(--c1);border-radius:6px;cursor:pointer;color:var(--c1)">📱 Link App</button>'
         +'</div>'
       +'</div>'
+      +(at.pos?'<div style="flex-shrink:0;text-align:center">'+_pitchSvg(at.pos,74,104)+'<div style="font-size:9px;color:var(--t2);margin-top:2px;max-width:90px">'+at.pos+'</div></div>':'')
     +'</div>'
     // ── KPIs ──
     +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:16px">'
@@ -1759,7 +1794,7 @@ function openAthleteModal(id){
         +'</div>').join('')
     +'</div>'
     // ── Charts ──
-    +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;padding:0 16px 16px">'
+    +'<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;padding:0 16px 16px">'
       +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
         +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;text-transform:uppercase">📊 Carga & PSE — 28 dias</div>'
         +'<div style="position:relative;height:140px"><canvas id="prof-load-ch"></canvas></div>'
@@ -1767,6 +1802,10 @@ function openAthleteModal(id){
       +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
         +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;text-transform:uppercase">💊 Wellness Radar</div>'
         +'<div style="position:relative;height:140px"><canvas id="prof-well-ch"></canvas></div>'
+      +'</div>'
+      +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+        +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;text-transform:uppercase">⭐ Avaliação Técnica</div>'
+        +'<div style="position:relative;height:140px"><canvas id="prof-tec-ch"></canvas></div>'
       +'</div>'
     +'</div>'
     // ── 3-col grid ──
@@ -1824,6 +1863,31 @@ function openAthleteModal(id){
         backgroundColor:'rgba(29,111,59,.2)',borderColor:'#1d6f3b',pointBackgroundColor:'#1d6f3b',pointRadius:3
       }]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
         scales:{r:{min:0,max:10,ticks:{display:false},grid:{color:'rgba(255,255,255,.1)'},pointLabels:{font:{size:9},color:'var(--t2)'}}}}});
+    }
+    // Radar de Avaliação Técnica — última avaliação (técnica + auto) disponível, em qualquer período
+    const tecCtx=document.getElementById('prof-tec-ch');
+    if(tecCtx&&typeof Chart!=='undefined'){
+      const _byDate=(type)=>(APP.evalResponses||[])
+        .filter(r=>r.athleteId===id&&r.type===type)
+        .map(r=>({r,p:(APP.evalPeriods||[]).find(p=>p.id===r.periodId)}))
+        .filter(x=>x.p)
+        .sort((a,b)=>(b.p.openDate||'').localeCompare(a.p.openDate||''))[0];
+      const _tecEntry=_byDate('tecnica');
+      const _autoEntry=_byDate('auto');
+      const ratioKeys=['ofensivo','fisico','velocidade','tecnico','criatividade','mental','defensivo','aereo'];
+      const ratioLabelsShort={ofensivo:'Ofens.',fisico:'Físico',velocidade:'Veloc.',tecnico:'Técnico',criatividade:'Criat.',mental:'Mental',defensivo:'Defens.',aereo:'Aéreo'};
+      if(_tecEntry||_autoEntry){
+        const rTec=_tecEntry?_calcRatios(_tecEntry.r):{};
+        const rAuto=_autoEntry?_calcRatios(_autoEntry.r):{};
+        const datasets=[];
+        if(_tecEntry)datasets.push({label:'Técnica',data:ratioKeys.map(k=>rTec[k]||0),backgroundColor:'rgba(24,95,165,.2)',borderColor:'#185FA5',pointBackgroundColor:'#185FA5',pointRadius:2});
+        if(_autoEntry)datasets.push({label:'Auto',data:ratioKeys.map(k=>rAuto[k]||0),backgroundColor:'rgba(29,158,117,.15)',borderColor:'#1D9E75',pointBackgroundColor:'#1D9E75',pointRadius:2,borderDash:[4,3]});
+        new Chart(tecCtx,{type:'radar',data:{labels:ratioKeys.map(k=>ratioLabelsShort[k]),datasets},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:datasets.length>1,position:'bottom',labels:{font:{size:8},boxWidth:8,color:'var(--t2)'}}},
+            scales:{r:{min:0,max:5,ticks:{display:false},grid:{color:'rgba(255,255,255,.1)'},pointLabels:{font:{size:8},color:'var(--t2)'}}}}});
+      } else {
+        tecCtx.parentElement.innerHTML='<div style="color:var(--t2);font-size:11px;text-align:center;padding-top:50px">Sem avaliação técnica registada</div>';
+      }
     }
   },80);
 }
