@@ -370,6 +370,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 <div id="atleta-app">
   <div class="at-topbar">
     <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
+    <button class="tb-btn" onclick="atOpenChangePwd()" title="Alterar password">🔑</button>
     <button class="tb-btn" onclick="logout()">↩</button>
   </div>
   <div class="at-content">
@@ -474,6 +475,8 @@ function genPwd(len=8){
   const chars='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#';
   return Array.from({length:len},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
 }
+// Password fixa inicial para novas atletas — têm de a trocar por uma própria no 1º acesso
+const _DEFAULT_ATHLETE_PWD='MFC@2026';
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -574,6 +577,11 @@ async function handleAthleteLogin(){
      (a.email&&a.email.toLowerCase()===username.toLowerCase())));
   if(!athlete){err.textContent='❌ Dados incorretos.';document.getElementById('at-login-pwd').value='';return;}
   err.textContent='';
+  if(athlete.mustChangePwd){
+    // Ainda usa a password fixa do clube — obriga a criar uma password própria antes de entrar
+    _showWelcomeScreen(athlete,_atletaToken(athlete),true);
+    return;
+  }
   AID=athlete.id;ROLE='atleta';
   setSession({userId:athlete.id,role:'atleta',name:athlete.name});
   showAtletaApp(athlete);
@@ -1696,8 +1704,8 @@ function saveAthlete(){
     }
   } else {
     const atEmail=document.getElementById('af-email').value||'';
-    const at={id:uid(),teamId:_plantelTeam,name,pos:posCombined,num:+document.getElementById('af-num').value||null,number:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today()};
-    const rawPwd=genPwd(8);
+    const at={id:uid(),teamId:_plantelTeam,name,pos:posCombined,num:+document.getElementById('af-num').value||null,number:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today(),mustChangePwd:true};
+    const rawPwd=_DEFAULT_ATHLETE_PWD;
     hashPwd(rawPwd).then(h=>{
       at.passwordHash=h;
       APP.athletes.push(at);
@@ -4856,7 +4864,8 @@ function showAthleteCredsModal(at,rawPwd){
   const gmailHref='https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(at.email||'')+'&su='+emailSubj+'&body='+emailBody;
   const waText=encodeURIComponent('Olá '+at.name+'! Acesso à plataforma:\n🔗 URL: '+url+'\n👤 Utilizador: '+login+'\n🔑 Password: '+rawPwd);
   const waHref='https://wa.me/?text='+waText;
-  openMod('🔑 Credenciais de '+at.name,`<div style="font-size:13px;margin-bottom:14px">Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${login}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('URL: ${url}\nUtilizador: ${login}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${gmailHref}" target="_blank">📧 Gmail</a><a class="btn btn-gh" href="${mailHref}" target="_blank">📨 Email</a><a class="btn btn-gh" href="${waHref}" target="_blank" style="color:#25d366;border-color:#25d366">💬 WhatsApp</a></div><div class="al al-b" style="margin-top:12px;font-size:11px">Para repor a password: Plantel → Perfil da atleta → 🔑 Repor Password</div>`);
+  const isDefault=rawPwd===_DEFAULT_ATHLETE_PWD;
+  openMod('🔑 Credenciais de '+at.name,`<div style="font-size:13px;margin-bottom:14px">${isDefault?'Password inicial fixa do clube — a atleta terá de definir uma password própria no primeiro acesso.':'Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.'}</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${login}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('URL: ${url}\nUtilizador: ${login}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${gmailHref}" target="_blank">📧 Gmail</a><a class="btn btn-gh" href="${mailHref}" target="_blank">📨 Email</a><a class="btn btn-gh" href="${waHref}" target="_blank" style="color:#25d366;border-color:#25d366">💬 WhatsApp</a></div><div class="al al-b" style="margin-top:12px;font-size:11px">Se a atleta esquecer a password: Plantel → Perfil da atleta → 🔑 Repor Password (volta à password fixa do clube)</div>`);
 }
 function showUserCredsModal(user,rawPwd){
   const url=window.location.href.split('?')[0];
@@ -4898,10 +4907,38 @@ function deleteUser(id){
   if(!confirm('Apagar utilizador?'))return;
   APP.users=APP.users.filter(u=>u.id!==id);saveData();toast('Apagado');renderConfig();
 }
+// ── Alteração voluntária de password (lado atleta, dentro da app) ────────────
+function atOpenChangePwd(){
+  const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
+  openMod('🔑 Alterar Password',
+    '<div class="fg"><label class="lbl">Nova password</label>'
+    +'<input class="ctrl" type="password" id="at-newpwd1" placeholder="Mín. 6 caracteres" autocomplete="new-password"></div>'
+    +'<div class="fg"><label class="lbl">Confirmar password</label>'
+    +'<input class="ctrl" type="password" id="at-newpwd2" placeholder="Repete a password" autocomplete="new-password" onkeydown="if(event.key===\'Enter\')atSaveChangePwd()"></div>'
+    +'<div class="login-err" id="at-newpwd-err"></div>'
+    +'<button class="btn btn-g" style="width:100%;margin-top:8px" onclick="atSaveChangePwd()">Guardar nova password</button>');
+  setTimeout(()=>document.getElementById('at-newpwd1')?.focus(),80);
+}
+async function atSaveChangePwd(){
+  const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
+  const p1=document.getElementById('at-newpwd1')?.value||'';
+  const p2=document.getElementById('at-newpwd2')?.value||'';
+  const err=document.getElementById('at-newpwd-err');
+  if(p1.length<6){if(err)err.textContent='⚠️ Mínimo 6 caracteres.';return;}
+  if(p1!==p2){if(err)err.textContent='⚠️ As passwords não coincidem.';return;}
+  at.passwordHash=await hashPwd(p1);
+  at.mustChangePwd=false;
+  saveData();
+  if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
+  closeMod();
+  toast('Password alterada ✓');
+}
 async function resetAthletePwd(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
-  const rawPwd=genPwd(8);const hash=await hashPwd(rawPwd);
-  at.passwordHash=hash;saveData();toast('Password reposta ✓');showAthleteCredsModal(at,rawPwd);
+  const rawPwd=_DEFAULT_ATHLETE_PWD;const hash=await hashPwd(rawPwd);
+  at.passwordHash=hash;at.mustChangePwd=true;saveData();
+  if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
+  toast('Password reposta ✓');showAthleteCredsModal(at,rawPwd);
 }
 function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();const ov=document.getElementById('athlete-profile-ov');if(ov)ov.remove();navTo('plantel');}
 function showAthleteCredsFromProfile(id){
@@ -5606,7 +5643,7 @@ async function pullCloud(){
   if(!_supa||!_cid)return;
   try{
     const pulls=[
-      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash,nat:r.nationality||r.nat}))],
+      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash,nat:r.nationality||r.nat,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}))],
       ['wellness_records','wellness',(d)=>APP.wellness=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at}))],
       ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at}))],
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at}))],
@@ -5681,8 +5718,8 @@ async function pushAppMeta(){
 // tal e qual (incluindo campos camelCase que não existem como coluna), o que fazia o
 // Supabase rejeitar o pedido inteiro — ou seja, o sync individual nunca funcionava de facto.
 const _CLOUD_TABLE_SCHEMA={
-  athletes:{cols:['id','name','pos','num','dob','nationality','height','foot','photo','club','created_at','team_id','password_hash','email','weight','birth_country','situation','full_name','history'],
-    rename:{teamId:'team_id',passwordHash:'password_hash',nat:'nationality',clubHistory:'history'}},
+  athletes:{cols:['id','name','pos','num','dob','nationality','height','foot','photo','club','created_at','team_id','password_hash','email','weight','birth_country','situation','full_name','history','must_change_pwd'],
+    rename:{teamId:'team_id',passwordHash:'password_hash',nat:'nationality',clubHistory:'history',mustChangePwd:'must_change_pwd'}},
   wellness_records:{cols:['id','athlete_id','date','sleep','fatigue','stress','pain','mood','score','cycle','submitted_at'],
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
   pse_records:{cols:['id','athlete_id','date','pse','duration','ua','session_type','submitted_at'],
@@ -5836,10 +5873,11 @@ async function gerarLinkAtleta(id){
 
   // Gerar password se ainda não tem (para o token funcionar)
   if(!at.passwordHash){
-    var rawPwd = genPwd(8);
-    var hash   = await hashPwd(rawPwd);
+    var hash   = await hashPwd(_DEFAULT_ATHLETE_PWD);
     at.passwordHash = hash;
+    at.mustChangePwd = true;
     saveData();
+    if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
   }
 
   var link    = _atletaLink(at);
@@ -5938,9 +5976,9 @@ function _showWelcomeScreen(at, tok, isReset){
   var isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
   var isStandalone = window.navigator.standalone||window.matchMedia('(display-mode:standalone)').matches;
 
-  // Determinar modo: se já tem password → entrar; se nunca teve → criar
+  // Determinar modo: se já tem password própria → entrar; se nunca teve OU ainda usa a password fixa do clube → criar
   var hasPass = !!(at.passwordHash);
-  var mode = hasPass ? 'entrar' : 'criar';
+  var mode = (hasPass && !at.mustChangePwd) ? 'entrar' : 'criar';
 
   var tip = '';
   if(!isStandalone){
@@ -6039,11 +6077,12 @@ async function _welcomeCriarPass(aid, tok){
     var nome = params.get('n')||'Atleta';
     var pos  = params.get('p')||'';
     var num  = params.get('num')||'';
-    at = {id:aid, name:decodeURIComponent(nome), pos:decodeURIComponent(pos), num:decodeURIComponent(num), photo:'', passwordHash:hash};
+    at = {id:aid, name:decodeURIComponent(nome), pos:decodeURIComponent(pos), num:decodeURIComponent(num), photo:'', passwordHash:hash, mustChangePwd:false};
     APP.athletes.push(at);
     saveData();
   } else {
     at.passwordHash = hash;
+    at.mustChangePwd = false;
     saveData();
     if(_sync && _cid) cloudUpsert('athletes',{...at, club_id:_cid, team_id:at.teamId});
   }
