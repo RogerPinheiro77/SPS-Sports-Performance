@@ -4929,7 +4929,7 @@ async function atSaveChangePwd(){
   at.passwordHash=await hashPwd(p1);
   at.mustChangePwd=false;
   saveData();
-  if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
+  if(_sync)await cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
   closeMod();
   toast('Password alterada ✓');
 }
@@ -6084,7 +6084,7 @@ async function _welcomeCriarPass(aid, tok){
     at.passwordHash = hash;
     at.mustChangePwd = false;
     saveData();
-    if(_sync && _cid) cloudUpsert('athletes',{...at, club_id:_cid, team_id:at.teamId});
+    if(_sync && _cid) await cloudUpsert('athletes',{...at, club_id:_cid, team_id:at.teamId});
   }
 
   // Sessão persistente
