@@ -1765,7 +1765,7 @@ function openAthleteModal(id){
   const avgWell7=w7.length?Math.round(w7.reduce((s,w)=>s+(+w.score||0),0)/w7.length):null;
   // Attendance
   if(!APP.attendance)APP.attendance=[];
-  const attRecs=APP.attendance.filter(a=>a.athleteId===id);
+  const attRecs=APP.attendance.filter(a=>a.athleteId===id&&a.status!=='tratamento'); // tratamento não conta para a % de presenças
   const attTotal=attRecs.length;
   const attPres=attRecs.filter(a=>a.present).length;
   const attRate=attTotal?Math.round(attPres/attTotal*100):null;
@@ -1952,75 +1952,110 @@ function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP
 
 // ─── PLANEAMENTO (CALENDÁRIO) ─────────────────────────────
 let _calYear=new Date().getFullYear(), _calMonth=new Date().getMonth();
+const ATT_REASONS={justificada:'Justificada',nao_justificada:'Não Justificada',lesao:'Lesão',doenca:'Doença',outro:'Outro'};
 function openAttendanceModal(eventId){
   const ev=APP.schedule.find(e=>e.id===eventId);if(!ev)return;
   const athletes=APP.athletes.filter(a=>a.teamId===ev.teamId||!ev.teamId).sort((a,b)=>a.name.localeCompare(b.name));
   if(!athletes.length)return toast('Sem atletas nesta equipa','err');
   if(!APP.attendance)APP.attendance=[];
-  // Current attendance for this event
+  // Estado atual desta sessão: id (para atualizar em vez de duplicar na cloud),
+  // status ('treino'|'tratamento'|'ausente') e motivo (só relevante se ausente).
   const cur={};
-  APP.attendance.filter(a=>a.eventId===eventId).forEach(a=>{cur[a.athleteId]=a.present;});
-  // Pre-fill from PSE if not yet marked
-  APP.pse.filter(p=>p.date===ev.date).forEach(p=>{if(cur[p.athleteId]===undefined)cur[p.athleteId]=true;});
+  APP.attendance.filter(a=>a.eventId===eventId).forEach(a=>{cur[a.athleteId]={id:a.id,status:a.status||(a.present?'treino':'ausente'),reason:a.reason||null};});
+  // Pré-marcar como treino quem já submeteu PSE nesse dia e ainda não tem registo
+  APP.pse.filter(p=>p.date===ev.date).forEach(p=>{if(!cur[p.athleteId])cur[p.athleteId]={id:null,status:'treino',reason:null};});
+
+  window._attState={};
+  athletes.forEach(at=>{window._attState[at.id]=cur[at.id]||{id:null,status:'treino',reason:null};});
 
   const m=document.createElement('div');
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:4000;display:flex;align-items:center;justify-content:center;padding:16px';
-  const rows=athletes.map(at=>{
-    const present=cur[at.athleteId]!==false; // default present
-    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd)">
-      <div style="display:flex;align-items:center;gap:8px">
-        <div style="width:28px;height:28px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${at.photo?'<img src="'+at.photo+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">':at.name.split(' ').map(w=>w[0]).slice(0,2).join('')}</div>
-        <span style="font-size:13px">${at.name}<span style="color:var(--t2);font-size:10px;margin-left:4px">${at.pos||''}</span></span>
-      </div>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-xs" id="att-p-${at.id}" onclick="setAtt('${eventId}','${at.id}',true)" style="background:${cur[at.id]===true?'#4ade8033':'var(--bg3)'};border:1px solid ${cur[at.id]===true?'#4ade80':'var(--brd)'}">✅</button>
-        <button class="btn btn-xs" id="att-a-${at.id}" onclick="setAtt('${eventId}','${at.id}',false)" style="background:${cur[at.id]===false?'#f8717133':'var(--bg3)'};border:1px solid ${cur[at.id]===false?'#f87171':'var(--brd)'}">❌</button>
-      </div>
-    </div>`;
-  }).join('');
-
-  m.innerHTML=`<div style="background:var(--bg2);border-radius:14px;padding:20px;max-width:420px;width:100%;border:1px solid var(--brd);max-height:85vh;overflow-y:auto">
+  m.innerHTML=`<div style="background:var(--bg2);border-radius:14px;padding:20px;max-width:460px;width:100%;border:1px solid var(--brd);max-height:85vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <div style="font-weight:800;font-size:15px">📋 Presenças</div>
       <button class="btn btn-xs btn-gh" onclick="this.closest('[style*=fixed]').remove()">✕</button>
     </div>
     <div style="font-size:11px;color:var(--t2);margin-bottom:14px">${ev.title} · ${fmtDate(ev.date)}${ev.time?' · '+ev.time:''}</div>
-    <div id="att-list">${rows}</div>
+    <div id="att-list">${athletes.map(at=>_attRowHtml(at)).join('')}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
-      <span style="font-size:11px;color:var(--t2)">✅ pré-marcado do PSE</span>
+      <span style="font-size:11px;color:var(--t2)">✅ treino automático do PSE · 🏥 tratamento automático da fisio</span>
       <button class="btn btn-g" onclick="saveAttendance('${eventId}');this.closest('[style*=fixed]').remove()">💾 Guardar</button>
     </div>
   </div>`;
   document.body.appendChild(m);
-  window._attState=Object.assign({},cur);
-  athletes.forEach(at=>{if(window._attState[at.id]===undefined)window._attState[at.id]=true;});
 }
-function setAtt(eventId,athleteId,present){
+function _attRowHtml(at){
+  const st=window._attState[at.id]||{status:'treino',reason:null};
+  const btn=(status,label,color)=>`<button class="btn btn-xs" onclick="setAtt('${at.id}','${status}')" style="background:${st.status===status?color+'33':'var(--bg3)'};border:1px solid ${st.status===status?color:'var(--brd)'}">${label}</button>`;
+  return`<div id="att-row-${at.id}" style="display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:1px solid var(--brd)">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${at.photo?'<img src="'+at.photo+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">':at.name.split(' ').map(w=>w[0]).slice(0,2).join('')}</div>
+        <span style="font-size:13px">${at.name}<span style="color:var(--t2);font-size:10px;margin-left:4px">${at.pos||''}</span></span>
+      </div>
+      <div style="display:flex;gap:6px">
+        ${btn('treino','✅','#4ade80')}
+        ${btn('tratamento','🏥','#38bdf8')}
+        ${btn('ausente','❌','#f87171')}
+      </div>
+    </div>
+    ${st.status==='ausente'?`<select class="fc" style="font-size:11px;padding:4px 8px" onchange="setAttReason('${at.id}',this.value)">
+      <option value="">Motivo...</option>
+      ${Object.entries(ATT_REASONS).map(([v,l])=>`<option value="${v}" ${st.reason===v?'selected':''}>${l}</option>`).join('')}
+    </select>`:''}
+  </div>`;
+}
+function setAtt(athleteId,status){
   if(!window._attState)window._attState={};
-  window._attState[athleteId]=present;
-  const pBtn=document.getElementById('att-p-'+athleteId);
-  const aBtn=document.getElementById('att-a-'+athleteId);
-  if(pBtn){pBtn.style.background=present?'#4ade8033':'var(--bg3)';pBtn.style.borderColor=present?'#4ade80':'var(--brd)';}
-  if(aBtn){aBtn.style.background=!present?'#f8717133':'var(--bg3)';aBtn.style.borderColor=!present?'#f87171':'var(--brd)';}
+  const prev=window._attState[athleteId]||{id:null,status:'treino',reason:null};
+  window._attState[athleteId]={...prev,status,reason:status==='ausente'?prev.reason:null};
+  const row=document.getElementById('att-row-'+athleteId);
+  if(row){const at=APP.athletes.find(a=>a.id===athleteId);if(at)row.outerHTML=_attRowHtml(at);}
+}
+function setAttReason(athleteId,reason){
+  if(!window._attState)window._attState={};
+  const prev=window._attState[athleteId]||{id:null,status:'ausente',reason:null};
+  window._attState[athleteId]={...prev,reason:reason||null};
 }
 function saveAttendance(eventId){
   if(!APP.attendance)APP.attendance=[];
   const ev=APP.schedule.find(e=>e.id===eventId);if(!ev)return;
-  // Remove old entries for this event
-  APP.attendance=APP.attendance.filter(a=>a.eventId!==eventId);
-  // Add new
-  Object.entries(window._attState||{}).forEach(([aid,present])=>{
-    APP.attendance.push({id:uid(),eventId,athleteId:aid,present,date:ev.date});
+  let pres=0,total=0;
+  Object.entries(window._attState||{}).forEach(([aid,st])=>{
+    total++;if(st.status==='treino')pres++;
+    const rec={id:st.id||uid(),eventId,athleteId:aid,date:ev.date,status:st.status,present:st.status==='treino'?true:st.status==='ausente'?false:null,reason:st.status==='ausente'?st.reason:null};
+    const i=APP.attendance.findIndex(a=>a.id===rec.id);
+    if(i>=0)APP.attendance[i]=rec;else APP.attendance.push(rec);
+    if(_sync)cloudUpsert('attendance_records',{...rec,club_id:_cid});
   });
   saveData();
-  const pres=Object.values(window._attState||{}).filter(v=>v).length;
-  const total=Object.keys(window._attState||{}).length;
   toast('Presenças guardadas: '+pres+'/'+total+' ✓');
   window._attState={};
 }
 let _showEvForm=false, _editEvId=null, _selDate=null;
 const EV_TYPES=['Treino','Jogo','Reunião','Consulta Nutri','Fisio','Ativação','Recuperação','Folga'];
 const EV_COLORS={Treino:'#27a34a',Jogo:'#c0392b',Reunião:'#935116','Consulta Nutri':'#0e6251',Fisio:'#1a237e',Ativação:'#b7770d',Recuperação:'#2e86c1',Folga:'#5a6582'};
+const _isTrainingType=t=>t==='Treino'||t==='Ativação'||t==='Recuperação'||t==='Ginásio';
+// ─── PRESENÇAS AUTOMÁTICAS ──────────────────────────────────────────────
+// Marca (ou atualiza) a presença da atleta num evento de treino, a partir de
+// um sinal automático (PSE submetido = esteve em treino; tratamento
+// registado = esteve com a fisio). PSE é o sinal mais forte e sobrepõe-se
+// sempre a um registo anterior; um tratamento só marca 'tratamento' se ainda
+// não houver um 'treino' confirmado nesse evento (não faz downgrade).
+// status='tratamento' fica com present=null de propósito — não conta nem a
+// favor nem contra a % de presenças (ver cálculo em attRate/attPct).
+function _autoMarkAttendance(athleteId,date,status){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  if(!APP.attendance)APP.attendance=[];
+  const evs=APP.schedule.filter(e=>e.date===date&&(e.teamId===at.teamId||!e.teamId)&&_isTrainingType(e.type));
+  evs.forEach(ev=>{
+    const existing=APP.attendance.find(a=>a.eventId===ev.id&&a.athleteId===athleteId);
+    if(status==='tratamento'&&existing&&existing.status==='treino')return; // não faz downgrade de treino confirmado
+    const rec={id:existing?.id||uid(),eventId:ev.id,athleteId,date,present:status==='treino'?true:null,status,reason:null};
+    if(existing){Object.assign(existing,rec);}else{APP.attendance.push(rec);}
+    if(_sync)cloudUpsert('attendance_records',{...rec,club_id:_cid});
+  });
+}
 function renderPlaneamento(){
   const mnths=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const first=new Date(_calYear,_calMonth,1);
@@ -4484,6 +4519,7 @@ function saveTratamento(){
   const t={id:uid(),injuryId:_tratEpId,athleteId:inj?.athleteId||null,date,type:document.getElementById('tr-type').value,description:document.getElementById('tr-desc').value,response:document.getElementById('tr-resp').value,professional:document.getElementById('tr-prof').value};
   APP.treatments.push(t);
   if(_sync)cloudUpsert('treatments',t);
+  if(t.athleteId)_autoMarkAttendance(t.athleteId,date,'tratamento');
   saveData();toast('Tratamento registado ✓');renderFisioTrat();
 }
 function deleteTrat(id){if(!confirm('Apagar?'))return;APP.treatments=APP.treatments.filter(t=>t.id!==id);saveData();toast('Apagado');renderFisioTrat();}
@@ -4775,7 +4811,7 @@ function printFichaAtleta(){
   const pseRecs=APP.pse.filter(p=>p.athleteId===id);
   const wellRecs=APP.wellness.filter(w=>w.athleteId===id);
   const injRecs=APP.injuries.filter(i=>i.athleteId===id);
-  const attRecs=APP.attendance.filter(a=>a.athleteId===id);
+  const attRecs=APP.attendance.filter(a=>a.athleteId===id&&a.status!=='tratamento'); // tratamento não conta para a % de presenças
   const last28=_fmtISO(new Date(Date.now()-28*864e5));
   const pse28=pseRecs.filter(p=>p.date>=last28);
   const well14=wellRecs.slice(-14);
@@ -5452,6 +5488,7 @@ function submitPSE(){
   const entry={id:uid(),athleteId:AID,date:td,pse:_psfVal,duration:dur,ua,sessionType:document.getElementById('pse-type').value,submittedAt:new Date().toISOString()};
   APP.pse.push(entry);
   if(_sync)cloudUpsert('pse_records',{...entry,athlete_id:entry.athleteId,session_type:entry.sessionType,club_id:_cid});
+  _autoMarkAttendance(AID,td,'treino');
   saveData();_psfVal=0;_psfDur='';toast(`PSE registado! UA: ${ua}`);renderAtPSE();
 }
 function renderAtAgenda(){
@@ -5727,7 +5764,8 @@ async function pullCloud(){
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at}))],
-      ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at}))]
+      ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at}))],
+      ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))]
     ];
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
@@ -5814,7 +5852,9 @@ const _CLOUD_TABLE_SCHEMA={
   schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id'],
     rename:{createdAt:'created_at',teamId:'team_id'}},
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at'],
-    rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at'}}
+    rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at'}},
+  attendance_records:{cols:['id','event_id','athlete_id','date','present','status','reason','created_at'],
+    rename:{eventId:'event_id',athleteId:'athlete_id',createdAt:'created_at'}}
 };
 async function cloudUpsert(table,row){
   if(!_supa||!_cid)return;
