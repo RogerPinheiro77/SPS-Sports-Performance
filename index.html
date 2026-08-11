@@ -349,6 +349,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg on" id="pg-dashboard"></div>
       <div class="pg" id="pg-plantel"></div>
       <div class="pg" id="pg-planeamento"></div>
+      <div class="pg" id="pg-presencas"></div>
       <div class="pg" id="pg-microciclos"></div>
       <div class="pg" id="pg-jogos"></div>
       <div class="pg" id="pg-treinos"></div>
@@ -658,6 +659,7 @@ const NAV_TEC=[
   {id:'dashboard',icon:'🏠',label:'Dashboard'},
   {id:'plantel',icon:'👥',label:'Plantel'},
   {id:'planeamento',icon:'📅',label:'Planeamento'},
+  {id:'presencas',icon:'✅',label:'Presenças'},
   {id:'microciclos',icon:'🔄',label:'Microciclos'},
   {id:'jogos',icon:'⚽',label:'Jogos'},
   {id:'treinos',icon:'📋',label:'Unidades de Treino'},
@@ -710,9 +712,9 @@ function navTo(id){
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
-  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
+  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
   document.getElementById('pg-title').textContent=titles[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   window.scrollTo(0,0);
 }
@@ -2055,6 +2057,53 @@ function _autoMarkAttendance(athleteId,date,status){
     if(existing){Object.assign(existing,rec);}else{APP.attendance.push(rec);}
     if(_sync)cloudUpsert('attendance_records',{...rec,club_id:_cid});
   });
+}
+// ─── PRESENÇAS (aba dedicada) ────────────────────────────────────────────
+// Grelha atletas × treinos do mês. Cada célula reflete o registo de
+// attendance para esse evento (automático via PSE/tratamento, ou manual) e
+// é clicável para abrir o modal de presenças já existente nesse treino.
+let _presTeam='T1',_presMonth=today().slice(0,7);
+function _presMonthAdd(n){const[y,m]=_presMonth.split('-').map(Number);const d=new Date(y,m-1+n,1);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+function _presMonthLabel(ym){const names=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];const[y,m]=ym.split('-').map(Number);return names[m-1]+' '+y;}
+function renderPresencas(){
+  if(!APP.attendance)APP.attendance=[];
+  const teamTabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_presTeam?'on':''}" onclick="_presTeam='${t.id}';renderPresencas()">${escHtml(t.name)}</button>`).join('');
+  const athletes=APP.athletes.filter(a=>a.teamId===_presTeam).sort((a,b)=>a.name.localeCompare(b.name));
+  const evs=APP.schedule.filter(e=>e.date.startsWith(_presMonth)&&(e.teamId===_presTeam||!e.teamId)&&_isTrainingType(e.type)).sort((a,b)=>a.date.localeCompare(b.date));
+
+  const monthNav=`<div style="display:flex;align-items:center;gap:10px">
+    <button class="btn btn-gh btn-sm" onclick="_presMonth=_presMonthAdd(-1);renderPresencas()">‹</button>
+    <span style="font-size:14px;font-weight:800;min-width:140px;text-align:center">${_presMonthLabel(_presMonth)}</span>
+    <button class="btn btn-gh btn-sm" onclick="_presMonth=_presMonthAdd(1);renderPresencas()">›</button>
+  </div>`;
+  const header=`<div class="sh"><div class="sh-t">✅ Presenças</div>${monthNav}</div><div class="tabs">${teamTabs}</div>`;
+
+  if(!athletes.length){document.getElementById('pg-presencas').innerHTML=`${header}<div class="empty"><div class="ei">👥</div><p>Sem atletas nesta equipa</p></div>`;return;}
+  if(!evs.length){document.getElementById('pg-presencas').innerHTML=`${header}<div class="empty"><div class="ei">✅</div><p>Sem treinos agendados neste mês para esta equipa</p></div>`;return;}
+
+  const STMAP={treino:['✅','#4ade80'],tratamento:['🏥','#38bdf8'],ausente:['❌','#f87171']};
+  const cell=(ev,at)=>{
+    const rec=APP.attendance.find(a=>a.eventId===ev.id&&a.athleteId===at.id);
+    if(!rec)return`<td style="text-align:center;cursor:pointer;color:var(--t2)" onclick="openAttendanceModal('${ev.id}')" title="${escHtml(at.name)} — por marcar">—</td>`;
+    const[icon,color]=STMAP[rec.status]||['—','var(--t2)'];
+    const label=rec.status==='ausente'?(ATT_REASONS[rec.reason]||'Ausente (sem motivo)'):rec.status==='tratamento'?'Tratamento':'Presente';
+    return`<td style="text-align:center;cursor:pointer" onclick="openAttendanceModal('${ev.id}')" title="${escHtml(at.name)} — ${label}"><span style="font-size:14px">${icon}</span></td>`;
+  };
+  const rows=athletes.map(at=>{
+    const recs=APP.attendance.filter(a=>a.athleteId===at.id&&a.status!=='tratamento'&&evs.some(e=>e.id===a.eventId));
+    const pres=recs.filter(a=>a.present).length;
+    const pct=recs.length?Math.round(pres/recs.length*100):null;
+    return`<tr>
+      <td style="position:sticky;left:0;background:var(--bg2);white-space:nowrap;padding-right:12px"><div style="display:flex;align-items:center;gap:6px">${_avHtml(at.name,at.photo,22)}<span style="font-size:12px">${escHtml(at.name)}</span></div></td>
+      ${evs.map(ev=>cell(ev,at)).join('')}
+      <td style="text-align:center;font-weight:800;font-size:12px">${pct!==null?pct+'%':'—'}</td>
+    </tr>`;
+  }).join('');
+  const thead=`<tr><th style="position:sticky;left:0;background:var(--bg2);text-align:left">Atleta</th>${evs.map(ev=>`<th style="text-align:center;font-size:10px;white-space:nowrap" title="${escHtml(ev.title)} · ${fmtDate(ev.date)}">${fmtDateShort(ev.date)}</th>`).join('')}<th style="text-align:center">%</th></tr>`;
+
+  document.getElementById('pg-presencas').innerHTML=`${header}
+  <div style="font-size:11px;color:var(--t2);margin:8px 0 12px">Clica numa célula para abrir/editar essa sessão. ✅ Presente · 🏥 Tratamento · ❌ Falta · — Por marcar</div>
+  <div class="tw" style="overflow-x:auto"><table style="min-width:100%"><thead>${thead}</thead><tbody>${rows}</tbody></table></div>`;
 }
 function renderPlaneamento(){
   const mnths=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -4743,6 +4792,19 @@ function renderRelatorios(){
       <div id="rep-pse-preview" style="margin-top:14px"></div>
     </div></div>
 
+    <!-- Presenças -->
+    <div class="card"><div class="ch"><span class="ct">✅ Presenças</span></div><div class="cb">
+      <div class="fr">
+        <div class="form-g"><label class="fl">Equipa</label><select class="fc" id="rep-att-team">${teamOpts}</select></div>
+        <div class="form-g"><label class="fl">Mês</label><input class="fc" type="month" id="rep-att-month" value="${ym}"></div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Por atleta: treinos no mês, presenças, tratamentos e faltas por motivo (justificada, não justificada, lesão, doença, outro).</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-g btn-sm" onclick="exportAttendanceCSV()">📊 Exportar CSV</button>
+        <button class="btn btn-gh btn-sm" onclick="printAttendance()">🖨️ PDF / Imprimir</button>
+      </div>
+    </div></div>
+
   </div>`;
 }
 
@@ -4959,6 +5021,51 @@ function printPse(){
       <div class="kpi"><div class="kpi-v">${avgPse}</div><div class="kpi-l">PSE Médio</div></div>
       <div class="kpi"><div class="kpi-v">${totalUA}</div><div class="kpi-l">UA Total</div></div>
     </div>
+  `;
+  _printWin(title,body);
+}
+
+// ── Presenças ────────────────────────────────────────────────────────────────
+function _getAttReportData(){
+  if(!APP.attendance)APP.attendance=[];
+  const teamId=document.getElementById('rep-att-team')?.value||'';
+  const ym=document.getElementById('rep-att-month')?.value||today().slice(0,7);
+  const athletes=(teamId?APP.athletes.filter(a=>a.teamId===teamId):APP.athletes).sort((a,b)=>a.name.localeCompare(b.name));
+  const evs=APP.schedule.filter(e=>e.date.startsWith(ym)&&(!teamId||e.teamId===teamId||!e.teamId)&&_isTrainingType(e.type));
+  const evIds=new Set(evs.map(e=>e.id));
+  const rows=athletes.map(at=>{
+    const recs=APP.attendance.filter(a=>a.athleteId===at.id&&evIds.has(a.eventId));
+    const presente=recs.filter(a=>a.status==='treino').length;
+    const tratamento=recs.filter(a=>a.status==='tratamento').length;
+    const ausentes=recs.filter(a=>a.status==='ausente');
+    const byReason={justificada:0,nao_justificada:0,lesao:0,doenca:0,outro:0,sem_motivo:0};
+    ausentes.forEach(a=>{if(a.reason&&byReason[a.reason]!==undefined)byReason[a.reason]++;else byReason.sem_motivo++;});
+    const denom=presente+ausentes.length;
+    const pct=denom?Math.round(presente/denom*100):null;
+    return {at,presente,tratamento,ausenteTotal:ausentes.length,...byReason,pct};
+  });
+  const team=APP.teams.find(t=>t.id===teamId);
+  return {teamId,team,ym,evsCount:evs.length,rows};
+}
+function exportAttendanceCSV(){
+  const d=_getAttReportData();
+  if(!d.rows.length)return toast('Sem atletas para exportar','err');
+  const headers=['Atleta','Treinos no mês','Presenças','Tratamento','Faltas (total)','Justificada','Não Justificada','Lesão','Doença','Outro','Sem motivo','% Assiduidade'];
+  const rows=[headers,...d.rows.map(r=>[r.at.name,d.evsCount,r.presente,r.tratamento,r.ausenteTotal,r.justificada,r.nao_justificada,r.lesao,r.doenca,r.outro,r.sem_motivo,r.pct!==null?r.pct+'%':'—'])];
+  _dlCSV(rows,`presencas_${(d.team?.name||'equipa')}_${d.ym}.csv`);
+  toast('CSV exportado ✓');
+}
+function printAttendance(){
+  const d=_getAttReportData();
+  if(!d.rows.length)return toast('Sem atletas para imprimir','err');
+  const title=`Presenças Mensal — ${d.team?.name||'Todas as Equipas'} — ${d.ym}`;
+  const body=`
+    <div class="pr-title">${title}</div>
+    <table><thead><tr><th>Atleta</th><th>Treinos</th><th>Presente</th><th>Tratamento</th><th>Faltas</th><th>Motivos</th><th>%</th></tr></thead>
+    <tbody>${d.rows.map(r=>{
+      const motivos=[r.justificada?'Just.: '+r.justificada:'',r.nao_justificada?'Não Just.: '+r.nao_justificada:'',r.lesao?'Lesão: '+r.lesao:'',r.doenca?'Doença: '+r.doenca:'',r.outro?'Outro: '+r.outro:'',r.sem_motivo?'S/ motivo: '+r.sem_motivo:''].filter(Boolean).join(', ')||'—';
+      return`<tr><td>${escHtml(r.at.name)}</td><td>${d.evsCount}</td><td>${r.presente}</td><td>${r.tratamento}</td><td>${r.ausenteTotal}</td><td style="font-size:9pt">${motivos}</td><td><strong>${r.pct!==null?r.pct+'%':'—'}</strong></td></tr>`;
+    }).join('')}</tbody></table>
   `;
   _printWin(title,body);
 }
