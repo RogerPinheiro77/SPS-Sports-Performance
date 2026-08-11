@@ -475,8 +475,9 @@ function genPwd(len=8){
   const chars='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#';
   return Array.from({length:len},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
 }
-// Password fixa inicial para novas atletas — têm de a trocar por uma própria no 1º acesso
-const _DEFAULT_ATHLETE_PWD='MFC@2026';
+// Password inicial das atletas — MFC26@<número de camisola>. Têm de a trocar por uma própria no 1º acesso.
+// Exige número de camisola atribuído (garante que o plantel está sempre atualizado com números).
+function _defaultAthletePwd(num){ return num?('MFC26@'+num):null; }
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -1236,7 +1237,7 @@ function renderPlantel(teamId){
     <div class="fr"><div class="form-g"><label class="fl">Nome Completo *</label><input class="fc" id="af-name" placeholder="Nome da atleta"></div>
     <div class="form-g"><label class="fl">Posição Principal</label><select class="fc" id="af-pos"><option value="">—</option>${_POS_CODES.map(c=>`<option>${c}</option>`).join('')}</select></div></div>
     <div class="fr"><div class="form-g" style="grid-column:1/-1"><label class="fl">Posições Secundárias</label><select class="fc" id="af-pos-sec" multiple size="4" style="height:auto">${_POS_CODES.map(c=>`<option>${c}</option>`).join('')}</select><div style="font-size:10px;color:var(--t2);margin-top:2px">Ctrl/Cmd+clique para escolher várias — refletem-se no campinho</div></div></div>
-    <div class="fr3"><div class="form-g"><label class="fl">Nº Camisola</label><input class="fc" id="af-num" type="number" min="1" max="99"></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Nº Camisola <span style="color:var(--t2);font-weight:400">(necessário para gerar acesso)</span></label><input class="fc" id="af-num" type="number" min="1" max="99"></div>
     <div class="form-g"><label class="fl">Data Nasc.</label><input class="fc" id="af-dob" type="date"></div>
     <div class="form-g"><label class="fl">Nacionalidade</label><input class="fc" id="af-nat" placeholder="PT"></div></div>
     <div class="fr"><div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="af-height" type="number"></div>
@@ -1704,8 +1705,19 @@ function saveAthlete(){
     }
   } else {
     const atEmail=document.getElementById('af-email').value||'';
-    const at={id:uid(),teamId:_plantelTeam,name,pos:posCombined,num:+document.getElementById('af-num').value||null,number:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today(),mustChangePwd:true};
-    const rawPwd=_DEFAULT_ATHLETE_PWD;
+    const numVal=+document.getElementById('af-num').value||null;
+    const at={id:uid(),teamId:_plantelTeam,name,pos:posCombined,num:numVal,number:numVal,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today(),mustChangePwd:true};
+    const rawPwd=_defaultAthletePwd(numVal);
+    if(!rawPwd){
+      // Sem número de camisola — grava a atleta mas não gera acesso ainda
+      APP.athletes.push(at);
+      saveData();
+      if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
+      _showAtForm=false;_editAtId=null;
+      toast('Atleta guardada ✓ — atribui um número de camisola para gerar o acesso dela','err');
+      renderPlantel();
+      return;
+    }
     hashPwd(rawPwd).then(h=>{
       at.passwordHash=h;
       APP.athletes.push(at);
@@ -4864,8 +4876,8 @@ function showAthleteCredsModal(at,rawPwd){
   const gmailHref='https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(at.email||'')+'&su='+emailSubj+'&body='+emailBody;
   const waText=encodeURIComponent('Olá '+at.name+'! Acesso à plataforma:\n🔗 URL: '+url+'\n👤 Utilizador: '+login+'\n🔑 Password: '+rawPwd);
   const waHref='https://wa.me/?text='+waText;
-  const isDefault=rawPwd===_DEFAULT_ATHLETE_PWD;
-  openMod('🔑 Credenciais de '+at.name,`<div style="font-size:13px;margin-bottom:14px">${isDefault?'Password inicial fixa do clube — a atleta terá de definir uma password própria no primeiro acesso.':'Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.'}</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${login}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('URL: ${url}\nUtilizador: ${login}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${gmailHref}" target="_blank">📧 Gmail</a><a class="btn btn-gh" href="${mailHref}" target="_blank">📨 Email</a><a class="btn btn-gh" href="${waHref}" target="_blank" style="color:#25d366;border-color:#25d366">💬 WhatsApp</a></div><div class="al al-b" style="margin-top:12px;font-size:11px">Se a atleta esquecer a password: Plantel → Perfil da atleta → 🔑 Repor Password (volta à password fixa do clube)</div>`);
+  const isDefault=rawPwd===_defaultAthletePwd(at.num||at.number);
+  openMod('🔑 Credenciais de '+at.name,`<div style="font-size:13px;margin-bottom:14px">${isDefault?'Password inicial (fórmula do clube + nº de camisola) — a atleta terá de definir uma password própria no primeiro acesso.':'Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.'}</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${login}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('URL: ${url}\nUtilizador: ${login}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${gmailHref}" target="_blank">📧 Gmail</a><a class="btn btn-gh" href="${mailHref}" target="_blank">📨 Email</a><a class="btn btn-gh" href="${waHref}" target="_blank" style="color:#25d366;border-color:#25d366">💬 WhatsApp</a></div><div class="al al-b" style="margin-top:12px;font-size:11px">Se a atleta esquecer a password: Plantel → Perfil da atleta → 🔑 Repor Password (volta a MFC26@ + nº de camisola)</div>`);
 }
 function showUserCredsModal(user,rawPwd){
   const url=window.location.href.split('?')[0];
@@ -4935,7 +4947,9 @@ async function atSaveChangePwd(){
 }
 async function resetAthletePwd(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
-  const rawPwd=_DEFAULT_ATHLETE_PWD;const hash=await hashPwd(rawPwd);
+  const rawPwd=_defaultAthletePwd(at.num||at.number);
+  if(!rawPwd)return toast('Esta atleta ainda não tem número de camisola — atribui um número antes de repor a password','err');
+  const hash=await hashPwd(rawPwd);
   at.passwordHash=hash;at.mustChangePwd=true;saveData();
   if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
   toast('Password reposta ✓');showAthleteCredsModal(at,rawPwd);
@@ -5871,9 +5885,11 @@ async function gerarLinkAtleta(id){
   var at = APP.athletes.find(function(a){return a.id===id;});
   if(!at) return;
 
-  // Gerar password se ainda não tem (para o token funcionar)
+  // Gerar password se ainda não tem (para o token funcionar) — exige número de camisola
   if(!at.passwordHash){
-    var hash   = await hashPwd(_DEFAULT_ATHLETE_PWD);
+    var rawPwd0 = _defaultAthletePwd(at.num||at.number);
+    if(!rawPwd0){ toast('Esta atleta ainda não tem número de camisola — atribui um número antes de gerar o link','err'); return; }
+    var hash   = await hashPwd(rawPwd0);
     at.passwordHash = hash;
     at.mustChangePwd = true;
     saveData();
