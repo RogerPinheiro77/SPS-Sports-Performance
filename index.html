@@ -15,6 +15,7 @@
 <meta name="theme-color" content="#1d6f3b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
   --c1:#1d6f3b;--c1d:#155c2f;--c1l:#27a34a;
@@ -258,8 +259,12 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 .prog-bar{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-top:4px}
 .prog-fill{height:100%;border-radius:3px;background:var(--c1);transition:width .4s}
 
-/* ATLETA APP */
-#atleta-app{display:none;min-height:100vh;background:var(--bg0);max-width:500px;margin:0 auto;position:relative;padding-bottom:66px}
+/* ATLETA APP — paleta dourado (primário) + verde (secundário) do Moreirense, isolada do dashboard técnico */
+#atleta-app{
+  --c1:#C9A227;--c1d:#9C7D14;--c1l:#E3BF4A;
+  --ags:#1F7A34;--agsl:#4ADE80;
+  display:none;min-height:100vh;background:var(--bg0);max-width:500px;margin:0 auto;position:relative;padding-bottom:66px;
+}
 #atleta-app.on{display:block}
 .at-topbar{background:var(--bg1);border-bottom:1px solid var(--brd);padding:12px 15px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50}
 .at-topbar .atn{font-size:14px;font-weight:800;flex:1}
@@ -270,7 +275,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 .at-bnav::-webkit-scrollbar{display:none}
 .at-ni{flex:0 0 auto;min-width:56px;padding:8px 6px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;color:var(--t3);cursor:pointer;transition:color .15s}
 .at-ni.on{color:var(--c1l)}
-.at-ni .ic{font-size:16px}
+.at-ni .ic{font-size:18px;line-height:1}
 
 /* Wellness form */
 .wf-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brd)}
@@ -370,8 +375,8 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 <div id="atleta-app">
   <div class="at-topbar">
     <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
-    <button class="tb-btn" onclick="atOpenChangePwd()" title="Alterar password">🔑</button>
-    <button class="tb-btn" onclick="logout()">↩</button>
+    <button class="tb-btn" onclick="atOpenChangePwd()" title="Alterar password"><i class="ti ti-key" style="font-size:15px" aria-hidden="true"></i></button>
+    <button class="tb-btn" onclick="logout()" title="Sair"><i class="ti ti-logout" style="font-size:15px" aria-hidden="true"></i></button>
   </div>
   <div class="at-content">
     <div class="at-page on" id="atp-home"></div>
@@ -385,15 +390,15 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-page" id="atp-aval"></div>
   </div>
   <nav class="at-bnav">
-    <div class="at-ni on" onclick="atNav('home',this)"><span class="ic">🏠</span>Casa</div>
-    <div class="at-ni" onclick="atNav('wellness',this)"><span class="ic">💊</span>Wellness</div>
-    <div class="at-ni" onclick="atNav('pse',this)"><span class="ic">📊</span>PSE</div>
-    <div class="at-ni" onclick="atNav('agenda',this)"><span class="ic">📅</span>Agenda</div>
-    <div class="at-ni" onclick="atNav('nutri',this)"><span class="ic">🥗</span>Nutri</div>
-    <div class="at-ni" onclick="atNav('fisio',this)"><span class="ic">🏥</span>Fisio</div>
-    <div class="at-ni" onclick="atNav('treino',this)"><span class="ic">🏋️</span>Treino</div>
-    <div class="at-ni" onclick="atNav('aval',this)"><span class="ic">⭐</span>Aval.</div>
-    <div class="at-ni" onclick="atNav('convoc',this)"><span class="ic">📋</span>Convoc.</div>
+    <div class="at-ni on" onclick="atNav('home',this)"><span class="ic"><i class="ti ti-home" aria-hidden="true"></i></span>Casa</div>
+    <div class="at-ni" onclick="atNav('wellness',this)"><span class="ic"><i class="ti ti-heart-rate-monitor" aria-hidden="true"></i></span>Wellness</div>
+    <div class="at-ni" onclick="atNav('pse',this)"><span class="ic"><i class="ti ti-chart-bar" aria-hidden="true"></i></span>PSE</div>
+    <div class="at-ni" onclick="atNav('agenda',this)"><span class="ic"><i class="ti ti-calendar" aria-hidden="true"></i></span>Agenda</div>
+    <div class="at-ni" onclick="atNav('nutri',this)"><span class="ic"><i class="ti ti-salad" aria-hidden="true"></i></span>Nutri</div>
+    <div class="at-ni" onclick="atNav('fisio',this)"><span class="ic"><i class="ti ti-first-aid-kit" aria-hidden="true"></i></span>Fisio</div>
+    <div class="at-ni" onclick="atNav('treino',this)"><span class="ic"><i class="ti ti-barbell" aria-hidden="true"></i></span>Treino</div>
+    <div class="at-ni" onclick="atNav('aval',this)"><span class="ic"><i class="ti ti-star" aria-hidden="true"></i></span>Aval.</div>
+    <div class="at-ni" onclick="atNav('convoc',this)"><span class="ic"><i class="ti ti-clipboard-list" aria-hidden="true"></i></span>Convoc.</div>
   </nav>
 </div>
 
@@ -4029,15 +4034,15 @@ function renderAtAval(){
         <div style="font-weight:700;font-size:14px;margin-bottom:4px">${escHtml(p.title)}</div>
         <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Até ${fmtDate(p.closeDate)}</div>
         ${myResp
-          ?`<div style="color:#1D9E75;font-size:13px;font-weight:700;margin-bottom:8px">✓ Autoavaliação submetida em ${fmtDate(myResp.date)}</div>
-             <button class="btn btn-sm btn-gh" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()">✏️ Rever/Editar</button>`
-          :`<button class="btn btn-g" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()">✍️ Preencher Autoavaliação</button>`
+          ?`<div style="color:#1D9E75;font-size:13px;font-weight:700;margin-bottom:8px"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Autoavaliação submetida em ${fmtDate(myResp.date)}</div>
+             <button class="btn btn-sm btn-gh" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()"><i class="ti ti-edit" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Rever/Editar</button>`
+          :`<button class="btn btn-g" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()"><i class="ti ti-pencil" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Preencher Autoavaliação</button>`
         }
       </div>`;
     }).join('');
   } else {
     body+=`<div class="card" style="padding:24px;text-align:center;color:var(--t2)">
-      <div style="font-size:32px;margin-bottom:8px">📋</div>
+      <i class="ti ti-clipboard-list" style="font-size:32px;margin-bottom:8px;display:block" aria-hidden="true"></i>
       <div style="font-size:13px">Nenhuma avaliação em aberto de momento.</div>
       <div style="font-size:11px;margin-top:4px">A equipa técnica irá notificar quando houver uma nova avaliação.</div>
     </div>`;
@@ -4061,13 +4066,13 @@ function renderAtAval(){
             </div>`
           :`<div style="font-size:11px;color:var(--t2)">Autoavaliação não submetida</div>`
         }
-        ${myResp?`<button class="btn btn-xs btn-gh" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()">👁 Ver avaliação</button>`:''}
+        ${myResp?`<button class="btn btn-xs btn-gh" onclick="_evalPeriodId='${p.id}';_evalAtId2='${AID}';_evalType='auto';renderAtAval()"><i class="ti ti-eye" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Ver avaliação</button>`:''}
       </div>`;
     }).join('');
   }
 
   document.getElementById('atp-aval').innerHTML=`
-  <div style="font-size:15px;font-weight:900;margin-bottom:14px">📋 Avaliação</div>
+  <div style="font-size:15px;font-weight:900;margin-bottom:14px"><i class="ti ti-star" style="margin-right:6px;vertical-align:-3px;color:#E3BF4A" aria-hidden="true"></i>Avaliação</div>
   ${body}`;
 }
 
@@ -5186,44 +5191,44 @@ function renderAtHome(){
   const hasNutriPlan=!!(APP.nutritionPlans||[]).find(p=>p.athleteId===AID&&p.active);
 
   const _bdg=(n,color)=>n?`<div style="position:absolute;top:7px;right:7px;background:${color};color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${n}</div>`:'';
-  const _card=(page,icon,title,sub,subColor,badge,rgb)=>`
+  const _card=(page,icon,iconColor,title,sub,subColor,badge,rgb)=>`
   <div onclick="_atNavTo('${page}')" style="background:rgba(${rgb},.1);border:1px solid rgba(${rgb},.3);border-radius:12px;padding:13px 11px;cursor:pointer;position:relative;min-height:90px">
     ${badge}
-    <div style="font-size:26px;margin-bottom:5px;line-height:1">${icon}</div>
+    <i class="ti ti-${icon}" style="font-size:24px;color:${iconColor};display:block;margin-bottom:6px" aria-hidden="true"></i>
     <div style="font-size:12px;font-weight:800;color:var(--t1)">${title}</div>
     <div style="font-size:10px;color:${subColor};margin-top:3px;line-height:1.3">${sub}</div>
   </div>`;
 
   const cards=[
-    _card('wellness','💊','Wellness',
+    _card('wellness','heart-rate-monitor','#38bdf8','Wellness',
       todayW?`Score: ${todayW.score}/100 ✓`:'Por preencher',
       todayW?'#38bdf8':'#f87171',
       _bdg(todayW?'':'!','#dc2626'),'2,132,199'),
-    _card('pse','📊','PSE',
+    _card('pse','chart-bar','#4ade80','PSE',
       todayP.length?`PSE: ${todayP[0].pse}/10 ✓`:'Por registar',
       todayP.length?'#4ade80':'#f87171',
       _bdg(todayP.length?'':'!','#dc2626'),'22,163,74'),
-    _card('agenda','📅','Agenda',
+    _card('agenda','calendar','#a78bfa','Agenda',
       todayEvs.length?`${todayEvs.length} evento${todayEvs.length>1?'s':''} hoje`:nextEv?`Próx: ${fmtDate(nextEv.date)}`:'Sem eventos',
       todayEvs.length?'#a78bfa':'var(--t2)',
       _bdg(todayEvs.length||'','#7c3aed'),'124,58,237'),
-    _card('aval','⭐','Avaliações',
+    _card('aval','star','#E3BF4A','Avaliações',
       openEvals.length?`${openEvals.length} pendente${openEvals.length>1?'s':''}`:'Em dia ✓',
-      openEvals.length?'#fbbf24':'#4ade80',
+      openEvals.length?'#E3BF4A':'#4ade80',
       _bdg(openEvals.length||'','#d97706'),'217,119,6'),
-    _card('nutri','🥗','Nutrição',
+    _card('nutri','salad','#fb923c','Nutrição',
       hasNutriPlan?'Plano ativo ✓':'Sem plano',
       hasNutriPlan?'#4ade80':'var(--t2)',
       '','234,88,12'),
-    _card('fisio','🏥','Fisio',
+    _card('fisio','first-aid-kit','#f87171','Fisio',
       injCount?`${injCount} lesão${injCount>1?'ões':''} ativa${injCount>1?'s':''}`:'Disponível ✓',
       injCount?'#f87171':'#4ade80',
       _bdg(injCount||'','#dc2626'),'220,38,38'),
-    _card('convoc','📋','Convocatórias',
+    _card('convoc','clipboard-list','#2dd4bf','Convocatórias',
       convoc?`Convocada! ${fmtDate(convoc.date)}`:'Sem convocatórias',
       convoc?'#2dd4bf':'var(--t2)',
       convoc?_bdg('✓','#16a34a'):'',' 14,98,81'),
-    _card('treino','🏋️','Treino Ind.',
+    _card('treino','barbell','#94a3b8','Treino Ind.',
       pendingTreinos?`${pendingTreinos} pendente${pendingTreinos>1?'s':''}`:'Em dia ✓',
       pendingTreinos?'#fbbf24':'#4ade80',
       _bdg(pendingTreinos||'','#d97706'),'71,85,105'),
@@ -5240,9 +5245,9 @@ function renderAtHome(){
       <div style="font-size:10px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
     </div>
   </div>
-  ${inj?`<div class="al al-r" style="margin-bottom:10px">🩺 Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
+  ${inj?`<div class="al al-r" style="margin-bottom:10px"><i class="ti ti-stethoscope" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px">${cards.join('')}</div>
-  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct">📅 Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}`;
+  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct"><i class="ti ti-calendar-event" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}`;
 }
 function renderAtWellness(){
   const td=today();
@@ -5259,10 +5264,10 @@ function renderAtWellness(){
   if(!_wOpen&&!alreadyToday){
     const lockMsg=_wNowMin<_wStartMin?`Abre hoje às <strong>${_wFmt(_wStart[0],_wStart[1])}</strong>`:`Reabre amanhã às <strong>${_wFmt(_wStart[0],_wStart[1])}</strong>`;
     document.getElementById('atp-wellness').innerHTML=`
-    <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">💊 Questionário Wellness</div>
+    <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-heart-rate-monitor" style="margin-right:6px;vertical-align:-3px;color:#38bdf8" aria-hidden="true"></i>Questionário Wellness</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:16px">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
     <div class="card" style="text-align:center;padding:32px 20px">
-      <div style="font-size:44px;margin-bottom:12px">🔒</div>
+      <i class="ti ti-lock" style="font-size:40px;color:var(--t2);display:block;margin-bottom:12px" aria-hidden="true"></i>
       <div style="font-size:14px;font-weight:800;margin-bottom:6px">Questionário fechado</div>
       <div style="font-size:12px;color:var(--t2);margin-bottom:10px">${lockMsg}</div>
       <div style="font-size:11px;color:var(--t2)">Janela diária: ${APP.config.wellnessStart||'07:00'} – ${APP.config.wellnessEnd||'11:00'}</div>
@@ -5277,9 +5282,9 @@ function renderAtWellness(){
   const cycleOpts=['N/A','Menstruação','Folicular','Ovulação','Lútea'];
 
   document.getElementById('atp-wellness').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">💊 Questionário Wellness</div>
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-heart-rate-monitor" style="margin-right:6px;vertical-align:-3px;color:#38bdf8" aria-hidden="true"></i>Questionário Wellness</div>
   <div style="font-size:12px;color:var(--t2);margin-bottom:16px">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
-  ${alreadyToday?`<div class="al al-g">✅ Já submetiste o questionário de hoje! Score: <strong>${alreadyToday.score}/100</strong></div>`:''}
+  ${alreadyToday?`<div class="al al-g"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Já submetiste o questionário de hoje! Score: <strong>${alreadyToday.score}/100</strong></div>`:''}
   <div class="card" style="margin-bottom:14px">
     <div class="cb" style="padding:12px 14px">
       <div class="wellness-form">
@@ -5292,7 +5297,7 @@ function renderAtWellness(){
       </div>
     </div>
   </div>
-  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitWellness()">📤 Submeter Questionário</button>
+  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitWellness()"><i class="ti ti-send" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>Submeter Questionário</button>
   <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Histórico (últimos 14 dias)</div>
   <div class="tw"><table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
   <tbody>${APP.wellness.filter(w=>w.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(w=>{const sc=w.score;const c=sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="bdg ${c}">${sc}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
@@ -5349,13 +5354,13 @@ function renderAtPSE(){
       const [eh2,em2]=(ev.time||'00:00').split(':').map(Number);
       const end2=eh2*60+em2+parseInt(ev.dur||90)+_pDelay;
       const hh=Math.floor(end2/60);const mm=end2%60;
-      return `<div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;margin-bottom:6px"><div style="font-size:20px">🏋️</div><div><div style="font-size:12px;font-weight:700">${ev.title}</div><div style="font-size:10px;color:var(--t2)">PSE disponível: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}</div></div></div>`;
+      return `<div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;margin-bottom:6px"><i class="ti ti-barbell" style="font-size:20px;color:var(--t2)" aria-hidden="true"></i><div><div style="font-size:12px;font-weight:700">${ev.title}</div><div style="font-size:10px;color:var(--t2)">PSE disponível: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}</div></div></div>`;
     }).join('');
     document.getElementById('atp-pse').innerHTML=`
-    <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">📊 PSE — Carga de Treino</div>
+    <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-chart-bar" style="margin-right:6px;vertical-align:-3px;color:#4ade80" aria-hidden="true"></i>PSE — Carga de Treino</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Escala de Borg CR10</div>
     <div class="card" style="text-align:center;padding:32px 20px">
-      <div style="font-size:44px;margin-bottom:12px">${noSession?'📅':'⏳'}</div>
+      <i class="ti ti-${noSession?'calendar-off':'hourglass'}" style="font-size:40px;color:var(--t2);display:block;margin-bottom:12px" aria-hidden="true"></i>
       <div style="font-size:14px;font-weight:800;margin-bottom:8px">${noSession?'Sem sessão hoje':'A aguardar fim de sessão'}</div>
       <div style="font-size:12px;color:var(--t2)">${lockBody}</div>
     </div>
@@ -5367,16 +5372,16 @@ function renderAtPSE(){
   }
   const borgLabels={0:'Repouso',1:'Muito fácil',2:'Fácil',3:'Moderado',4:'Algo difícil',5:'Difícil',6:'',7:'Muito difícil',8:'',9:'Extremamente difícil',10:'Esforço máximo'};
   document.getElementById('atp-pse').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px">📊 PSE — Carga de Treino</div>
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-chart-bar" style="margin-right:6px;vertical-align:-3px;color:#4ade80" aria-hidden="true"></i>PSE — Carga de Treino</div>
   <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Escala de Borg CR10</div>
-  ${already.length?`<div class="al al-g">✅ PSE registado hoje: ${already[0].pse}/10 · ${already[0].duration} min · UA: ${already[0].ua}</div>`:''}
+  ${already.length?`<div class="al al-g"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>PSE registado hoje: ${already[0].pse}/10 · ${already[0].duration} min · UA: ${already[0].ua}</div>`:''}
   <div class="card" style="margin-bottom:14px"><div class="cb" style="padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:8px">Como foi o esforço percebido?</div>
     <div class="pse-grid">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="psb ${_psfVal===n?'on':''}" data-v="${n}" onclick="_psfVal=${n};document.querySelectorAll('.psb').forEach(b=>b.classList.remove('on'));this.classList.add('on')"><div>${n}</div><div style="font-size:9px;color:var(--t2);line-height:1.2">${borgLabels[n]||''}</div></button>`).join('')}</div>
     <div style="margin-top:12px"><label class="fl">Duração da sessão (minutos) *</label><input class="fc" id="pse-dur" type="number" min="1" max="300" placeholder="90" value="${_psfDur}" oninput="_psfDur=this.value"></div>
     <div style="margin-top:8px"><label class="fl">Tipo de sessão</label><select class="fc" id="pse-type"><option>Treino</option><option>Jogo</option><option>Ginásio</option><option>Reabilitação</option><option>Ativação</option></select></div>
   </div></div>
-  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitPSE()">📤 Registar PSE</button>
+  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitPSE()"><i class="ti ti-send" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>Registar PSE</button>
   <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Últimos Registos</div>
   <div class="tw"><table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead>
   <tbody>${APP.pse.filter(p=>p.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
@@ -5408,14 +5413,14 @@ function renderAtAgenda(){
       </div><span class="mc-sess ${EV_TYPES.indexOf(e.type)>=0?Object.keys(EV_COLORS).indexOf(e.type)>=0?'s-tec':'s-tec':'s-tec'}" style="background:${c}22;color:${c};padding:3px 7px;font-size:9px">${e.type}</span>
     </div>`;}).join('')}
   </div>`).join('');
-  document.getElementById('atp-agenda').innerHTML=`<div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">📅 Agenda</div>${html||`<div class="empty"><div class="ei">📅</div><p>Sem eventos próximos</p></div>`}`;
+  document.getElementById('atp-agenda').innerHTML=`<div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-calendar" style="margin-right:6px;vertical-align:-3px;color:#a78bfa" aria-hidden="true"></i>Agenda</div>${html||`<div class="empty"><div class="ei"><i class="ti ti-calendar-off" aria-hidden="true"></i></div><p>Sem eventos próximos</p></div>`}`;
 }
 function renderAtNutri(){
   const plan=APP.nutritionPlans.find(p=>p.athleteId===AID&&p.active);
   const avals=APP.nutritionAssessments.filter(a=>a.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date));
   const lastA=avals[0];
   document.getElementById('atp-nutri').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🥗 Nutrição</div>
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-salad" style="margin-right:6px;vertical-align:-3px;color:#fb923c" aria-hidden="true"></i>Nutrição</div>
   ${lastA?`<div class="g2" style="margin-bottom:14px">
     <div class="kpi"><div class="kpi-lbl">Peso</div><div class="kpi-val" style="font-size:20px">${lastA.weight||'—'}<span style="font-size:12px"> kg</span></div><div class="kpi-sub">${lastA.date}</div></div>
     <div class="kpi"><div class="kpi-lbl">IMC</div><div class="kpi-val" style="font-size:20px">${lastA.bmi||'—'}</div><div class="kpi-sub">${lastA.hydration?'Hidratação: '+lastA.hydration:''}</div></div>
@@ -5424,22 +5429,22 @@ function renderAtNutri(){
     <div class="macros" style="margin-bottom:12px">${plan.kcal?`<span class="mac">🔥 ${plan.kcal} kcal</span>`:''}${plan.protein?`<span class="mac">🥩 ${plan.protein}g prot</span>`:''}${plan.carbs?`<span class="mac">🍞 ${plan.carbs}g HC</span>`:''}${plan.fat?`<span class="mac">🧈 ${plan.fat}g gord</span>`:''}</div>
     ${(plan.meals||[]).map(m=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?`<span style="font-size:10px;color:var(--t2)">${m.time}</span>`:''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div>${m.foods?`<div class="meal-f">${m.foods}</div>`:''}</div>`).join('')}
   </div></div>`:
-  `<div class="empty"><div class="ei">🥗</div><p>Sem plano nutricional ativo</p><div class="esub">O teu nutricionista ainda não definiu um plano</div></div>`}`;
+  `<div class="empty"><div class="ei"><i class="ti ti-salad" aria-hidden="true"></i></div><p>Sem plano nutricional ativo</p><div class="esub">O teu nutricionista ainda não definiu um plano</div></div>`}`;
 }
 function renderAtFisio(){
   const injs=APP.injuries.filter(i=>i.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date));
   const active=injs.filter(i=>i.status==='ativo'||i.status==='reabilitação');
   const phases=['Avaliação inicial','Controlo da dor','Recuperação funcional','Treino específico','Retorno ao jogo'];
   document.getElementById('atp-fisio').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏥 Fisioterapia</div>
-  ${active.map(inj=>{const treats=APP.treatments.filter(t=>t.injuryId===inj.id).sort((a,b)=>b.date.localeCompare(a.date));return`<div class="card" style="margin-bottom:12px"><div class="ch"><span class="ct">🩺 ${inj.diagnosis||inj.type}</span>${statusBadge(inj.status)}</div>
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-first-aid-kit" style="margin-right:6px;vertical-align:-3px;color:#f87171" aria-hidden="true"></i>Fisioterapia</div>
+  ${active.map(inj=>{const treats=APP.treatments.filter(t=>t.injuryId===inj.id).sort((a,b)=>b.date.localeCompare(a.date));return`<div class="card" style="margin-bottom:12px"><div class="ch"><span class="ct"><i class="ti ti-stethoscope" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>${inj.diagnosis||inj.type}</span>${statusBadge(inj.status)}</div>
   <div class="cb" style="padding:12px">
     <div style="font-size:11px;color:var(--t2);margin-bottom:8px">${inj.bodyPart||''} · ${inj.date} ${inj.returnDate?'· Retorno previsto: '+fmtDate(inj.returnDate):''}</div>
     <div class="pbar">${[1,2,3,4,5].map(p=>`<div class="ps ${p<(inj.phase||1)?'done':p===(inj.phase||1)?'now':''}"></div>`).join('')}</div>
     <div style="font-size:10px;color:var(--t2);margin-top:3px;margin-bottom:10px">Fase ${inj.phase||1}/5 — ${phases[(inj.phase||1)-1]}</div>
     ${treats.slice(0,3).map(t=>`<div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--brd)"><strong>${fmtDate(t.date)}</strong> · ${t.type} ${t.response?`<span class="bdg ${t.response==='Boa'?'bg-g':t.response==='Moderada'?'bg-y':'bg-r'}" style="font-size:9px">${t.response}</span>`:''}</div>`).join('')}
   </div></div>`;}).join('')}
-  ${!active.length?`<div class="empty"><div class="ei">✅</div><p>Sem lesões ativas</p><div class="esub">Estás disponível</div></div>`:''}
+  ${!active.length?`<div class="empty"><div class="ei" style="color:#4ade80"><i class="ti ti-circle-check" aria-hidden="true"></i></div><p>Sem lesões ativas</p><div class="esub">Estás disponível</div></div>`:''}
   ${injs.filter(i=>i.status==='alta').length?`<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Historial</div>${injs.filter(i=>i.status==='alta').map(i=>`<div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--brd);color:var(--t2)">${fmtDate(i.date)} — ${i.diagnosis||i.type} <span class="bdg bg-g">Alta</span></div>`).join('')}</div>`:''}`;
 }
 function renderAtTreino(){
@@ -5458,7 +5463,7 @@ function renderAtTreino(){
   const active=plans.filter(p=>!p.done);
   const done=plans.filter(p=>p.done);
   document.getElementById('atp-treino').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">🏋️ Treino</div>
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-barbell" style="margin-right:6px;vertical-align:-3px;color:#94a3b8" aria-hidden="true"></i>Treino</div>
   ${teamTreinos.length?`<div style="margin-bottom:16px">
     <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Treinos da equipa</div>
     ${teamTreinos.map(tr=>`<div class="card" style="margin-bottom:8px;padding:12px 14px">
@@ -5477,17 +5482,17 @@ function renderAtTreino(){
   <div class="ch"><span class="ct">${escHtml(p.title||'Treino')}</span><span class="bdg bg-b">${p.type||'Treino'}</span></div>
     <div class="cb" style="padding:12px 14px">
       ${p.description?`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">${p.description}</div>`:''}
-      ${p.note?`<div class="al al-b" style="font-size:11px;margin-bottom:8px">📝 ${p.note}</div>`:''}
+      ${p.note?`<div class="al al-b" style="font-size:11px;margin-bottom:8px"><i class="ti ti-note" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>${p.note}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-        ${p.week?`<span class="bdg bg-gr">📅 ${p.week}</span>`:''}
-        ${p.volume?`<span class="bdg bg-gr">📊 ${p.volume}</span>`:''}
+        ${p.week?`<span class="bdg bg-gr"><i class="ti ti-calendar" style="margin-right:3px;vertical-align:-1px" aria-hidden="true"></i>${p.week}</span>`:''}
+        ${p.volume?`<span class="bdg bg-gr"><i class="ti ti-chart-bar" style="margin-right:3px;vertical-align:-1px" aria-hidden="true"></i>${p.volume}</span>`:''}
       </div>
-      <button class="btn btn-g btn-sm" style="margin-top:10px" onclick="markTreinoDone('${p.id}')">✅ Marcar como concluído</button>
+      <button class="btn btn-g btn-sm" style="margin-top:10px" onclick="markTreinoDone('${p.id}')"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Marcar como concluído</button>
     </div>
-  </div>`).join('')}</div>`:`<div class="al al-g" style="margin-top:8px">✅ Sem treinos pendentes atribuídos</div>`}
+  </div>`).join('')}</div>`:`<div class="al al-g" style="margin-top:8px"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Sem treinos pendentes atribuídos</div>`}
   ${done.length?`<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">Concluídos</div>
   ${done.slice(0,5).map(p=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd);font-size:12px;opacity:.65">
-    <span>✅ ${p.title}</span><span style="color:var(--t2)">${p.doneAt?fmtDate(p.doneAt):''}</span>
+    <span><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px;color:#4ade80" aria-hidden="true"></i>${p.title}</span><span style="color:var(--t2)">${p.doneAt?fmtDate(p.doneAt):''}</span>
   </div>`).join('')}</div>`:''}`;
 }
 function markTreinoDone(id){
@@ -5501,11 +5506,11 @@ function renderAtConvoc(){
   const convs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date));
   const past=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date<td).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   document.getElementById('atp-convoc').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px">📋 Convocatórias</div>
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-clipboard-list" style="margin-right:6px;vertical-align:-3px;color:#2dd4bf" aria-hidden="true"></i>Convocatórias</div>
   ${convs.length?convs.map(c=>{
     const g=APP.games.find(x=>x.id===c.gameId);
     return`<div class="card" style="margin-bottom:10px">
-      <div class="ch"><span class="ct">📋 Convocada</span><span class="bdg bg-g">Confirmada</span></div>
+      <div class="ch"><span class="ct"><i class="ti ti-clipboard-list" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Convocada</span><span class="bdg bg-g">Confirmada</span></div>
       <div class="cb" style="padding:12px 14px">
         ${g?`<div style="font-size:14px;font-weight:800;margin-bottom:4px">vs ${g.opp}</div>
         <div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${g.time?' · '+g.time:''}${g.location?' · '+g.location:''}</div>`:''}
