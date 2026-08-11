@@ -2935,9 +2935,11 @@ function _fpfParseHtml(raw){
   function parsePlayers(panel){
     if(!panel)return{home:[],away:[]};
     const grab=side=>[...panel.querySelectorAll('.lineup-team.'+side+'-team .player')].map(p=>{
-      const strong=p.querySelector('strong');
+      const clone=p.cloneNode(true);
+      const icons=clone.querySelector('.icons');if(icons)icons.remove();
+      const strong=clone.querySelector('strong');
       const num=strong?strong.textContent.trim():'';
-      let name=p.textContent.trim();
+      let name=clone.textContent.trim();
       if(strong)name=name.replace(strong.textContent,'');
       const gk=/\(gr\)/i.test(name);
       name=name.replace(/\(gr\)/i,'').trim().replace(/\s+/g,' ');
@@ -2948,8 +2950,8 @@ function _fpfParseHtml(raw){
   const titleBars=[...doc.querySelectorAll('.title-bar')];
   const tbFind=t=>titleBars.find(e=>e.textContent.trim()===t);
   const startTb=tbFind('Equipas Iniciais'),subsTb=tbFind('Suplentes');
-  const starters=parsePlayers(startTb?startTb.nextElementSibling:null);
-  const bench=parsePlayers(subsTb?subsTb.nextElementSibling:null);
+  const starters=parsePlayers(startTb?startTb.parentElement:null);
+  const bench=parsePlayers(subsTb?subsTb.parentElement:null);
   const events=[...doc.querySelectorAll('.timeline-item')].map(it=>{
     const topTag=it.querySelector('.top-tag');
     const minRaw=topTag?topTag.textContent.trim():'';
