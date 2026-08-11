@@ -2315,7 +2315,30 @@ function _initG(g){
   if(!g.fpfUrl)g.fpfUrl='';
   if(!g.playerStats)g.playerStats=[];
   if(!g.setpieces)g.setpieces={corners:'',freeKicks:'',penalty:''};
+  if(g.concentracaoLocal===undefined)g.concentracaoLocal='';
+  if(g.concentracaoHora===undefined)g.concentracaoHora='';
+  if(g.transporte===undefined)g.transporte='';
+  if(g.refeicaoAntes===undefined)g.refeicaoAntes='';
+  if(g.refeicaoApos===undefined)g.refeicaoApos='';
   return g;
+}
+// Mantém APP.convocatorias sincronizada com a convocatória do Jogo — só há UM sítio
+// para preencher (separador Pré-Jogo do Jogo); a entrada que a atleta vê na aba
+// Convocatórias é gerada/atualizada automaticamente a partir daqui. Se a convocatória
+// ficar vazia, a entrada é removida (evita convocatória fantasma).
+function _syncConvocatoriaFromGame(g){
+  if(!APP.convocatorias)APP.convocatorias=[];
+  const i=APP.convocatorias.findIndex(x=>x.gameId===g.id);
+  if(!g.convocatoria||!g.convocatoria.length){
+    if(i>=0)APP.convocatorias.splice(i,1);
+    return;
+  }
+  const data={teamId:g.teamId,date:g.date,notes:'vs '+g.opp,athletes:[...g.convocatoria],
+    lineup:[...g.lineup],subs:[...g.subs],captain:g.captain,viceCaptain:g.viceCaptain,formation:g.formation,
+    concentracaoLocal:g.concentracaoLocal,concentracaoHora:g.concentracaoHora,transporte:g.transporte,
+    refeicaoAntes:g.refeicaoAntes,refeicaoApos:g.refeicaoApos};
+  if(i>=0){Object.assign(APP.convocatorias[i],data);}
+  else{APP.convocatorias.push({id:uid(),gameId:g.id,seenBy:[],...data});}
 }
 
 function openJogo(id){
@@ -2573,7 +2596,7 @@ function saveJogoAdv(){
 
 function _jogoPreHtml(g){
   const team=APP.teams.find(t=>t.id===g.teamId);
-  const athletes=APP.athletes.filter(a=>a.teamId===g.teamId).sort((a,b)=>(+a.number||99)-(+b.number||99));
+  const athletes=APP.athletes.filter(a=>a.teamId===g.teamId).sort((a,b)=>a.name.localeCompare(b.name));
   const convSet=new Set(g.convocatoria),lineSet=new Set(g.lineup),subSet=new Set(g.subs);
   const convRows=athletes.map(a=>{
     const isC=convSet.has(a.id),isS=lineSet.has(a.id),isSu=subSet.has(a.id);
@@ -2608,8 +2631,20 @@ function _jogoPreHtml(g){
     ${g.subs.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">SUPLENTES:</strong><div style="margin-top:4px">${sSum}</div></div>`:''}
     <div class="form-g"><label class="fl">Notas Pré-Jogo</label><textarea class="fc" id="jp-notes" rows="2" onblur="savePreNotes('${g.id}',this.value)">${escHtml(g.preGameNotes||'')}</textarea></div>
   </div>
+  <div class="ipanel" style="margin-bottom:12px">
+    <div class="sh-t" style="font-size:15px;margin-bottom:12px">🚌 Logística do Dia de Jogo</div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Local de Concentração</label><input class="fc" id="jp-conc-local" value="${escHtml(g.concentracaoLocal||'')}" placeholder="Ex: Complexo Desportivo" onblur="saveJogoField('${g.id}','concentracaoLocal',this.value)"></div>
+      <div class="form-g"><label class="fl">Hora de Concentração</label><input class="fc" type="time" id="jp-conc-hora" value="${escHtml(g.concentracaoHora||'')}" onblur="saveJogoField('${g.id}','concentracaoHora',this.value)"></div>
+    </div>
+    <div class="form-g"><label class="fl">Transporte</label><input class="fc" id="jp-transporte" value="${escHtml(g.transporte||'')}" placeholder="Ex: Autocarro, saída às 14h00" onblur="saveJogoField('${g.id}','transporte',this.value)"></div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Refeição Antes</label><input class="fc" id="jp-ref-antes" value="${escHtml(g.refeicaoAntes||'')}" placeholder="Ex: Almoço ligeiro 12h30" onblur="saveJogoField('${g.id}','refeicaoAntes',this.value)"></div>
+      <div class="form-g"><label class="fl">Refeição Após</label><input class="fc" id="jp-ref-apos" value="${escHtml(g.refeicaoApos||'')}" placeholder="Ex: Lanche no regresso" onblur="saveJogoField('${g.id}','refeicaoApos',this.value)"></div>
+    </div>
+  </div>
   <div class="ipanel">
-    <div class="sh-t" style="font-size:15px;margin-bottom:12px">👥 Atletas da Equipa</div>
+    <div class="sh-t" style="font-size:15px;margin-bottom:12px">👥 Atletas da Equipa (ordem alfabética)</div>
     ${athletes.length?convRows:`<div class="empty"><p>Sem atletas registados nesta equipa</p></div>`}
   </div>
   </div>`;
@@ -2619,33 +2654,41 @@ function toggleConvocado(gid,aid,checked){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(checked){if(!g.convocatoria.includes(aid))g.convocatoria.push(aid);}
   else{g.convocatoria=g.convocatoria.filter(x=>x!==aid);g.lineup=g.lineup.filter(x=>x!==aid);g.subs=g.subs.filter(x=>x!==aid);if(g.captain===aid)g.captain='';if(g.viceCaptain===aid)g.viceCaptain='';}
-  saveData();_renderJogoDetailFull();
+  _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
 }
 
 function setStarter(gid,aid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(g.lineup.includes(aid)){g.lineup=g.lineup.filter(x=>x!==aid);}
   else{if(g.lineup.length>=11)return toast('Já tens 11 titulares','err');g.lineup.push(aid);g.subs=g.subs.filter(x=>x!==aid);}
-  saveData();_renderJogoDetailFull();
+  _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
 }
 
 function setSub(gid,aid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(g.subs.includes(aid)){g.subs=g.subs.filter(x=>x!==aid);}
   else{g.subs.push(aid);g.lineup=g.lineup.filter(x=>x!==aid);}
-  saveData();_renderJogoDetailFull();
+  _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
 }
 
 function setCaptain(gid,aid,type){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(type==='cap')g.captain=g.captain===aid?'':aid;
   else g.viceCaptain=g.viceCaptain===aid?'':aid;
-  saveData();_renderJogoDetailFull();
+  _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
 }
 
 function savePreNotes(gid,val){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   g.preGameNotes=val;saveData();
+}
+// Setter genérico para os campos de logística do dia de jogo (concentração,
+// transporte, refeições) — atualiza o Jogo e resincroniza a Convocatória.
+function saveJogoField(gid,field,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  g[field]=val;
+  _syncConvocatoriaFromGame(g);
+  saveData();
 }
 
 function _jogoCampoHtml(g){
@@ -2936,6 +2979,10 @@ function exportJogoPDF(gid,type){
     body+=`<div><h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Ficha Pré-Jogo</h2>
       <p><b>Adversário:</b> ${g.opp} (${haStr})${g.loc?' — '+g.loc:''}</p>
       ${cap?`<p><b>Capitã:</b> ${cap.name}${vc?' &nbsp;|&nbsp; <b>Vice-Capitã:</b> '+vc.name:''}</p>`:''}
+      ${g.concentracaoLocal||g.concentracaoHora?`<p><b>Concentração:</b> ${g.concentracaoHora||''} ${g.concentracaoLocal||''}</p>`:''}
+      ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
+      ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
+      ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
       ${g.preGameNotes?`<p><b>Notas:</b> ${g.preGameNotes}</p>`:''}
       <h3>Onze Inicial — ${g.formation}</h3>
       <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Posição</th><th>Tarefa Tática</th></tr></thead><tbody>${lR}</tbody></table>
@@ -2965,6 +3012,39 @@ function exportJogoPDF(gid,type){
     </div>`;
   }
   _printWin(`${type==='full'?'Relatório Completo':type==='prejogo'?'Ficha Pré-Jogo':type==='campo'?'Folha Tática':'Relatório Pós-Jogo'} — ${g.opp} ${dateStr}`,
+    `<div style="font-family:Arial,sans-serif;padding:20px">
+      <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:20px">
+        <h1 style="font-size:20px;margin:0">${club}</h1>
+        <p style="margin:6px 0 0;font-size:14px;color:#555">${g.opp} • ${dateStr}${comp}${g.loc?' • '+g.loc:''}</p>
+      </div>${body}</div>`);
+}
+// Lista de Convocados simples (ordem alfabética) — para afixar/entregar, distinta
+// da Ficha Pré-Jogo tática (que mantém a ordem do onze/formação).
+function exportConvocatoriaListPDF(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
+  _initG(g);
+  if(!g.convocatoria.length)return toast('Este jogo ainda não tem convocatória definida','err');
+  const club=APP.config.clubName||'Clube';
+  const dateStr=fmtDate(g.date)+(g.time?' '+g.time.slice(0,5):'');
+  const comp=g.comp?' — '+g.comp:'';
+  const ats=g.convocatoria.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const cap=APP.athletes.find(a=>a.id===g.captain);
+  const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
+  const rows=ats.map(a=>`<tr><td>${escHtml(a.name)}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td></tr>`).join('');
+  const body=`
+    <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Lista de Convocados</h2>
+    <p><b>Adversário:</b> ${g.opp}${g.loc?' — '+g.loc:''}</p>
+    ${g.concentracaoLocal||g.concentracaoHora?`<p><b>Concentração:</b> ${g.concentracaoHora||''} ${g.concentracaoLocal||''}</p>`:''}
+    ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
+    ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
+    ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
+    <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;margin-top:12px">
+      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th>Nº</th><th>Posição</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="margin-top:10px;font-size:9pt;color:#666">Total: ${ats.length} convocadas${cap?' · Capitã: '+cap.name:''}${vc?' · Vice-Capitã: '+vc.name:''}</p>
+  `;
+  _printWin(`Lista de Convocados — ${g.opp} ${dateStr}`,
     `<div style="font-family:Arial,sans-serif;padding:20px">
       <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:20px">
         <h1 style="font-size:20px;margin:0">${club}</h1>
@@ -4218,18 +4298,20 @@ function renderAtAval(){
 }
 
 // ─── CONVOCATÓRIAS ────────────────────────────────────────
+// Convocatórias ligadas a um jogo (c.gameId) são geridas automaticamente a partir
+// do separador Pré-Jogo desse Jogo — só há um sítio para preencher. O formulário
+// manual aqui serve apenas para convocações sem jogo associado (seleção, estágios...).
 let _showConvForm=false, _editConvId=null, _convTeam='T1';
 function renderConvocatorias(){
-  const games=APP.games.filter(g=>g.teamId===_convTeam).sort((a,b)=>b.date.localeCompare(a.date));
   const formHtml=_showConvForm?`
   <div class="ipanel">
-    <div class="sh"><div class="sh-t">${_editConvId?'Editar Convocatória':'Nova Convocatória'}</div><button class="btn btn-sm btn-gh" onclick="_showConvForm=false;_editConvId=null;renderConvocatorias()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Jogo</label><select class="fc" id="cf-game"><option value="">— Sem jogo associado —</option>${games.map(g=>`<option value="${g.id}">${fmtDate(g.date)} vs ${g.opp}</option>`).join('')}</select></div>
-    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="cf-date" type="date" value="${today()}"></div></div>
-    <div class="form-g"><label class="fl">Notas</label><input class="fc" id="cf-notes" placeholder="Ex: Jornada 12 — Liga"></div>
-    <div class="form-g"><label class="fl">Selecionar Atletas</label>
+    <div class="sh"><div class="sh-t">Nova Convocatória (sem jogo)</div><button class="btn btn-sm btn-gh" onclick="_showConvForm=false;_editConvId=null;renderConvocatorias()">✕</button></div>
+    <div class="al al-b" style="margin-bottom:10px;font-size:11px">Para convocatórias de um Jogo, preenche no separador Pré-Jogo desse jogo — aparece aqui automaticamente. Usa este formulário só para convocações sem jogo associado.</div>
+    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="cf-date" type="date" value="${today()}"></div>
+    <div class="form-g"><label class="fl">Notas</label><input class="fc" id="cf-notes" placeholder="Ex: Estágio Seleção Distrital"></div>
+    <div class="form-g"><label class="fl">Selecionar Atletas (ordem alfabética)</label>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-top:6px" id="conv-athletes">
-        ${APP.athletes.filter(a=>a.teamId===_convTeam).sort((a,b)=>(a.num||99)-(b.num||99)).map(at=>{
+        ${APP.athletes.filter(a=>a.teamId===_convTeam).sort((a,b)=>a.name.localeCompare(b.name)).map(at=>{
           const inj=APP.injuries.find(i=>i.athleteId===at.id&&(i.status==='ativo'||i.status==='reabilitação'));
           return`<label style="display:flex;align-items:center;gap:7px;padding:6px 8px;background:var(--bg4);border-radius:var(--rs);cursor:pointer;font-size:12px">
             <input type="checkbox" value="${at.id}" ${inj?'disabled title="Lesionada"':''}>
@@ -4243,15 +4325,18 @@ function renderConvocatorias(){
   const convList=APP.convocatorias.filter(c=>c.teamId===_convTeam).sort((a,b)=>b.date.localeCompare(a.date));
   const listHtml=convList.length?convList.map(c=>{
     const game=APP.games.find(g=>g.id===c.gameId);
-    const selected=c.athletes||[];
+    const selected=[...(c.athletes||[])].map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+    const seen=(c.seenBy||[]);
+    const logisticaBits=[c.concentracaoLocal||c.concentracaoHora?`Concentração: ${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim():'',c.transporte?'Transporte: '+c.transporte:'',c.refeicaoAntes?'Antes: '+c.refeicaoAntes:'',c.refeicaoApos?'Após: '+c.refeicaoApos:''].filter(Boolean);
     return`<div class="card" style="margin-bottom:12px">
-      <div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)} ${game?'vs '+game.opp:''}</span>
-        <div style="display:flex;gap:6px"><span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)} · ${selected.length} convocadas</span>
-        <button class="btn btn-xs btn-r" onclick="deleteConv('${c.id}')">🗑️</button></div>
+      <div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)} ${game?'vs '+escHtml(game.opp):''}</span>
+        <div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)} · ${selected.length} convocadas · 👁 vista por ${seen.length}/${selected.length}</span>
+        ${game?`<button class="btn btn-xs btn-gh" onclick="openJogo('${game.id}');navTo('jogos')" title="Gerida pelo Jogo — abrir">🔗 Jogo</button>`:`<button class="btn btn-xs btn-r" onclick="deleteConv('${c.id}')">🗑️</button>`}</div>
       </div>
       <div class="cb" style="padding:12px">
+        ${logisticaBits.length?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">${logisticaBits.join(' · ')}</div>`:''}
         <div style="display:flex;flex-wrap:wrap;gap:6px">
-          ${selected.map(aid=>{const at=APP.athletes.find(a=>a.id===aid);return at?`<span class="bdg bg-g">${at.num?'#'+at.num+' ':''}${at.name}</span>`:'';}).join('')}
+          ${selected.map(at=>{const wasSeen=seen.some(s=>s.athleteId===at.id);return`<span class="bdg ${wasSeen?'bg-g':'bg-gr'}" title="${wasSeen?'Vista':'Ainda não vista'}">${at.num?'#'+at.num+' ':''}${escHtml(at.name)}${wasSeen?' ✓':''}</span>`;}).join('')}
         </div>
       </div>
     </div>`;}).join(''):`<div class="empty"><div class="ei">📋</div><p>Sem convocatórias</p></div>`;
@@ -4260,7 +4345,7 @@ function renderConvocatorias(){
   <div class="sh"><div class="sh-t">📋 Convocatórias</div>
   <div class="sh-a">
     <select class="fc" style="width:auto;font-size:11px" onchange="_convTeam=this.value;renderConvocatorias()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_convTeam?'selected':''}>${t.name}</option>`).join('')}</select>
-    <button class="btn btn-g" onclick="_showConvForm=!_showConvForm;_editConvId=null;renderConvocatorias()">+ Nova Convocatória</button>
+    <button class="btn btn-g" onclick="_showConvForm=!_showConvForm;_editConvId=null;renderConvocatorias()">+ Nova Convocatória (sem jogo)</button>
   </div></div>
   ${formHtml}${listHtml}`;
 }
@@ -4269,10 +4354,9 @@ function saveConvocatoria(){
   if(!date)return toast('Data obrigatória','err');
   const sel=[...document.querySelectorAll('#conv-athletes input:checked')].map(i=>i.value);
   if(!sel.length)return toast('Seleciona pelo menos uma atleta','err');
-  const c={id:_editConvId||uid(),teamId:_convTeam,gameId:document.getElementById('cf-game').value||null,date,notes:document.getElementById('cf-notes').value,athletes:sel};
-  if(_editConvId){const i=APP.convocatorias.findIndex(x=>x.id===_editConvId);if(i>=0)APP.convocatorias[i]=c;}
-  else APP.convocatorias.push(c);
-  saveData();_showConvForm=false;_editConvId=null;toast('Convocatória guardada ✓');renderConvocatorias();
+  const c={id:uid(),teamId:_convTeam,gameId:null,date,notes:document.getElementById('cf-notes').value,athletes:sel,seenBy:[]};
+  APP.convocatorias.push(c);
+  saveData();_showConvForm=false;toast('Convocatória guardada ✓');renderConvocatorias();
 }
 function deleteConv(id){if(!confirm('Apagar?'))return;APP.convocatorias=APP.convocatorias.filter(c=>c.id!==id);saveData();toast('Apagada');renderConvocatorias();}
 
@@ -4790,6 +4874,18 @@ function renderRelatorios(){
         <button class="btn btn-gh btn-sm" onclick="printPse()">🖨️ PDF / Imprimir</button>
       </div>
       <div id="rep-pse-preview" style="margin-top:14px"></div>
+    </div></div>
+
+    <!-- Convocatórias -->
+    <div class="card"><div class="ch"><span class="ct">📋 Convocatórias</span></div><div class="cb">
+      <div class="form-g"><label class="fl">Jogo</label>
+        <select class="fc" id="rep-conv-game">${APP.games.filter(g=>g.convocatoria&&g.convocatoria.length).sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`<option value="${g.id}">${fmtDate(g.date)} vs ${escHtml(g.opp)}</option>`).join('')||'<option value="">Sem jogos com convocatória</option>'}</select>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Dois formatos: lista simples em ordem alfabética (para afixar/entregar) ou ficha tática com 11 inicial, suplentes, capitã e logística.</div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-g btn-sm" onclick="exportConvocatoriaListPDF(document.getElementById('rep-conv-game').value)">🖨️ Lista de Convocados</button>
+        <button class="btn btn-gh btn-sm" onclick="exportJogoPDF(document.getElementById('rep-conv-game').value,'prejogo')">🖨️ Ficha de Jogo (tática)</button>
+      </div>
     </div></div>
 
     <!-- Presenças -->
@@ -5706,21 +5802,37 @@ function renderAtConvoc(){
   const td=today();
   const convs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date));
   const past=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date<td).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  // Marca como "vista" (visível ao treinador) assim que a atleta abre esta página.
+  let dirty=false;
+  convs.concat(past).forEach(c=>{
+    if(!c.seenBy)c.seenBy=[];
+    if(!c.seenBy.some(s=>s.athleteId===AID)){c.seenBy.push({athleteId:AID,seenAt:new Date().toISOString()});dirty=true;}
+  });
+  if(dirty)saveData();
   document.getElementById('atp-convoc').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-clipboard-list" style="margin-right:6px;vertical-align:-3px;color:#2dd4bf" aria-hidden="true"></i>Convocatórias</div>
   ${convs.length?convs.map(c=>{
     const g=APP.games.find(x=>x.id===c.gameId);
+    const isStarter=g&&g.lineup&&g.lineup.includes(AID);
+    const isSub=g&&g.subs&&g.subs.includes(AID);
+    const isCap=g&&g.captain===AID,isVc=g&&g.viceCaptain===AID;
+    const logistica=[c.concentracaoLocal||c.concentracaoHora?['Concentração',`${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim()]:null,c.transporte?['Transporte',c.transporte]:null,c.refeicaoAntes?['Refeição antes',c.refeicaoAntes]:null,c.refeicaoApos?['Refeição após',c.refeicaoApos]:null].filter(Boolean);
     return`<div class="card" style="margin-bottom:10px">
       <div class="ch"><span class="ct"><i class="ti ti-clipboard-list" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Convocada</span><span class="bdg bg-g">Confirmada</span></div>
       <div class="cb" style="padding:12px 14px">
-        ${g?`<div style="font-size:14px;font-weight:800;margin-bottom:4px">vs ${g.opp}</div>
-        <div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${g.time?' · '+g.time:''}${g.location?' · '+g.location:''}</div>`:''}
-        ${c.notes?`<div class="al al-b" style="margin-top:8px;font-size:11px">${c.notes}</div>`:''}
+        ${g?`<div style="font-size:14px;font-weight:800;margin-bottom:4px">vs ${escHtml(g.opp)}</div>
+        <div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${g.time?' · '+g.time:''}${g.loc?' · '+escHtml(g.loc):''}</div>`:`<div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}</div>`}
+        ${isStarter||isSub||isCap||isVc?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${isStarter?'<span class="bdg bg-g">Titular</span>':isSub?'<span class="bdg bg-y">Suplente</span>':''}
+          ${isCap?'<span class="bdg bg-b">Capitã</span>':isVc?'<span class="bdg bg-b">Vice-Capitã</span>':''}
+        </div>`:''}
+        ${logistica.length?`<div style="margin-top:10px;font-size:11px;color:var(--t2)">${logistica.map(([l,v])=>`<div><strong>${l}:</strong> ${escHtml(v)}</div>`).join('')}</div>`:''}
+        ${c.notes?`<div class="al al-b" style="margin-top:8px;font-size:11px">${escHtml(c.notes)}</div>`:''}
       </div>
     </div>`;
   }).join(''):`<div class="al al-b">Sem convocatórias próximas</div>`}
   ${past.length?`<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">Historial</div>
-  ${past.map(c=>{const g=APP.games.find(x=>x.id===c.gameId);return`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${g?'vs '+g.opp:'Jogo'}</span><span style="color:var(--t2)">${fmtDate(c.date)}</span></div>`;}).join('')}</div>`:''}`;
+  ${past.map(c=>{const g=APP.games.find(x=>x.id===c.gameId);return`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${g?'vs '+escHtml(g.opp):'Jogo'}</span><span style="color:var(--t2)">${fmtDate(c.date)}</span></div>`;}).join('')}</div>`:''}`;
 }
 
 // ─── SUPABASE CLOUD ───────────────────────────────────────
