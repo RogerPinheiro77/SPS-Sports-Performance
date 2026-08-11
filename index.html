@@ -2243,7 +2243,7 @@ function renderJogos(){
     <div class="sh"><div class="sh-t">${_editJogoId?'Editar':'Novo Jogo'}</div><button class="btn btn-sm btn-gh" onclick="_showJogoForm=false;_editJogoId=null;renderJogos()">✕</button></div>
     <div class="fr"><div class="form-g" style="position:relative"><label class="fl">Adversário *</label>
     <div style="display:flex;gap:8px;align-items:center">
-      <div style="position:relative;flex:1"><input class="fc" id="jf-opp" placeholder="Pesquisar clube..." autocomplete="off" oninput="searchClub(this.value)">
+      <div style="position:relative;flex:1"><input class="fc" id="jf-opp" placeholder="Pesquisar clube..." autocomplete="off" oninput="searchClub(this.value)" onblur="setTimeout(()=>{const dd=document.getElementById('jf-club-dropdown');if(dd)dd.style.display='none';},200)">
       <div id="jf-club-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div></div>
       <div id="jf-logo-preview" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:8px;border:1px solid var(--brd);flex-shrink:0"><span style="font-size:18px">⚽</span></div>
     </div><input type="hidden" id="jf-logo"></div>
@@ -2355,7 +2355,7 @@ function _jogoInfoHtml(g){
   return `<div class="ipanel">
     <div class="fr"><div class="form-g" style="position:relative"><label class="fl">Adversário *</label>
     <div style="display:flex;gap:8px;align-items:center">
-      <div style="position:relative;flex:1"><input class="fc" id="ji-opp" value="${escHtml(g.opp||'')}" placeholder="Pesquisar clube..." oninput="searchClubDetail(this.value)">
+      <div style="position:relative;flex:1"><input class="fc" id="ji-opp" value="${escHtml(g.opp||'')}" placeholder="Pesquisar clube..." oninput="searchClubDetail(this.value)" onblur="setTimeout(()=>{const dd=document.getElementById('ji-club-dropdown');if(dd)dd.style.display='none';},200)">
       <div id="ji-club-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div></div>
       <div id="ji-logo-preview" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:8px;border:1px solid var(--brd);flex-shrink:0">
         ${g.oppLogo?`<img src="${g.oppLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:6px" onerror="this.innerHTML='<span style=font-size:18px>&#x26BD;</span>'">`:'<span style="font-size:18px">⚽</span>'}
@@ -2396,6 +2396,56 @@ function saveJogoInfo(){
   saveData();toast('Informações guardadas ✓');
 }
 
+// ─── PESQUISA DE EMBLEMA DE CLUBE (Wikipédia PT, ao vivo) ─────────────────
+// Usado pelo formulário rápido "Novo Jogo" (jf-*) e pelo separador Info do
+// detalhe do jogo (ji-*). Pesquisa por nome, mostra até 6 resultados com
+// miniatura do emblema (quando a Wikipédia a tem) e deixa escolher.
+// Clubes distritais pequenos normalmente não têm página na Wikipédia — nesse
+// caso não aparece nada e o emblema continua a poder ser colado à mão.
+let _clubSearchTimer=null,_clubSearchSeq=0;
+function _doClubSearch(q,ddId,onSelect){
+  clearTimeout(_clubSearchTimer);
+  const dd=document.getElementById(ddId);
+  if(!dd)return;
+  q=(q||'').trim();
+  if(q.length<3){dd.style.display='none';dd.innerHTML='';return;}
+  const seq=++_clubSearchSeq;
+  _clubSearchTimer=setTimeout(async()=>{
+    dd.style.display='block';
+    dd.innerHTML='<div style="padding:8px 10px;font-size:12px;color:var(--t2)">A procurar...</div>';
+    let pages=null;
+    try{
+      const url='https://pt.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent(q+' futebol clube')+'&gsrlimit=6&prop=pageimages&piprop=thumbnail&pithumbsize=120&format=json&origin=*';
+      const res=await fetch(url);
+      const data=await res.json();
+      pages=data&&data.query&&data.query.pages?Object.values(data.query.pages).sort((a,b)=>(a.index||0)-(b.index||0)):[];
+    }catch(e){pages=null;}
+    if(seq!==_clubSearchSeq)return; // resposta desatualizada (utilizador já escreveu mais), ignorar
+    if(pages===null){dd.innerHTML='<div style="padding:8px 10px;font-size:12px;color:var(--t2)">Erro na pesquisa — tenta novamente</div>';return;}
+    if(!pages.length){dd.innerHTML='<div style="padding:8px 10px;font-size:12px;color:var(--t2)">Sem resultados — cola o link do emblema à mão se precisares</div>';return;}
+    dd.innerHTML=pages.map((p,i)=>`<div class="club-sr" data-i="${i}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
+      <div style="width:24px;height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:5px;overflow:hidden">${p.thumbnail&&p.thumbnail.source?`<img src="${p.thumbnail.source}" style="width:20px;height:20px;object-fit:contain" onerror="this.style.display='none'">`:'⚽'}</div>
+      <span style="font-size:12px">${escHtml((p.title||'').replace(/\s*\(.*?\)\s*$/,''))}</span>
+    </div>`).join('');
+    [...dd.querySelectorAll('.club-sr')].forEach(el=>{
+      el.addEventListener('mousedown',ev=>{
+        ev.preventDefault(); // evita que o blur do input feche o dropdown antes do clique registar
+        const p=pages[+el.dataset.i];
+        const name=(p.title||'').replace(/\s*\(.*?\)\s*$/,'');
+        const logo=p.thumbnail&&p.thumbnail.source?p.thumbnail.source:'';
+        onSelect(name,logo);
+      });
+    });
+  },350);
+}
+function searchClub(q){_doClubSearch(q,'jf-club-dropdown',(name,logo)=>selectClubQuick(name,logo));}
+function selectClubQuick(name,logo){
+  const inp=document.getElementById('jf-opp');if(inp)inp.value=name;
+  const li=document.getElementById('jf-logo');if(li)li.value=logo;
+  const prev=document.getElementById('jf-logo-preview');
+  if(prev){if(logo){const img=document.createElement('img');img.src=logo;img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:6px';img.onerror=()=>{prev.innerHTML='<span style="font-size:18px">⚽</span>';};prev.innerHTML='';prev.appendChild(img);}else prev.innerHTML='<span style="font-size:18px">⚽</span>';}
+  const dd=document.getElementById('jf-club-dropdown');if(dd)dd.style.display='none';
+}
 function searchClubDetail(q){_doClubSearch(q,'ji-club-dropdown',(name,logo)=>selectClubDetail(name,logo));}
 function selectClubDetail(name,logo){
   const inp=document.getElementById('ji-opp');if(inp)inp.value=name;
