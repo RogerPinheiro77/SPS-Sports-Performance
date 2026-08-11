@@ -2341,11 +2341,11 @@ function _syncConvocatoriaFromGame(g){
   else{APP.convocatorias.push({id:uid(),gameId:g.id,seenBy:[],...data});}
 }
 
-function openJogo(id){
+function openJogo(id,tab='info'){
   const g=APP.games.find(x=>x.id===id);
   if(!g)return;
   _initG(g);saveData();
-  _jogoDetailId=id;_jogoView='detail';_jogoDetailTab='info';
+  _jogoDetailId=id;_jogoView='detail';_jogoDetailTab=tab;
   renderJogos();
 }
 
@@ -2392,6 +2392,7 @@ function renderJogos(){
       <td style="text-align:center">${res} ${rb}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-xs btn-g" onclick="openJogo('${g.id}')">📂 Abrir</button>
+        <button class="btn btn-xs btn-gh" onclick="openJogo('${g.id}','prejogo')" title="Ir direto à convocatória deste jogo">📋 Convocatória</button>
         <button class="btn btn-xs btn-r" onclick="deleteJogo('${g.id}')">🗑️</button>
       </td></tr>`;
   };
