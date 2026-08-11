@@ -463,7 +463,14 @@ function loadData(){
 }
 function saveData(){localStorage.setItem(DK,JSON.stringify(APP));if(_sync&&_supa&&_cid)pushAppMeta();}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-const today=()=>new Date().toISOString().slice(0,10);
+// Formata uma data para YYYY-MM-DD usando os campos LOCAIS (ano/mês/dia), não UTC.
+// Bug corrigido 2026-08-11: `.toISOString().slice(0,10)` converte sempre para UTC — em
+// Portugal (UTC+1 no verão) isso fazia qualquer data "meia-noite local" recuar um dia
+// (ex: getMonday/addDaysStr no Microciclos mostravam sempre o dia anterior ao correto).
+// Usar SEMPRE esta função (nunca toISOString) para converter um objeto Date para string
+// de data local, em qualquer sítio novo do código.
+const _fmtISO=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const today=()=>_fmtISO(new Date());
 
 // ─── AUTH (multi-user) ──────────────────────────────────────
 async function hashPwd(str){
@@ -857,12 +864,12 @@ function renderDashboard(){
   const td=today();
   // Day arrays
   const dys28=[],dys7=[];
-  for(let i=27;i>=0;i--){const x=new Date(td+'T00:00:00');x.setDate(x.getDate()-i);dys28.push(x.toISOString().slice(0,10));}
+  for(let i=27;i>=0;i--){const x=new Date(td+'T00:00:00');x.setDate(x.getDate()-i);dys28.push(_fmtISO(x));}
   dys7.push(...dys28.slice(-7));
   const wkMon=getMonday(td);
   const wkDays=[],lwDays=[];
-  for(let i=0;i<7;i++){const x=new Date(wkMon+'T00:00:00');x.setDate(x.getDate()+i);wkDays.push(x.toISOString().slice(0,10));}
-  for(let i=0;i<7;i++){const x=new Date(wkMon+'T00:00:00');x.setDate(x.getDate()-7+i);lwDays.push(x.toISOString().slice(0,10));}
+  for(let i=0;i<7;i++){const x=new Date(wkMon+'T00:00:00');x.setDate(x.getDate()+i);wkDays.push(_fmtISO(x));}
+  for(let i=0;i<7;i++){const x=new Date(wkMon+'T00:00:00');x.setDate(x.getDate()-7+i);lwDays.push(_fmtISO(x));}
 
   // Athletes for current team
   const selTeam=_pwTeam||'T1';
@@ -1740,7 +1747,7 @@ function saveAthlete(){
 function openAthleteModal(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
   const td=today();
-  const days28=[];for(let i=27;i>=0;i--){const x=new Date(td+'T00:00:00');x.setDate(x.getDate()-i);days28.push(x.toISOString().slice(0,10));}
+  const days28=[];for(let i=27;i>=0;i--){const x=new Date(td+'T00:00:00');x.setDate(x.getDate()-i);days28.push(_fmtISO(x));}
   const days7=days28.slice(-7);
   // PSE
   const pList=APP.pse.filter(p=>p.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
@@ -2092,8 +2099,8 @@ function deleteEvent(id){if(!confirm('Apagar evento?'))return;APP.schedule=APP.s
 // ─── MICROCICLOS ──────────────────────────────────────────
 let _mcWeek=getMonday(today()), _mcTeam='T1', _showMcForm=false, _mcDay=null, _editMcId=null;
 const MC_TYPES={Tático:{css:'s-tac',icon:'⚽'},Físico:{css:'s-fis',icon:'💪'},Técnico:{css:'s-tec',icon:'🎯'},Ativação:{css:'s-ati',icon:'🔥'},Recuperação:{css:'s-rec',icon:'🧊'},Jogo:{css:'s-jog',icon:'🏆'},Folga:{css:'s-fol',icon:'😴'},'Consulta Nutri':{css:'s-nut',icon:'🥗'},Fisio:{css:'s-fio',icon:'🏥'},Reunião:{css:'s-reu',icon:'📋'}};
-function getMonday(dt){const d=new Date(dt+'T00:00:00');const day=d.getDay();const diff=d.getDate()-day+(day===0?-6:1);d.setDate(diff);return d.toISOString().slice(0,10);}
-function addDaysStr(dt,n){const d=new Date(dt+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function getMonday(dt){const d=new Date(dt+'T00:00:00');const day=d.getDay();const diff=d.getDate()-day+(day===0?-6:1);d.setDate(diff);return _fmtISO(d);}
+function addDaysStr(dt,n){const d=new Date(dt+'T00:00:00');d.setDate(d.getDate()+n);return _fmtISO(d);}
 function renderMicrociclos(){
   const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
   const weekDates=Array.from({length:7},(_,i)=>addDaysStr(_mcWeek,i));
@@ -3263,7 +3270,7 @@ function exportTreinoPDF(trId){
 let _pwTab='pse', _pwTeam='T1', _pwPeriod=14;
 function renderPSEWellness(){
   const td=today();
-  const days=Array.from({length:_pwPeriod},(_,i)=>{const d=new Date(td+'T00:00:00');d.setDate(d.getDate()-(_pwPeriod-1-i));return d.toISOString().slice(0,10);});
+  const days=Array.from({length:_pwPeriod},(_,i)=>{const d=new Date(td+'T00:00:00');d.setDate(d.getDate()-(_pwPeriod-1-i));return _fmtISO(d);});
   const athletes=APP.athletes.filter(a=>a.teamId===_pwTeam);
   const teamTabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_pwTeam?'on':''}" onclick="_pwTeam='${t.id}';renderPSEWellness()">${t.name}</button>`).join('');
   const mainTabs=`<div class="tabs"><button class="tab-btn ${_pwTab==='pse'?'on':''}" onclick="_pwTab='pse';renderPSEWellness()">📊 PSE / Carga</button><button class="tab-btn ${_pwTab==='wellness'?'on':''}" onclick="_pwTab='wellness';renderPSEWellness()">💊 Wellness</button></div>`;
@@ -4627,7 +4634,7 @@ function renderRelatorios(){
   const teams=[{id:'',name:'Todas as Equipas'},...APP.teams];
   const atOpts=ats.map(a=>`<option value="${a.id}">${a.name} (${a.pos||'—'})</option>`).join('');
   const teamOpts=teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
-  const td=new Date().toISOString().slice(0,10);
+  const td=_fmtISO(new Date());
   const ym=td.slice(0,7);
   document.getElementById('pg-relatorios').innerHTML=`
   <div class="sh"><div class="sh-t">📥 Relatórios & Exportações</div></div>
@@ -4769,7 +4776,7 @@ function printFichaAtleta(){
   const wellRecs=APP.wellness.filter(w=>w.athleteId===id);
   const injRecs=APP.injuries.filter(i=>i.athleteId===id);
   const attRecs=APP.attendance.filter(a=>a.athleteId===id);
-  const last28=new Date(Date.now()-28*864e5).toISOString().slice(0,10);
+  const last28=_fmtISO(new Date(Date.now()-28*864e5));
   const pse28=pseRecs.filter(p=>p.date>=last28);
   const well14=wellRecs.slice(-14);
   const pseAvg=pse28.length?Math.round(pse28.reduce((s,p)=>s+p.pse,0)/pse28.length*10)/10:'—';
