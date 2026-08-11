@@ -2888,13 +2888,12 @@ function _jogoPosHtml(g){
   }).join('');
   return `<div>
   <div class="ipanel" style="margin-bottom:12px">
-    <div class="sh-t" style="font-size:15px;margin-bottom:10px">🇵🇹 Importação FPF</div>
-    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div class="form-g" style="flex:1;min-width:180px;margin-bottom:0"><label class="fl">URL do jogo no fpf.pt</label>
-      <input class="fc" id="fpf-url" value="${escHtml(g.fpfUrl||'')}" placeholder="https://www.fpf.pt/competicoes/..."></div>
-      <button class="btn btn-g" onclick="importFpf('${g.id}')">📥 Importar</button>
-    </div>
-    <div id="fpf-msg" style="font-size:11px;color:var(--t2);margin-top:6px">⚠️ O site da FPF usa JavaScript — a importação automática pode falhar. Nesse caso, preenche os dados manualmente.</div>
+    <div class="sh-t" style="font-size:15px;margin-bottom:6px">🇵🇹 Importar da FPF</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:8px;line-height:1.5">O site da FPF bloqueia a importação automática por URL (proteção anti-robô). Para importar: abre o jogo em <a href="https://resultados.fpf.pt" target="_blank" style="color:var(--pri)">resultados.fpf.pt</a>, clica com o botão direito na página → <strong>"Ver código fonte da página"</strong> (ou Ctrl+U), seleciona tudo (Ctrl+A) e copia (Ctrl+C). Cola o conteúdo aqui:</div>
+    <textarea class="fc" id="fpf-html" rows="4" placeholder="Cola aqui o código-fonte da página do jogo (Ctrl+U → Ctrl+A → Ctrl+C)..."></textarea>
+    <button class="btn btn-g btn-sm" style="margin-top:8px" onclick="parseFpfPaste('${g.id}')">🔍 Analisar</button>
+    <div id="fpf-msg" style="font-size:11px;color:var(--t2);margin-top:6px"></div>
+    <div id="fpf-preview"></div>
   </div>
   <div class="ipanel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
@@ -2912,18 +2911,202 @@ function _jogoPosHtml(g){
   </div>`;
 }
 
-function importFpf(gid){
-  const g=APP.games.find(x=>x.id===gid);if(!g)return;
-  const urlEl=document.getElementById('fpf-url');if(!urlEl)return;
-  const url=urlEl.value.trim();if(!url)return toast('Introduz o URL do jogo FPF','err');
-  g.fpfUrl=url;saveData();
-  const msg=document.getElementById('fpf-msg');
-  if(msg)msg.textContent='🔄 A tentar importar...';
-  fetch(url).then(r=>r.text()).then(()=>{
-    if(msg)msg.innerHTML='✅ Conteúdo obtido. Verifica e ajusta os dados manualmente.';
-  }).catch(()=>{
-    if(msg)msg.innerHTML='⚠️ Importação automática falhou (CORS/JavaScript). Preenche os dados manualmente.';
+function _normName(s){return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\(gr\)/gi,'').replace(/[^a-z ]/g,'').trim().replace(/\s+/g,' ');}
+
+function _fpfParseHtml(raw){
+  const doc=new DOMParser().parseFromString(raw,'text/html');
+  const txt=doc.body?doc.body.textContent:raw;
+  let home={name:'',logo:''},away={name:'',logo:''},scoreH=null,scoreA=null;
+  const scoreStrong=[...doc.querySelectorAll('strong')].find(e=>/^\d+\s*-\s*\d+$/.test(e.textContent.trim()));
+  if(scoreStrong){
+    const row=scoreStrong.closest('.row')||scoreStrong.parentElement;
+    const strongs=[...row.querySelectorAll('strong')];
+    const nums=scoreStrong.textContent.trim().split('-').map(s=>+s.trim());
+    scoreH=nums[0];scoreA=nums[1];
+    const nameEls=strongs.filter(s=>s!==scoreStrong);
+    if(nameEls[0])home.name=nameEls[0].textContent.trim();
+    if(nameEls[1])away.name=nameEls[1].textContent.trim();
+    const imgs=row.querySelectorAll('img');
+    if(imgs[0])home.logo=imgs[0].getAttribute('src')||'';
+    if(imgs[1])away.logo=imgs[1].getAttribute('src')||'';
+  }
+  const dataMatch=txt.match(/Data:\s*([\d-]+)\s*Hora:\s*([\d:]+)\s*Est[aá]dio:\s*([^\n\r]+)/);
+  const date=dataMatch?dataMatch[1]:'',time=dataMatch?dataMatch[2]:'',stadium=dataMatch?dataMatch[3].trim():'';
+  function parsePlayers(panel){
+    if(!panel)return{home:[],away:[]};
+    const grab=side=>[...panel.querySelectorAll('.lineup-team.'+side+'-team .player')].map(p=>{
+      const strong=p.querySelector('strong');
+      const num=strong?strong.textContent.trim():'';
+      let name=p.textContent.trim();
+      if(strong)name=name.replace(strong.textContent,'');
+      const gk=/\(gr\)/i.test(name);
+      name=name.replace(/\(gr\)/i,'').trim().replace(/\s+/g,' ');
+      return {num,name,gk};
+    });
+    return {home:grab('home'),away:grab('away')};
+  }
+  const titleBars=[...doc.querySelectorAll('.title-bar')];
+  const tbFind=t=>titleBars.find(e=>e.textContent.trim()===t);
+  const startTb=tbFind('Equipas Iniciais'),subsTb=tbFind('Suplentes');
+  const starters=parsePlayers(startTb?startTb.nextElementSibling:null);
+  const bench=parsePlayers(subsTb?subsTb.nextElementSibling:null);
+  const events=[...doc.querySelectorAll('.timeline-item')].map(it=>{
+    const topTag=it.querySelector('.top-tag');
+    const minRaw=topTag?topTag.textContent.trim():'';
+    const mBase=parseInt((minRaw.match(/\d+/)||[0])[0],10)||0;
+    const em=minRaw.match(/\+\s*(\d+)/);
+    const mExtra=em?parseInt(em[1],10):0;
+    const img=it.querySelector('img');
+    const src=img?(img.getAttribute('src')||''):'';
+    let type='evento';
+    if(/start/i.test(src))type='inicio';
+    else if(/end/i.test(src))type='fim';
+    else if(/goal/i.test(src))type='golo';
+    else if(/yellow/i.test(src))type='amarelo';
+    else if(/red/i.test(src))type='vermelho';
+    else if(/substitution/i.test(src))type='substituicao';
+    const inSpan=it.querySelector('.in'),outSpan=it.querySelector('.out');
+    let playerIn='',playerOut='',player='',scoreAfter='';
+    if(inSpan||outSpan){
+      playerIn=inSpan?inSpan.textContent.trim():'';
+      playerOut=outSpan?outSpan.textContent.trim():'';
+    }else{
+      const bt=it.querySelector('.bottom-tag');
+      const bot=bt?bt.textContent.trim().replace(/\s+/g,' '):'';
+      const sm=bot.match(/^(\d+)\s*-\s*(\d+)\s*(.*)$/);
+      if(sm){scoreAfter=sm[1]+'-'+sm[2];player=sm[3].trim();}
+      else player=bot;
+    }
+    return {minRaw,minute:mBase+mExtra,type,player,playerIn,playerOut,scoreAfter};
   });
+  return {home,away,scoreH,scoreA,date,time,stadium,starters,bench,events};
+}
+
+function _fpfGuessSide(g,parsed){
+  const opp=_normName(g.opp);
+  const hn=_normName(parsed.home.name),an=_normName(parsed.away.name);
+  const hMatch=!!opp&&(hn.includes(opp)||opp.includes(hn));
+  const aMatch=!!opp&&(an.includes(opp)||opp.includes(an));
+  if(hMatch&&!aMatch)return 'away';
+  if(aMatch&&!hMatch)return 'home';
+  return g.ha==='fora'?'away':'home';
+}
+
+function _fpfMatchAthlete(fpfName){
+  const n=_normName(fpfName);if(!n)return null;
+  let best=null,bestScore=0;
+  APP.athletes.forEach(a=>{
+    const an=_normName(a.name);if(!an)return;
+    let score=0;
+    if(an===n)score=100;
+    else{
+      const at=an.split(' '),nt=n.split(' ');
+      const common=at.filter(t=>t.length>2&&nt.includes(t)).length;
+      score=common*10+((an.includes(n)||n.includes(an))?5:0);
+    }
+    if(score>bestScore){bestScore=score;best=a;}
+  });
+  return bestScore>=10?best:null;
+}
+
+let _fpfPreview=null;
+
+function parseFpfPaste(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const el=document.getElementById('fpf-html');
+  const raw=el?el.value.trim():'';
+  const msg=document.getElementById('fpf-msg');
+  if(!raw){if(msg)msg.textContent='Cola primeiro o código-fonte da página.';return;}
+  let parsed;
+  try{parsed=_fpfParseHtml(raw);}catch(e){if(msg)msg.textContent='⚠️ Não consegui interpretar o conteúdo colado.';return;}
+  if(!parsed.home.name&&!parsed.away.name){if(msg)msg.textContent='⚠️ Não encontrei dados de jogo neste conteúdo. Confirma que colaste o código-fonte da página correta (Ctrl+U).';return;}
+  const ourSide=_fpfGuessSide(g,parsed);
+  const ourList=[...(parsed.starters[ourSide]||[]).map(p=>({...p,st:true})),...(parsed.bench[ourSide]||[]).map(p=>({...p,st:false}))];
+  const matches={};
+  ourList.forEach(p=>{const m=_fpfMatchAthlete(p.name);matches[p.name]=m?m.id:'';});
+  _fpfPreview={gid,parsed,ourSide,ourList,matches};
+  if(msg)msg.textContent='✅ Interpretado. Confirma abaixo antes de aplicar.';
+  _renderFpfPreview();
+}
+
+function _renderFpfPreview(){
+  const box=document.getElementById('fpf-preview');if(!box||!_fpfPreview)return;
+  const {parsed,ourSide,ourList}=_fpfPreview;
+  const ourName=ourSide==='home'?parsed.home.name:parsed.away.name;
+  const oppName=ourSide==='home'?parsed.away.name:parsed.home.name;
+  const ourScore=ourSide==='home'?parsed.scoreH:parsed.scoreA;
+  const oppScore=ourSide==='home'?parsed.scoreA:parsed.scoreH;
+  const evLbl={golo:'⚽ Golo',amarelo:'🟨 Amarelo',vermelho:'🟥 Vermelho',substituicao:'🔁 Substituição'};
+  const evRows=parsed.events.filter(e=>e.type!=='inicio'&&e.type!=='fim').map(e=>{
+    const detail=e.type==='substituicao'?`${escHtml(e.playerIn)} ⇄ ${escHtml(e.playerOut)}`:`${escHtml(e.player)}${e.scoreAfter?' ('+e.scoreAfter+')':''}`;
+    return `<div style="font-size:11px;padding:3px 0;border-bottom:1px solid var(--brd)"><strong>${escHtml(e.minRaw)}</strong> ${evLbl[e.type]||e.type} ${detail}</div>`;
+  }).join('')||'<div style="font-size:11px;color:var(--t2)">Sem eventos identificados.</div>';
+  const athOpts=(sel)=>`<option value="">— não mapear —</option>`+APP.athletes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${sel===a.id?'selected':''}>${escHtml(a.name)}</option>`).join('');
+  const matchRows=ourList.map(p=>`<tr>
+    <td style="font-size:11px">${escHtml(p.num)} ${escHtml(p.name)}${p.gk?' (GR)':''}${p.st?'':' <span style="color:var(--t2)">(suplente)</span>'}</td>
+    <td><select class="fc fpf-match" data-fpfname="${escHtml(p.name)}" style="font-size:11px;padding:3px 6px">${athOpts(_fpfPreview.matches[p.name])}</select></td>
+  </tr>`).join('');
+  box.innerHTML=`<div style="margin-top:12px;border-top:1px solid var(--brd);padding-top:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+      <strong style="font-size:13px">${escHtml(ourName)} ${ourScore}–${oppScore} ${escHtml(oppName)}</strong>
+      <label style="font-size:11px;color:var(--t2)"><input type="checkbox" id="fpf-flip" onchange="_fpfFlipSide()"> trocar lado (se detetei mal quem somos nós)</label>
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:4px">📅 ${escHtml(parsed.date)} ${escHtml(parsed.time)} · ${escHtml(parsed.stadium)}</div>
+    <div class="sh-t" style="font-size:13px;margin:10px 0 6px">Linha do Tempo</div>
+    <div style="max-height:180px;overflow:auto">${evRows}</div>
+    <div class="sh-t" style="font-size:13px;margin:12px 0 6px">Corresponder Jogadoras (${escHtml(ourName)})</div>
+    <div class="tw"><table><thead><tr><th>FPF</th><th>Atleta</th></tr></thead><tbody>${matchRows}</tbody></table></div>
+    <button class="btn btn-g" style="margin-top:10px" onclick="applyFpfImport()">✅ Aplicar Importação</button>
+  </div>`;
+}
+
+function _fpfFlipSide(){
+  if(!_fpfPreview)return;
+  _fpfPreview.ourSide=_fpfPreview.ourSide==='home'?'away':'home';
+  const {parsed,ourSide}=_fpfPreview;
+  _fpfPreview.ourList=[...(parsed.starters[ourSide]||[]).map(p=>({...p,st:true})),...(parsed.bench[ourSide]||[]).map(p=>({...p,st:false}))];
+  const matches={};
+  _fpfPreview.ourList.forEach(p=>{const m=_fpfMatchAthlete(p.name);matches[p.name]=m?m.id:'';});
+  _fpfPreview.matches=matches;
+  _renderFpfPreview();
+}
+
+function applyFpfImport(){
+  if(!_fpfPreview)return;
+  const g=APP.games.find(x=>x.id===_fpfPreview.gid);if(!g)return;
+  const {parsed,ourSide}=_fpfPreview;
+  const ourScore=ourSide==='home'?parsed.scoreH:parsed.scoreA;
+  const oppScore=ourSide==='home'?parsed.scoreA:parsed.scoreH;
+  document.querySelectorAll('.fpf-match').forEach(sel=>{_fpfPreview.matches[sel.dataset.fpfname]=sel.value;});
+  const nameToAid={};
+  Object.keys(_fpfPreview.matches).forEach(n=>{if(_fpfPreview.matches[n])nameToAid[n]=_fpfPreview.matches[n];});
+  const endMin=Math.max(90,...parsed.events.filter(e=>e.type==='fim').map(e=>e.minute||0),90);
+  const starters=parsed.starters[ourSide]||[];
+  const statMap={};
+  const getStat=aid=>{if(!statMap[aid])statMap[aid]={aid,mins:0,goals:0,yellow:0,red:0,subIn:null,subOut:null};return statMap[aid];};
+  starters.forEach(p=>{const aid=nameToAid[p.name];if(aid)getStat(aid).mins=endMin;});
+  parsed.events.forEach(ev=>{
+    if(ev.type==='substituicao'){
+      const aidIn=nameToAid[ev.playerIn],aidOut=nameToAid[ev.playerOut];
+      if(aidOut){const s=getStat(aidOut);s.mins=ev.minute;s.subOut=ev.minute;}
+      if(aidIn){const s=getStat(aidIn);s.subIn=ev.minute;s.mins=Math.max(0,endMin-ev.minute);}
+    }else if(ev.type==='golo'){const aid=nameToAid[ev.player];if(aid)getStat(aid).goals+=1;}
+    else if(ev.type==='amarelo'){const aid=nameToAid[ev.player];if(aid)getStat(aid).yellow+=1;}
+    else if(ev.type==='vermelho'){const aid=nameToAid[ev.player];if(aid)getStat(aid).red+=1;}
+  });
+  if(!g.playerStats)g.playerStats=[];
+  Object.values(statMap).forEach(st=>{
+    const i=g.playerStats.findIndex(x=>x.aid===st.aid);
+    if(i>=0)g.playerStats[i]={...g.playerStats[i],...st};else g.playerStats.push(st);
+  });
+  if(ourScore!=null)g.g1=ourScore;
+  if(oppScore!=null)g.g2=oppScore;
+  g.fpfTimeline=parsed.events.map(e=>({minRaw:e.minRaw,type:e.type,player:e.player,playerIn:e.playerIn,playerOut:e.playerOut,scoreAfter:e.scoreAfter}));
+  g.status='realizado';
+  saveData();
+  _fpfPreview=null;
+  toast('Importação aplicada ✓');
+  _renderJogoDetailFull();
 }
 
 function savePostStats(gid){
