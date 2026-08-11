@@ -5690,7 +5690,10 @@ async function pullCloud(){
       if(m.evalPeriods)APP.evalPeriods=m.evalPeriods;
       if(m.evalResponses){APP.evalResponses=m.evalResponses;console.log('[pullCloud] evalResponses=',m.evalResponses.length);}
       if(m.trainings)APP.trainings=m.trainings;
-      if(m.schedule&&m.schedule.length)APP.schedule=m.schedule;
+      // NOTA: schedule NÃO é lido daqui de propósito — schedule_events (tabela dedicada,
+      // já puxada acima) é a fonte de verdade. meta.schedule é só um backup legado escrito
+      // por pushAppMeta; deixá-lo sobrepor aqui fazia o pull reverter para dados desatualizados
+      // sempre que a tabela schedule_events fosse editada fora do fluxo normal da app.
       if(m.convocatorias)APP.convocatorias=m.convocatorias;
       if(m.scouting)APP.scouting=m.scouting;
       if(m.microcycles)APP.microcycles=m.microcycles;
