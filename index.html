@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Sport Performance Platform</title>
+<link rel="icon" type="image/jpeg" href="assets/logo_sps.jpg">
 <link id="pwa-manifest" rel="manifest">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -38,7 +39,8 @@ ul{list-style:none}
 /* LOGIN */
 #screen-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,rgba(29,111,59,.3) 0%,var(--bg0) 65%);padding:20px}
 .login-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rx);padding:36px 28px;width:100%;max-width:420px;text-align:center;box-shadow:0 30px 60px rgba(0,0,0,.5)}
-.login-brand{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--c1),var(--c1l));display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:34px;box-shadow:0 0 30px rgba(29,111,59,.4)}
+.login-brand{width:76px;height:76px;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,var(--c1),var(--c1l));display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:34px;box-shadow:0 0 30px rgba(29,111,59,.4)}
+.login-brand img{width:100%;height:100%;object-fit:cover}
 .login-title{font-size:20px;font-weight:800;letter-spacing:-.3px;margin-bottom:4px}
 .login-sub{font-size:12px;color:var(--t2);margin-bottom:26px}
 .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
@@ -316,7 +318,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 <!-- LOGIN -->
 <div id="screen-login">
   <div class="login-card">
-    <div class="login-brand" id="lb">⚽</div>
+    <div class="login-brand" id="lb"><img src="assets/logo_sps.jpg" alt="SPS Sports Performance System" onerror="this.parentElement.textContent='⚽'"></div>
     <div class="login-title" id="lclub">Sport Performance</div>
     <div class="login-sub">Plataforma de Alto Rendimento</div>
     <div id="login-main" style="text-align:left"></div>
@@ -376,6 +378,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 <!-- ATLETA APP -->
 <div id="atleta-app">
   <div class="at-topbar">
+    <img src="assets/logo_sps.jpg" alt="SPS" style="width:34px;height:34px;border-radius:9px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">
     <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
     <button class="tb-btn" onclick="atOpenChangePwd()" title="Alterar password"><i class="ti ti-key" style="font-size:15px" aria-hidden="true"></i></button>
     <button class="tb-btn" onclick="logout()" title="Sair"><i class="ti ti-logout" style="font-size:15px" aria-hidden="true"></i></button>
@@ -5284,7 +5287,9 @@ function _printWin(title,bodyHtml,headerExtra){
     .pr-club{font-size:13pt;font-weight:700;color:#1d6f3b}
     .pr-sub{font-size:9pt;color:#666;margin-top:2px}
     .pr-title{font-size:14pt;font-weight:700;margin-bottom:14px;color:#1d6f3b;border-left:4px solid #1d6f3b;padding-left:8px}
-    .pr-footer{margin-top:20px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#999;display:flex;justify-content:space-between}
+    .pr-footer{margin-top:20px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#999;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .pr-footer-brand{display:flex;align-items:center;gap:5px}
+    .pr-footer-brand img{width:14px;height:14px;border-radius:3px;object-fit:cover}
     table{width:100%;border-collapse:collapse;margin-bottom:14px}
     th{background:#1d6f3b;color:#fff;padding:6px 8px;text-align:left;font-size:9pt}
     td{padding:5px 8px;border-bottom:1px solid #eee;font-size:9pt}
@@ -5310,7 +5315,7 @@ function _printWin(title,bodyHtml,headerExtra){
     <div style="margin-left:auto;text-align:right">${headerExtra||`<span style="font-size:9pt;color:#666">${title}</span>`}</div>
   </div>
   ${bodyHtml}
-  <div class="pr-footer"><span>${club} · ${season}</span><span>Gerado em ${new Date().toLocaleDateString('pt-PT')}</span></div>
+  <div class="pr-footer"><span>${club} · ${season}</span><span class="pr-footer-brand"><img src="${SPS_LOGO_URL}"> SPS Sports Performance System</span><span>Gerado em ${new Date().toLocaleDateString('pt-PT')}</span></div>
   </body></html>`;
   const w=window.open('','_blank','width=900,height=700');
   w.document.write(html);w.document.close();
