@@ -15,6 +15,8 @@
 <meta name="theme-color" content="#1d6f3b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window['pdfjsLib'])pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -3344,8 +3346,12 @@ function renderTreinos(){
   document.getElementById('pg-treinos').innerHTML=`
   <div class="sh">
     <div style="font-size:15px;font-weight:800">Unidades de Treino</div>
-    <div class="sh-a"><button class="btn btn-g" onclick="_createNewUT()">+ Nova Unidade</button></div>
+    <div class="sh-a" style="display:flex;gap:8px">
+      <button class="btn btn-gh" onclick="triggerImportTreinoPDF()">📥 Importar PDF</button>
+      <button class="btn btn-g" onclick="_createNewUT()">+ Nova Unidade</button>
+    </div>
   </div>
+  <input type="file" id="tr-pdf-inp" accept="application/pdf" style="display:none" onchange="handleImportTreinoPDF(this)">
   <div style="display:flex;flex-direction:column;gap:8px">${cards}</div>`;
 }
 
@@ -3654,7 +3660,277 @@ function exportTreinoPDF(trId){
     ${phasesHtml}
     <div style="margin-top:24px;border-top:1px solid #e0e0e0;padding-top:10px;font-size:10px;color:#aaa;text-align:center">${clubName} · Unidade de Treino · ${new Date().toLocaleDateString('pt-PT')}</div>
   </div>`;
-  _printWin('Unidade de Treino — '+(tr.title||fmtDate(tr.date)),bodyHtml);
+  _printWin('Unidade de Treino — '+(tr.title||fmtDate(tr.date)),bodyHtml,_trAtChecklistHtml());
+}
+
+function _trAtChecklistHtml(){
+  const ats=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId)
+    .slice().sort((a,b)=>(+(a.number||a.num)||999)-(+(b.number||b.num)||999));
+  const slots=27;
+  const cells=[];
+  for(let i=0;i<slots;i++){
+    const a=ats[i];
+    cells.push(a
+      ?`<div style="display:flex;align-items:center;gap:4px;white-space:nowrap"><span style="display:inline-block;width:7px;height:7px;border:1px solid #888;flex-shrink:0"></span><span>${escHtml(String(a.number||a.num||'—'))}. ${escHtml((a.name||'').split(' ')[0])}</span></div>`
+      :`<div style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:7px;height:7px;border:1px solid #ddd;flex-shrink:0"></span><span style="color:#ddd">—</span></div>`);
+  }
+  return`<div>
+    <div style="font-size:8pt;font-weight:700;color:#1d6f3b;margin-bottom:3px">Lista de Presenças</div>
+    <div style="display:grid;grid-template-columns:repeat(3,auto);grid-template-rows:repeat(9,auto);grid-auto-flow:column;gap:1px 10px;font-size:7pt;color:#444;border:1px solid #e2e2e2;border-radius:4px;padding:5px 8px">${cells.join('')}</div>
+  </div>`;
+}
+
+// ─── IMPORTAR PDF (Plano de Treino) ───────────────────────
+const _PDF_EX_DEFAULT_DESC={
+  'ativ/mobil. articular/reg. velocidade':'Circuito de mobilidade articular (tornozelo, anca, ombro) em pares, seguido de skipping baixo/alto e saídas em regime de velocidade — 30 mts, 3 a 4 repetições por atleta, recuperação completa entre séries.',
+  'torneio cantos of/df':'Equipas divididas em grupos (atacantes vs. defensores), marcação de cantos alternada com pontuação por golo/recuperação de bola; rotação de funções ao fim de X cantos para treinar ambas as fases.'
+};
+const _PDF_EX_DEFAULT_OBJ={
+  'torneio cantos of/df':'Eficácia ofensiva e defensiva em bolas paradas (cantos)'
+};
+
+function _pdfPhaseGuess(title){
+  const t=(title||'').toLowerCase();
+  if(/ativ|mobil|aqueci|regime velocidade/.test(t))return 'aquecimento';
+  if(/jogo|torneio|sector/.test(t))return 'jogo';
+  return 'principal';
+}
+
+function triggerImportTreinoPDF(){
+  const el=document.getElementById('tr-pdf-inp');
+  if(el)el.click();
+}
+
+async function handleImportTreinoPDF(input){
+  const file=input.files[0];if(!file)return;
+  input.value='';
+  if(!window.pdfjsLib)return toast('Biblioteca de PDF não carregou. Verifica a ligação à internet.','err');
+  toast('A ler PDF...');
+  try{
+    const buf=await file.arrayBuffer();
+    const parsed=await _pdfParsePlano(buf);
+    if(!parsed.exercises.length)toast('PDF lido, mas não encontrei exercícios no formato esperado. Revê e completa manualmente.','err');
+    _pdfShowPreview(parsed);
+  }catch(e){
+    console.error('Erro import PDF treino:',e);
+    toast('Não consegui ler este PDF. '+(e.message||''),'err');
+  }
+}
+
+async function _pdfParsePlano(buf){
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const pages=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const scale=2.2;
+    const viewport=page.getViewport({scale});
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+    const ctx=canvas.getContext('2d');
+    await page.render({canvasContext:ctx,viewport}).promise;
+    const tc=await page.getTextContent();
+    const pw=(page.view[2]-page.view[0]),ph=(page.view[3]-page.view[1]);
+    const items=tc.items.map(it=>{
+      const h=Math.hypot(it.transform[2],it.transform[3])||9;
+      const yTop=ph-it.transform[5]-h;
+      return {x:it.transform[4],y:yTop,h,str:it.str};
+    }).filter(it=>it.str&&it.str.trim());
+    pages.push({items,canvas,scale,pw,ph});
+  }
+  const header=_pdfExtractHeader(pages[0].items);
+  header.observacoes=_pdfExtractObservacoes(pages[pages.length-1].items);
+  let allExercises=[];
+  pages.forEach(pg=>{
+    const exs=_pdfExtractExercisesFromPage(pg.items,pg.pw);
+    exs.forEach(ex=>{
+      ex.drawing=_pdfCropDiagram(pg.canvas,pg.scale,pg.pw,pg.ph,ex._titleTop);
+      ex.phase=_pdfPhaseGuess(ex.title);
+      const key=(ex.title||'').toLowerCase().trim();
+      if(!ex.descricao&&_PDF_EX_DEFAULT_DESC[key]){ex.descricao=_PDF_EX_DEFAULT_DESC[key];ex._suggested=true;}
+      if(!ex.objetivo&&_PDF_EX_DEFAULT_OBJ[key]){ex.objetivo=_PDF_EX_DEFAULT_OBJ[key];ex._suggested=true;}
+      delete ex._titleTop;
+    });
+    allExercises=allExercises.concat(exs);
+  });
+  return {header,exercises:allExercises};
+}
+
+function _pdfLines(items){
+  const sorted=[...items].sort((a,b)=>a.y-b.y);
+  const lines=[];
+  for(const it of sorted){
+    let line=lines.find(l=>Math.abs(l.y-it.y)<3.5);
+    if(!line){line={y:it.y,items:[]};lines.push(line);}
+    line.items.push(it);
+  }
+  lines.forEach(l=>l.items.sort((a,b)=>a.x-b.x));
+  return lines.sort((a,b)=>a.y-b.y);
+}
+
+function _pdfJoinMultiline(items){
+  return _pdfLines(items).map(l=>l.items.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean).join('\n');
+}
+
+function _pdfExtractHeader(items){
+  const lines=_pdfLines(items).filter(l=>l.y<140);
+  const full=lines.map(l=>l.items.map(i=>i.str).join(' ')).join(' | ');
+  const g=(re)=>{const m=full.match(re);return m&&m[1]?m[1].trim():'';};
+  return {
+    nJogadores:g(/Nº\s*Jogadores\s*(\d+)?\s*(?:\||Microciclo)/i),
+    microciclo:g(/Microciclo\s*([^\s|]+)/i),
+    mesociclo:g(/Mesociclo\s*([^\s|]+)/i),
+    periodo:g(/Periodo\s*([^|]+?)\s*(?:\||$)/i),
+    data:g(/\bData\s*([\d\-]{6,10}(?:,\s*[^|]+?)?)\s*(?:\||Hora)/i),
+    hora:g(/\bHora\s*(\d{1,2}:\d{2})/i),
+    clima:g(/\bClima\s*([^|]*?)\s*(?:\||Volume)/i),
+    volume:g(/\bVolume\s*([^|]*?)\s*(?:\||$)/i),
+    material:g(/\bMaterial\s*([^|]*?)\s*(?:\||Objetivos Gerais)/i),
+    objGerais:g(/Objetivos Gerais\s*([^|]*?)\s*(?:\||Objetivos Específicos)/i),
+    objEspecificos:g(/Objetivos Específicos\s*([^|]*?)\s*(?:\||$)/i)
+  };
+}
+
+function _pdfExtractObservacoes(items){
+  const lines=_pdfLines(items);
+  const idx=lines.findIndex(l=>/Observa[cç][oõ]es\s*\/?\s*balan[cç]o/i.test(l.items.map(i=>i.str).join(' ')));
+  if(idx<0)return '';
+  const labelText=lines[idx].items.map(i=>i.str).join(' ');
+  const afterLabel=labelText.replace(/.*Observa[cç][oõ]es\s*\/?\s*balan[cç]o/i,'').trim();
+  const restLines=lines.slice(idx+1).map(l=>l.items.map(i=>i.str).join(' ')).join('\n').trim();
+  return [afterLabel,restLines].filter(Boolean).join('\n').trim();
+}
+
+function _pdfExtractExercisesFromPage(items,pw){
+  const lines=_pdfLines(items);
+  const objAnchors=[],descAnchors=[];
+  lines.forEach(l=>{
+    const txt=l.items.map(i=>i.str).join(' ');
+    if(/Objetivo\(s\)\s*espec[ií]fico\(s\)/i.test(txt))objAnchors.push(l.y);
+    if(/Descri[cç][aã]o e Organiza[cç][aã]o Metodol[oó]gica/i.test(txt))descAnchors.push(l.y);
+  });
+  objAnchors.sort((a,b)=>a-b);descAnchors.sort((a,b)=>a-b);
+  const n=Math.min(objAnchors.length,descAnchors.length);
+  const exs=[];
+  for(let i=0;i<n;i++){
+    const objY=objAnchors[i],descY=descAnchors[i];
+    const nextObjY=i+1<n?objAnchors[i+1]:Infinity;
+    const titleItems=items.filter(it=>it.x<0.42*pw&&it.y>=objY-45&&it.y<=objY-3).sort((a,b)=>a.y-b.y||a.x-b.x);
+    const title=titleItems.map(it=>it.str).join(' ').replace(/\s+/g,' ').trim();
+    const titleTop=titleItems.length?Math.min(...titleItems.map(it=>it.y)):objY-25;
+    const objItems=items.filter(it=>it.x>0.44*pw&&it.x<0.86*pw&&it.y>objY+2&&it.y<descY-2);
+    const objetivo=_pdfJoinMultiline(objItems);
+    const descLimit=nextObjY===Infinity?Infinity:nextObjY-45;
+    const descItems=items.filter(it=>it.x>0.44*pw&&it.x<0.86*pw&&it.y>descY+2&&it.y<descLimit);
+    const descricao=_pdfJoinMultiline(descItems);
+    const iconItems=items.filter(it=>it.x>=0.86*pw&&it.y>objY-8&&it.y<descLimit).sort((a,b)=>a.y-b.y);
+    const clusters=[];
+    iconItems.forEach(it=>{
+      let c=clusters.find(c=>Math.abs(c.y-it.y)<12);
+      if(!c){c={y:it.y,items:[]};clusters.push(c);}
+      c.items.push(it);
+    });
+    clusters.sort((a,b)=>a.y-b.y);
+    const vals=clusters.map(c=>c.items.sort((a,b)=>a.x-b.x).map(it=>it.str).join(' ').trim());
+    if(title)exs.push({title,objetivo,descricao,tempo:vals[0]||'',numero:vals[1]||'',espaco:vals[2]||'',_titleTop:titleTop});
+  }
+  return exs;
+}
+
+function _pdfCropDiagram(canvas,scale,pw,ph,titleTopPt){
+  try{
+    const x0=0.015*pw*scale,x1=0.45*pw*scale;
+    const y0=(titleTopPt+0.024*ph)*scale,y1=y0+0.212*ph*scale;
+    const cw=Math.max(1,Math.round(x1-x0)),ch=Math.max(1,Math.round(Math.min(y1,canvas.height)-y0));
+    if(ch<=0)return '';
+    const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;
+    cv.getContext('2d').drawImage(canvas,x0,y0,cw,ch,0,0,cw,ch);
+    return cv.toDataURL('image/jpeg',0.85);
+  }catch(e){console.warn('crop diagrama falhou',e);return '';}
+}
+
+let _pdfPreviewData=null;
+function _pdfShowPreview(parsed){
+  _pdfPreviewData=parsed;
+  const h=parsed.header;
+  let dateISO='';
+  const dm=(h.data||'').match(/(\d{2})-(\d{2})-(\d{4})/);
+  if(dm)dateISO=`${dm[3]}-${dm[2]}-${dm[1]}`;
+  const notesParts=[];
+  if(h.microciclo||h.mesociclo||h.periodo)notesParts.push(`Microciclo: ${h.microciclo||'—'} · Mesociclo: ${h.mesociclo||'—'} · Período: ${h.periodo||'—'}`);
+  if(h.clima||h.volume)notesParts.push(`Clima: ${h.clima||'—'} · Volume: ${h.volume||'—'}`);
+  if(h.material)notesParts.push(`Material: ${h.material}`);
+  if(h.observacoes)notesParts.push(`Observações/balanço: ${h.observacoes}`);
+  const defaultObjetivo=h.objGerais||h.objEspecificos||'';
+  const defaultTitle=`Treino${h.microciclo?' — Microciclo '+h.microciclo:''}${dateISO?' — '+fmtDate(dateISO):''}`;
+  const phaseOpts=(sel)=>_PHASES.map(ph=>`<option value="${ph.id}" ${sel===ph.id?'selected':''}>${ph.label}</option>`).join('');
+
+  const exHtml=parsed.exercises.map((ex,i)=>{
+    const combinedDesc=[ex.objetivo?('Objetivo(s):\n'+ex.objetivo):'',ex.descricao?('Descrição:\n'+ex.descricao):''].filter(Boolean).join('\n\n');
+    const suggestedNote=ex._suggested?`<div style="font-size:10px;color:#c77b17;margin-top:2px">✨ sugestão gerada — este campo estava em branco no PDF de origem, revê antes de aplicar</div>`:'';
+    const badges=[ex.tempo?`⏱ ${escHtml(ex.tempo)}`:'',ex.numero?`👥 ${escHtml(ex.numero)}`:'',ex.espaco?`📐 ${escHtml(ex.espaco)}`:''].filter(Boolean).join(' &nbsp; ');
+    return`<div class="card" style="padding:10px;margin-bottom:8px;display:grid;grid-template-columns:120px 1fr;gap:10px">
+      <div style="background:var(--bg3);border-radius:6px;overflow:hidden;min-height:90px">
+        ${ex.drawing?`<img src="${ex.drawing}" style="width:100%;height:100%;object-fit:cover">`:`<div style="display:flex;align-items:center;justify-content:center;height:90px;color:var(--t2);font-size:10px;text-align:center">sem diagrama</div>`}
+      </div>
+      <div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="fc" style="flex:1;min-width:160px;font-weight:700" id="pdfex-name-${i}" value="${escHtml(ex.title||'')}">
+          <select class="fc" style="width:150px" id="pdfex-phase-${i}">${phaseOpts(ex.phase)}</select>
+        </div>
+        ${badges?`<div style="font-size:11px;color:var(--t2);margin-top:4px">${badges}</div>`:''}
+        <textarea class="fc" id="pdfex-desc-${i}" rows="3" style="margin-top:6px;font-size:12px">${escHtml(combinedDesc)}</textarea>
+        ${suggestedNote}
+      </div>
+    </div>`;
+  }).join('');
+
+  openMod('Importar Plano de Treino (PDF)',`
+    <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Confere e ajusta os campos antes de aplicar. Nada é guardado até clicares em "Aplicar".</div>
+    <div class="fr" style="gap:8px;flex-wrap:wrap">
+      <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Título</label><input class="fc" id="pdfh-title" value="${escHtml(defaultTitle)}"></div>
+      <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Objetivo Principal</label><input class="fc" id="pdfh-obj" value="${escHtml(defaultObjetivo)}"></div>
+    </div>
+    <div class="fr3" style="gap:8px;flex-wrap:wrap;margin-top:6px">
+      <div class="form-g"><label class="fl">Data</label><input class="fc" id="pdfh-date" type="date" value="${dateISO}"></div>
+      <div class="form-g"><label class="fl">Hora início</label><input class="fc" id="pdfh-hora" type="time" value="${escHtml(h.hora||'')}"></div>
+      <div class="form-g"><label class="fl">Nº Jogadoras</label><input class="fc" id="pdfh-jog" type="number" value="${h.nJogadores||18}"></div>
+    </div>
+    <div class="form-g" style="margin-top:6px"><label class="fl">Notas Gerais</label><textarea class="fc" id="pdfh-notes" rows="3">${escHtml(notesParts.join('\n'))}</textarea></div>
+    <div style="font-weight:700;margin:14px 0 6px">Exercícios (${parsed.exercises.length})</div>
+    ${exHtml||'<div style="color:var(--t2);font-size:13px">Nenhum exercício reconhecido — cria-os manualmente depois de aplicares o cabeçalho.</div>'}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-g" onclick="_pdfApplyImport()">✅ Aplicar e Criar Unidade</button>
+      <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+    </div>
+  `,'lg');
+}
+
+function _pdfApplyImport(){
+  if(!_pdfPreviewData)return;
+  const title=document.getElementById('pdfh-title').value.trim();
+  const objetivo=document.getElementById('pdfh-obj').value.trim();
+  const date=document.getElementById('pdfh-date').value||today();
+  const horaInicio=document.getElementById('pdfh-hora').value||'';
+  const jogadoras=+document.getElementById('pdfh-jog').value||18;
+  const notes=document.getElementById('pdfh-notes').value.trim();
+  if(!APP.trainings)APP.trainings=[];
+  const tr={id:_TUID(),eventId:null,date,title:title||'Unidade de Treino',objetivo,local:'',duracao:90,jogadoras,horaInicio,horaFim:'',notes,exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
+  _pdfPreviewData.exercises.forEach((ex,i)=>{
+    const nameEl=document.getElementById('pdfex-name-'+i);
+    if(!nameEl)return;
+    const name=nameEl.value.trim()||'Exercício';
+    const phase=document.getElementById('pdfex-phase-'+i).value||'principal';
+    const desc=document.getElementById('pdfex-desc-'+i).value.trim();
+    const tags=[ex.tempo?('tempo: '+ex.tempo):'',ex.numero?('número: '+ex.numero):'',ex.espaco?('espaço: '+ex.espaco):''].filter(Boolean);
+    if(!tr.exercises[phase])tr.exercises[phase]=[];
+    tr.exercises[phase].push({id:_TUID(),name,desc,series:'',durSerie:'',pausa:'',tags,drawing:ex.drawing||'',videoUrl:''});
+  });
+  APP.trainings.push(tr);saveData();
+  closeMod();
+  _pdfPreviewData=null;
+  _trId=tr.id;_trView='detail';_trExTab='aquecimento';
+  toast('Unidade de treino importada ✓');
+  renderTreinos();
 }
 // ─── PSE & WELLNESS ───────────────────────────────────────
 let _pwTab='pse', _pwTeam='T1', _pwPeriod=14;
@@ -5150,7 +5426,7 @@ function _dlCSV(rows,filename){
   const a=document.createElement('a');a.href=url;a.download=filename;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-function _printWin(title,bodyHtml){
+function _printWin(title,bodyHtml,headerExtra){
   const club=APP.config.clubName||'Sport Performance';
   const season=APP.config.season||'';
   const logo=APP.config.clubLogo?`<img src="${APP.config.clubLogo}" style="height:48px;object-fit:contain">`:club.slice(0,1);
@@ -5183,10 +5459,10 @@ function _printWin(title,bodyHtml){
     @media print{body{padding:10mm 10mm}@page{margin:8mm}}
   </style>
   </head><body>
-  <div class="pr-header">
+  <div class="pr-header" style="${headerExtra?'align-items:flex-start':''}">
     <div class="pr-logo">${logo}</div>
-    <div><div class="pr-club">${club}</div><div class="pr-sub">${season} · Gerado em ${new Date().toLocaleDateString('pt-PT',{day:'2-digit',month:'long',year:'numeric'})}</div></div>
-    <div style="margin-left:auto;font-size:9pt;color:#666;text-align:right">${title}</div>
+    <div style="flex-shrink:0"><div class="pr-club">${club}</div><div class="pr-sub">${season} · Gerado em ${new Date().toLocaleDateString('pt-PT',{day:'2-digit',month:'long',year:'numeric'})}</div></div>
+    <div style="margin-left:auto;text-align:right">${headerExtra||`<span style="font-size:9pt;color:#666">${title}</span>`}</div>
   </div>
   ${bodyHtml}
   <div class="pr-footer"><span>${club} · ${season}</span><span>Gerado em ${new Date().toLocaleDateString('pt-PT')}</span></div>
