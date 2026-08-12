@@ -5207,9 +5207,9 @@ function _acwrAt(id,endDate){
 }
 function _pseTrendB64(labels,uaData,pseData){
   try{
-    const cv=document.createElement('canvas');cv.width=700;cv.height=280;
+    const cv=document.createElement('canvas');cv.width=640;cv.height=180;
     const wrap=document.createElement('div');
-    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:700px;height:280px;opacity:0;pointer-events:none';
+    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:640px;height:180px;opacity:0;pointer-events:none';
     wrap.appendChild(cv);document.body.appendChild(wrap);
     const ch=new Chart(cv.getContext('2d'),{data:{labels,datasets:[
       {type:'bar',label:'UA',data:uaData,backgroundColor:'rgba(29,111,59,.55)',order:2},
@@ -5228,9 +5228,9 @@ function _pseTrendB64(labels,uaData,pseData){
 }
 function _wellTrendB64(labels,scores){
   try{
-    const cv=document.createElement('canvas');cv.width=700;cv.height=280;
+    const cv=document.createElement('canvas');cv.width=640;cv.height=180;
     const wrap=document.createElement('div');
-    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:700px;height:280px;opacity:0;pointer-events:none';
+    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:640px;height:180px;opacity:0;pointer-events:none';
     wrap.appendChild(cv);document.body.appendChild(wrap);
     const colors=scores.map(s=>s==null?'#ccc':s>=70?'#2f9e57':s>=45?'#c9971f':'#c0392b');
     const ch=new Chart(cv.getContext('2d'),{type:'line',data:{labels,datasets:[
@@ -5319,13 +5319,66 @@ function printAthleteReport(){
     {v:gamesP.length,l:'Jogos no Período'}
   ];
 
+  // ── Análise Automática do Período (baseada em regras, mesma lógica do painel Estado da Atleta) ──
+  const naoJust=attAusentes.filter(a=>a.reason==='nao_justificada');
+  const activeInPeriod=injuriesP.filter(i=>i.status!=='alta');
+  const periodDays=mode==='semanal'?7:(Math.round((new Date(endDate+'T00:00:00')-new Date(startDate+'T00:00:00'))/86400000)+1);
+  const prevEnd=addDaysStr(startDate,-1);
+  const prevStart=addDaysStr(startDate,-periodDays);
+  const prevWellRecs=APP.wellness.filter(w=>w.athleteId===id&&w.date>=prevStart&&w.date<=prevEnd);
+  const avgWellPrev=prevWellRecs.length?Math.round(prevWellRecs.reduce((s,w)=>s+(+w.score||0),0)/prevWellRecs.length):null;
+  const latestEvalDate=[tecEntry?.p.openDate,autoEntry?.p.openDate].filter(Boolean).sort().pop()||null;
+  const daysSinceEval=latestEvalDate?Math.round((new Date(endDate+'T00:00:00')-new Date(latestEvalDate+'T00:00:00'))/86400000):null;
+  const cycleOvul=wellRecs.some(w=>w.cycle==='Ovulação');
+  const cycleOvulRisk=cycleOvul&&acwr!==null&&acwr>=1.3;
+
+  const findings=[];
+  if(acwr!==null&&(acwr>1.5||acwr<0.8))findings.push({lvl:'r',txt:`Carga fora da zona segura — ACWR ${acwr} (risco de ${acwr>1.5?'sobrecarga':'destreino'})`});
+  if(avgWell!==null&&avgWell<45)findings.push({lvl:'r',txt:`Wellness médio baixo no período — ${avgWell}/100`});
+  if(avgWell!==null&&avgWellPrev!==null&&(avgWellPrev-avgWell)>=15)findings.push({lvl:'y',txt:`Queda de wellness face ao período anterior — ${avgWellPrev} → ${avgWell}`});
+  if(attPct!==null&&attPct<80)findings.push({lvl:'y',txt:`Presenças abaixo do esperado — ${attPct}% no período`});
+  if(naoJust.length)findings.push({lvl:'y',txt:`${naoJust.length} falta${naoJust.length>1?'s':''} não justificada${naoJust.length>1?'s':''} no período`});
+  if(activeInPeriod.length)findings.push({lvl:'r',txt:`Lesão em acompanhamento: ${activeInPeriod.map(i=>escHtml(i.diagnosis||i.type||'—')).join(', ')}`});
+  if(!latestEvalDate)findings.push({lvl:'y',txt:'Sem avaliação técnica registada'});
+  else if(daysSinceEval>60)findings.push({lvl:'y',txt:`Avaliação técnica desatualizada — última há ${daysSinceEval} dias`});
+  if(cycleOvulRisk)findings.push({lvl:'r',txt:`Risco acrescido de lesão ligamentar — fase ovulatória + carga elevada (ACWR ${acwr})`});
+  else if(cycleOvul)findings.push({lvl:'info',txt:'Fase ovulatória reportada no período — atenção redobrada em mudanças de direção e aterragens'});
+  const _lvlOrder={r:0,y:1,info:2,g:3};
+  findings.sort((a,b)=>_lvlOrder[a.lvl]-_lvlOrder[b.lvl]);
+  const _lvlIcon={r:'🔴',y:'🟡',info:'ℹ️',g:'🟢'};
+  const analysisHtml=findings.length
+    ?findings.slice(0,6).map(f=>`<div class="an-item an-${f.lvl}">${_lvlIcon[f.lvl]} ${f.txt}</div>`).join('')
+    :`<div class="an-item an-g">🟢 Sem alertas relevantes — período dentro da normalidade.</div>`;
+
   const attTable=`<table><thead><tr><th>Sessões</th><th>Presente</th><th>Tratamento</th><th>Ausente</th></tr></thead>
     <tbody><tr><td>${evsPeriodo.length}</td><td>${attPresente}</td><td>${attTratamento}</td><td>${attAusentes.length}</td></tr></tbody></table>
-    ${attAusentes.length?`<table style="margin-top:6px"><thead><tr><th>Data</th><th>Motivo</th></tr></thead><tbody>${attAusentes.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${attReasonLbl[a.reason]||'—'}</td></tr>`).join('')}</tbody></table>`:''}`;
+    ${attAusentes.length?`<table style="margin-top:4px"><thead><tr><th>Data</th><th>Motivo</th></tr></thead><tbody>${attAusentes.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${attReasonLbl[a.reason]||'—'}</td></tr>`).join('')}</tbody></table>`:''}`;
 
-  const pseTable=pseRecs.length?`<table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${pseRecs.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${p.pse}/10</td><td>${p.duration} min</td><td>${p.ua}</td><td>${p.sessionType||'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem dados</p>';
+  let pseTable;
+  if(!pseRecs.length){
+    pseTable='<p style="color:#999;font-size:8pt">Sem dados</p>';
+  }else if(mode==='mensal'){
+    const hi=pseRecs.filter(p=>(+p.pse||0)>=8);
+    pseTable=hi.length
+      ?`<table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${hi.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${p.pse}/10</td><td>${p.duration} min</td><td>${p.ua}</td><td>${p.sessionType||'—'}</td></tr>`).join('')}</tbody></table><p class="an-note">Mostrando apenas sessões de carga elevada (PSE≥8) — ${pseRecs.length} registos no mês, ver gráfico para a evolução completa.</p>`
+      :`<p class="an-note">Sem sessões de carga elevada no mês (todas PSE&lt;8) — ${pseRecs.length} registos, ver gráfico para a evolução completa.</p>`;
+  }else{
+    pseTable=`<table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${pseRecs.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${p.pse}/10</td><td>${p.duration} min</td><td>${p.ua}</td><td>${p.sessionType||'—'}</td></tr>`).join('')}</tbody></table>`;
+  }
 
-  const wellTable=wellRecs.length?`<table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead><tbody>${wellRecs.map(w=>{const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem dados</p>';
+  let wellTable;
+  if(!wellRecs.length){
+    wellTable='<p style="color:#999;font-size:8pt">Sem dados</p>';
+  }else if(mode==='mensal'){
+    const low=wellRecs.filter(w=>(+w.score||0)<45);
+    const wRow=w=>{const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;};
+    wellTable=low.length
+      ?`<table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead><tbody>${low.map(wRow).join('')}</tbody></table><p class="an-note">Mostrando apenas dias de wellness baixo (&lt;45) — ${wellRecs.length} registos no mês, ver gráfico para a evolução completa.</p>`
+      :`<p class="an-note">Sem dias de wellness baixo no mês — ${wellRecs.length} registos, ver gráfico para a evolução completa.</p>`;
+  }else{
+    const wRow=w=>{const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;};
+    wellTable=`<table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead><tbody>${wellRecs.map(wRow).join('')}</tbody></table>`;
+  }
 
   const convocTable=convocsP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Papel</th><th>Viu</th></tr></thead><tbody>${convocsP.map(c=>{
     const g=c.gameId?APP.games.find(x=>x.id===c.gameId):null;
@@ -5346,45 +5399,81 @@ function printAthleteReport(){
   const tratTable=treatsP.length?`<table><thead><tr><th>Data</th><th>Tipo</th><th>Resposta</th></tr></thead><tbody>${treatsP.map(t=>`<tr><td>${fmtDate(t.date)}</td><td>${escHtml(t.type||'—')}</td><td>${t.response||'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem tratamentos no período</p>';
 
   const nutriBlock=`
-    ${nutriPlan?`<p style="font-size:9pt"><strong>Plano ativo:</strong> ${escHtml(nutriPlan.name||nutriPlan.title||'—')}${nutriPlan.kcal?' · '+nutriPlan.kcal+' kcal':''}</p>`:'<p style="color:#999;font-size:9pt">Sem plano nutricional ativo</p>'}
-    ${lastAval?`<p style="font-size:9pt;margin-top:4px"><strong>Última avaliação (${fmtDate(lastAval.date)}):</strong> ${lastAval.weight?lastAval.weight+'kg':'—'}${lastAval.height?' · '+lastAval.height+'cm':''}${lastAval.bmi?' · IMC '+lastAval.bmi:''}${lastAval.bodyFat?' · '+lastAval.bodyFat+'% gordura':''}</p>`:'<p style="color:#999;font-size:9pt">Sem avaliação antropométrica registada</p>'}
-    ${avalsP.length>1?`<table style="margin-top:6px"><thead><tr><th>Data</th><th>Peso</th><th>IMC</th><th>% Gordura</th></tr></thead><tbody>${avalsP.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${a.weight||'—'}</td><td>${a.bmi||'—'}</td><td>${a.bodyFat||'—'}</td></tr>`).join('')}</tbody></table>`:''}
+    ${nutriPlan?`<p style="font-size:7.8pt"><strong>Plano ativo:</strong> ${escHtml(nutriPlan.name||nutriPlan.title||'—')}${nutriPlan.kcal?' · '+nutriPlan.kcal+' kcal':''}</p>`:'<p style="color:#999;font-size:7.8pt">Sem plano nutricional ativo</p>'}
+    ${lastAval?`<p style="font-size:7.8pt;margin-top:2px"><strong>Última avaliação (${fmtDate(lastAval.date)}):</strong> ${lastAval.weight?lastAval.weight+'kg':'—'}${lastAval.height?' · '+lastAval.height+'cm':''}${lastAval.bmi?' · IMC '+lastAval.bmi:''}${lastAval.bodyFat?' · '+lastAval.bodyFat+'% gordura':''}</p>`:'<p style="color:#999;font-size:7.8pt">Sem avaliação antropométrica registada</p>'}
+    ${avalsP.length>1?`<table style="margin-top:4px"><thead><tr><th>Data</th><th>Peso</th><th>IMC</th><th>% Gordura</th></tr></thead><tbody>${avalsP.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${a.weight||'—'}</td><td>${a.bmi||'—'}</td><td>${a.bodyFat||'—'}</td></tr>`).join('')}</tbody></table>`:''}
   `;
 
   const body=`
+  <style>
+    .rep-at{font-size:8.5pt}
+    .rep-at h3{font-size:9.5pt;margin:7px 0 3px;padding-bottom:2px}
+    .rep-at table{margin-bottom:3px}
+    .rep-at th{padding:3px 6px;font-size:7.5pt}
+    .rep-at td{padding:2px 6px;font-size:7.5pt}
+    .rep-at .profile-header{margin-bottom:6px;padding-bottom:6px}
+    .rep-at .profile-photo,.rep-at .profile-photo-ph{width:52px;height:52px;font-size:20px}
+    .rep-at .kpi-row{margin-bottom:6px}
+    .rep-at .kpi{padding:5px}
+    .rep-at .kpi-v{font-size:13pt}
+    .rep-at .kpi-l{font-size:6.5pt}
+    .rep-at .an-box{border:1px solid #e5e5e5;border-radius:6px;padding:5px 8px;margin-bottom:6px;background:#fafafa}
+    .rep-at .an-title{font-size:8.5pt;font-weight:700;color:#333;margin-bottom:2px}
+    .rep-at .an-item{font-size:7.8pt;padding:1px 0;line-height:1.3}
+    .rep-at .an-r{color:#a32424}
+    .rep-at .an-y{color:#8a6a10}
+    .rep-at .an-info{color:#185FA5}
+    .rep-at .an-g{color:#1d6f3b}
+    .rep-at .an-note{color:#999;font-size:6.8pt;margin-top:1px}
+    .rep-at .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+    .rep-at .g2>div{min-width:0}
+    .rep-at .sub-h{font-size:7.5pt;font-weight:700;margin-bottom:2px}
+  </style>
+  <div class="rep-at">
     <div class="pr-title">Relatório de Atleta — ${mode==='semanal'?'Semanal':'Mensal'}</div>
     <div class="profile-header">
       ${photoHtml}
       <div style="flex:1">
-        <div style="font-size:18pt;font-weight:900;color:#111">${escHtml(at.name)}</div>
-        <div style="font-size:10pt;color:#555;margin-top:4px">${at.pos||'—'} ${at.num?'· Nº '+at.num:''}${age?' · '+age+' anos':''}</div>
-        <div style="font-size:10pt;color:#1d6f3b;font-weight:700;margin-top:4px">Período: ${periodLabel}</div>
+        <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}</div>
+        <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'} ${at.num?'· Nº '+at.num:''}${age?' · '+age+' anos':''}</div>
+        <div style="font-size:9pt;color:#1d6f3b;font-weight:700;margin-top:3px">Período: ${periodLabel}</div>
       </div>
     </div>
     <div class="kpi-row">${kpis.map(k=>`<div class="kpi"><div class="kpi-v">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('')}</div>
 
-    <h3>✅ Presenças</h3>${attTable}
+    <div class="an-box">
+      <div class="an-title">🔎 Análise Automática do Período</div>
+      ${analysisHtml}
+    </div>
+
+    <div class="g2">
+      <div><h3>✅ Presenças</h3>${attTable}</div>
+      <div><h3>🩺 Boletim Clínico</h3>
+        <div class="sub-h">Lesões</div>${injTable}
+        <div class="sub-h" style="margin-top:3px">Tratamentos</div>${tratTable}
+      </div>
+    </div>
 
     <h3>📊 PSE — Carga de Treino</h3>
-    ${pseChartImg?`<img src="${pseChartImg}" style="width:100%;max-width:500px;display:block;margin:0 auto 10px">`:''}
+    ${pseChartImg?`<img src="${pseChartImg}" style="width:340px;display:block;margin:0 auto 4px">`:''}
     ${pseTable}
 
     <h3>💊 Wellness</h3>
-    ${wellChartImg?`<img src="${wellChartImg}" style="width:100%;max-width:500px;display:block;margin:0 auto 10px">`:''}
+    ${wellChartImg?`<img src="${wellChartImg}" style="width:340px;display:block;margin:0 auto 4px">`:''}
     ${wellTable}
 
-    <h3>⭐ Avaliação Técnica ${evalDateLbl?'(mais recente — '+evalDateLbl+')':''}</h3>
-    ${evalImg?`<img src="${evalImg}" style="width:280px;display:block;margin:0 auto">`:'<p style="color:#999;font-size:9pt">Sem avaliação registada</p>'}
+    <div class="g2">
+      <div><h3>⭐ Avaliação Técnica ${evalDateLbl?'(mais recente — '+evalDateLbl+')':''}</h3>
+        ${evalImg?`<img src="${evalImg}" style="width:150px;display:block;margin:0 auto">`:'<p style="color:#999;font-size:8pt">Sem avaliação registada</p>'}
+      </div>
+      <div><h3>🥗 Nutrição</h3>${nutriBlock}</div>
+    </div>
 
-    <h3>📋 Convocatórias no Período</h3>${convocTable}
-
-    <h3>⏱️ Tempos de Jogo & Incidências</h3>${gamesTable}
-
-    <h3>🩺 Boletim Clínico</h3>
-    <div style="font-size:9pt;font-weight:700;margin-bottom:4px">Lesões ativas/relevantes no período</div>${injTable}
-    <div style="font-size:9pt;font-weight:700;margin:8px 0 4px">Tratamentos no período</div>${tratTable}
-
-    <h3>🥗 Nutrição</h3>${nutriBlock}
+    <div class="g2">
+      <div><h3>📋 Convocatórias no Período</h3>${convocTable}</div>
+      <div><h3>⏱️ Tempos de Jogo & Incidências</h3>${gamesTable}</div>
+    </div>
+  </div>
   `;
   _printWin(`Relatório — ${at.name} — ${periodLabel}`,body);
 }
