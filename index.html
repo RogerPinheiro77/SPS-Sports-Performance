@@ -5244,6 +5244,57 @@ function _wellTrendB64(labels,scores){
     return b64;
   }catch(e){console.warn('_wellTrendB64 error:',e);return '';}
 }
+// Análise Descritiva — texto gerado por regras/templates a partir dos dados já calculados
+// (sem chamadas a IA externa: sem custo, sem latência, sem dados a sair da app). Os números
+// vêm sempre do código, nunca são "adivinhados" pelo texto.
+function _athleteNarrative(d){
+  const s=[];
+  const{name,avgPse,avgPsePrev,acwr,avgWell,avgWellPrev,attPct,attPctPrev,attPresente,attDenom,
+    naoJustCount,gamesCount,evalDateLbl,daysSinceEval,activeInjuries}=d;
+  if(avgPse==null&&avgWell==null&&attDenom===0&&!gamesCount){
+    return `Não há dados suficientes registados para ${escHtml(name)} neste período para uma análise descritiva.`;
+  }
+  if(avgPse!=null){
+    let loadNote='';
+    if(acwr!=null){
+      loadNote=acwr>1.5?`, com ACWR de ${acwr} — carga aguda elevada face à crónica, sinal de possível sobrecarga`
+        :acwr<0.8?`, com ACWR de ${acwr} — carga aguda baixa face à crónica, sinal de destreino`
+        :`, com ACWR de ${acwr} dentro da zona considerada segura`;
+    }
+    s.push(`A carga de treino registou um PSE médio de ${avgPse}/10${loadNote}.`);
+    if(avgPsePrev!=null){
+      const diff=Math.round((avgPse-avgPsePrev)*10)/10;
+      if(Math.abs(diff)>=0.3)s.push(`Face ao período anterior (${avgPsePrev}/10), a carga percebida ${diff>0?'aumentou':'diminuiu'} ${Math.abs(diff)} pontos.`);
+    }
+  }else{
+    s.push('Não foram registados dados de PSE neste período.');
+  }
+  if(avgWell!=null){
+    const wellNote=avgWell>=70?'boa recuperação e bem-estar geral':avgWell>=45?'níveis moderados de bem-estar, a acompanhar':'sinais de fadiga e bem-estar reduzido, a merecer atenção';
+    s.push(`O wellness médio foi de ${avgWell}/100, refletindo ${wellNote}.`);
+    if(avgWellPrev!=null){
+      const diff=avgWell-avgWellPrev;
+      if(Math.abs(diff)>=5)s.push(`Comparado com o período anterior (${avgWellPrev}), houve uma ${diff>0?'melhoria':'queda'} de ${Math.abs(diff)} pontos.`);
+    }
+  }else{
+    s.push('Sem registos de wellness neste período.');
+  }
+  if(attPct!=null){
+    s.push(`A assiduidade foi de ${attPct}% (${attPresente}/${attDenom} sessões)${naoJustCount?`, com ${naoJustCount} falta${naoJustCount>1?'s':''} não justificada${naoJustCount>1?'s':''}`:''}.`);
+    if(attPctPrev!=null){
+      const diff=attPct-attPctPrev;
+      if(Math.abs(diff)>=10)s.push(`${diff>0?'Melhorou':'Piorou'} face ao período anterior (${attPctPrev}%).`);
+    }
+  }
+  if(gamesCount)s.push(`Participou em ${gamesCount} jogo${gamesCount>1?'s':''} no período.`);
+  if(evalDateLbl){
+    s.push(`A avaliação técnica mais recente é de ${evalDateLbl}${daysSinceEval>60?`, já com ${daysSinceEval} dias — a merecer atualização`:''}.`);
+  }else{
+    s.push('Sem avaliação técnica registada.');
+  }
+  if(activeInjuries&&activeInjuries.length)s.push(`Encontra-se em acompanhamento clínico: ${activeInjuries.join(', ')}.`);
+  return s.join(' ');
+}
 function printAthleteReport(){
   const id=document.getElementById('rep-at-sel').value;
   if(!id)return toast('Seleciona uma atleta','err');
@@ -5327,6 +5378,17 @@ function printAthleteReport(){
   const prevStart=addDaysStr(startDate,-periodDays);
   const prevWellRecs=APP.wellness.filter(w=>w.athleteId===id&&w.date>=prevStart&&w.date<=prevEnd);
   const avgWellPrev=prevWellRecs.length?Math.round(prevWellRecs.reduce((s,w)=>s+(+w.score||0),0)/prevWellRecs.length):null;
+  const prevPseRecs=APP.pse.filter(p=>p.athleteId===id&&p.date>=prevStart&&p.date<=prevEnd);
+  const avgPsePrev=prevPseRecs.length?Math.round(prevPseRecs.reduce((s,p)=>s+(+p.pse||0),0)/prevPseRecs.length*10)/10:null;
+  const acwrPrev=_acwrAt(id,prevEnd);
+  const evsPeriodoPrev=APP.schedule.filter(e=>e.date>=prevStart&&e.date<=prevEnd&&(!e.teamId||e.teamId===at.teamId)&&_isTrainingType(e.type));
+  const evIdsPrev=new Set(evsPeriodoPrev.map(e=>e.id));
+  const attRecsPrev=APP.attendance.filter(a=>a.athleteId===id&&evIdsPrev.has(a.eventId));
+  const attPresentePrev=attRecsPrev.filter(a=>a.status==='treino').length;
+  const attAusentesPrev=attRecsPrev.filter(a=>a.status==='ausente');
+  const attDenomPrev=attPresentePrev+attAusentesPrev.length;
+  const attPctPrev=attDenomPrev?Math.round(attPresentePrev/attDenomPrev*100):null;
+  const gamesPrev=APP.games.filter(g=>g.date>=prevStart&&g.date<=prevEnd&&((g.lineup&&g.lineup.includes(id))||(g.subs&&g.subs.includes(id))||(g.playerStats||[]).some(s=>s.aid===id)));
   const latestEvalDate=[tecEntry?.p.openDate,autoEntry?.p.openDate].filter(Boolean).sort().pop()||null;
   const daysSinceEval=latestEvalDate?Math.round((new Date(endDate+'T00:00:00')-new Date(latestEvalDate+'T00:00:00'))/86400000):null;
   const cycleOvul=wellRecs.some(w=>w.cycle==='Ovulação');
@@ -5349,6 +5411,34 @@ function printAthleteReport(){
   const analysisHtml=findings.length
     ?findings.slice(0,6).map(f=>`<div class="an-item an-${f.lvl}">${_lvlIcon[f.lvl]} ${f.txt}</div>`).join('')
     :`<div class="an-item an-g">🟢 Sem alertas relevantes — período dentro da normalidade.</div>`;
+
+  // ── Comparação com o Período Anterior (números só do código, nunca do texto) ──
+  const _cmpRow=(label,cur,prev,unit='')=>{
+    const curTxt=cur==null?'—':cur+unit;
+    const prevTxt=prev==null?'—':prev+unit;
+    let varTxt='—';
+    if(cur!=null&&prev!=null){
+      const diff=Math.round((cur-prev)*10)/10;
+      const arrow=diff>0?'↑':diff<0?'↓':'→';
+      varTxt=diff===0?'→ =':`${arrow} ${diff>0?'+':''}${diff}${unit}`;
+    }
+    return `<tr><td>${label}</td><td>${curTxt}</td><td>${prevTxt}</td><td>${varTxt}</td></tr>`;
+  };
+  const comparisonTable=`<table><thead><tr><th>Métrica</th><th>Atual</th><th>Anterior</th><th>Var.</th></tr></thead><tbody>
+    ${_cmpRow('PSE Médio',avgPse,avgPsePrev)}
+    ${_cmpRow('Wellness Médio',avgWell,avgWellPrev)}
+    ${_cmpRow('ACWR',acwr,acwrPrev)}
+    ${_cmpRow('Presenças',attPct,attPctPrev,'%')}
+    ${_cmpRow('Jogos',gamesP.length,gamesPrev.length)}
+  </tbody></table>`;
+
+  // ── Análise Descritiva (texto por regras/templates, sem IA — ver _athleteNarrative) ──
+  const narrativeText=_athleteNarrative({
+    name:at.name,avgPse,avgPsePrev,acwr,avgWell,avgWellPrev,attPct,attPctPrev,
+    attPresente,attDenom,naoJustCount:naoJust.length,gamesCount:gamesP.length,
+    evalDateLbl,daysSinceEval,
+    activeInjuries:activeInPeriod.map(i=>escHtml(i.diagnosis||i.type||'—'))
+  });
 
   const attTable=`<table><thead><tr><th>Sessões</th><th>Presente</th><th>Tratamento</th><th>Ausente</th></tr></thead>
     <tbody><tr><td>${evsPeriodo.length}</td><td>${attPresente}</td><td>${attTratamento}</td><td>${attAusentes.length}</td></tr></tbody></table>
@@ -5444,6 +5534,17 @@ function printAthleteReport(){
     <div class="an-box">
       <div class="an-title">🔎 Análise Automática do Período</div>
       ${analysisHtml}
+    </div>
+
+    <div class="g2">
+      <div>
+        <div class="an-title">📝 Análise Descritiva</div>
+        <p style="font-size:7.8pt;line-height:1.35;text-align:justify;margin-top:2px">${narrativeText}</p>
+      </div>
+      <div>
+        <div class="an-title">📈 Comparação com o Período Anterior</div>
+        ${comparisonTable}
+      </div>
     </div>
 
     <div class="g2">
