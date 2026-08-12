@@ -1776,7 +1776,7 @@ function openAthleteModal(id){
   const activeInj=injuries.find(i=>i.status==='ativo'||i.status==='reabilitação');
   // Nutrition
   const nutriPlan=(APP.nutritionPlans||[]).find(n=>n.athleteId===id&&n.active);
-  const lastAnthro=(APP.anthropometric||[]).filter(a=>a.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const lastAnthro=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date))[0];
   // Training plans
   const plans=(APP.trainingPlans||[]).filter(p=>p.athleteId===id).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const activePlan=plans.find(p=>!p.done);
@@ -5023,7 +5023,7 @@ function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
 
 // ─── RELATÓRIOS ──────────────────────────────────────────────
-let _repWellMode='diario',_repPseMode='diario';
+let _repWellMode='diario',_repPseMode='diario',_repAtMode='semanal';
 function renderRelatorios(){
   const ats=APP.athletes.sort((a,b)=>a.name.localeCompare(b.name));
   const teams=[{id:'',name:'Todas as Equipas'},...APP.teams];
@@ -5035,14 +5035,26 @@ function renderRelatorios(){
   <div class="sh"><div class="sh-t">📥 Relatórios & Exportações</div></div>
   <div class="g2">
 
-    <!-- Ficha de Atleta -->
-    <div class="card"><div class="ch"><span class="ct">👤 Ficha de Atleta</span></div><div class="cb">
+    <!-- Relatório de Atleta -->
+    <div class="card"><div class="ch"><span class="ct">👤 Relatório de Atleta</span></div><div class="cb">
       <div class="form-g"><label class="fl">Atleta</label>
         <select class="fc" id="rep-at-sel">${atOpts||'<option>Sem atletas</option>'}</select>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Gera ficha completa: dados pessoais, estatísticas da época, histórico de lesões e clubes.</div>
+      <div class="fr">
+        <div class="form-g"><label class="fl">Período</label>
+          <select class="fc" id="rep-at-mode" onchange="_repAtMode=this.value;renderRelatorios()">
+            <option value="semanal" ${_repAtMode==='semanal'?'selected':''}>Semanal</option>
+            <option value="mensal" ${_repAtMode==='mensal'?'selected':''}>Mensal</option>
+          </select>
+        </div>
+        ${_repAtMode==='mensal'
+          ?`<div class="form-g"><label class="fl">Mês</label><input class="fc" type="month" id="rep-at-month" value="${ym}"></div>`
+          :`<div class="form-g"><label class="fl">Semana (qualquer dia)</label><input class="fc" type="date" id="rep-at-week" value="${td}"></div>`
+        }
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Resumo completo do período: presenças, PSE, wellness, avaliação técnica mais recente, convocatórias, minutos e incidências de jogo, boletim clínico e nutrição.</div>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-g btn-sm" onclick="printFichaAtleta()">🖨️ PDF / Imprimir</button>
+        <button class="btn btn-g btn-sm" onclick="printAthleteReport()">🖨️ Gerar Relatório</button>
       </div>
     </div></div>
 
@@ -5184,64 +5196,197 @@ function _printWin(title,bodyHtml){
   setTimeout(()=>w.print(),600);
 }
 
-// ── Ficha de Atleta ───────────────────────────────────────────────────────────
-function printFichaAtleta(){
+// ── Relatório de Atleta ────────────────────────────────────────────────────────
+function _acwrAt(id,endDate){
+  const days7=Array.from({length:7},(_,i)=>addDaysStr(endDate,-(6-i)));
+  const days28=Array.from({length:28},(_,i)=>addDaysStr(endDate,-(27-i)));
+  const p=APP.pse.filter(x=>x.athleteId===id);
+  const acute=p.filter(x=>days7.includes(x.date)).reduce((s,x)=>s+(+x.ua||0),0)/7;
+  const chronic=p.filter(x=>days28.includes(x.date)).reduce((s,x)=>s+(+x.ua||0),0)/28;
+  return chronic?Math.round(acute/chronic*100)/100:null;
+}
+function _pseTrendB64(labels,uaData,pseData){
+  try{
+    const cv=document.createElement('canvas');cv.width=700;cv.height=280;
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:700px;height:280px;opacity:0;pointer-events:none';
+    wrap.appendChild(cv);document.body.appendChild(wrap);
+    const ch=new Chart(cv.getContext('2d'),{data:{labels,datasets:[
+      {type:'bar',label:'UA',data:uaData,backgroundColor:'rgba(29,111,59,.55)',order:2},
+      {type:'line',label:'PSE',data:pseData,borderColor:'#c77b17',tension:.35,yAxisID:'pse',pointRadius:3,pointBackgroundColor:'#c77b17',order:1}
+    ]},options:{responsive:false,animation:false,
+      plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},color:'#333'}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9},color:'#666'}},
+        y:{grid:{color:'rgba(0,0,0,.08)'},ticks:{font:{size:9},color:'#666'},title:{display:true,text:'UA',font:{size:9},color:'#666'}},
+        pse:{position:'right',min:0,max:10,grid:{display:false},ticks:{font:{size:9},color:'#666'},title:{display:true,text:'PSE',font:{size:9},color:'#666'}}
+      }}});
+    const b64=cv.toDataURL('image/png',0.95);
+    ch.destroy();document.body.removeChild(wrap);
+    return b64;
+  }catch(e){console.warn('_pseTrendB64 error:',e);return '';}
+}
+function _wellTrendB64(labels,scores){
+  try{
+    const cv=document.createElement('canvas');cv.width=700;cv.height=280;
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:700px;height:280px;opacity:0;pointer-events:none';
+    wrap.appendChild(cv);document.body.appendChild(wrap);
+    const colors=scores.map(s=>s==null?'#ccc':s>=70?'#2f9e57':s>=45?'#c9971f':'#c0392b');
+    const ch=new Chart(cv.getContext('2d'),{type:'line',data:{labels,datasets:[
+      {label:'Wellness',data:scores,borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,.1)',tension:.35,pointRadius:4,pointBackgroundColor:colors,spanGaps:true}
+    ]},options:{responsive:false,animation:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:9},color:'#666'}},
+        y:{min:0,max:100,grid:{color:'rgba(0,0,0,.08)'},ticks:{font:{size:9},color:'#666'}}}}});
+    const b64=cv.toDataURL('image/png',0.95);
+    ch.destroy();document.body.removeChild(wrap);
+    return b64;
+  }catch(e){console.warn('_wellTrendB64 error:',e);return '';}
+}
+function printAthleteReport(){
   const id=document.getElementById('rep-at-sel').value;
   if(!id)return toast('Seleciona uma atleta','err');
-  const at=APP.athletes.find(a=>a.id===id);
-  if(!at)return;
-  const td=today();
-  // KPIs
-  const pseRecs=APP.pse.filter(p=>p.athleteId===id);
-  const wellRecs=APP.wellness.filter(w=>w.athleteId===id);
-  const injRecs=APP.injuries.filter(i=>i.athleteId===id);
-  const attRecs=APP.attendance.filter(a=>a.athleteId===id&&a.status!=='tratamento'); // tratamento não conta para a % de presenças
-  const last28=_fmtISO(new Date(Date.now()-28*864e5));
-  const pse28=pseRecs.filter(p=>p.date>=last28);
-  const well14=wellRecs.slice(-14);
-  const pseAvg=pse28.length?Math.round(pse28.reduce((s,p)=>s+p.pse,0)/pse28.length*10)/10:'—';
-  const wellAvg=well14.length?Math.round(well14.reduce((s,w)=>s+w.score,0)/well14.length):'—';
-  const totalUA=pse28.reduce((s,p)=>s+p.ua,0);
-  const attPct=attRecs.length?Math.round(attRecs.filter(a=>a.present).length/attRecs.length*100):'—';
-  const age=at.dob?Math.floor((new Date()-new Date(at.dob))/31557600000):'—';
+  const at=APP.athletes.find(a=>a.id===id);if(!at)return;
+  const mode=_repAtMode||'semanal';
+  let startDate,endDate,periodLabel;
+  if(mode==='semanal'){
+    const anyDay=document.getElementById('rep-at-week')?.value||today();
+    startDate=getMonday(anyDay);
+    endDate=addDaysStr(startDate,6);
+    periodLabel=fmtDate(startDate)+' – '+fmtDate(endDate);
+  } else {
+    const ym=document.getElementById('rep-at-month')?.value||today().slice(0,7);
+    startDate=ym+'-01';
+    const [y,m]=ym.split('-').map(Number);
+    endDate=_fmtISO(new Date(y,m,0));
+    periodLabel=new Date(ym+'-01T00:00:00').toLocaleDateString('pt-PT',{month:'long',year:'numeric'});
+  }
+  const inRange=d=>d>=startDate&&d<=endDate;
+
+  const pseRecs=APP.pse.filter(p=>p.athleteId===id&&inRange(p.date)).sort((a,b)=>a.date.localeCompare(b.date));
+  const avgPse=pseRecs.length?Math.round(pseRecs.reduce((s,p)=>s+(+p.pse||0),0)/pseRecs.length*10)/10:null;
+  const acwr=_acwrAt(id,endDate);
+
+  const wellRecs=APP.wellness.filter(w=>w.athleteId===id&&inRange(w.date)).sort((a,b)=>a.date.localeCompare(b.date));
+  const avgWell=wellRecs.length?Math.round(wellRecs.reduce((s,w)=>s+(+w.score||0),0)/wellRecs.length):null;
+
+  if(!APP.attendance)APP.attendance=[];
+  const evsPeriodo=APP.schedule.filter(e=>inRange(e.date)&&(!e.teamId||e.teamId===at.teamId)&&_isTrainingType(e.type));
+  const evIdsP=new Set(evsPeriodo.map(e=>e.id));
+  const attRecsP=APP.attendance.filter(a=>a.athleteId===id&&evIdsP.has(a.eventId));
+  const attPresente=attRecsP.filter(a=>a.status==='treino').length;
+  const attTratamento=attRecsP.filter(a=>a.status==='tratamento').length;
+  const attAusentes=attRecsP.filter(a=>a.status==='ausente');
+  const attReasonLbl={justificada:'Justificada',nao_justificada:'Não Justificada',lesao:'Lesão',doenca:'Doença',outro:'Outro'};
+  const attDenom=attPresente+attAusentes.length;
+  const attPct=attDenom?Math.round(attPresente/attDenom*100):null;
+
+  const _byDate=(type)=>(APP.evalResponses||[])
+    .filter(r=>r.athleteId===id&&r.type===type)
+    .map(r=>({r,p:(APP.evalPeriods||[]).find(p=>p.id===r.periodId)}))
+    .filter(x=>x.p)
+    .sort((a,b)=>(b.p.openDate||'').localeCompare(a.p.openDate||''))[0];
+  const tecEntry=_byDate('tecnica'), autoEntry=_byDate('auto');
+  const ratiosTec=tecEntry?_calcRatios(tecEntry.r):{};
+  const ratiosAuto=autoEntry?_calcRatios(autoEntry.r):{};
+  const evalImg=(tecEntry||autoEntry)?_evalRadarB64(ratiosAuto,ratiosTec):'';
+  const evalDateLbl=tecEntry?fmtDate(tecEntry.p.openDate):(autoEntry?fmtDate(autoEntry.p.openDate):'');
+
+  const convocsP=(APP.convocatorias||[]).filter(c=>c.athletes&&c.athletes.includes(id)&&inRange(c.date)).sort((a,b)=>a.date.localeCompare(b.date));
+
+  const gamesP=APP.games.filter(g=>inRange(g.date)&&((g.lineup&&g.lineup.includes(id))||(g.subs&&g.subs.includes(id))||(g.playerStats||[]).some(s=>s.aid===id)));
+
+  const injuriesP=APP.injuries.filter(i=>i.athleteId===id&&i.date<=endDate&&(!i.returnDate||i.returnDate>=startDate));
+  const treatsP=APP.treatments.filter(t=>t.athleteId===id&&inRange(t.date)).sort((a,b)=>a.date.localeCompare(b.date));
+
+  const nutriPlan=(APP.nutritionPlans||[]).find(n=>n.athleteId===id&&n.active);
+  const avalsAll=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  const lastAval=avalsAll[0];
+  const avalsP=avalsAll.filter(a=>inRange(a.date));
+
+  const pseChartImg=pseRecs.length?_pseTrendB64(pseRecs.map(p=>fmtDateShort(p.date)),pseRecs.map(p=>p.ua),pseRecs.map(p=>p.pse)):'';
+  const wellChartImg=wellRecs.length?_wellTrendB64(wellRecs.map(w=>fmtDateShort(w.date)),wellRecs.map(w=>w.score)):'';
+
+  const age=at.dob?ageYears(at.dob):null;
   const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
-  const activeInj=injRecs.filter(i=>!i.returnDate||i.returnDate>=td);
+
   const kpis=[
-    {v:pseAvg,l:'PSE Médio (28d)'},
-    {v:wellAvg,l:'Wellness Médio'},
-    {v:totalUA,l:'Carga Total (28d)'},
-    {v:(attPct==='-'?attPct:attPct+'%'),l:'Presenças'},
+    {v:avgPse??'—',l:'PSE Médio'},
+    {v:avgWell??'—',l:'Wellness Médio'},
+    {v:acwr??'—',l:'ACWR'},
+    {v:attPct!=null?attPct+'%':'—',l:'Presenças'},
+    {v:gamesP.length,l:'Jogos no Período'}
   ];
-  const lastWell=wellRecs.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
-  const lastPse=pseRecs.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
-  const wellTable=lastWell.length?`<table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th></tr></thead><tbody>${lastWell.map(w=>{const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td></tr>`;}).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem registos</p>';
-  const pseTable=lastPse.length?`<table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${lastPse.map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem registos</p>';
-  const injTable=injRecs.length?`<table><thead><tr><th>Data</th><th>Lesão</th><th>Zona</th><th>Grau</th><th>Retorno</th></tr></thead><tbody>${injRecs.sort((a,b)=>b.date.localeCompare(a.date)).map(i=>`<tr><td>${fmtDate(i.date)}</td><td>${i.type||'—'}</td><td>${i.zone||'—'}</td><td>${i.grade||'—'}</td><td>${i.returnDate?fmtDate(i.returnDate):'Em tratamento'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem lesões registadas</p>';
-  const clubHist=(at.clubs||[]).length?`<table><thead><tr><th>Clube</th><th>Época</th></tr></thead><tbody>${(at.clubs||[]).map(c=>`<tr><td>${c.name}</td><td>${c.season||'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem histórico</p>';
+
+  const attTable=`<table><thead><tr><th>Sessões</th><th>Presente</th><th>Tratamento</th><th>Ausente</th></tr></thead>
+    <tbody><tr><td>${evsPeriodo.length}</td><td>${attPresente}</td><td>${attTratamento}</td><td>${attAusentes.length}</td></tr></tbody></table>
+    ${attAusentes.length?`<table style="margin-top:6px"><thead><tr><th>Data</th><th>Motivo</th></tr></thead><tbody>${attAusentes.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${attReasonLbl[a.reason]||'—'}</td></tr>`).join('')}</tbody></table>`:''}`;
+
+  const pseTable=pseRecs.length?`<table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${pseRecs.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${p.pse}/10</td><td>${p.duration} min</td><td>${p.ua}</td><td>${p.sessionType||'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem dados</p>';
+
+  const wellTable=wellRecs.length?`<table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead><tbody>${wellRecs.map(w=>{const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem dados</p>';
+
+  const convocTable=convocsP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Papel</th><th>Viu</th></tr></thead><tbody>${convocsP.map(c=>{
+    const g=c.gameId?APP.games.find(x=>x.id===c.gameId):null;
+    const opp=g?g.opp:(c.notes||'—');
+    const isCap=c.captain===id, isVice=c.viceCaptain===id, isTit=(c.lineup||[]).includes(id);
+    const papel=[isTit?'Titular':(c.athletes.includes(id)?'Suplente':''),isCap?'Capitã':(isVice?'Vice-Cap.':'')].filter(Boolean).join(' · ');
+    const viu=(c.seenBy||[]).some(s=>s.athleteId===id);
+    return `<tr><td>${fmtDate(c.date)}</td><td>${escHtml(opp)}</td><td>${papel||'—'}</td><td>${viu?'✅':'—'}</td></tr>`;
+  }).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem convocatórias no período</p>';
+
+  const gamesTable=gamesP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Resultado</th><th>Min.</th><th>⚽</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${gamesP.sort((a,b)=>a.date.localeCompare(b.date)).map(g=>{
+    const st=(g.playerStats||[]).find(s=>s.aid===id);
+    const res=g.g1!=null&&g.g2!=null?g.g1+'–'+g.g2:'—';
+    return `<tr><td>${fmtDate(g.date)}</td><td>${escHtml(g.opp)}</td><td>${res}</td><td>${st?st.mins||0:'sem dados'}</td><td>${st?st.goals||0:'—'}</td><td>${st?st.yellow||0:'—'}</td><td>${st?st.red||0:'—'}</td></tr>`;
+  }).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem jogos no período</p>';
+
+  const injTable=injuriesP.length?`<table><thead><tr><th>Data</th><th>Diagnóstico</th><th>Zona</th><th>Estado</th><th>Retorno previsto</th></tr></thead><tbody>${injuriesP.map(i=>`<tr><td>${fmtDate(i.date)}</td><td>${escHtml(i.diagnosis||i.type||'—')}</td><td>${escHtml(i.bodyPart||'—')}</td><td>${i.status||'—'}</td><td>${i.returnDate?fmtDate(i.returnDate):'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem lesões relevantes no período</p>';
+  const tratTable=treatsP.length?`<table><thead><tr><th>Data</th><th>Tipo</th><th>Resposta</th></tr></thead><tbody>${treatsP.map(t=>`<tr><td>${fmtDate(t.date)}</td><td>${escHtml(t.type||'—')}</td><td>${t.response||'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem tratamentos no período</p>';
+
+  const nutriBlock=`
+    ${nutriPlan?`<p style="font-size:9pt"><strong>Plano ativo:</strong> ${escHtml(nutriPlan.name||nutriPlan.title||'—')}${nutriPlan.kcal?' · '+nutriPlan.kcal+' kcal':''}</p>`:'<p style="color:#999;font-size:9pt">Sem plano nutricional ativo</p>'}
+    ${lastAval?`<p style="font-size:9pt;margin-top:4px"><strong>Última avaliação (${fmtDate(lastAval.date)}):</strong> ${lastAval.weight?lastAval.weight+'kg':'—'}${lastAval.height?' · '+lastAval.height+'cm':''}${lastAval.bmi?' · IMC '+lastAval.bmi:''}${lastAval.bodyFat?' · '+lastAval.bodyFat+'% gordura':''}</p>`:'<p style="color:#999;font-size:9pt">Sem avaliação antropométrica registada</p>'}
+    ${avalsP.length>1?`<table style="margin-top:6px"><thead><tr><th>Data</th><th>Peso</th><th>IMC</th><th>% Gordura</th></tr></thead><tbody>${avalsP.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${a.weight||'—'}</td><td>${a.bmi||'—'}</td><td>${a.bodyFat||'—'}</td></tr>`).join('')}</tbody></table>`:''}
+  `;
+
   const body=`
-    <div class="pr-title">Ficha de Atleta</div>
+    <div class="pr-title">Relatório de Atleta — ${mode==='semanal'?'Semanal':'Mensal'}</div>
     <div class="profile-header">
       ${photoHtml}
       <div style="flex:1">
-        <div style="font-size:18pt;font-weight:900;color:#111">${at.name}</div>
-        <div style="font-size:10pt;color:#555;margin-top:4px">${at.pos||'—'} · Nº ${at.number||'—'} · ${age} anos</div>
-        <div style="margin-top:6px;font-size:9pt;color:#444;display:flex;gap:16px;flex-wrap:wrap">
-          <span>📅 <strong>Nasc.:</strong> ${at.dob?fmtDate(at.dob):'—'}</span>
-          <span>📏 <strong>Alt.:</strong> ${at.height?at.height+'cm':'—'}</span>
-          <span>⚖️ <strong>Peso:</strong> ${at.weight?at.weight+'kg':'—'}</span>
-          <span>🦶 <strong>Pé:</strong> ${at.foot||'—'}</span>
-          <span>🌍 <strong>Nat.:</strong> ${at.nat||'—'}</span>
-          ${activeInj.length?`<span style="color:#c00;font-weight:700">⚠️ ${activeInj.length} lesão ativa</span>`:''}
-        </div>
+        <div style="font-size:18pt;font-weight:900;color:#111">${escHtml(at.name)}</div>
+        <div style="font-size:10pt;color:#555;margin-top:4px">${at.pos||'—'} ${at.num?'· Nº '+at.num:''}${age?' · '+age+' anos':''}</div>
+        <div style="font-size:10pt;color:#1d6f3b;font-weight:700;margin-top:4px">Período: ${periodLabel}</div>
       </div>
     </div>
     <div class="kpi-row">${kpis.map(k=>`<div class="kpi"><div class="kpi-v">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('')}</div>
-    <h3>💊 Wellness (últimos 10 registos)</h3>${wellTable}
-    <h3>📊 PSE — Carga de Treino (últimos 10)</h3>${pseTable}
-    <h3>🩺 Histórico de Lesões</h3>${injTable}
-    <h3>🏟️ Histórico de Clubes</h3>${clubHist}
+
+    <h3>✅ Presenças</h3>${attTable}
+
+    <h3>📊 PSE — Carga de Treino</h3>
+    ${pseChartImg?`<img src="${pseChartImg}" style="width:100%;max-width:500px;display:block;margin:0 auto 10px">`:''}
+    ${pseTable}
+
+    <h3>💊 Wellness</h3>
+    ${wellChartImg?`<img src="${wellChartImg}" style="width:100%;max-width:500px;display:block;margin:0 auto 10px">`:''}
+    ${wellTable}
+
+    <h3>⭐ Avaliação Técnica ${evalDateLbl?'(mais recente — '+evalDateLbl+')':''}</h3>
+    ${evalImg?`<img src="${evalImg}" style="width:280px;display:block;margin:0 auto">`:'<p style="color:#999;font-size:9pt">Sem avaliação registada</p>'}
+
+    <h3>📋 Convocatórias no Período</h3>${convocTable}
+
+    <h3>⏱️ Tempos de Jogo & Incidências</h3>${gamesTable}
+
+    <h3>🩺 Boletim Clínico</h3>
+    <div style="font-size:9pt;font-weight:700;margin-bottom:4px">Lesões ativas/relevantes no período</div>${injTable}
+    <div style="font-size:9pt;font-weight:700;margin:8px 0 4px">Tratamentos no período</div>${tratTable}
+
+    <h3>🥗 Nutrição</h3>${nutriBlock}
   `;
-  _printWin(`Ficha — ${at.name}`,body);
+  _printWin(`Relatório — ${at.name} — ${periodLabel}`,body);
 }
 
 // ── Plantel ───────────────────────────────────────────────────────────────────
