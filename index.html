@@ -15,11 +15,7 @@
 <meta name="theme-color" content="#1d6f3b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script type="module">
-import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs';
-pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs';
-window.pdfjsLib=pdfjsLib;
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -3683,21 +3679,8 @@ function _trAtChecklistHtml(){
   </div>`;
 }
 
-// ─── IMPORTAR PDF (Plano de Treino) ───────────────────────
-const _PDF_EX_DEFAULT_DESC={
-  'ativ/mobil. articular/reg. velocidade':'Circuito de mobilidade articular (tornozelo, anca, ombro) em pares, seguido de skipping baixo/alto e saídas em regime de velocidade — 30 mts, 3 a 4 repetições por atleta, recuperação completa entre séries.',
-  'torneio cantos of/df':'Equipas divididas em grupos (atacantes vs. defensores), marcação de cantos alternada com pontuação por golo/recuperação de bola; rotação de funções ao fim de X cantos para treinar ambas as fases.'
-};
-const _PDF_EX_DEFAULT_OBJ={
-  'torneio cantos of/df':'Eficácia ofensiva e defensiva em bolas paradas (cantos)'
-};
-
-function _pdfPhaseGuess(title){
-  const t=(title||'').toLowerCase();
-  if(/ativ|mobil|aqueci|regime velocidade/.test(t))return 'aquecimento';
-  if(/jogo|torneio|sector/.test(t))return 'jogo';
-  return 'principal';
-}
+// ─── IMPORTAR PDF (Plano de Treino) — mantém o PDF original, só rebate marca ───
+const SPS_LOGO_URL='https://rogerpinheiro77.github.io/SPS-Sports-Performance/assets/logo_sps.jpg';
 
 function triggerImportTreinoPDF(){
   const el=document.getElementById('tr-pdf-inp');
@@ -3707,244 +3690,92 @@ function triggerImportTreinoPDF(){
 async function handleImportTreinoPDF(input){
   const file=input.files[0];if(!file)return;
   input.value='';
-  if(!window.pdfjsLib)return toast('Biblioteca de PDF não carregou. Verifica a ligação à internet.','err');
-  toast('A ler PDF...');
+  if(!window.PDFLib)return toast('Biblioteca de PDF não carregou. Verifica a ligação à internet.','err');
+  toast('A processar PDF...');
   try{
-    const buf=await file.arrayBuffer();
-    const parsed=await _pdfParsePlano(buf);
-    if(!parsed.exercises.length)toast('PDF lido, mas não encontrei exercícios no formato esperado. Revê e completa manualmente.','err');
-    else if(parsed.anyRenderFailed)toast('Texto importado ✓ — alguns diagramas não puderam ser copiados automaticamente (podes anexá-los à mão).','err');
-    _pdfShowPreview(parsed);
+    const bytes=await file.arrayBuffer();
+    const outBytes=await _pdfBrandify(bytes);
+    const blob=new Blob([outBytes],{type:'application/pdf'});
+    const url=URL.createObjectURL(blob);
+    const baseName=(file.name||'plano_treino').replace(/\.pdf$/i,'');
+    const a=document.createElement('a');
+    a.href=url;a.download=baseName+'_SPS.pdf';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    toast('PDF pronto ✓ — vê os teus downloads');
   }catch(e){
-    console.error('Erro import PDF treino:',e);
-    toast('Não consegui ler este PDF. '+(e.message||''),'err');
+    console.error('Erro ao processar PDF:',e);
+    toast('Não consegui processar este PDF. '+(e.message||''),'err');
   }
 }
 
-async function _pdfParsePlano(buf){
-  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
-  const pages=[];
-  for(let p=1;p<=pdf.numPages;p++){
-    const page=await pdf.getPage(p);
-    const scale=1.5;
-    const viewport=page.getViewport({scale});
-    const canvas=document.createElement('canvas');
-    canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
-    const ctx=canvas.getContext('2d');
-    let renderOk=true;
-    try{
-      await Promise.race([
-        page.render({canvasContext:ctx,viewport}).promise,
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error('render-timeout')),12000))
-      ]);
-    }catch(e){
-      console.warn('Render da página '+p+' falhou ou demorou demasiado — diagramas desta página não ficam disponíveis:',e.message);
-      renderOk=false;
-    }
-    const tc=await page.getTextContent();
-    const pw=(page.view[2]-page.view[0]),ph=(page.view[3]-page.view[1]);
-    const items=tc.items.map(it=>{
-      const h=Math.hypot(it.transform[2],it.transform[3])||9;
-      const yTop=ph-it.transform[5]-h;
-      return {x:it.transform[4],y:yTop,h,str:it.str};
-    }).filter(it=>it.str&&it.str.trim());
-    pages.push({items,canvas:renderOk?canvas:null,scale,pw,ph});
-  }
-  const header=_pdfExtractHeader(pages[0].items);
-  header.observacoes=_pdfExtractObservacoes(pages[pages.length-1].items);
-  let allExercises=[];
-  pages.forEach(pg=>{
-    const exs=_pdfExtractExercisesFromPage(pg.items,pg.pw);
-    exs.forEach(ex=>{
-      ex.drawing=pg.canvas?_pdfCropDiagram(pg.canvas,pg.scale,pg.pw,pg.ph,ex._titleTop):'';
-      ex.phase=_pdfPhaseGuess(ex.title);
-      const key=(ex.title||'').toLowerCase().trim();
-      if(!ex.descricao&&_PDF_EX_DEFAULT_DESC[key]){ex.descricao=_PDF_EX_DEFAULT_DESC[key];ex._suggested=true;}
-      if(!ex.objetivo&&_PDF_EX_DEFAULT_OBJ[key]){ex.objetivo=_PDF_EX_DEFAULT_OBJ[key];ex._suggested=true;}
-      delete ex._titleTop;
-    });
-    allExercises=allExercises.concat(exs);
-  });
-  const anyRenderFailed=pages.some(pg=>!pg.canvas);
-  return {header,exercises:allExercises,anyRenderFailed};
-}
+async function _pdfBrandify(bytes){
+  const {PDFDocument,rgb,StandardFonts}=PDFLib;
+  const doc=await PDFDocument.load(bytes);
+  const bold=await doc.embedFont(StandardFonts.HelveticaBold);
+  const reg=await doc.embedFont(StandardFonts.Helvetica);
+  const GREEN=rgb(0.114,0.435,0.235);
 
-function _pdfLines(items){
-  const sorted=[...items].sort((a,b)=>a.y-b.y);
-  const lines=[];
-  for(const it of sorted){
-    let line=lines.find(l=>Math.abs(l.y-it.y)<3.5);
-    if(!line){line={y:it.y,items:[]};lines.push(line);}
-    line.items.push(it);
-  }
-  lines.forEach(l=>l.items.sort((a,b)=>a.x-b.x));
-  return lines.sort((a,b)=>a.y-b.y);
-}
-
-function _pdfJoinMultiline(items){
-  return _pdfLines(items).map(l=>l.items.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean).join('\n');
-}
-
-function _pdfExtractHeader(items){
-  const lines=_pdfLines(items).filter(l=>l.y<140);
-  const full=lines.map(l=>l.items.map(i=>i.str).join(' ')).join(' | ');
-  const g=(re)=>{const m=full.match(re);return m&&m[1]?m[1].trim():'';};
-  return {
-    nJogadores:g(/Nº\s*Jogadores\s*(\d+)?\s*(?:\||Microciclo)/i),
-    microciclo:g(/Microciclo\s*([^\s|]+)/i),
-    mesociclo:g(/Mesociclo\s*([^\s|]+)/i),
-    periodo:g(/Periodo\s*([^|]+?)\s*(?:\||$)/i),
-    data:g(/\bData\s*([\d\-]{6,10}(?:,\s*[^|]+?)?)\s*(?:\||Hora)/i),
-    hora:g(/\bHora\s*(\d{1,2}:\d{2})/i),
-    clima:g(/\bClima\s*([^|]*?)\s*(?:\||Volume)/i),
-    volume:g(/\bVolume\s*([^|]*?)\s*(?:\||$)/i),
-    material:g(/\bMaterial\s*([^|]*?)\s*(?:\||Objetivos Gerais)/i),
-    objGerais:g(/Objetivos Gerais\s*([^|]*?)\s*(?:\||Objetivos Específicos)/i),
-    objEspecificos:g(/Objetivos Específicos\s*([^|]*?)\s*(?:\||$)/i)
-  };
-}
-
-function _pdfExtractObservacoes(items){
-  const lines=_pdfLines(items);
-  const idx=lines.findIndex(l=>/Observa[cç][oõ]es\s*\/?\s*balan[cç]o/i.test(l.items.map(i=>i.str).join(' ')));
-  if(idx<0)return '';
-  const labelText=lines[idx].items.map(i=>i.str).join(' ');
-  const afterLabel=labelText.replace(/.*Observa[cç][oõ]es\s*\/?\s*balan[cç]o/i,'').trim();
-  const restLines=lines.slice(idx+1).map(l=>l.items.map(i=>i.str).join(' ')).join('\n').trim();
-  return [afterLabel,restLines].filter(Boolean).join('\n').trim();
-}
-
-function _pdfExtractExercisesFromPage(items,pw){
-  const lines=_pdfLines(items);
-  const objAnchors=[],descAnchors=[];
-  lines.forEach(l=>{
-    const txt=l.items.map(i=>i.str).join(' ');
-    if(/Objetivo\(s\)\s*espec[ií]fico\(s\)/i.test(txt))objAnchors.push(l.y);
-    if(/Descri[cç][aã]o e Organiza[cç][aã]o Metodol[oó]gica/i.test(txt))descAnchors.push(l.y);
-  });
-  objAnchors.sort((a,b)=>a-b);descAnchors.sort((a,b)=>a-b);
-  const n=Math.min(objAnchors.length,descAnchors.length);
-  const exs=[];
-  for(let i=0;i<n;i++){
-    const objY=objAnchors[i],descY=descAnchors[i];
-    const nextObjY=i+1<n?objAnchors[i+1]:Infinity;
-    const titleItems=items.filter(it=>it.x<0.42*pw&&it.y>=objY-45&&it.y<=objY-3).sort((a,b)=>a.y-b.y||a.x-b.x);
-    const title=titleItems.map(it=>it.str).join(' ').replace(/\s+/g,' ').trim();
-    const titleTop=titleItems.length?Math.min(...titleItems.map(it=>it.y)):objY-25;
-    const objItems=items.filter(it=>it.x>0.44*pw&&it.x<0.86*pw&&it.y>objY+2&&it.y<descY-2);
-    const objetivo=_pdfJoinMultiline(objItems);
-    const descLimit=nextObjY===Infinity?Infinity:nextObjY-45;
-    const descItems=items.filter(it=>it.x>0.44*pw&&it.x<0.86*pw&&it.y>descY+2&&it.y<descLimit);
-    const descricao=_pdfJoinMultiline(descItems);
-    const iconItems=items.filter(it=>it.x>=0.86*pw&&it.y>objY-8&&it.y<descLimit).sort((a,b)=>a.y-b.y);
-    const clusters=[];
-    iconItems.forEach(it=>{
-      let c=clusters.find(c=>Math.abs(c.y-it.y)<12);
-      if(!c){c={y:it.y,items:[]};clusters.push(c);}
-      c.items.push(it);
-    });
-    clusters.sort((a,b)=>a.y-b.y);
-    const vals=clusters.map(c=>c.items.sort((a,b)=>a.x-b.x).map(it=>it.str).join(' ').trim());
-    if(title)exs.push({title,objetivo,descricao,tempo:vals[0]||'',numero:vals[1]||'',espaco:vals[2]||'',_titleTop:titleTop});
-  }
-  return exs;
-}
-
-function _pdfCropDiagram(canvas,scale,pw,ph,titleTopPt){
+  let clubLogoImg=null;
   try{
-    const x0=0.015*pw*scale,x1=0.45*pw*scale;
-    const y0=(titleTopPt+0.024*ph)*scale,y1=y0+0.212*ph*scale;
-    const cw=Math.max(1,Math.round(x1-x0)),ch=Math.max(1,Math.round(Math.min(y1,canvas.height)-y0));
-    if(ch<=0)return '';
-    const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;
-    cv.getContext('2d').drawImage(canvas,x0,y0,cw,ch,0,0,cw,ch);
-    return cv.toDataURL('image/jpeg',0.85);
-  }catch(e){console.warn('crop diagrama falhou',e);return '';}
-}
+    if(APP.config.clubLogo){
+      const r=await fetch(APP.config.clubLogo);
+      const cbytes=new Uint8Array(await r.arrayBuffer());
+      const isPng=cbytes[0]===0x89&&cbytes[1]===0x50&&cbytes[2]===0x4E&&cbytes[3]===0x47;
+      clubLogoImg=isPng?await doc.embedPng(cbytes):await doc.embedJpg(cbytes);
+    }
+  }catch(e){console.warn('Não consegui carregar o logo do clube:',e);}
 
-let _pdfPreviewData=null;
-function _pdfShowPreview(parsed){
-  _pdfPreviewData=parsed;
-  const h=parsed.header;
-  let dateISO='';
-  const dm=(h.data||'').match(/(\d{2})-(\d{2})-(\d{4})/);
-  if(dm)dateISO=`${dm[3]}-${dm[2]}-${dm[1]}`;
-  const notesParts=[];
-  if(h.microciclo||h.mesociclo||h.periodo)notesParts.push(`Microciclo: ${h.microciclo||'—'} · Mesociclo: ${h.mesociclo||'—'} · Período: ${h.periodo||'—'}`);
-  if(h.clima||h.volume)notesParts.push(`Clima: ${h.clima||'—'} · Volume: ${h.volume||'—'}`);
-  if(h.material)notesParts.push(`Material: ${h.material}`);
-  if(h.observacoes)notesParts.push(`Observações/balanço: ${h.observacoes}`);
-  const defaultObjetivo=h.objGerais||h.objEspecificos||'';
-  const defaultTitle=`Treino${h.microciclo?' — Microciclo '+h.microciclo:''}${dateISO?' — '+fmtDate(dateISO):''}`;
-  const phaseOpts=(sel)=>_PHASES.map(ph=>`<option value="${ph.id}" ${sel===ph.id?'selected':''}>${ph.label}</option>`).join('');
+  let spsLogoImg=null;
+  try{
+    const r=await fetch(SPS_LOGO_URL);
+    spsLogoImg=await doc.embedJpg(await r.arrayBuffer());
+  }catch(e){console.warn('Não consegui carregar o logo SPS:',e);}
 
-  const exHtml=parsed.exercises.map((ex,i)=>{
-    const combinedDesc=[ex.objetivo?('Objetivo(s):\n'+ex.objetivo):'',ex.descricao?('Descrição:\n'+ex.descricao):''].filter(Boolean).join('\n\n');
-    const suggestedNote=ex._suggested?`<div style="font-size:10px;color:#c77b17;margin-top:2px">✨ sugestão gerada — este campo estava em branco no PDF de origem, revê antes de aplicar</div>`:'';
-    const badges=[ex.tempo?`⏱ ${escHtml(ex.tempo)}`:'',ex.numero?`👥 ${escHtml(ex.numero)}`:'',ex.espaco?`📐 ${escHtml(ex.espaco)}`:''].filter(Boolean).join(' &nbsp; ');
-    return`<div class="card" style="padding:10px;margin-bottom:8px;display:grid;grid-template-columns:120px 1fr;gap:10px">
-      <div style="background:var(--bg3);border-radius:6px;overflow:hidden;min-height:90px">
-        ${ex.drawing?`<img src="${ex.drawing}" style="width:100%;height:100%;object-fit:cover">`:`<div style="display:flex;align-items:center;justify-content:center;height:90px;color:var(--t2);font-size:10px;text-align:center">sem diagrama</div>`}
-      </div>
-      <div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input class="fc" style="flex:1;min-width:160px;font-weight:700" id="pdfex-name-${i}" value="${escHtml(ex.title||'')}">
-          <select class="fc" style="width:150px" id="pdfex-phase-${i}">${phaseOpts(ex.phase)}</select>
-        </div>
-        ${badges?`<div style="font-size:11px;color:var(--t2);margin-top:4px">${badges}</div>`:''}
-        <textarea class="fc" id="pdfex-desc-${i}" rows="3" style="margin-top:6px;font-size:12px">${escHtml(combinedDesc)}</textarea>
-        ${suggestedNote}
-      </div>
-    </div>`;
-  }).join('');
+  const athletes=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId)
+    .slice().sort((a,b)=>(+(a.number||a.num)||999)-(+(b.number||b.num)||999));
 
-  openMod('Importar Plano de Treino (PDF)',`
-    <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Confere e ajusta os campos antes de aplicar. Nada é guardado até clicares em "Aplicar".</div>
-    <div class="fr" style="gap:8px;flex-wrap:wrap">
-      <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Título</label><input class="fc" id="pdfh-title" value="${escHtml(defaultTitle)}"></div>
-      <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Objetivo Principal</label><input class="fc" id="pdfh-obj" value="${escHtml(defaultObjetivo)}"></div>
-    </div>
-    <div class="fr3" style="gap:8px;flex-wrap:wrap;margin-top:6px">
-      <div class="form-g"><label class="fl">Data</label><input class="fc" id="pdfh-date" type="date" value="${dateISO}"></div>
-      <div class="form-g"><label class="fl">Hora início</label><input class="fc" id="pdfh-hora" type="time" value="${escHtml(h.hora||'')}"></div>
-      <div class="form-g"><label class="fl">Nº Jogadoras</label><input class="fc" id="pdfh-jog" type="number" value="${h.nJogadores||18}"></div>
-    </div>
-    <div class="form-g" style="margin-top:6px"><label class="fl">Notas Gerais</label><textarea class="fc" id="pdfh-notes" rows="3">${escHtml(notesParts.join('\n'))}</textarea></div>
-    <div style="font-weight:700;margin:14px 0 6px">Exercícios (${parsed.exercises.length})</div>
-    ${exHtml||'<div style="color:var(--t2);font-size:13px">Nenhum exercício reconhecido — cria-os manualmente depois de aplicares o cabeçalho.</div>'}
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-g" onclick="_pdfApplyImport()">✅ Aplicar e Criar Unidade</button>
-      <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
-    </div>
-  `,'lg');
-}
+  const BAND_H=138;
+  const pages=doc.getPages();
+  pages.forEach(page=>{
+    const {width,height}=page.getSize();
+    page.setSize(width,height+BAND_H);
+    const top=height+BAND_H;
 
-function _pdfApplyImport(){
-  if(!_pdfPreviewData)return;
-  const title=document.getElementById('pdfh-title').value.trim();
-  const objetivo=document.getElementById('pdfh-obj').value.trim();
-  const date=document.getElementById('pdfh-date').value||today();
-  const horaInicio=document.getElementById('pdfh-hora').value||'';
-  const jogadoras=+document.getElementById('pdfh-jog').value||18;
-  const notes=document.getElementById('pdfh-notes').value.trim();
-  if(!APP.trainings)APP.trainings=[];
-  const tr={id:_TUID(),eventId:null,date,title:title||'Unidade de Treino',objetivo,local:'',duracao:90,jogadoras,horaInicio,horaFim:'',notes,exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
-  _pdfPreviewData.exercises.forEach((ex,i)=>{
-    const nameEl=document.getElementById('pdfex-name-'+i);
-    if(!nameEl)return;
-    const name=nameEl.value.trim()||'Exercício';
-    const phase=document.getElementById('pdfex-phase-'+i).value||'principal';
-    const desc=document.getElementById('pdfex-desc-'+i).value.trim();
-    const tags=[ex.tempo?('tempo: '+ex.tempo):'',ex.numero?('número: '+ex.numero):'',ex.espaco?('espaço: '+ex.espaco):''].filter(Boolean);
-    if(!tr.exercises[phase])tr.exercises[phase]=[];
-    tr.exercises[phase].push({id:_TUID(),name,desc,series:'',durSerie:'',pausa:'',tags,drawing:ex.drawing||'',videoUrl:''});
+    page.drawRectangle({x:0,y:height,width,height:BAND_H,color:rgb(1,1,1)});
+    page.drawRectangle({x:0,y:height-2,width,height:2,color:GREEN});
+
+    // clube (esquerda)
+    const logoSize=58;
+    if(clubLogoImg){
+      const dims=clubLogoImg.scale(1);
+      const ratio=Math.min(logoSize/dims.width,logoSize/dims.height);
+      const dw=dims.width*ratio,dh=dims.height*ratio;
+      page.drawImage(clubLogoImg,{x:24+(logoSize-dw)/2,y:height+(BAND_H-logoSize)/2+(logoSize-dh)/2,width:dw,height:dh});
+    }
+    page.drawText(APP.config.clubName||'Clube',{x:24+logoSize+14,y:height+92,size:13,font:bold,color:GREEN});
+    page.drawText((APP.config.season||'')+' · Unidade de Treino',{x:24+logoSize+14,y:height+74,size:8.5,font:reg,color:rgb(0.45,0.45,0.45)});
+
+    // logo SPS (meio) — quadrado tal como fornecido
+    if(spsLogoImg){
+      const spsSize=90;
+      page.drawImage(spsLogoImg,{x:300,y:height+(BAND_H-spsSize)/2,width:spsSize,height:spsSize});
+    }
+
+    // checklist de atletas (direita) — 3 colunas x 9 linhas
+    const chX=405,colW=58,rowH=12.5;
+    page.drawText('LISTA DE PRESENÇAS',{x:chX,y:top-22,size:7.5,font:bold,color:GREEN});
+    for(let i=0;i<27;i++){
+      const col=Math.floor(i/9),row=i%9;
+      const cx=chX+col*colW,cy=top-40-row*rowH;
+      page.drawRectangle({x:cx,y:cy,width:5.5,height:5.5,borderColor:rgb(0.55,0.55,0.55),borderWidth:0.6});
+      const a=athletes[i];
+      const label=a?`${a.number||a.num||'—'}. ${(a.name||'').split(' ')[0]}`:'—';
+      page.drawText(label,{x:cx+8.5,y:cy+0.5,size:6.4,font:reg,color:a?rgb(0.2,0.2,0.2):rgb(0.82,0.82,0.82)});
+    }
   });
-  APP.trainings.push(tr);saveData();
-  closeMod();
-  _pdfPreviewData=null;
-  _trId=tr.id;_trView='detail';_trExTab='aquecimento';
-  toast('Unidade de treino importada ✓');
-  renderTreinos();
+
+  return await doc.save();
 }
 // ─── PSE & WELLNESS ───────────────────────────────────────
 let _pwTab='pse', _pwTeam='T1', _pwPeriod=14;
