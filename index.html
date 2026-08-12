@@ -5858,13 +5858,17 @@ function renderAtPSE(){
     if(!_pTrainTypes.includes(e.type))return false;
     return !e.teamId||e.teamId===_pAt?.teamId;
   });
+  // Treinos individuais prescritos e marcados como concluídos hoje também abrem o PSE
+  // (não têm hora de início/duração — o momento de conclusão É o fim da sessão).
+  const _pDonePlans=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID&&p.done&&p.doneAt===td&&p.doneTime);
+  _pDonePlans.forEach(p=>_pEvs.push({title:p.title||'Treino Individual',time:p.doneTime,dur:0,isDone:true}));
   let _pUnlocked=already.length>0;
   let _pNextEndStr='';
   let _pNextEndMin=9999;
   if(!_pUnlocked&&_pEvs.length){
     for(const ev of _pEvs){
       const [eh,em]=(ev.time||'00:00').split(':').map(Number);
-      const endMin=eh*60+em+parseInt(ev.dur||90)+_pDelay;
+      const endMin=eh*60+em+(ev.isDone?0:parseInt(ev.dur||90))+_pDelay;
       if(_pNowMin>=endMin){_pUnlocked=true;break;}
       if(endMin<_pNextEndMin){_pNextEndMin=endMin;const h2=Math.floor(endMin/60);const m2=endMin%60;_pNextEndStr=String(h2).padStart(2,'0')+':'+String(m2).padStart(2,'0');}
     }
@@ -5874,7 +5878,7 @@ function renderAtPSE(){
     const lockBody=noSession?'Sem treino ou jogo agendado para hoje.':_pNextEndStr?'O PSE fica disponível às <strong>'+_pNextEndStr+'</strong> (fim da sessão'+((_pDelay>0)?' + '+_pDelay+' min':'')+')':'A aguardar fim da sessão...';
     const evCards=_pEvs.map(ev=>{
       const [eh2,em2]=(ev.time||'00:00').split(':').map(Number);
-      const end2=eh2*60+em2+parseInt(ev.dur||90)+_pDelay;
+      const end2=eh2*60+em2+(ev.isDone?0:parseInt(ev.dur||90))+_pDelay;
       const hh=Math.floor(end2/60);const mm=end2%60;
       return `<div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;margin-bottom:6px"><i class="ti ti-barbell" style="font-size:20px;color:var(--t2)" aria-hidden="true"></i><div><div style="font-size:12px;font-weight:700">${ev.title}</div><div style="font-size:10px;color:var(--t2)">PSE disponível: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}</div></div></div>`;
     }).join('');
@@ -6020,9 +6024,12 @@ function renderAtTreino(){
 }
 function markTreinoDone(id){
   const idx=APP.trainingPlans.findIndex(p=>p.id===id);if(idx<0)return;
-  APP.trainingPlans[idx].done=true;APP.trainingPlans[idx].doneAt=today();
+  const now=new Date();
+  APP.trainingPlans[idx].done=true;
+  APP.trainingPlans[idx].doneAt=today();
+  APP.trainingPlans[idx].doneTime=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   if(_sync)cloudUpsert('training_plans',{...APP.trainingPlans[idx],club_id:_cid,athlete_id:APP.trainingPlans[idx].athleteId,done_at:APP.trainingPlans[idx].doneAt});
-  saveData();toast('Treino concluído ✅');renderAtTreino();
+  saveData();toast('Treino concluído ✅ — o PSE fica disponível em breve');renderAtTreino();
 }
 function renderAtConvoc(){
   const td=today();
@@ -6209,7 +6216,7 @@ async function pullCloud(){
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at}))],
-      ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at}))],
+      ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))]
     ];
     for(const [tbl,,setter] of pulls){
@@ -6296,8 +6303,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at'}},
   schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id'],
     rename:{createdAt:'created_at',teamId:'team_id'}},
-  training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at'],
-    rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at'}},
+  training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
+    rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at',doneTime:'done_time'}},
   attendance_records:{cols:['id','event_id','athlete_id','date','present','status','reason','created_at'],
     rename:{eventId:'event_id',athleteId:'athlete_id',createdAt:'created_at'}}
 };
