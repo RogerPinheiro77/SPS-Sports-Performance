@@ -3713,6 +3713,7 @@ async function handleImportTreinoPDF(input){
     const buf=await file.arrayBuffer();
     const parsed=await _pdfParsePlano(buf);
     if(!parsed.exercises.length)toast('PDF lido, mas não encontrei exercícios no formato esperado. Revê e completa manualmente.','err');
+    else if(parsed.anyRenderFailed)toast('Texto importado ✓ — alguns diagramas não puderam ser copiados automaticamente (podes anexá-los à mão).','err');
     _pdfShowPreview(parsed);
   }catch(e){
     console.error('Erro import PDF treino:',e);
@@ -3730,7 +3731,16 @@ async function _pdfParsePlano(buf){
     const canvas=document.createElement('canvas');
     canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
     const ctx=canvas.getContext('2d');
-    await page.render({canvasContext:ctx,viewport}).promise;
+    let renderOk=true;
+    try{
+      await Promise.race([
+        page.render({canvasContext:ctx,viewport}).promise,
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('render-timeout')),12000))
+      ]);
+    }catch(e){
+      console.warn('Render da página '+p+' falhou ou demorou demasiado — diagramas desta página não ficam disponíveis:',e.message);
+      renderOk=false;
+    }
     const tc=await page.getTextContent();
     const pw=(page.view[2]-page.view[0]),ph=(page.view[3]-page.view[1]);
     const items=tc.items.map(it=>{
@@ -3738,7 +3748,7 @@ async function _pdfParsePlano(buf){
       const yTop=ph-it.transform[5]-h;
       return {x:it.transform[4],y:yTop,h,str:it.str};
     }).filter(it=>it.str&&it.str.trim());
-    pages.push({items,canvas,scale,pw,ph});
+    pages.push({items,canvas:renderOk?canvas:null,scale,pw,ph});
   }
   const header=_pdfExtractHeader(pages[0].items);
   header.observacoes=_pdfExtractObservacoes(pages[pages.length-1].items);
@@ -3746,7 +3756,7 @@ async function _pdfParsePlano(buf){
   pages.forEach(pg=>{
     const exs=_pdfExtractExercisesFromPage(pg.items,pg.pw);
     exs.forEach(ex=>{
-      ex.drawing=_pdfCropDiagram(pg.canvas,pg.scale,pg.pw,pg.ph,ex._titleTop);
+      ex.drawing=pg.canvas?_pdfCropDiagram(pg.canvas,pg.scale,pg.pw,pg.ph,ex._titleTop):'';
       ex.phase=_pdfPhaseGuess(ex.title);
       const key=(ex.title||'').toLowerCase().trim();
       if(!ex.descricao&&_PDF_EX_DEFAULT_DESC[key]){ex.descricao=_PDF_EX_DEFAULT_DESC[key];ex._suggested=true;}
@@ -3755,7 +3765,8 @@ async function _pdfParsePlano(buf){
     });
     allExercises=allExercises.concat(exs);
   });
-  return {header,exercises:allExercises};
+  const anyRenderFailed=pages.some(pg=>!pg.canvas);
+  return {header,exercises:allExercises,anyRenderFailed};
 }
 
 function _pdfLines(items){
