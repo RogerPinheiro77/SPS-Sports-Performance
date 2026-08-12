@@ -5858,8 +5858,9 @@ function renderAtPSE(){
     if(!_pTrainTypes.includes(e.type))return false;
     return !e.teamId||e.teamId===_pAt?.teamId;
   });
-  // Treinos individuais prescritos e marcados como concluídos hoje também abrem o PSE
-  // (não têm hora de início/duração — o momento de conclusão É o fim da sessão).
+  // Treinos individuais prescritos e marcados como concluídos hoje também abrem o PSE,
+  // sem o intervalo de segurança (_pDelay) usado nos treinos de equipa — aqui a própria
+  // atleta reporta o fim ao clicar "Marcar como concluído", por isso o PSE abre de imediato.
   const _pDonePlans=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID&&p.done&&p.doneAt===td&&p.doneTime);
   _pDonePlans.forEach(p=>_pEvs.push({title:p.title||'Treino Individual',time:p.doneTime,dur:0,isDone:true}));
   let _pUnlocked=already.length>0;
@@ -5868,7 +5869,7 @@ function renderAtPSE(){
   if(!_pUnlocked&&_pEvs.length){
     for(const ev of _pEvs){
       const [eh,em]=(ev.time||'00:00').split(':').map(Number);
-      const endMin=eh*60+em+(ev.isDone?0:parseInt(ev.dur||90))+_pDelay;
+      const endMin=eh*60+em+(ev.isDone?0:parseInt(ev.dur||90))+(ev.isDone?0:_pDelay);
       if(_pNowMin>=endMin){_pUnlocked=true;break;}
       if(endMin<_pNextEndMin){_pNextEndMin=endMin;const h2=Math.floor(endMin/60);const m2=endMin%60;_pNextEndStr=String(h2).padStart(2,'0')+':'+String(m2).padStart(2,'0');}
     }
@@ -5878,7 +5879,7 @@ function renderAtPSE(){
     const lockBody=noSession?'Sem treino ou jogo agendado para hoje.':_pNextEndStr?'O PSE fica disponível às <strong>'+_pNextEndStr+'</strong> (fim da sessão'+((_pDelay>0)?' + '+_pDelay+' min':'')+')':'A aguardar fim da sessão...';
     const evCards=_pEvs.map(ev=>{
       const [eh2,em2]=(ev.time||'00:00').split(':').map(Number);
-      const end2=eh2*60+em2+(ev.isDone?0:parseInt(ev.dur||90))+_pDelay;
+      const end2=eh2*60+em2+(ev.isDone?0:parseInt(ev.dur||90))+(ev.isDone?0:_pDelay);
       const hh=Math.floor(end2/60);const mm=end2%60;
       return `<div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;margin-bottom:6px"><i class="ti ti-barbell" style="font-size:20px;color:var(--t2)" aria-hidden="true"></i><div><div style="font-size:12px;font-weight:700">${ev.title}</div><div style="font-size:10px;color:var(--t2)">PSE disponível: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}</div></div></div>`;
     }).join('');
@@ -6029,7 +6030,7 @@ function markTreinoDone(id){
   APP.trainingPlans[idx].doneAt=today();
   APP.trainingPlans[idx].doneTime=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   if(_sync)cloudUpsert('training_plans',{...APP.trainingPlans[idx],club_id:_cid,athlete_id:APP.trainingPlans[idx].athleteId,done_at:APP.trainingPlans[idx].doneAt});
-  saveData();toast('Treino concluído ✅ — o PSE fica disponível em breve');renderAtTreino();
+  saveData();toast('Treino concluído ✅ — regista já o teu PSE!');_atNavTo('pse');
 }
 function renderAtConvoc(){
   const td=today();
