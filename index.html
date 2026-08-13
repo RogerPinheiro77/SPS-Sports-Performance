@@ -65,8 +65,13 @@ ul{list-style:none}
 .user-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd);font-size:12px}
 .user-role-badge{padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
 .urb-tec{background:#1d6f3b33;color:#4caf76}
+.urb-tecadj{background:#0e625133;color:#3ecfae}
+.urb-prep{background:#b8860b33;color:#e0c040}
+.urb-gr{background:#2d4f9c33;color:#7a9ce8}
 .urb-fis{background:#e07b3922;color:#f0a060}
 .urb-nut{background:#9c5ae022;color:#c080f0}
+.urb-tm{background:#0c7b9333;color:#5cd0e8}
+.urb-dir{background:#5b5f6633;color:#a7acb3}
 .urb-atl{background:#0284c722;color:#60b0f0}
 .cred-box{background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:14px;margin:10px 0;font-size:12px;font-family:monospace;word-break:break-all}
 .btn-login:disabled{opacity:.35;cursor:not-allowed}
@@ -346,7 +351,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn" onclick="toggleSb()">☰</button>
       <span class="topbar-title" id="pg-title">Dashboard</span>
       <button class="tb-btn" onclick="openCloud()" title="Cloud">☁️</button>
-      <button class="tb-btn" onclick="navTo('config')" title="Config">⚙️</button>
+      <button class="tb-btn" id="tb-cfg-btn" onclick="navTo('config')" title="Config">⚙️</button>
     </div>
     <div class="pg-content">
       <div class="pg on" id="pg-dashboard"></div>
@@ -465,6 +470,8 @@ function loadData(){
   if(!APP.config)APP.config=def.config;
   for(const k in def.config){if(APP.config[k]===undefined)APP.config[k]=def.config[k];}
   if(!APP.users)APP.users=[];
+  // migração: cargo antigo 'tecnico' (acesso total único) passa a 'treinador'
+  APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});
 }
 function saveData(){localStorage.setItem(DK,JSON.stringify(APP));if(_sync&&_supa&&_cid)pushAppMeta();}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -562,10 +569,10 @@ async function createFirstAdmin(){
   if(pwd.length<6){err.textContent='⚠️ Password com mínimo 6 caracteres.';return;}
   err.textContent='';
   const hash=await hashPwd(pwd);
-  const user={id:uid(),name,email,role:'tecnico',passwordHash:hash,isAdmin:true,active:true,createdAt:today()};
+  const user={id:uid(),name,email,role:'treinador',passwordHash:hash,isAdmin:true,active:true,createdAt:today()};
   APP.users.push(user);saveData();
-  setSession({userId:user.id,role:'tecnico',isAdmin:true,name:user.name});
-  ROLE='tecnico';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
+  setSession({userId:user.id,role:'treinador',isAdmin:true,name:user.name});
+  ROLE='treinador';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
 }
 async function handleLogin(){
   const username=(document.getElementById('login-user')?.value||'').trim();
@@ -657,8 +664,11 @@ function showAtletaApp(at){
   }
 }
 
-// ─── SIDEBAR ──────────────────────────────────────────────
-const NAV_TEC=[
+// ─── SIDEBAR & PERMISSÕES POR CARGO ────────────────────────
+// Registo central de todas as páginas da plataforma (secção + páginas).
+// A visibilidade de cada uma é controlada por ROLE_DEFS[cargo].pages — não editar
+// aqui para dar/tirar acesso, editar em ROLE_DEFS.
+const ALL_PAGES=[
   {sec:'Técnico'},
   {id:'dashboard',icon:'🏠',label:'Dashboard'},
   {id:'plantel',icon:'👥',label:'Plantel'},
@@ -678,23 +688,74 @@ const NAV_TEC=[
   {id:'treinos-ind',icon:'🏋️',label:'Treinos Individuais'},
   {sec:'Exportações'},
   {id:'relatorios',icon:'📥',label:'Relatórios'},
-];
-const NAV_FIS=[
   {sec:'Fisioterapia'},
   {id:'fisio-dash',icon:'🏠',label:'Dashboard'},
   {id:'fisio-ep',icon:'🩺',label:'Episódios'},
   {id:'fisio-trat',icon:'💊',label:'Tratamentos'},
-];
-const NAV_NUT=[
   {sec:'Nutrição'},
   {id:'nutri-dash',icon:'🏠',label:'Dashboard'},
   {id:'nutri-aval',icon:'📏',label:'Avaliações'},
   {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
 ];
+const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
+// Cargos: cada um define que páginas vê (pages), se só pode consultar (readOnly)
+// e se pode gerir Configurações/Utilizadores (manageUsers). O 1º admin criado
+// (createFirstAdmin) e qualquer utilizador com isAdmin=true têm sempre acesso a
+// Configurações, independentemente do cargo, para nunca ficar ninguém trancado fora.
+const ROLE_DEFS={
+  treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
+  treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','pse-wellness','treinos','treinos-ind','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
+  treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
+  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos'],readOnly:false,manageUsers:false},
+  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
+  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos'],readOnly:true,manageUsers:false}
+};
+function _navForRole(role){
+  const def=ROLE_DEFS[role];
+  if(!def)return ALL_PAGES;
+  const allowed=new Set(def.pages);
+  const out=[];let pendingSec=null;
+  ALL_PAGES.forEach(item=>{
+    if(item.sec){pendingSec=item;return;}
+    if(allowed.has(item.id)){
+      if(pendingSec){out.push(pendingSec);pendingSec=null;}
+      out.push(item);
+    }
+  });
+  return out;
+}
+function _defaultPageForRole(role){return (ROLE_DEFS[role]&&ROLE_DEFS[role].pages[0])||'dashboard';}
+function _canManageUsers(){const sess=getSession();return !!(sess&&sess.isAdmin)||!!(ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].manageUsers);}
+// Bloqueio de escrita para cargos "só consulta" (ex: Diretor): desativa botões que não
+// sejam claramente de exportação/impressão/consulta, e campos de formulário, dentro da
+// página atualmente visível. É uma barreira de interface, não uma barreira de dados —
+// ver nota de segurança na config de Supabase (sem Auth por utilizador/RLS individual).
+const _RO_SAFE_RE=/export|imprim|print|download|pdf/i;
+function _applyReadOnlyLock(){
+  const root=document.querySelector('.pg.on');
+  if(!root)return;
+  root.querySelectorAll('button').forEach(b=>{
+    const oc=b.getAttribute('onclick')||'';
+    if(_RO_SAFE_RE.test(oc)||_RO_SAFE_RE.test(b.textContent||''))return;
+    b.disabled=true;b.style.opacity='.4';b.style.cursor='not-allowed';
+    if(!b.title)b.title='Acesso de consulta — sem permissão para editar';
+  });
+  root.querySelectorAll('input,textarea').forEach(el=>{
+    if(el.type==='button'||el.type==='submit')return;
+    el.readOnly=true;
+    if(el.type==='checkbox'||el.type==='radio')el.disabled=true;
+  });
+  root.querySelectorAll('select').forEach(el=>el.disabled=true);
+}
 function renderSidebar(){
-  const nav= ROLE==='fisio'?NAV_FIS: ROLE==='nutri'?NAV_NUT: NAV_TEC;
-  const roleLabel={tecnico:'Técnico',fisio:'Fisioterapeuta',nutri:'Nutricionista'}[ROLE]||ROLE;
-  const roleInit={tecnico:'T',fisio:'F',nutri:'N'}[ROLE]||'S';
+  const nav=_navForRole(ROLE);
+  const roleDef=ROLE_DEFS[ROLE];
+  const roleLabel=(roleDef&&roleDef.label)||ROLE;
+  const roleInit=(roleDef&&roleDef.label?roleDef.label.slice(0,1):'S').toUpperCase();
+  const cfgBtn=document.getElementById('tb-cfg-btn');
+  if(cfgBtn)cfgBtn.style.display=_canManageUsers()?'':'none';
   const _sbAvEl=document.getElementById('sb-av');
   const _sbSess=getSession();
   if(_sbSess&&_sbSess.photo){_sbAvEl.innerHTML='<img src="'+_sbSess.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';}
@@ -709,6 +770,15 @@ function renderSidebar(){
   document.getElementById('sb-nav').innerHTML=h;
 }
 function navTo(id){
+  if(ROLE&&ROLE!=='atleta'){
+    const def=ROLE_DEFS[ROLE];
+    if(id==='config'){
+      if(!_canManageUsers()){toast('Sem permissão para aceder a Configurações.','err');id=_defaultPageForRole(ROLE);}
+    } else if(def&&!def.pages.includes(id)){
+      toast('Sem permissão para aceder a esta área.','err');
+      id=_defaultPageForRole(ROLE);
+    }
+  }
   _curPg=id;
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   const pg=document.getElementById('pg-'+id);
@@ -720,6 +790,7 @@ function navTo(id){
   document.getElementById('pg-title').textContent=titles[id]||id;
   const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
+  if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
 }
 function toggleSb(){document.getElementById('sidebar').classList.toggle('mob');}
@@ -6007,15 +6078,14 @@ function renderConfig(){
     <div class="card"><div class="ch"><span class="ct">👥 Utilizadores</span></div><div class="cb">
       <div class="al al-b" style="margin-bottom:12px;font-size:11px">Cada utilizador tem acesso independente com email e password.</div>
       ${(()=>{
-        const roles={tecnico:{label:'Técnico',cls:'urb-tec'},fisio:{label:'Fisioterapeuta',cls:'urb-fis'},nutri:{label:'Nutricionista',cls:'urb-nut'}};
         const sess=getSession();
         return APP.users.map(u=>{
-          const r=roles[u.role]||{label:u.role,cls:''};
+          const r=ROLE_DEFS[u.role]||{label:u.role,cls:'',icon:''};
           const isMe=sess&&sess.userId===u.id;
           return `<div class="user-row">
           ${_avHtml(u.name,u.photo||'',36)}
           <div style="flex:1"><strong>${u.name}</strong><div style="font-size:10px;color:var(--t2)">${u.email}</div></div>
-          <span class="user-role-badge ${r.cls}">${r.label}</span>
+          <span class="user-role-badge ${r.cls}">${r.icon||''} ${r.label}</span>
           ${u.isAdmin?'<span class="bdg bg-gr" style="font-size:9px">admin</span>':''}
           ${u.active===false?'<span class="bdg bg-r" style="font-size:9px">inativo</span>':''}
           ${isMe?'':`<button class="btn btn-xs btn-gh" title="Repor password" onclick="resetUserPwd('${u.id}')">🔑</button><button class="btn btn-xs btn-gh" onclick="toggleUserActive('${u.id}')">${u.active===false?'▶':'⏸'}</button><button class="btn btn-xs btn-r" onclick="deleteUser('${u.id}')">🗑️</button>`}
@@ -6050,12 +6120,11 @@ function renderConfig(){
           <div class="form-g"><label class="fl">Email</label><input class="fc" type="email" id="new-user-email" placeholder="email@clube.pt"></div>
         </div>
         <div class="form-g"><label class="fl">Função</label>
-          <select class="fc" id="new-user-role">
-            <option value="tecnico">🧑‍💼 Técnico</option>
-            <option value="fisio">🏥 Fisioterapeuta</option>
-            <option value="nutri">🥗 Nutricionista</option>
+          <select class="fc" id="new-user-role" onchange="_updateNewUserRoleHint()">
+            ${Object.entries(ROLE_DEFS).map(([k,d])=>`<option value="${k}">${d.icon} ${d.label}</option>`).join('')}
           </select>
         </div>
+        <div class="al al-b" style="margin-top:6px;font-size:10.5px" id="new-user-role-hint"></div>
         <button class="btn btn-g btn-sm" onclick="addUserFromConfig()">📤 Criar + Gerar Credenciais</button>
       </div>
     </div></div>
@@ -6117,6 +6186,16 @@ function renderConfig(){
       <div style="display:flex;gap:6px;margin-top:10px"><input class="fc" id="new-team-name" placeholder="Nova equipa..." style="flex:1"><button class="btn btn-g btn-sm" onclick="addTeamQuick()">+</button></div>
     </div></div>
   </div>`;
+  _updateNewUserRoleHint();
+}
+function _updateNewUserRoleHint(){
+  const sel=document.getElementById('new-user-role');
+  const hint=document.getElementById('new-user-role-hint');
+  if(!sel||!hint)return;
+  const def=ROLE_DEFS[sel.value];
+  if(!def){hint.textContent='';return;}
+  const labels=_navForRole(sel.value).filter(p=>!p.sec).map(p=>p.label);
+  hint.textContent=(def.readOnly?'👁️ Só consulta — ':'✏️ Acesso a: ')+(labels.join(', ')||'nenhuma página')+(def.manageUsers?' + Configurações/Utilizadores':'');
 }
 function saveConfig(){
   APP.config.clubName=document.getElementById('cfg-club').value||APP.config.clubName;
@@ -6870,7 +6949,7 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
 (function initSession(){
   const sess=getSession();
   if(sess&&sess.role){
-    ROLE=sess.role;
+    ROLE=sess.role==='tecnico'?'treinador':sess.role;
     if(sess.role==='atleta'){
       AID=sess.userId;
       const at=APP.athletes.find(a=>a.id===AID);
