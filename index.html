@@ -6801,7 +6801,7 @@ async function pullCloud(){
     console.log('[pullCloud] club_id=',_cid,'meta found=',!!(meta&&meta.data),'error=',metaErr);
     if(meta&&meta.data){
       const m=meta.data;
-      if(m.users&&m.users.length)APP.users=m.users;
+      if(m.users&&m.users.length){APP.users=m.users;APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}
       if(m.config)APP.config=Object.assign(APP.config||{},m.config);
       if(m.teams&&m.teams.length)APP.teams=m.teams;
       if(m.games&&m.games.length)APP.games=m.games;
