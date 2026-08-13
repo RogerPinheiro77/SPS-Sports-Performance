@@ -3738,43 +3738,74 @@ async function _pdfBrandify(bytes){
   const athletes=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId)
     .slice().sort((a,b)=>(+(a.number||a.num)||999)-(+(b.number||b.num)||999));
 
+  function _centeredWrap(page,font,text,size,color,cx,topY,maxW,lineH){
+    const words=(text||'').split(' ').filter(Boolean);
+    const lines=[];let cur='';
+    words.forEach(w=>{
+      const test=cur?cur+' '+w:w;
+      if(cur&&font.widthOfTextAtSize(test,size)>maxW){lines.push(cur);cur=w;}
+      else cur=test;
+    });
+    if(cur)lines.push(cur);
+    lines.forEach((line,i)=>{
+      const w=font.widthOfTextAtSize(line,size);
+      page.drawText(line,{x:cx-w/2,y:topY-i*lineH,size,font,color});
+    });
+    return lines.length;
+  }
+
   const BAND_H=138;
   const pages=doc.getPages();
-  pages.forEach(page=>{
+  pages.forEach((page,pageIdx)=>{
     const {width,height}=page.getSize();
     page.setSize(width,height+BAND_H);
     const top=height+BAND_H;
 
+    // tapar o cabeçalho original ("dossier do treinador") só na 1ª página,
+    // onde este template o coloca — substituído pela nova faixa de marca acima
+    if(pageIdx===0){
+      page.drawRectangle({x:0,y:height-50,width:180,height:52,color:rgb(1,1,1)});
+    }
+
     page.drawRectangle({x:0,y:height,width,height:BAND_H,color:rgb(1,1,1)});
     page.drawRectangle({x:0,y:height-2,width,height:2,color:GREEN});
 
-    // clube (esquerda)
-    const logoSize=58;
+    // clube (esquerda) — logo em cima, nome por baixo, tudo centrado na coluna
+    const leftColX=24,leftColW=140,leftCx=leftColX+leftColW/2;
+    const logoSize=56;
+    let logoBottomY=top-14-logoSize;
     if(clubLogoImg){
       const dims=clubLogoImg.scale(1);
       const ratio=Math.min(logoSize/dims.width,logoSize/dims.height);
       const dw=dims.width*ratio,dh=dims.height*ratio;
-      page.drawImage(clubLogoImg,{x:24+(logoSize-dw)/2,y:height+(BAND_H-logoSize)/2+(logoSize-dh)/2,width:dw,height:dh});
+      page.drawImage(clubLogoImg,{x:leftCx-dw/2,y:top-14-dh,width:dw,height:dh});
+      logoBottomY=top-14-dh;
     }
-    page.drawText(APP.config.clubName||'Clube',{x:24+logoSize+14,y:height+92,size:13,font:bold,color:GREEN});
-    page.drawText((APP.config.season||'')+' · Unidade de Treino',{x:24+logoSize+14,y:height+74,size:8.5,font:reg,color:rgb(0.45,0.45,0.45)});
+    let nLines=_centeredWrap(page,bold,APP.config.clubName||'Clube',10.5,GREEN,leftCx,logoBottomY-13,leftColW,12);
+    _centeredWrap(page,reg,(APP.config.season||'')+' · Unidade de Treino',7.5,rgb(0.45,0.45,0.45),leftCx,logoBottomY-13-nLines*12-3,leftColW,10);
 
-    // logo SPS (meio) — quadrado tal como fornecido
+    // logo SPS (direita) — quadrado tal como fornecido, alinhado ao topo com o logo do clube
+    const spsSize=90,rightMargin=24;
+    const spsX=width-rightMargin-spsSize,spsY=top-14-spsSize;
     if(spsLogoImg){
-      const spsSize=90;
-      page.drawImage(spsLogoImg,{x:300,y:height+(BAND_H-spsSize)/2,width:spsSize,height:spsSize});
+      page.drawImage(spsLogoImg,{x:spsX,y:spsY,width:spsSize,height:spsSize});
     }
 
-    // checklist de atletas (direita) — 3 colunas x 9 linhas
-    const chX=405,colW=58,rowH=12.5;
-    page.drawText('LISTA DE PRESENÇAS',{x:chX,y:top-22,size:7.5,font:bold,color:GREEN});
+    // checklist de atletas (centro) — 3 colunas x 9 linhas, a preencher o espaço entre os dois logos
+    const chGap=20;
+    const chX=leftColX+leftColW+chGap;
+    const chWidth=spsX-chGap-chX;
+    const colW=chWidth/3,rowH=12.5;
+    const titleTxt='LISTA DE PRESENÇAS',titleSize=8;
+    const titleW=bold.widthOfTextAtSize(titleTxt,titleSize);
+    page.drawText(titleTxt,{x:chX+chWidth/2-titleW/2,y:top-22,size:titleSize,font:bold,color:GREEN});
     for(let i=0;i<27;i++){
       const col=Math.floor(i/9),row=i%9;
       const cx=chX+col*colW,cy=top-40-row*rowH;
       page.drawRectangle({x:cx,y:cy,width:5.5,height:5.5,borderColor:rgb(0.55,0.55,0.55),borderWidth:0.6});
       const a=athletes[i];
       const label=a?`${a.number||a.num||'—'}. ${(a.name||'').split(' ')[0]}`:'—';
-      page.drawText(label,{x:cx+8.5,y:cy+0.5,size:6.4,font:reg,color:a?rgb(0.2,0.2,0.2):rgb(0.82,0.82,0.82)});
+      page.drawText(label,{x:cx+8.5,y:cy+0.5,size:6.8,font:reg,color:a?rgb(0.2,0.2,0.2):rgb(0.82,0.82,0.82)});
     }
   });
 
