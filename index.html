@@ -6888,7 +6888,12 @@ async function cloudUpsert(table,row){
     let payload;
     if(schema){
       const src={...row};
-      Object.keys(schema.rename||{}).forEach(k=>{ if(src[k]!==undefined&&src[schema.rename[k]]===undefined)src[schema.rename[k]]=src[k]; });
+      // Sempre que o objeto local tem as duas formas (ex: passwordHash E password_hash,
+      // porque pullCloud() faz spread(r) + campos camelCase por cima), o valor camelCase
+      // é sempre o mais atual — quem chama cloudUpsert acabou de o mutar. Sobrepor sempre
+      // (não só quando o campo snake_case está undefined), senão o valor antigo vindo do
+      // último pull "ganha" silenciosamente e a atualização nunca chega à cloud.
+      Object.keys(schema.rename||{}).forEach(k=>{ if(src[k]!==undefined)src[schema.rename[k]]=src[k]; });
       payload={club_id:_cid};
       schema.cols.forEach(c=>{ if(src[c]!==undefined)payload[c]=src[c]; });
     } else {
