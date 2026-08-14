@@ -3432,7 +3432,7 @@ function renderTreinos(){
     const totalEx=Object.values(tr.exercises||{}).flat().length;
     return`<div class="card" style="cursor:pointer;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px" onclick="_trId='${tr.id}';_trView='detail';_trExTab='aquecimento';renderTreinos()">
       <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
-        <div style="font-weight:700;font-size:14px">${escHtml(tr.title||'Unidade de Treino')}</div>
+        <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px">${escHtml(tr.title||'Unidade de Treino')}${tr.pdfImported?'<span style="font-size:10px;font-weight:700;color:#1D9E75;background:#1D9E7522;padding:1px 7px;border-radius:20px">✓ PDF</span>':''}</div>
         <div style="font-size:12px;color:var(--t2)">${tr.date?fmtDate(tr.date):''}${tr.horaInicio?' '+tr.horaInicio:''}${tr.horaFim?'–'+tr.horaFim:''}${tr.local?' · '+escHtml(tr.local):''}</div>
         <div style="font-size:11px;color:var(--t2);margin-top:2px">${totalEx} exercício${totalEx!==1?'s':''} · ${tr.duracao||0} min${tr.objetivo?' · '+escHtml(tr.objetivo):''}</div>
       </div>
@@ -3490,10 +3490,16 @@ function _renderTrDetail(){
   <div class="sh" style="flex-wrap:wrap;gap:8px">
     <button class="btn btn-gh btn-sm" onclick="_trView='list';_trId=null;renderTreinos()">← Todas as UTs</button>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-gh btn-sm" onclick="document.getElementById('tr-pdf-inp-detail').click()">📥 Importar PDF</button>
       <button class="btn btn-sm" onclick="exportTreinoPDF('${tr.id}')">📄 Exportar PDF</button>
       <button class="btn btn-g btn-sm" onclick="saveTreinoPatch('${tr.id}')">💾 Guardar</button>
     </div>
   </div>
+  <input type="file" id="tr-pdf-inp-detail" accept="application/pdf" style="display:none" onchange="handleImportTreinoPDF(this,'${tr.id}')">
+  ${tr.pdfImported?`<div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--t2)">
+    <span style="color:#1D9E75;font-weight:700">✓ PDF importado</span>
+    <span>${escHtml(tr.pdfImportedName||'')}${tr.pdfImportedAt?' · '+fmtDate(tr.pdfImportedAt):''} — verifica a pasta de downloads do teu computador</span>
+  </div>`:''}
   <div class="card" style="padding:14px 16px;margin-bottom:12px">
     <div class="fr" style="gap:10px;flex-wrap:wrap">
       <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Título da Unidade</label><input class="fc" id="tr-title" value="${escHtml(tr.title||'')}" placeholder="Ex: Bloco Defensivo — Treino #14"></div>
@@ -3831,7 +3837,7 @@ function triggerImportTreinoPDF(){
   if(el)el.click();
 }
 
-async function handleImportTreinoPDF(input){
+async function handleImportTreinoPDF(input,trId){
   const file=input.files[0];if(!file)return;
   input.value='';
   if(!window.PDFLib)return toast('Biblioteca de PDF não carregou. Verifica a ligação à internet.','err');
@@ -3842,10 +3848,21 @@ async function handleImportTreinoPDF(input){
     const blob=new Blob([outBytes],{type:'application/pdf'});
     const url=URL.createObjectURL(blob);
     const baseName=(file.name||'plano_treino').replace(/\.pdf$/i,'');
+    const dlName=baseName+'_SPS.pdf';
     const a=document.createElement('a');
-    a.href=url;a.download=baseName+'_SPS.pdf';
+    a.href=url;a.download=dlName;
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),4000);
+    // Não guardamos o PDF em si (custaria ~450KB por unidade e estouraria o limite
+    // de armazenamento das Unidades de Treino) — só marcamos que já foi importado.
+    if(trId){
+      const tr=APP.trainings.find(t=>t.id===trId);
+      if(tr){
+        tr.pdfImported=true;tr.pdfImportedName=dlName;tr.pdfImportedAt=today();
+        saveData();
+        if(_trId===trId&&_trView==='detail')_renderTrDetail();
+      }
+    }
     toast('PDF pronto ✓ — vê os teus downloads');
   }catch(e){
     console.error('Erro ao processar PDF:',e);
