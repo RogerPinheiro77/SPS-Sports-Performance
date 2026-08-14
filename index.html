@@ -2092,7 +2092,6 @@ function openAthleteModal(id){
   },80);
 }
 
-function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();const ov=document.getElementById('athlete-profile-ov');if(ov)ov.remove();navTo('plantel');}
 
 // ─── PLANEAMENTO (CALENDÁRIO) ─────────────────────────────
 let _calYear=new Date().getFullYear(), _calMonth=new Date().getMonth();
@@ -6071,7 +6070,19 @@ async function resetAthletePwd(id){
   if(_sync)cloudUpsert('athletes',{...at,club_id:_cid,team_id:at.teamId});
   toast('Password reposta ✓');showAthleteCredsModal(at,rawPwd);
 }
-function deleteAthlete(id){if(!confirm('Apagar atleta?'))return;APP.athletes=APP.athletes.filter(a=>a.id!==id);saveData();toast('Atleta apagada');closeMod();const ov=document.getElementById('athlete-profile-ov');if(ov)ov.remove();navTo('plantel');}
+async function deleteAthlete(id){
+  const at=APP.athletes.find(a=>a.id===id);if(!at)return;
+  if(!confirm('Remover '+at.name+' do plantel? Vai passar para Scouting.'))return;
+  APP.athletes=APP.athletes.filter(a=>a.id!==id);
+  if(!APP.scouting)APP.scouting=[];
+  APP.scouting.push({id:uid(),name:at.name,pos:at.pos||'',club:(APP.config.clubName||'Clube')+' (ex-)',nat:at.nat||'',age:ageYears(at.dob)||null,height:at.height||'',foot:at.foot||'',rating:0,notes:'Saiu do plantel em '+today()+'.'+(at.num?' Usava o nº'+at.num+'.':''),video:'',photo:at.photo||'',addedAt:today()});
+  saveData();
+  if(_sync&&_supa){try{await _supa.from('athletes').delete().eq('id',id);}catch(err){console.warn('deleteAthlete cloud:',err);}}
+  toast('Atleta movida para Scouting ✓');
+  closeMod();
+  const ov=document.getElementById('athlete-profile-ov');if(ov)ov.remove();
+  navTo('plantel');
+}
 function showAthleteCredsFromProfile(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
   if(at.passwordHash){if(confirm('Gerar nova password para '+at.name+'?'))resetAthletePwd(id);}
