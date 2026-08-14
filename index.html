@@ -3803,7 +3803,7 @@ function exportTreinoPDF(trId){
     ${phasesHtml}
     <div style="margin-top:24px;border-top:1px solid #e0e0e0;padding-top:10px;font-size:10px;color:#aaa;text-align:center">${clubName} · Unidade de Treino · ${new Date().toLocaleDateString('pt-PT')}</div>
   </div>`;
-  _printWin('Unidade de Treino — '+(tr.title||fmtDate(tr.date)),bodyHtml,_trAtChecklistHtml());
+  _printWin('Unidade de Treino — '+(tr.title||fmtDate(tr.date)),bodyHtml,_trAtChecklistHtml(),true);
 }
 
 function _trAtChecklistHtml(){
@@ -5488,7 +5488,7 @@ function _dlCSV(rows,filename){
   const a=document.createElement('a');a.href=url;a.download=filename;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-function _printWin(title,bodyHtml,headerExtra){
+function _printWin(title,bodyHtml,headerExtra,sideLogo){
   const club=APP.config.clubName||'Sport Performance';
   const season=APP.config.season||'';
   const logo=APP.config.clubLogo?`<img src="${APP.config.clubLogo}" style="height:48px;object-fit:contain">`:club.slice(0,1);
@@ -5520,13 +5520,19 @@ function _printWin(title,bodyHtml,headerExtra){
     .kpi-v{font-size:16pt;font-weight:900;color:#1d6f3b}
     .kpi-l{font-size:7pt;color:#666;text-transform:uppercase;margin-top:2px}
     h3{font-size:11pt;font-weight:700;color:#1d6f3b;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid #eee}
+    @page{size:A4}
     @media print{body{padding:10mm 10mm}@page{margin:8mm}}
   </style>
   </head><body>
   <div class="pr-header" style="${headerExtra?'align-items:flex-start':''}">
     <div class="pr-logo">${logo}</div>
     <div style="flex-shrink:0"><div class="pr-club">${club}</div><div class="pr-sub">${season} · Gerado em ${new Date().toLocaleDateString('pt-PT',{day:'2-digit',month:'long',year:'numeric'})}</div></div>
+    ${sideLogo?`
+    <div style="flex:1;display:flex;align-items:flex-start;justify-content:center">${headerExtra||''}</div>
+    <img src="${SPS_LOGO_URL}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0">
+    `:`
     <div style="margin-left:auto;text-align:right">${headerExtra||`<span style="font-size:9pt;color:#666">${title}</span>`}</div>
+    `}
   </div>
   ${bodyHtml}
   <div class="pr-footer"><span>${club} · ${season}</span><span class="pr-footer-brand"><img src="${SPS_LOGO_URL}"> SPS Sports Performance System</span><span>Gerado em ${new Date().toLocaleDateString('pt-PT')}</span></div>
