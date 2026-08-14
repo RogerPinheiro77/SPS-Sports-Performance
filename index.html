@@ -652,7 +652,7 @@ function showStaffApp(){
 function showAtletaApp(at){
   document.getElementById('screen-login').style.display='none';
   document.getElementById('atleta-app').classList.add('on');
-  applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',iconSrc:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE});
+  applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE});
   document.getElementById('at-name').textContent=at.name;
   const _atAvEl=document.getElementById('at-topbar-av');
   if(_atAvEl){if(at.photo){_atAvEl.innerHTML='<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';}else{_atAvEl.textContent=initials(at.name);}}
@@ -7300,10 +7300,10 @@ var _ATLETA_ICON_512='assets/icon_atleta_512.png';
 var _ATLETA_ICON_APPLE='assets/icon_atleta_apple.png';
 function applyPWAManifest(opts){
   try{
-    var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
+    var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, icon192=opts.icon192||iconSrc, icon512=opts.icon512||iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
     var manifest={name:name,short_name:shortName,start_url:location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:themeColor,icons:[
-      {src:iconSrc,sizes:'192x192',type:iconType,purpose:'any maskable'},
-      {src:iconSrc,sizes:'512x512',type:iconType,purpose:'any maskable'}
+      {src:icon192,sizes:'192x192',type:iconType,purpose:'any maskable'},
+      {src:icon512,sizes:'512x512',type:iconType,purpose:'any maskable'}
     ]};
     var ati=document.querySelector('link[rel="apple-touch-icon"]');
     if(!ati){ati=document.createElement('link');ati.rel='apple-touch-icon';document.head.appendChild(ati);}
