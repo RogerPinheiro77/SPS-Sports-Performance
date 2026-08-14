@@ -6947,17 +6947,28 @@ loadData();
     var iconType = clubLogo ? (clubLogo.startsWith('data:image/png')?'image/png':clubLogo.startsWith('data:image/jpeg')||clubLogo.startsWith('data:image/jpg')?'image/jpeg':'image/png') : 'image/svg+xml';
     applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     // Service Worker desativado temporariamente
-    // Banner Android
-    window.addEventListener('beforeinstallprompt',function(e){
-      e.preventDefault();window._pwaE=e;
+    // Banner de instalacao -- mesmo visual em Android e iOS, so muda o que acontece ao tocar
+    // em "Instalar": Android usa o prompt nativo (beforeinstallprompt); iOS nao tem esse evento
+    // (a Apple nao o suporta em nenhum browser web), por isso installPWA() cai sempre no popup
+    // manual (Partilhar -> Adicionar ao Ecra Inicial) quando window._pwaE nao esta definido.
+    function _showPwaBar(){
       if(document.getElementById('pwa-bar'))return;
       var b=document.createElement('div');
       b.id='pwa-bar';
       b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:'+clubColor+';color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:9999;font-size:13px;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,.5)';
       b.innerHTML='<span>\u{1F4F1} Instala a app no teu dispositivo</span><div style="display:flex;gap:8px"><button onclick="installPWA()" style="background:#fff;color:'+clubColor+';border:none;padding:7px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">Instalar</button><button onclick="document.getElementById(\'pwa-bar\').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 10px;border-radius:6px;cursor:pointer">\u2715</button></div>';
       document.body.appendChild(b);
+    }
+    // Banner Android -- so depois do browser confirmar (via beforeinstallprompt) que e instalavel
+    window.addEventListener('beforeinstallprompt',function(e){
+      e.preventDefault();window._pwaE=e;
+      _showPwaBar();
     });
     window.addEventListener('appinstalled',function(){var b=document.getElementById('pwa-bar');if(b)b.remove();});
+    // Banner iOS -- sem beforeinstallprompt, mostra sempre que a app nao estiver ja instalada (standalone)
+    var _isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+    var _isStandalone=window.navigator.standalone||window.matchMedia('(display-mode:standalone)').matches;
+    if(_isIOS&&!_isStandalone) _showPwaBar();
   }catch(err){console.warn('PWA:',err);}
 })();
 
