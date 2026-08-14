@@ -1350,16 +1350,26 @@ function renderPlantel(teamId){
     </div>
   </div>`:'';
 
-  let cardsHtml='';
-  if(!athletes.length){cardsHtml=`<div class="empty"><div class="ei">👥</div><p>Sem atletas nesta equipa</p><div class="esub">Adiciona a primeira atleta</div></div>`;}
-  else{
-    cardsHtml=`<div class="pgrid">`;
-    athletes.sort((a,b)=>(a.num||99)-(b.num||99)).forEach(at=>{
-      const inj=APP.injuries.find(i=>i.athleteId===at.id&&(i.status==='ativo'||i.status==='reabilitação'));
-      const wLast=APP.wellness.filter(w=>w.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
-      const dots=wLast.map(w=>`<div class="wd ${wellnessColor(w.score)}"></div>`).join('')+'<div class="wd wd0"></div>'.repeat(Math.max(0,5-wLast.length));
-      const av=at.photo?`<img src="${at.photo}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`:'';
-      cardsHtml+=`<div class="at-card ${inj?'inj':''}" onclick="openAthleteModal('${at.id}')">
+  // Agrupamento por linha (GR / Defesas / Médios / Avançados) — usa sempre a posição
+  // PRINCIPAL (primeiro código antes da "/"), normalizada via _posToCode (aceita tanto
+  // códigos curtos como texto em português, ver af-pos). Extremos (ELD/ELE) ficam com os
+  // Avançados — decisão confirmada com o Roger em 2026-08-14, não colocar nos Médios.
+  const _POS_ROWS=[
+    {key:'gr',label:'🧤 Guarda-Redes',codes:['GR']},
+    {key:'def',label:'🛡️ Defesas',codes:['DC','DD','DE']},
+    {key:'med',label:'⚙️ Médios',codes:['MDC','MC','MOC']},
+    {key:'ata',label:'⚡ Avançados',codes:['ELD','ELE','PL','AV']}
+  ];
+  function _athletePrimaryCode(at){
+    const first=(at.pos||'').split('/')[0].trim();
+    return _posToCode(first);
+  }
+  function _renderAthleteCard(at){
+    const inj=APP.injuries.find(i=>i.athleteId===at.id&&(i.status==='ativo'||i.status==='reabilitação'));
+    const wLast=APP.wellness.filter(w=>w.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+    const dots=wLast.map(w=>`<div class="wd ${wellnessColor(w.score)}"></div>`).join('')+'<div class="wd wd0"></div>'.repeat(Math.max(0,5-wLast.length));
+    const av=at.photo?`<img src="${at.photo}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`:'';
+    return `<div class="at-card ${inj?'inj':''}" onclick="openAthleteModal('${at.id}')">
         <div class="at-av">${av}<span ${at.photo?'style="display:none"':''}>${initials(at.name)}</span></div>
         <div class="at-name">${at.name}</div>
         <div class="at-pos">${at.pos||'—'} ${at.nat||''}</div>
@@ -1367,8 +1377,24 @@ function renderPlantel(teamId){
         ${inj?`<div class="bdg bg-r" style="margin:4px auto 0;font-size:9px">🩺 ${inj.type||'Lesão'}</div>`:''}
         <div class="wdots" title="Wellness (últimas submissões)">${dots}</div>
       </div>`;
+  }
+  let cardsHtml='';
+  if(!athletes.length){cardsHtml=`<div class="empty"><div class="ei">👥</div><p>Sem atletas nesta equipa</p><div class="esub">Adiciona a primeira atleta</div></div>`;}
+  else{
+    const sorted=[...athletes].sort((a,b)=>(a.num||99)-(b.num||99));
+    const grouped=_POS_ROWS.map(row=>({...row,athletes:sorted.filter(at=>row.codes.includes(_athletePrimaryCode(at)))}));
+    const usedIds=new Set(grouped.flatMap(g=>g.athletes.map(a=>a.id)));
+    const semPos=sorted.filter(at=>!usedIds.has(at.id));
+    if(semPos.length)grouped.push({key:'sem',label:'❔ Sem posição definida',athletes:semPos});
+    grouped.forEach(g=>{
+      if(!g.athletes.length)return;
+      cardsHtml+=`<div class="plantel-row-h" style="display:flex;align-items:center;gap:8px;margin:18px 0 8px;font-size:12px;font-weight:800;color:var(--t1);text-transform:uppercase;letter-spacing:.5px">
+        <span>${g.label}</span>
+        <span style="background:var(--bg3);color:var(--t2);border-radius:20px;padding:1px 8px;font-size:10px;font-weight:700;text-transform:none;letter-spacing:0">${g.athletes.length}</span>
+        <span style="flex:1;height:1px;background:var(--brd)"></span>
+      </div>`;
+      cardsHtml+=`<div class="pgrid">${g.athletes.map(_renderAthleteCard).join('')}</div>`;
     });
-    cardsHtml+=`</div>`;
   }
 
   document.getElementById('pg-plantel').innerHTML=`
