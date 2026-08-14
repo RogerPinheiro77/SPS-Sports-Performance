@@ -6900,7 +6900,61 @@ async function cloudUpsert(table,row){
   pushAppMeta();
 }
 // ─── INIT ──────────────────────────────────────────
+// ─── PWA ─────────────────────────────────────────────────────
+// Ícones fixos da app da atleta (SPS Atleta) — ver assets/icon_atleta_*.png
+var _ATLETA_ICON_192='assets/icon_atleta_192.png';
+var _ATLETA_ICON_512='assets/icon_atleta_512.png';
+var _ATLETA_ICON_APPLE='assets/icon_atleta_apple.png';
+function applyPWAManifest(opts){
+  try{
+    var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, icon192=opts.icon192||iconSrc, icon512=opts.icon512||iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
+    var manifest={name:name,short_name:shortName,start_url:location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:themeColor,icons:[
+      {src:icon192,sizes:'192x192',type:iconType,purpose:'any maskable'},
+      {src:icon512,sizes:'512x512',type:iconType,purpose:'any maskable'}
+    ]};
+    var ati=document.querySelector('link[rel="apple-touch-icon"]');
+    if(!ati){ati=document.createElement('link');ati.rel='apple-touch-icon';document.head.appendChild(ati);}
+    ati.href=appleIcon;
+    var blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+    var link=document.getElementById('pwa-manifest');
+    if(link)link.href=URL.createObjectURL(blob);
+    var tc=document.querySelector('meta[name="theme-color"]');
+    if(tc)tc.content=themeColor;
+  }catch(err){console.warn('applyPWAManifest:',err);}
+}
+
 loadData();
+
+(function initPWA(){
+  try{
+    // Registar Service Worker
+    if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(function(e){console.warn('SW register error:',e);});}
+    var cfg=APP.config||{};
+    var clubColor=cfg.color||'#1d6f3b';
+    var raw=(cfg.clubName||'SPS').split(' ').map(function(w){return w[0]||'';}).join('').slice(0,3).toUpperCase()||'SPS';
+    var shortName=raw;
+    var clubName=cfg.clubName||'Sport Performance';
+    // Manifest
+    // Ícone: emblema do clube se disponível, senão SVG gerado
+    var clubLogo = cfg.clubLogo||'';
+    var svgIcon = 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192"><rect width="192" height="192" rx="38" fill="'+clubColor+'"/><text x="96" y="120" text-anchor="middle" font-family="system-ui" font-weight="900" font-size="80" fill="white">'+shortName+'</text></svg>';
+    var iconSrc = clubLogo || svgIcon;
+    var iconType = clubLogo ? (clubLogo.startsWith('data:image/png')?'image/png':clubLogo.startsWith('data:image/jpeg')||clubLogo.startsWith('data:image/jpg')?'image/jpeg':'image/png') : 'image/svg+xml';
+    applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
+    // Service Worker desativado temporariamente
+    // Banner Android
+    window.addEventListener('beforeinstallprompt',function(e){
+      e.preventDefault();window._pwaE=e;
+      if(document.getElementById('pwa-bar'))return;
+      var b=document.createElement('div');
+      b.id='pwa-bar';
+      b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:'+clubColor+';color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:9999;font-size:13px;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,.5)';
+      b.innerHTML='<span>\u{1F4F1} Instala a app no teu dispositivo</span><div style="display:flex;gap:8px"><button onclick="installPWA()" style="background:#fff;color:'+clubColor+';border:none;padding:7px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">Instalar</button><button onclick="document.getElementById(\'pwa-bar\').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 10px;border-radius:6px;cursor:pointer">\u2715</button></div>';
+      document.body.appendChild(b);
+    });
+    window.addEventListener('appinstalled',function(){var b=document.getElementById('pwa-bar');if(b)b.remove();});
+  }catch(err){console.warn('PWA:',err);}
+})();
 
 // Ligar ao Supabase ANTES de decidir o que mostrar no ecrã de login — evita mostrar
 // "criar conta" ou validar password contra dados locais vazios/desatualizados
@@ -7116,6 +7170,7 @@ function _checkAtletaToken(){
 function _showWelcomeScreen(at, tok, isReset){
   var loginScr = document.getElementById('screen-login');
   if(loginScr) loginScr.style.display='none';
+  applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE});
 
   var club      = APP.config.clubName||'Sport Performance';
   var clubColor = APP.config.color||'#1d6f3b';
@@ -7296,58 +7351,10 @@ async function _welcomeEntrar(aid){
   showAtletaApp(at);
 }
 
-// ─── PWA ─────────────────────────────────────────────────────
-// Ícones fixos da app da atleta (SPS Atleta) — ver assets/icon_atleta_*.png
-var _ATLETA_ICON_192='assets/icon_atleta_192.png';
-var _ATLETA_ICON_512='assets/icon_atleta_512.png';
-var _ATLETA_ICON_APPLE='assets/icon_atleta_apple.png';
-function applyPWAManifest(opts){
-  try{
-    var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, icon192=opts.icon192||iconSrc, icon512=opts.icon512||iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
-    var manifest={name:name,short_name:shortName,start_url:location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:themeColor,icons:[
-      {src:icon192,sizes:'192x192',type:iconType,purpose:'any maskable'},
-      {src:icon512,sizes:'512x512',type:iconType,purpose:'any maskable'}
-    ]};
-    var ati=document.querySelector('link[rel="apple-touch-icon"]');
-    if(!ati){ati=document.createElement('link');ati.rel='apple-touch-icon';document.head.appendChild(ati);}
-    ati.href=appleIcon;
-    var blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
-    var link=document.getElementById('pwa-manifest');
-    if(link)link.href=URL.createObjectURL(blob);
-    var tc=document.querySelector('meta[name="theme-color"]');
-    if(tc)tc.content=themeColor;
-  }catch(err){console.warn('applyPWAManifest:',err);}
-}
-(function initPWA(){
-  try{
-    // Registar Service Worker
-    if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(function(e){console.warn('SW register error:',e);});}
-    var cfg=APP.config||{};
-    var clubColor=cfg.color||'#1d6f3b';
-    var raw=(cfg.clubName||'SPS').split(' ').map(function(w){return w[0]||'';}).join('').slice(0,3).toUpperCase()||'SPS';
-    var shortName=raw;
-    var clubName=cfg.clubName||'Sport Performance';
-    // Manifest
-    // Ícone: emblema do clube se disponível, senão SVG gerado
-    var clubLogo = cfg.clubLogo||'';
-    var svgIcon = 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192"><rect width="192" height="192" rx="38" fill="'+clubColor+'"/><text x="96" y="120" text-anchor="middle" font-family="system-ui" font-weight="900" font-size="80" fill="white">'+shortName+'</text></svg>';
-    var iconSrc = clubLogo || svgIcon;
-    var iconType = clubLogo ? (clubLogo.startsWith('data:image/png')?'image/png':clubLogo.startsWith('data:image/jpeg')||clubLogo.startsWith('data:image/jpg')?'image/jpeg':'image/png') : 'image/svg+xml';
-    applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
-    // Service Worker desativado temporariamente
-    // Banner Android
-    window.addEventListener('beforeinstallprompt',function(e){
-      e.preventDefault();window._pwaE=e;
-      if(document.getElementById('pwa-bar'))return;
-      var b=document.createElement('div');
-      b.id='pwa-bar';
-      b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:'+clubColor+';color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:9999;font-size:13px;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,.5)';
-      b.innerHTML='<span>\u{1F4F1} Instala a app no teu dispositivo</span><div style="display:flex;gap:8px"><button onclick="installPWA()" style="background:#fff;color:'+clubColor+';border:none;padding:7px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">Instalar</button><button onclick="document.getElementById(\'pwa-bar\').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 10px;border-radius:6px;cursor:pointer">\u2715</button></div>';
-      document.body.appendChild(b);
-    });
-    window.addEventListener('appinstalled',function(){var b=document.getElementById('pwa-bar');if(b)b.remove();});
-  }catch(err){console.warn('PWA:',err);}
-})();
+// ─── PWA ────────────────────────────────────────────────────
+// applyPWAManifest()/initPWA() foram movidos para antes de loadData()/initSession()
+// (tinham de existir antes da primeira vez que _showWelcomeScreen() podia correr no boot)
+
 
 function installPWA(){
   if(window._pwaE){
