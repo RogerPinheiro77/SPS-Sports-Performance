@@ -3516,7 +3516,10 @@ function _renderTrDetail(){
   </div>
   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabsHtml}</div>
   <div id="tr-ex-list" style="display:flex;flex-direction:column;gap:10px">${exHtml}</div>
-  <button class="btn btn-g" style="margin-top:12px;width:100%" onclick="addExercicioUT('${tr.id}','${_trExTab}')">+ Adicionar Exercício — ${ph.label}</button>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-g" style="flex:1" onclick="addExercicioUT('${tr.id}','${_trExTab}')">+ Adicionar Exercício — ${ph.label}</button>
+    <button class="btn btn-gh" style="flex:1" onclick="pickFromBiblioteca('${tr.id}','${_trExTab}')">📚 Da Biblioteca</button>
+  </div>
   `;
 }
 
@@ -3605,7 +3608,43 @@ function setVideoUrl(trId,phase,idx){
 }
 
 function addExercicioUT(trId,phase){
+  window._pendingExDrawing='';
   _openExModal(trId,phase,-1,{id:'',name:'',desc:'',series:'',durSerie:'',pausa:'',tags:[],drawing:'',videoUrl:''});
+}
+function pickFromBiblioteca(trId,phase){
+  if(!APP.exercises.length){
+    openMod('Escolher da Biblioteca',`<div class="empty"><div class="ei">📚</div><p>A Biblioteca ainda não tem exercícios.</p></div><button class="btn btn-gh" style="margin-top:10px" onclick="closeMod()">Fechar</button>`,'lg');
+    return;
+  }
+  const catCounts={};APP.exercises.forEach(e=>{catCounts[e.cat]=(catCounts[e.cat]||0)+1;});
+  const catBtns=[{k:'',v:'Todos'},...EX_CATS.filter(c=>catCounts[c]).map(c=>({k:c,v:c}))];
+  window._pickLibCat='';
+  const render=()=>{
+    const list=APP.exercises.filter(e=>!window._pickLibCat||e.cat===window._pickLibCat);
+    const listHtml=list.length?list.map(e=>`
+    <div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;cursor:pointer;margin-bottom:6px" onclick="_pickLibEx('${trId}','${phase}','${e.id}')">
+      <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg3);display:flex;align-items:center;justify-content:center">
+        ${e.img?`<img src="${e.img}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:20px">📚</span>'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:12px">${escHtml(e.name)}</div>
+        <div style="font-size:10px;color:var(--t2)">${e.cat}${e.equip?' · '+escHtml(e.equip):''}</div>
+      </div>
+    </div>`).join(''):`<div class="empty"><div class="ei">📚</div><p>Sem exercícios nesta categoria</p></div>`;
+    const el=document.getElementById('pick-lib-list');
+    if(el)el.innerHTML=listHtml;
+  };
+  openMod('Escolher da Biblioteca',`
+  <div class="tabs" id="pick-lib-cats" style="margin-bottom:10px">${catBtns.map(c=>`<button class="tab-btn ${c.k===''?'on':''}" data-cat="${c.k}" onclick="window._pickLibCat='${c.k}';document.querySelectorAll('#pick-lib-cats .tab-btn').forEach(b=>b.classList.toggle('on',b.getAttribute('data-cat')===window._pickLibCat));window._renderPickLibList()">${c.v}</button>`).join('')}</div>
+  <div id="pick-lib-list" style="max-height:55vh;overflow-y:auto"></div>`,'lg');
+  window._renderPickLibList=render;
+  setTimeout(render,10);
+}
+function _pickLibEx(trId,phase,exId){
+  const e=APP.exercises.find(x=>x.id===exId);if(!e)return;
+  closeMod();
+  window._pendingExDrawing=e.img||'';
+  _openExModal(trId,phase,-1,{id:'',name:e.name,desc:e.desc||'',series:'',durSerie:'',pausa:'',tags:[e.cat].filter(Boolean),drawing:e.img||'',videoUrl:''});
 }
 
 function editExercicioUT(trId,phase,idx){
@@ -3626,6 +3665,10 @@ function _openExModal(trId,phase,idx,ex){
   const isNew=idx<0;
   const tagsVal=(ex.tags||[]).join(', ');
   openMod((isNew?'Novo':'Editar')+' Exercício — '+ph.label,`
+  ${ex.drawing?`<div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;background:var(--bg3);border-radius:8px;padding:8px">
+    <img src="${ex.drawing}" style="width:64px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0">
+    <span style="font-size:11px;color:var(--t2)">Esquema importado da Biblioteca — fica associado a este exercício.</span>
+  </div>`:''}
   <div class="form-g"><label class="fl">Nome *</label><input class="fc" id="ex-name" value="${escHtml(ex.name||'')}" placeholder="Ex: Rondo 5v2"></div>
   <div class="form-g"><label class="fl">Descrição</label><textarea class="fc" id="ex-desc" rows="3" placeholder="Objectivos, variantes, pontos-chave...">${escHtml(ex.desc||'')}</textarea></div>
   <div class="fr3">
@@ -3654,9 +3697,10 @@ function _saveExModal(trId,phase,idx){
     durSerie:document.getElementById('ex-dur').value.trim(),
     pausa:document.getElementById('ex-pausa').value.trim(),
     tags:document.getElementById('ex-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
-    drawing:oldEx.drawing||'',
+    drawing:oldEx.drawing||window._pendingExDrawing||'',
     videoUrl:oldEx.videoUrl||''
   };
+  window._pendingExDrawing='';
   if(idx<0)tr.exercises[phase].push(ex);
   else tr.exercises[phase][idx]=ex;
   saveData();closeMod();toast(idx<0?'Exercício adicionado ✓':'Exercício actualizado ✓');_renderTrDetail();
@@ -4851,6 +4895,16 @@ function renderBiblioteca(){
     <div class="form-g"><label class="fl">Dificuldade</label><select class="fc" id="lf-diff"><option>Leve</option><option>Médio</option><option>Intenso</option><option>Máximo</option></select></div></div>
     <div class="form-g"><label class="fl">Equipamento</label><input class="fc" id="lf-equip" placeholder="Bola, Cones, Barras..."></div>
     <div class="form-g"><label class="fl">Descrição</label><textarea class="fc" id="lf-desc" rows="3"></textarea></div>
+    <div class="form-g">
+      <label class="fl">Esquema / Imagem (ex: exportado do Tactical Pad)</label>
+      <div id="lf-img-box" data-val="" style="width:100%;max-width:340px;height:170px;border:1.5px dashed var(--brd);border-radius:10px;cursor:pointer;overflow:hidden;background:var(--bg3)" onclick="document.getElementById('lf-img-inp').click()">
+        <div id="lf-img-ph" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--t2);gap:5px">
+          <div style="font-size:26px">🖼️</div>
+          <div style="font-size:11px">Clica para importar imagem (PNG/JPG)</div>
+        </div>
+      </div>
+      <input type="file" id="lf-img-inp" accept="image/*" style="display:none" onchange="handleLibImgUpload(this)">
+    </div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveExercise()">💾 Guardar</button><button class="btn btn-gh" onclick="_showLibForm=false;_editLibId=null;renderBiblioteca()">Cancelar</button></div>
   </div>`:'';
 
@@ -4860,7 +4914,9 @@ function renderBiblioteca(){
   const diffColors={Leve:'bg-g',Médio:'bg-b',Intenso:'bg-y',Máximo:'bg-r'};
 
   const cardsHtml=list.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">${list.map(e=>`
-  <div class="card" style="padding:13px">
+  <div class="card" style="padding:0;overflow:hidden">
+    ${e.img?`<div style="width:100%;height:110px;background:var(--bg3)"><img src="${e.img}" style="width:100%;height:100%;object-fit:cover;display:block"></div>`:''}
+    <div style="padding:13px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
       <div style="font-size:12px;font-weight:800;line-height:1.3">${e.name}</div>
       <div style="display:flex;gap:3px">
@@ -4875,6 +4931,7 @@ function renderBiblioteca(){
     </div>
     ${e.muscles?`<div style="font-size:10px;color:var(--t2)">💪 ${e.muscles}</div>`:''}
     ${e.desc?`<div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.5">${e.desc}</div>`:''}
+    </div>
   </div>`).join('')}</div>`:`<div class="empty"><div class="ei">📚</div><p>Sem exercícios nesta categoria</p></div>`;
 
   document.getElementById('pg-biblioteca').innerHTML=`
@@ -4883,12 +4940,41 @@ function renderBiblioteca(){
   ${formHtml}
   <div class="tabs">${catBtns.map(c=>`<button class="tab-btn ${c.k===_libCat?'on':''}" onclick="_libCat='${c.k}';renderBiblioteca()">${c.v}</button>`).join('')}</div>
   ${cardsHtml}`;
-  if(_editLibId&&_showLibForm){const e=APP.exercises.find(x=>x.id===_editLibId);if(e){['name','cat','muscles','diff','equip','desc'].forEach(f=>{const el=document.getElementById('lf-'+f);if(el)el.value=e[f]||'';});}}
+  if(_editLibId&&_showLibForm){
+    const e=APP.exercises.find(x=>x.id===_editLibId);
+    if(e){
+      ['name','cat','muscles','diff','equip','desc'].forEach(f=>{const el=document.getElementById('lf-'+f);if(el)el.value=e[f]||'';});
+      if(e.img){
+        const box=document.getElementById('lf-img-box');
+        if(box){box.setAttribute('data-val',e.img);box.innerHTML='<img src="'+e.img+'" style="width:100%;height:100%;object-fit:cover">';}
+      }
+    }
+  }
+}
+function handleLibImgUpload(input){
+  const file=input.files[0];if(!file)return;
+  if(file.size>4*1024*1024)return toast('Imagem demasiado grande. Máx 4MB.','err');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const maxDim=800;let w=img.width,h=img.height;
+      if(w>maxDim||h>maxDim){if(w>h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      const b64=cv.toDataURL('image/jpeg',0.85);
+      const box=document.getElementById('lf-img-box');
+      if(box){box.setAttribute('data-val',b64);box.innerHTML='<img src="'+b64+'" style="width:100%;height:100%;object-fit:cover">';}
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 function saveExercise(){
   const name=document.getElementById('lf-name').value.trim();
   if(!name)return toast('Nome obrigatório','err');
-  const e={id:_editLibId||uid(),name,cat:document.getElementById('lf-cat').value,muscles:document.getElementById('lf-muscles').value,diff:document.getElementById('lf-diff').value,equip:document.getElementById('lf-equip').value,desc:document.getElementById('lf-desc').value};
+  const imgBox=document.getElementById('lf-img-box');
+  const e={id:_editLibId||uid(),name,cat:document.getElementById('lf-cat').value,muscles:document.getElementById('lf-muscles').value,diff:document.getElementById('lf-diff').value,equip:document.getElementById('lf-equip').value,desc:document.getElementById('lf-desc').value,img:imgBox?imgBox.getAttribute('data-val')||'':''};
   if(_editLibId){const i=APP.exercises.findIndex(x=>x.id===_editLibId);if(i>=0)APP.exercises[i]=e;}
   else APP.exercises.push(e);
   saveData();_showLibForm=false;_editLibId=null;toast('Exercício guardado ✓');renderBiblioteca();
