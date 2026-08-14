@@ -383,7 +383,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 <!-- ATLETA APP -->
 <div id="atleta-app">
   <div class="at-topbar">
-    <img src="assets/logo_sps_atleta.png" alt="SPS Atleta" style="width:38px;height:38px;object-fit:contain;flex-shrink:0" onerror="this.style.display='none'">
+    <img src="assets/logo_sps.jpg" alt="SPS" style="width:34px;height:34px;border-radius:9px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">
     <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
     <button class="tb-btn" onclick="atOpenChangePwd()" title="Alterar password"><i class="ti ti-key" style="font-size:15px" aria-hidden="true"></i></button>
     <button class="tb-btn" onclick="logout()" title="Sair"><i class="ti ti-logout" style="font-size:15px" aria-hidden="true"></i></button>
@@ -652,6 +652,7 @@ function showStaffApp(){
 function showAtletaApp(at){
   document.getElementById('screen-login').style.display='none';
   document.getElementById('atleta-app').classList.add('on');
+  applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',iconSrc:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE});
   document.getElementById('at-name').textContent=at.name;
   const _atAvEl=document.getElementById('at-topbar-av');
   if(_atAvEl){if(at.photo){_atAvEl.innerHTML='<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';}else{_atAvEl.textContent=initials(at.name);}}
@@ -7140,8 +7141,6 @@ function _showWelcomeScreen(at, tok, isReset){
     ? '<img src="'+APP.config.clubLogo+'" style="width:46px;height:46px;object-fit:contain">'
     : (APP.config.logo||'⚽');
 
-  var spsAtletaLogoHtml = '<img src="assets/logo_sps_atleta.png" alt="SPS Atleta" style="width:120px;height:auto;object-fit:contain;margin-bottom:6px" onerror="this.style.display=\'none\'">';
-
   var formHtml = '';
   if(mode === 'criar'){
     formHtml = '<div style="width:100%;max-width:300px;margin-top:4px">'
@@ -7174,8 +7173,7 @@ function _showWelcomeScreen(at, tok, isReset){
   ws.id = 'welcome-screen';
   ws.style.cssText = 'position:fixed;inset:0;background:#0c0f14;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 24px;z-index:5000;text-align:center;overflow-y:auto';
   ws.innerHTML =
-    spsAtletaLogoHtml
-    +'<div style="width:56px;height:56px;border-radius:50%;background:'+clubColor+';display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;box-shadow:0 0 20px '+clubColor+'55">'+logoHtml+'</div>'
+    '<div style="width:56px;height:56px;border-radius:50%;background:'+clubColor+';display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;box-shadow:0 0 20px '+clubColor+'55">'+logoHtml+'</div>'
     +'<div style="font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">'+club+'</div>'
     +'<div style="width:88px;height:88px;border-radius:50%;border:3px solid '+clubColor+';overflow:hidden;margin-bottom:12px;box-shadow:0 0 16px '+clubColor+'44">'+avatarHtml+'</div>'
     +'<div style="font-size:22px;font-weight:900;color:#fff;margin-bottom:3px">'+at.name+'</div>'
@@ -7296,6 +7294,27 @@ async function _welcomeEntrar(aid){
 }
 
 // ─── PWA ─────────────────────────────────────────────────────
+// Ícones fixos da app da atleta (SPS Atleta) — ver assets/icon_atleta_*.png
+var _ATLETA_ICON_192='assets/icon_atleta_192.png';
+var _ATLETA_ICON_512='assets/icon_atleta_512.png';
+var _ATLETA_ICON_APPLE='assets/icon_atleta_apple.png';
+function applyPWAManifest(opts){
+  try{
+    var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
+    var manifest={name:name,short_name:shortName,start_url:location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:themeColor,icons:[
+      {src:iconSrc,sizes:'192x192',type:iconType,purpose:'any maskable'},
+      {src:iconSrc,sizes:'512x512',type:iconType,purpose:'any maskable'}
+    ]};
+    var ati=document.querySelector('link[rel="apple-touch-icon"]');
+    if(!ati){ati=document.createElement('link');ati.rel='apple-touch-icon';document.head.appendChild(ati);}
+    ati.href=appleIcon;
+    var blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+    var link=document.getElementById('pwa-manifest');
+    if(link)link.href=URL.createObjectURL(blob);
+    var tc=document.querySelector('meta[name="theme-color"]');
+    if(tc)tc.content=themeColor;
+  }catch(err){console.warn('applyPWAManifest:',err);}
+}
 (function initPWA(){
   try{
     // Registar Service Worker
@@ -7311,19 +7330,7 @@ async function _welcomeEntrar(aid){
     var svgIcon = 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192"><rect width="192" height="192" rx="38" fill="'+clubColor+'"/><text x="96" y="120" text-anchor="middle" font-family="system-ui" font-weight="900" font-size="80" fill="white">'+shortName+'</text></svg>';
     var iconSrc = clubLogo || svgIcon;
     var iconType = clubLogo ? (clubLogo.startsWith('data:image/png')?'image/png':clubLogo.startsWith('data:image/jpeg')||clubLogo.startsWith('data:image/jpg')?'image/jpeg':'image/png') : 'image/svg+xml';
-    var manifest={name:clubName+' · App',short_name:shortName,start_url:location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:clubColor,icons:[
-      {src:iconSrc,sizes:'192x192',type:iconType,purpose:'any maskable'},
-      {src:iconSrc,sizes:'512x512',type:iconType,purpose:'any maskable'}
-    ]};
-    // Apple touch icon dinâmico
-    var ati=document.querySelector('link[rel="apple-touch-icon"]');
-    if(!ati){ati=document.createElement('link');ati.rel='apple-touch-icon';document.head.appendChild(ati);}
-    ati.href=iconSrc;
-    var blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
-    var link=document.getElementById('pwa-manifest');
-    if(link)link.href=URL.createObjectURL(blob);
-    var tc=document.querySelector('meta[name="theme-color"]');
-    if(tc)tc.content=clubColor;
+    applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     // Service Worker desativado temporariamente
     // Banner Android
     window.addEventListener('beforeinstallprompt',function(e){
