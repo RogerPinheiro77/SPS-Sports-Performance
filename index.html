@@ -6965,8 +6965,15 @@ async function pushAppMeta(){
       evalResponses:APP.evalResponses||[],
       trainings:(APP.trainings||[]).map(t=>{
         const c={...t};
-        // Strip exercise drawings to save space
-        if(c.exercises)Object.keys(c.exercises).forEach(k=>{c.exercises[k]=(c.exercises[k]||[]).map(e=>{const e2={...e};delete e2.drawing;return e2;});});
+        // Strip exercise drawings to save space — importante: construir um objeto `exercises`
+        // NOVO (não mutar c.exercises in-place), porque `{...t}` é cópia rasa e c.exercises
+        // ainda aponta para o MESMO objeto que t.exercises (o array vivo em APP.trainings).
+        // Mutar c.exercises[k] apagava o campo 'drawing' também nos dados locais reais.
+        if(c.exercises){
+          const exCopy={};
+          Object.keys(c.exercises).forEach(k=>{exCopy[k]=(c.exercises[k]||[]).map(e=>{const e2={...e};delete e2.drawing;return e2;});});
+          c.exercises=exCopy;
+        }
         return c;
       }),
       convocatorias:APP.convocatorias||[],
