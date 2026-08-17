@@ -6739,10 +6739,11 @@ function _atAgendaMesHtml(at){
     </div>`;
   }
   grid+=`</div>`;
+  const legend=`<div style="display:flex;flex-wrap:wrap;gap:8px 12px;margin-bottom:14px;padding:8px 2px">${Object.entries(EV_COLORS).map(([t,c])=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;color:var(--t2)"><span style="width:7px;height:7px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span>${t}</span>`).join('')}</div>`;
   const selEvs=(byDate[_atAgendaSelDay]||[]).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   const detail=`<div style="font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${_atAgendaSelDay===td?'HOJE · ':''}${fmtDate(_atAgendaSelDay)}</div>
   ${selEvs.length?selEvs.map(_atEvCardHtml).join(''):`<div style="font-size:11px;color:var(--t2);padding:6px 2px">Sem eventos neste dia</div>`}`;
-  return nav+grid+detail;
+  return nav+grid+legend+detail;
 }
 function renderAtAgenda(){
   const at=APP.athletes.find(a=>a.id===AID);
