@@ -385,6 +385,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
   <div class="at-topbar">
     <img src="assets/logo_sps_atleta.png" alt="SPS Atleta" style="width:38px;height:38px;object-fit:contain;flex-shrink:0" onerror="this.style.display='none'">
     <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
+    <button class="tb-btn" id="at-refresh-btn" onclick="atManualRefresh()" title="Atualizar dados"><i class="ti ti-refresh" style="font-size:15px" aria-hidden="true"></i></button>
     <button class="tb-btn" onclick="atOpenChangePwd()" title="Alterar password"><i class="ti ti-key" style="font-size:15px" aria-hidden="true"></i></button>
     <button class="tb-btn" onclick="logout()" title="Sair"><i class="ti ti-logout" style="font-size:15px" aria-hidden="true"></i></button>
   </div>
@@ -659,9 +660,10 @@ function showAtletaApp(at){
   const d=new Date();
   document.getElementById('at-date').textContent=d.toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'});
   atNav('home',document.querySelector('.at-ni'));
-  // Sincronizar dados mais recentes ao abrir a app da atleta
+  // Sincronizar dados mais recentes ao abrir a app da atleta — atualiza a página
+  // onde a atleta estiver (não só o Início, era o bug antes desta correção).
   if(_sync&&_supa&&_cid){
-    pullCloud().then(()=>{ if(_atPage==='home')renderAtHome(); }).catch(e=>console.warn('pullCloud atleta:',e));
+    pullCloud().then(()=>{ if(_AT_RENDERS[_atPage])_AT_RENDERS[_atPage](); }).catch(e=>console.warn('pullCloud atleta:',e));
   }
 }
 
@@ -6403,14 +6405,31 @@ function importData(e){const file=e.target.files[0];if(!file)return;const reader
 
 // ─── ATLETA APP ───────────────────────────────────────────
 let _atPage='home', _wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:''}, _psfVal=0, _psfDur='';
+const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval()};
 function atNav(page,el){
   _atPage=page;
   document.querySelectorAll('.at-page').forEach(p=>p.classList.remove('on'));
   const pg=document.getElementById('atp-'+page);if(pg)pg.classList.add('on');
   document.querySelectorAll('.at-ni').forEach(n=>n.classList.remove('on'));
   if(el)el.classList.add('on');
-  const renders={home:renderAtHome,wellness:renderAtWellness,pse:renderAtPSE,agenda:renderAtAgenda,nutri:renderAtNutri,fisio:renderAtFisio,treino:renderAtTreino,convoc:renderAtConvoc,aval:renderAtAval};
-  if(renders[page])renders[page]();
+  if(_AT_RENDERS[page])_AT_RENDERS[page]();
+}
+// Puxa dados frescos da cloud e volta a desenhar a página onde a atleta estiver
+// (não só o Início) — usado tanto após o login como pelo botão de atualizar manual.
+async function atManualRefresh(){
+  if(!(_sync&&_supa&&_cid))return toast('Sem ligação à cloud neste dispositivo','err');
+  const icon=document.querySelector('#at-refresh-btn i');
+  if(icon)icon.style.animation='sp .7s linear infinite';
+  try{
+    await pullCloud();
+    if(_AT_RENDERS[_atPage])_AT_RENDERS[_atPage]();
+    toast('Atualizado ✓');
+  }catch(e){
+    console.warn('atManualRefresh:',e);
+    toast('Não consegui atualizar agora','err');
+  }finally{
+    if(icon)icon.style.animation='';
+  }
 }
 function _atNavTo(page){
   const ni=Array.from(document.querySelectorAll('.at-ni')).find(n=>(n.getAttribute('onclick')||'').includes("'"+page+"'"));
