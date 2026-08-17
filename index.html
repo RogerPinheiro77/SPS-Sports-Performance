@@ -666,7 +666,7 @@ function showAtletaApp(at){
   // Sincronizar dados mais recentes ao abrir a app da atleta — atualiza a página
   // onde a atleta estiver (não só o Início, era o bug antes desta correção).
   if(_sync&&_supa&&_cid){
-    pullCloud().then(()=>{ if(_AT_RENDERS[_atPage])_AT_RENDERS[_atPage](); }).catch(e=>console.warn('pullCloud atleta:',e));
+    pullCloud().then(()=>{ if(ROLE==='atleta'&&_AT_RENDERS[_atPage])_AT_RENDERS[_atPage](); }).catch(e=>console.warn('pullCloud atleta:',e));
   }
 }
 
@@ -6574,6 +6574,7 @@ async function atManualRefresh(){
   if(icon)icon.style.animation='sp .7s linear infinite';
   try{
     await pullCloud();
+    if(ROLE!=='atleta')return; // pullCloud já tratou do logout (acesso removido) e do aviso
     if(_AT_RENDERS[_atPage])_AT_RENDERS[_atPage]();
     toast('Atualizado ✓');
   }catch(e){
@@ -7184,6 +7185,15 @@ async function pullCloud(){
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
       if(data&&data.length)setter(data);
+    }
+    // Segurança: se a atleta com sessão ativa neste dispositivo foi removida do plantel
+    // entretanto (ex: passou para Scouting), não deixar a app continuar a tentar ler dados
+    // de uma atleta que já não existe (isso partia a página em vez de reencaminhar). Força
+    // logout limpo e avisa. Só se aplica a sessões de atleta — staff não é afetado.
+    if(ROLE==='atleta'&&AID&&!APP.athletes.find(a=>a.id===AID)){
+      toast('O teu acesso foi removido. Contacta o teu treinador.','err');
+      logout();
+      return;
     }
     // Pull app_meta (users, config, games, evaluations, etc.)
     const {data:clubRow,error:metaErr}=await _supa.from('clubs').select('meta').eq('id',_cid).maybeSingle();
