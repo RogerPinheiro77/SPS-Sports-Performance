@@ -4131,13 +4131,49 @@ async function _pdfBrandify(bytes){
   return await doc.save();
 }
 // ─── PSE & WELLNESS ───────────────────────────────────────
-let _pwTab='pse', _pwTeam='T1', _pwPeriod=14;
+let _pwTab='pse', _pwTeam='T1', _pwPeriod=14, _pwPrintDate=today();
+// Controla que linhas (atleta+aba) têm o histórico "últimos registos" expandido.
+// Chave = "pse_<athleteId>" ou "wellness_<athleteId>" — o mesmo Set serve as duas
+// abas porque nunca são renderizadas ao mesmo tempo.
+let _pwExpand=new Set();
+function _pwToggle(key){
+  if(_pwExpand.has(key))_pwExpand.delete(key);else _pwExpand.add(key);
+  renderPSEWellness();
+}
+// Junta, por atleta, o PSE reportado no dia do treino + o Wellness reportado no
+// dia seguinte (não há ligação por ID entre treino/PSE/Wellness — só por data,
+// que é como o resto da app já os relaciona, ex: desbloqueio automático do PSE).
+function _getSessaoPWData(){
+  const dt=_pwPrintDate||today();
+  const nextDt=addDaysStr(dt,1);
+  const athletes=APP.athletes.filter(a=>a.teamId===_pwTeam).sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=athletes.map(at=>({
+    at,
+    pse:APP.pse.filter(p=>p.athleteId===at.id&&p.date===dt).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''))[0]||null,
+    well:APP.wellness.find(w=>w.athleteId===at.id&&w.date===nextDt)||null
+  }));
+  return {dt,nextDt,rows};
+}
+function printSessaoPSEWellness(){
+  const d=_getSessaoPWData();
+  if(!d.rows.length)return toast('Sem atletas nesta equipa','err');
+  const team=APP.teams.find(t=>t.id===_pwTeam);
+  const title=`PSE & Wellness — Treino ${fmtDate(d.dt)}${team?' — '+team.name:''}`;
+  const body=`
+    <div class="pr-title">${title}</div>
+    <p style="font-size:9pt;color:#666;margin-bottom:8px">PSE reportado no dia do treino (${fmtDate(d.dt)}) · Wellness reportado no dia seguinte (${fmtDate(d.nextDt)})</p>
+    <table><thead><tr><th>Atleta</th><th>PSE</th><th>Dur.</th><th>UA</th><th>Tipo</th><th>Sono</th><th>Fad.</th><th>Str.</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
+    <tbody>${d.rows.map(r=>`<tr><td>${escHtml(r.at.name)}</td><td>${r.pse?r.pse.pse+'/10':'—'}</td><td>${r.pse?r.pse.duration+'m':'—'}</td><td>${r.pse?r.pse.ua:'—'}</td><td>${r.pse?escHtml(r.pse.sessionType||'—'):'—'}</td><td>${r.well?r.well.sleep:'—'}</td><td>${r.well?r.well.fatigue:'—'}</td><td>${r.well?r.well.stress:'—'}</td><td>${r.well?r.well.pain:'—'}</td><td>${r.well?r.well.mood:'—'}</td><td>${r.well?r.well.score:'—'}</td><td>${r.well?escHtml(r.well.cycle||'—'):'—'}</td></tr>`).join('')}</tbody></table>
+    <p style="font-size:8pt;color:#999;margin-top:8px">${d.rows.length} atletas · ${d.rows.filter(r=>r.pse).length} com PSE · ${d.rows.filter(r=>r.well).length} com Wellness</p>
+  `;
+  _printWin(title,body);
+}
 function renderPSEWellness(){
   const td=today();
   const days=Array.from({length:_pwPeriod},(_,i)=>{const d=new Date(td+'T00:00:00');d.setDate(d.getDate()-(_pwPeriod-1-i));return _fmtISO(d);});
   const athletes=APP.athletes.filter(a=>a.teamId===_pwTeam);
   const teamTabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_pwTeam?'on':''}" onclick="_pwTeam='${t.id}';renderPSEWellness()">${t.name}</button>`).join('');
-  const mainTabs=`<div class="tabs"><button class="tab-btn ${_pwTab==='pse'?'on':''}" onclick="_pwTab='pse';renderPSEWellness()">📊 PSE / Carga</button><button class="tab-btn ${_pwTab==='wellness'?'on':''}" onclick="_pwTab='wellness';renderPSEWellness()">💊 Wellness</button></div>`;
+  const mainTabs=`<div class="tabs"><button class="tab-btn ${_pwTab==='pse'?'on':''}" onclick="_pwTab='pse';renderPSEWellness()">📊 PSE / Carga</button><button class="tab-btn ${_pwTab==='wellness'?'on':''}" onclick="_pwTab='wellness';renderPSEWellness()">💊 Wellness</button><button class="tab-btn ${_pwTab==='imprimir'?'on':''}" onclick="_pwTab='imprimir';renderPSEWellness()">🖨️ Imprimir</button></div>`;
 
   let html='';
   if(_pwTab==='pse'){
@@ -4156,14 +4192,18 @@ function renderPSEWellness(){
       const acwr=chronic?Math.round(acute/chronic*100)/100:0;
       const acwrClass=acwr>1.5||acwr<0.8?'bg-r':acwr>=1.0?'bg-g':'bg-y';
       const lastSub=atPSE[0];
-      return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
+      const expKey='pse_'+at.id;
+      const isExp=_pwExpand.has(expKey);
+      const hist=atPSE.slice(0,10);
+      const histRow=isExp?`<tr><td colspan="9" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)}</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${hist.length?hist.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${p.pse}/10</td><td>${p.duration} min</td><td>${p.ua}</td><td>${escHtml(p.sessionType||'—')}</td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table></div></td></tr>`:'';
+      return`<tr><td><div style="display:flex;align-items:center;gap:7px"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:2px 6px">${isExp?'▴':'▾'}</button>${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.pse:'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.duration+'min':'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.ua:'—'}</td>
       <td style="text-align:center">${acute}</td>
       <td style="text-align:center">${chronic}</td>
       <td style="text-align:center">${acwr?`<span class="bdg ${acwrClass}">${acwr}</span>`:'—'}</td>
-      <td><span style="font-size:10px;color:var(--t2)">${lastSub?lastSub.date:'Sem dados'}</span></td></tr>`;
+      <td><span style="font-size:10px;color:var(--t2)">${lastSub?lastSub.date:'Sem dados'}</span></td></tr>${histRow}`;
     }).join('');
 
     html=`
@@ -4190,7 +4230,7 @@ function renderPSEWellness(){
       buildChart('chart-pse-col',labels,avgPSE,'PSE Médio','rgba(29,111,59,.7)','rgba(29,111,59,.15)',0,10);
       buildChart('chart-ua-col',labels,totalUA,'UA Total','rgba(2,132,199,.7)','rgba(2,132,199,.15)',0,null);
     },50);
-  } else {
+  } else if(_pwTab==='wellness'){
     // WELLNESS heatmap
     const wDims=['sleep','fatigue','stress','pain','mood'];
     const wLabels={sleep:'Sono',fatigue:'Fadiga',stress:'Stress',pain:'Dor',mood:'Humor'};
@@ -4206,7 +4246,9 @@ function renderPSEWellness(){
     let hmHtml=`<div style="overflow-x:auto"><table style="width:100%;font-size:10px;border-collapse:collapse">
     <thead><tr><th style="text-align:left;padding:5px 8px;color:var(--t2)">Atleta</th>${last7days.map(d=>`<th style="text-align:center;padding:5px 4px;color:var(--t2);white-space:nowrap">${fmtDateShort(d)}</th>`).join('')}<th style="text-align:center;padding:5px 8px;color:var(--t2)">Score</th><th style="text-align:center;padding:5px 8px;color:var(--t2)">Ciclo</th></tr></thead><tbody>`;
     athletes.sort((a,b)=>a.name.localeCompare(b.name)).forEach(at=>{
-      hmHtml+=`<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;font-size:11px">${at.name}</td>`;
+      const expKey='wellness_'+at.id;
+      const isExp=_pwExpand.has(expKey);
+      hmHtml+=`<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;font-size:11px"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:1px 5px;margin-right:5px">${isExp?'▴':'▾'}</button>${at.name}</td>`;
       last7days.forEach(d=>{
         const w=APP.wellness.find(x=>x.athleteId===at.id&&x.date===d);
         if(w){
@@ -4218,6 +4260,10 @@ function renderPSEWellness(){
       const scoreC=lastW?(lastW.score>=70?'bg-g':lastW.score>=45?'bg-y':'bg-r'):'bg-gr';
       hmHtml+=`<td style="text-align:center;padding:4px"><span class="bdg ${scoreC}">${lastW?lastW.score:'—'}</span></td>`;
       hmHtml+=`<td style="text-align:center;padding:4px;font-size:10px;color:var(--t2)">${lastW?.cycle||'—'}</td></tr>`;
+      if(isExp){
+        const hist=APP.wellness.filter(w=>w.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+        hmHtml+=`<tr><td colspan="10" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 26px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)}</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead><tbody>${hist.length?hist.map(w=>`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td>${w.score}</td><td>${escHtml(w.cycle||'—')}</td></tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table></div></td></tr>`;
+      }
     });
     hmHtml+=`</tbody></table></div>`;
 
@@ -4238,6 +4284,36 @@ function renderPSEWellness(){
       <div class="cb"><div class="chart-wrap"><canvas id="chart-w-col"></canvas></div></div>
     </div>`;
     setTimeout(()=>buildChart('chart-w-col',days.map(d=>fmtDateShort(d)),avgW,'Wellness Médio','rgba(245,158,11,.7)','rgba(245,158,11,.15)',0,100),50);
+  } else {
+    // IMPRIMIR — combina PSE do dia do treino + Wellness do dia seguinte, para
+    // todas as atletas da equipa, com pré-visualização e botão para A4.
+    const d=_getSessaoPWData();
+    const rowsHtml=d.rows.map(r=>`<tr>
+      <td><div style="display:flex;align-items:center;gap:7px">${_avHtml(r.at.name,r.at.photo,24)}<strong>${escHtml(r.at.name)}</strong></div></td>
+      <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
+      <td style="text-align:center">${r.pse?r.pse.duration+' min':'—'}</td>
+      <td style="text-align:center">${r.pse?r.pse.ua:'—'}</td>
+      <td style="text-align:center;font-size:10px">${r.pse?escHtml(r.pse.sessionType||'—'):'—'}</td>
+      <td style="text-align:center">${r.well?r.well.sleep:'—'}</td>
+      <td style="text-align:center">${r.well?r.well.fatigue:'—'}</td>
+      <td style="text-align:center">${r.well?r.well.stress:'—'}</td>
+      <td style="text-align:center">${r.well?r.well.pain:'—'}</td>
+      <td style="text-align:center">${r.well?r.well.mood:'—'}</td>
+      <td style="text-align:center">${r.well?`<span class="bdg ${r.well.score>=70?'bg-g':r.well.score>=45?'bg-y':'bg-r'}">${r.well.score}</span>`:'—'}</td>
+      <td style="text-align:center;font-size:10px">${r.well?escHtml(r.well.cycle||'—'):'—'}</td>
+    </tr>`).join('');
+    html=`
+    <div class="card" style="margin-bottom:16px"><div class="cb" style="padding:14px">
+      <div class="fr">
+        <div class="form-g"><label class="fl">Data do treino</label><input class="fc" id="pw-print-date" type="date" value="${d.dt}" onchange="_pwPrintDate=this.value;renderPSEWellness()"></div>
+        <div class="form-g"><label class="fl">Wellness reportado a</label><input class="fc" value="${fmtDate(d.nextDt)}" disabled style="opacity:.6"></div>
+      </div>
+      <div style="font-size:11px;color:var(--t2);margin-top:6px">PSE do dia do treino + Wellness do dia seguinte, para todas as atletas de ${APP.teams.find(t=>t.id===_pwTeam)?.name||'equipa'}. Quem não submeteu aparece com "—".</div>
+      <button class="btn btn-g" style="margin-top:10px" onclick="printSessaoPSEWellness()">🖨️ Imprimir A4</button>
+    </div></div>
+    <div class="card"><div class="ch"><span class="ct">Pré-visualização</span></div>
+    <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
+    <tbody>${rowsHtml||'<tr><td colspan="12" style="text-align:center;color:var(--t2);padding:20px">Sem atletas nesta equipa</td></tr>'}</tbody></table></div></div></div>`;
   }
 
   document.getElementById('pg-pse-wellness').innerHTML=`
