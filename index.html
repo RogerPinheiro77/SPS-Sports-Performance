@@ -2563,6 +2563,41 @@ function _syncConvocatoriaFromGame(g){
   else{APP.convocatorias.push({id:uid(),gameId:g.id,seenBy:[],...data});}
 }
 
+// ─── Tipo de Jogo + Competição (dropdown ligado às competições da época) ──
+const JOGO_TIPOS={oficial:'🏆 Oficial',treino:'🎽 Treino',particular:'🤝 Particular / Amigável'};
+function _tipoJogoSelectHtml(prefix,tipo){
+  tipo=tipo||'oficial';
+  return `<select class="fc" id="${prefix}-tipo" onchange="_onTipoJogoChange('${prefix}')">${Object.entries(JOGO_TIPOS).map(([k,l])=>`<option value="${k}" ${tipo===k?'selected':''}>${l}</option>`).join('')}</select>`;
+}
+function _compSelectHtml(prefix,selected){
+  const comps=APP.config.competitions||[];
+  const known=comps.includes(selected);
+  return `<select class="fc" id="${prefix}-comp" onchange="_onCompChange('${prefix}')">
+    <option value="">—</option>
+    ${comps.map(c=>`<option value="${escHtml(c)}" ${c===selected?'selected':''}>${escHtml(c)}</option>`).join('')}
+    ${selected&&!known?`<option value="${escHtml(selected)}" selected>${escHtml(selected)}</option>`:''}
+    <option value="__new__">+ Nova competição...</option>
+  </select>`;
+}
+function _compWrapHtml(prefix,tipo,selected){
+  return `<div class="form-g" id="${prefix}-comp-wrap" style="${(tipo||'oficial')==='oficial'?'':'display:none'}"><label class="fl">Competição</label>${_compSelectHtml(prefix,selected)}</div>`;
+}
+function _onTipoJogoChange(prefix){
+  const tipo=document.getElementById(prefix+'-tipo').value;
+  const wrap=document.getElementById(prefix+'-comp-wrap');
+  if(wrap)wrap.style.display=tipo==='oficial'?'':'none';
+}
+function _onCompChange(prefix){
+  const sel=document.getElementById(prefix+'-comp');
+  if(sel.value!=='__new__')return;
+  const name=(prompt('Nome da nova competição:')||'').trim();
+  if(!name){sel.value='';return;}
+  if(!APP.config.competitions)APP.config.competitions=[];
+  if(!APP.config.competitions.includes(name))APP.config.competitions.push(name);
+  saveData();
+  sel.outerHTML=_compSelectHtml(prefix,name);
+}
+
 function openJogo(id,tab='info'){
   const g=APP.games.find(x=>x.id===id);
   if(!g)return;
@@ -2591,8 +2626,9 @@ function renderJogos(){
     </div>
     <div class="fr">
       <div class="form-g"><label class="fl">Local</label><input class="fc" id="jf-loc" placeholder="Estádio / Campo"></div>
-      <div class="form-g"><label class="fl">Competição</label><input class="fc" id="jf-comp" placeholder="Liga, Taça..."></div>
+      <div class="form-g"><label class="fl">Tipo de Jogo</label>${_tipoJogoSelectHtml('jf','oficial')}</div>
     </div>
+    ${_compWrapHtml('jf','oficial','')}
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveJogo()">💾 Guardar</button><button class="btn btn-gh" onclick="_showJogoForm=false;_editJogoId=null;renderJogos()">Cancelar</button></div>
   </div>`:'' ;
 
@@ -2608,7 +2644,7 @@ function renderJogos(){
     const team=APP.teams.find(t=>t.id===g.teamId);
     return `<tr>
       <td>${fmtDate(g.date)}${g.time?' <span style="color:var(--t2)">'+g.time.slice(0,5)+'</span>':''}</td>
-      <td><div style="display:flex;align-items:center;gap:8px">${g.oppLogo?`<img src="${g.oppLogo}" style="width:24px;height:24px;object-fit:contain;border-radius:3px" onerror="this.style.display='none'">`:'<span>⚽</span>'}<div><strong>${escHtml(g.opp)}</strong>${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${escHtml(g.comp)}</span>`:''}</div></div></td>
+      <td><div style="display:flex;align-items:center;gap:8px">${g.oppLogo?`<img src="${g.oppLogo}" style="width:24px;height:24px;object-fit:contain;border-radius:3px" onerror="this.style.display='none'">`:'<span>⚽</span>'}<div><strong>${escHtml(g.opp)}</strong>${g.tipo&&g.tipo!=='oficial'?`<span class="bdg" style="background:var(--bg4);color:var(--t2);margin-left:6px">${JOGO_TIPOS[g.tipo]||g.tipo}</span>`:''}${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${escHtml(g.comp)}</span>`:''}</div></div></td>
       <td>${ha} ${escHtml(g.loc||'')}</td>
       <td>${team?escHtml(team.name):'—'}</td>
       <td style="text-align:center">${res} ${rb}</td>
@@ -2622,8 +2658,10 @@ function renderJogos(){
   const list=_jogoTab==='proximos'?proximos:realizados;
   const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Equipa</th><th>Resultado</th><th></th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`;
 
-  const vit=realizados.filter(g=>g.g1!=null&&g.g1>g.g2).length,emp=realizados.filter(g=>g.g1!=null&&g.g2!=null&&g.g1===g.g2).length,der=realizados.filter(g=>g.g1!=null&&g.g1<g.g2).length;
-  const gm=realizados.reduce((s,g)=>s+(+g.g1||0),0),gs=realizados.reduce((s,g)=>s+(+g.g2||0),0);
+  // Jogos Treino não contam para estatísticas competitivas (V/E/D/Golos) — só Oficiais e Particulares.
+  const realizadosStats=realizados.filter(g=>g.tipo!=='treino');
+  const vit=realizadosStats.filter(g=>g.g1!=null&&g.g1>g.g2).length,emp=realizadosStats.filter(g=>g.g1!=null&&g.g2!=null&&g.g1===g.g2).length,der=realizadosStats.filter(g=>g.g1!=null&&g.g1<g.g2).length;
+  const gm=realizadosStats.reduce((s,g)=>s+(+g.g1||0),0),gs=realizadosStats.reduce((s,g)=>s+(+g.g2||0),0);
 
   document.getElementById('pg-jogos').innerHTML=`
   <div class="sh"><div class="sh-t">⚽ Jogos</div>
@@ -2641,7 +2679,9 @@ function renderJogos(){
   if(_editJogoId&&_showJogoForm){
     const g=APP.games.find(x=>x.id===_editJogoId);
     if(g){
-      ['opp','date','time','loc','comp'].forEach(f=>{const el=document.getElementById('jf-'+f);if(el)el.value=g[f]||'';});
+      ['opp','date','time','loc'].forEach(f=>{const el=document.getElementById('jf-'+f);if(el)el.value=g[f]||'';});
+      const tipoEl=document.getElementById('jf-tipo');if(tipoEl){tipoEl.value=g.tipo||'oficial';_onTipoJogoChange('jf');}
+      const compWrap=document.getElementById('jf-comp-wrap');if(compWrap)compWrap.innerHTML=`<label class="fl">Competição</label>${_compSelectHtml('jf',g.comp||'')}`;
       const li=document.getElementById('jf-logo');if(li)li.value=g.oppLogo||'';
       const prev=document.getElementById('jf-logo-preview');
       if(prev&&g.oppLogo){const img=document.createElement('img');img.src=g.oppLogo;img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:6px';prev.innerHTML='';prev.appendChild(img);}
@@ -2674,6 +2714,7 @@ function _renderJogoDetailFull(){
         <div class="sh-t" style="display:flex;align-items:center;gap:8px">
           ${g.oppLogo?`<img src="${g.oppLogo}" style="width:26px;height:26px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`:''}
           ${escHtml(res)} ${escHtml(g.opp)}
+          ${g.tipo&&g.tipo!=='oficial'?`<span class="bdg" style="background:var(--bg4);color:var(--t2)">${JOGO_TIPOS[g.tipo]||g.tipo}</span>`:''}
         </div>
         <div style="font-size:12px;color:var(--t2)">${fmtDate(g.date)}${g.time?' '+g.time.slice(0,5):''} • ${ha}${g.comp?' • '+escHtml(g.comp):''}</div>
       </div>
@@ -2706,8 +2747,9 @@ function _jogoInfoHtml(g){
     </div>
     <div class="fr">
       <div class="form-g"><label class="fl">Local</label><input class="fc" id="ji-loc" value="${escHtml(g.loc||'')}"></div>
-      <div class="form-g"><label class="fl">Competição</label><input class="fc" id="ji-comp" value="${escHtml(g.comp||'')}"></div>
+      <div class="form-g"><label class="fl">Tipo de Jogo</label>${_tipoJogoSelectHtml('ji',g.tipo)}</div>
     </div>
+    ${_compWrapHtml('ji',g.tipo,g.comp||'')}
     <div class="fr3">
       <div class="form-g"><label class="fl">Golos (Nós)</label><input class="fc" id="ji-g1" type="number" min="0" value="${g.g1!=null?g.g1:''}"></div>
       <div class="form-g"><label class="fl">Golos (Adv)</label><input class="fc" id="ji-g2" type="number" min="0" value="${g.g2!=null?g.g2:''}"></div>
@@ -2725,7 +2767,10 @@ function saveJogoInfo(){
   if(!opp||!date)return toast('Adversário e data obrigatórios','err');
   g.opp=opp;g.date=date;g.time=document.getElementById('ji-time').value;
   g.ha=document.getElementById('ji-ha').value;g.loc=document.getElementById('ji-loc').value;
-  g.comp=document.getElementById('ji-comp').value;g.status=document.getElementById('ji-status').value;
+  g.tipo=document.getElementById('ji-tipo').value||'oficial';
+  const jiCompEl=document.getElementById('ji-comp');
+  g.comp=g.tipo==='oficial'&&jiCompEl&&jiCompEl.value!=='__new__'?jiCompEl.value:'';
+  g.status=document.getElementById('ji-status').value;
   g.teamId=document.getElementById('ji-team').value;g.notes=document.getElementById('ji-notes').value;
   const g1v=document.getElementById('ji-g1').value,g2v=document.getElementById('ji-g2').value;
   g.g1=g1v!==''?+g1v:null;g.g2=g2v!==''?+g2v:null;
@@ -3465,13 +3510,16 @@ function saveJogo(){
   const date=document.getElementById('jf-date').value;
   if(!opp||!date)return toast('Adversário e data obrigatórios','err');
   const oppLogo=document.getElementById('jf-logo').value||'';
+  const tipo=document.getElementById('jf-tipo').value||'oficial';
+  const compEl=document.getElementById('jf-comp');
+  const comp=tipo==='oficial'&&compEl&&compEl.value!=='__new__'?compEl.value:'';
   if(_editJogoId){
     const g=APP.games.find(x=>x.id===_editJogoId);
-    if(g){g.opp=opp;g.date=date;g.time=document.getElementById('jf-time').value;g.ha=document.getElementById('jf-ha').value;g.loc=document.getElementById('jf-loc').value;g.comp=document.getElementById('jf-comp').value;if(oppLogo)g.oppLogo=oppLogo;}
+    if(g){g.opp=opp;g.date=date;g.time=document.getElementById('jf-time').value;g.ha=document.getElementById('jf-ha').value;g.loc=document.getElementById('jf-loc').value;g.tipo=tipo;g.comp=comp;if(oppLogo)g.oppLogo=oppLogo;}
     saveData();_showJogoForm=false;_editJogoId=null;toast('Jogo atualizado ✓');renderJogos();
   }else{
     const id=uid();
-    const g={id,teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,comp:document.getElementById('jf-comp').value,status:'agendado',g1:null,g2:null,notes:'',oppLogo};
+    const g={id,teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,tipo,comp,status:'agendado',g1:null,g2:null,notes:'',oppLogo};
     _initG(g);APP.games.push(g);saveData();_showJogoForm=false;toast('Jogo criado ✓');openJogo(id);
   }
 }
@@ -6303,6 +6351,16 @@ function renderConfig(){
       </div>
       <button class="btn btn-g btn-sm" onclick="saveConfig()">💾 Guardar</button>
     </div></div>
+    <div class="card"><div class="ch"><span class="ct">🏆 Competições da Época</span></div><div class="cb">
+      <div class="al al-b" style="margin-bottom:12px;font-size:11px">Define aqui as competições em que a equipa está inscrita. Depois escolhes de uma lista ao criar um jogo Oficial, em vez de escreveres à mão.</div>
+      <div id="cfg-comps-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+        ${(APP.config.competitions||[]).length?(APP.config.competitions||[]).map(c=>`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--brd);border-radius:20px;padding:4px 6px 4px 12px;font-size:11px">${escHtml(c)}<button onclick="removeCompetition('${escHtml(c).replace(/'/g,"\\'")}')" style="border:none;background:var(--bg4);color:var(--t2);width:16px;height:16px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">✕</button></span>`).join(''):'<span style="font-size:11px;color:var(--t2)">Ainda sem competições definidas</span>'}
+      </div>
+      <div style="display:flex;gap:8px">
+        <input class="fc" id="cfg-new-comp" placeholder="Ex: Campeonato Nacional Feminino" onkeydown="if(event.key==='Enter'){event.preventDefault();addCompetition();}">
+        <button class="btn btn-gh btn-sm" onclick="addCompetition()">+ Adicionar</button>
+      </div>
+    </div></div>
     <div class="card"><div class="ch"><span class="ct">👥 Utilizadores</span></div><div class="cb">
       <div class="al al-b" style="margin-bottom:12px;font-size:11px">Cada utilizador tem acesso independente com email e password.</div>
       ${(()=>{
@@ -6436,6 +6494,20 @@ function saveConfig(){
   document.getElementById('lclub').textContent=APP.config.clubName;
   updateSidebarLogo();
   toast('Configurações guardadas ✓');
+}
+function addCompetition(){
+  const el=document.getElementById('cfg-new-comp');
+  const name=(el.value||'').trim();
+  if(!name)return;
+  if(!APP.config.competitions)APP.config.competitions=[];
+  if(APP.config.competitions.includes(name))return toast('Essa competição já existe','err');
+  APP.config.competitions.push(name);
+  saveData();el.value='';renderConfig();toast('Competição adicionada ✓');
+}
+function removeCompetition(name){
+  if(!confirm('Remover "'+name+'" da lista de competições?'))return;
+  APP.config.competitions=(APP.config.competitions||[]).filter(c=>c!==name);
+  saveData();renderConfig();toast('Competição removida');
 }
 function updateSidebarLogo(){
   const el=document.getElementById('sb-logo');
