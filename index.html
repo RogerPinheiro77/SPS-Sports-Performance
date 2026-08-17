@@ -6405,6 +6405,7 @@ function importData(e){const file=e.target.files[0];if(!file)return;const reader
 
 // ─── ATLETA APP ───────────────────────────────────────────
 let _atPage='home', _wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:''}, _psfVal=0, _psfDur='';
+let _atAgendaView='semana', _atAgendaDay=today(), _atAgendaWeekStart=getMonday(today()), _atAgendaMonth=new Date().getMonth(), _atAgendaYear=new Date().getFullYear(), _atAgendaSelDay=today();
 const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval()};
 function atNav(page,el){
   _atPage=page;
@@ -6662,23 +6663,94 @@ function submitPSE(){
   _autoMarkAttendance(AID,td,'treino');
   saveData();_psfVal=0;_psfDur='';toast(`PSE registado! UA: ${ua}`);renderAtPSE();
 }
+function _atEventsForAthlete(at){
+  return APP.schedule.filter(e=>(e.teamId===at?.teamId||!e.teamId));
+}
+function _atEvCardHtml(e){
+  const c=EV_COLORS[e.type]||'#27a34a';
+  return `<div class="card" style="margin-bottom:6px;padding:11px;display:flex;gap:10px;align-items:center">
+    <div style="width:4px;height:40px;border-radius:2px;background:${c};flex-shrink:0"></div>
+    <div style="flex:1"><div style="font-size:12px;font-weight:800">${e.title}</div>
+    <div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''} ${e.dur?'· '+e.dur+'min':''}</div>
+    ${e.notes?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${e.notes}</div>`:''}
+    </div><span class="mc-sess s-tec" style="background:${c}22;color:${c};padding:3px 7px;font-size:9px">${e.type}</span>
+  </div>`;
+}
+function _atAgendaTabsHtml(){
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;background:var(--bg3);padding:4px;border-radius:8px">
+  ${[['dia','Diária'],['semana','Semanal'],['mes','Mensal']].map(([v,l])=>`<button class="tab-btn ${_atAgendaView===v?'on':''}" style="flex:1;text-align:center" onclick="_atAgendaView='${v}';renderAtAgenda()">${l}</button>`).join('')}
+  </div>`;
+}
+function _atAgendaDiaHtml(at){
+  const dt=_atAgendaDay,td=today();
+  const evs=_atEventsForAthlete(at).filter(e=>e.date===dt).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const nav=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <button class="btn btn-gh btn-sm" onclick="_atAgendaDay=addDaysStr(_atAgendaDay,-1);renderAtAgenda()">‹</button>
+    <div style="flex:1;text-align:center;font-size:13px;font-weight:800">${dt===td?'HOJE · ':''}${fmtDate(dt)}</div>
+    <button class="btn btn-gh btn-sm" onclick="_atAgendaDay=addDaysStr(_atAgendaDay,1);renderAtAgenda()">›</button>
+  </div>
+  ${dt!==td?`<div style="text-align:center;margin-bottom:12px"><button class="btn btn-gh btn-sm" onclick="_atAgendaDay=today();renderAtAgenda()">Hoje</button></div>`:''}`;
+  const list=evs.length?evs.map(_atEvCardHtml).join(''):`<div class="empty"><div class="ei"><i class="ti ti-calendar-off" aria-hidden="true"></i></div><p>Sem eventos neste dia</p></div>`;
+  return nav+list;
+}
+function _atAgendaSemanaHtml(at){
+  const td=today(),wkStart=_atAgendaWeekStart;
+  const days=Array.from({length:7},(_,i)=>addDaysStr(wkStart,i));
+  const evs=_atEventsForAthlete(at);
+  const nav=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <button class="btn btn-gh btn-sm" onclick="_atAgendaWeekStart=addDaysStr(_atAgendaWeekStart,-7);renderAtAgenda()">‹</button>
+    <div style="flex:1;text-align:center;font-size:13px;font-weight:800">${fmtDateShort(wkStart)} — ${fmtDateShort(days[6])}</div>
+    <button class="btn btn-gh btn-sm" onclick="_atAgendaWeekStart=addDaysStr(_atAgendaWeekStart,7);renderAtAgenda()">›</button>
+  </div>
+  ${wkStart!==getMonday(td)?`<div style="text-align:center;margin-bottom:12px"><button class="btn btn-gh btn-sm" onclick="_atAgendaWeekStart=getMonday(today());renderAtAgenda()">Esta semana</button></div>`:''}`;
+  const body=days.map(dt=>{
+    const dEvs=evs.filter(e=>e.date===dt).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    return `<div style="margin-bottom:14px">
+    <div style="font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${dt===td?'HOJE · ':''}${fmtDate(dt)}</div>
+    ${dEvs.length?dEvs.map(_atEvCardHtml).join(''):`<div style="font-size:11px;color:var(--t2);padding:6px 2px">Sem eventos</div>`}
+    </div>`;
+  }).join('');
+  return nav+body;
+}
+function _atAgendaMesHtml(at){
+  const mnths=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const first=new Date(_atAgendaYear,_atAgendaMonth,1);
+  const last=new Date(_atAgendaYear,_atAgendaMonth+1,0);
+  const startDay=first.getDay()===0?6:first.getDay()-1;
+  const td=today();
+  const evs=_atEventsForAthlete(at);
+  const byDate={};evs.forEach(e=>{if(!byDate[e.date])byDate[e.date]=[];byDate[e.date].push(e);});
+  const nav=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <button class="btn btn-gh btn-sm" onclick="_atAgendaMonth--;if(_atAgendaMonth<0){_atAgendaMonth=11;_atAgendaYear--;}renderAtAgenda()">‹</button>
+    <div style="flex:1;text-align:center;font-size:13px;font-weight:800">${mnths[_atAgendaMonth]} ${_atAgendaYear}</div>
+    <button class="btn btn-gh btn-sm" onclick="_atAgendaMonth++;if(_atAgendaMonth>11){_atAgendaMonth=0;_atAgendaYear++;}renderAtAgenda()">›</button>
+  </div>`;
+  let grid=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:14px">`;
+  ['S','T','Q','Q','S','S','D'].forEach(d=>{grid+=`<div style="text-align:center;font-size:9px;font-weight:700;color:var(--t2);padding:2px 0">${d}</div>`;});
+  for(let i=0;i<startDay;i++)grid+=`<div></div>`;
+  for(let day=1;day<=last.getDate();day++){
+    const dt=`${_atAgendaYear}-${String(_atAgendaMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday=dt===td,isSel=dt===_atAgendaSelDay;
+    const dEvs=byDate[dt]||[];
+    const dots=dEvs.slice(0,4).map(e=>`<span style="width:5px;height:5px;border-radius:50%;background:${EV_COLORS[e.type]||'#27a34a'};display:inline-block"></span>`).join('');
+    grid+=`<div onclick="_atAgendaSelDay='${dt}';renderAtAgenda()" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:6px;cursor:pointer;background:${isSel?'#a78bfa22':'var(--bg3)'};border:1px solid ${isToday?'var(--c1)':'var(--brd)'}">
+      <div style="font-size:10px;font-weight:${isToday?'800':'600'};color:${isToday?'var(--c1)':'var(--t1)'}">${day}</div>
+      <div style="display:flex;gap:2px;min-height:5px">${dots}</div>
+    </div>`;
+  }
+  grid+=`</div>`;
+  const selEvs=(byDate[_atAgendaSelDay]||[]).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const detail=`<div style="font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${_atAgendaSelDay===td?'HOJE · ':''}${fmtDate(_atAgendaSelDay)}</div>
+  ${selEvs.length?selEvs.map(_atEvCardHtml).join(''):`<div style="font-size:11px;color:var(--t2);padding:6px 2px">Sem eventos neste dia</div>`}`;
+  return nav+grid+detail;
+}
 function renderAtAgenda(){
   const at=APP.athletes.find(a=>a.id===AID);
-  const td=today();
-  const evs=APP.schedule.filter(e=>e.date>=td&&(e.teamId===at?.teamId||!e.teamId)).sort((a,b)=>a.date===b.date?(a.time||'').localeCompare(b.time||''):a.date.localeCompare(b.date));
-  const grouped={};evs.forEach(e=>{if(!grouped[e.date])grouped[e.date]=[];grouped[e.date].push(e);});
-  const html=Object.entries(grouped).slice(0,45).map(([dt,evList])=>`
-  <div style="margin-bottom:14px">
-    <div style="font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${fmtDate(dt)===fmtDate(td)?'HOJE':fmtDate(dt)}</div>
-    ${evList.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div class="card" style="margin-bottom:6px;padding:11px;display:flex;gap:10px;align-items:center">
-      <div style="width:4px;height:40px;border-radius:2px;background:${c};flex-shrink:0"></div>
-      <div style="flex:1"><div style="font-size:12px;font-weight:800">${e.title}</div>
-      <div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''} ${e.dur?'· '+e.dur+'min':''}</div>
-      ${e.notes?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${e.notes}</div>`:''}
-      </div><span class="mc-sess ${EV_TYPES.indexOf(e.type)>=0?Object.keys(EV_COLORS).indexOf(e.type)>=0?'s-tec':'s-tec':'s-tec'}" style="background:${c}22;color:${c};padding:3px 7px;font-size:9px">${e.type}</span>
-    </div>`;}).join('')}
-  </div>`).join('');
-  document.getElementById('atp-agenda').innerHTML=`<div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-calendar" style="margin-right:6px;vertical-align:-3px;color:#a78bfa" aria-hidden="true"></i>Agenda</div>${html||`<div class="empty"><div class="ei"><i class="ti ti-calendar-off" aria-hidden="true"></i></div><p>Sem eventos próximos</p></div>`}`;
+  let body;
+  if(_atAgendaView==='dia')body=_atAgendaDiaHtml(at);
+  else if(_atAgendaView==='mes')body=_atAgendaMesHtml(at);
+  else body=_atAgendaSemanaHtml(at);
+  document.getElementById('atp-agenda').innerHTML=`<div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-calendar" style="margin-right:6px;vertical-align:-3px;color:#a78bfa" aria-hidden="true"></i>Agenda</div>${_atAgendaTabsHtml()}${body}`;
 }
 function renderAtNutri(){
   const plan=APP.nutritionPlans.find(p=>p.athleteId===AID&&p.active);
