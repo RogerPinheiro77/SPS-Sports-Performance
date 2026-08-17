@@ -6667,7 +6667,7 @@ function renderAtAgenda(){
   const td=today();
   const evs=APP.schedule.filter(e=>e.date>=td&&(e.teamId===at?.teamId||!e.teamId)).sort((a,b)=>a.date===b.date?(a.time||'').localeCompare(b.time||''):a.date.localeCompare(b.date));
   const grouped={};evs.forEach(e=>{if(!grouped[e.date])grouped[e.date]=[];grouped[e.date].push(e);});
-  const html=Object.entries(grouped).slice(0,20).map(([dt,evList])=>`
+  const html=Object.entries(grouped).slice(0,45).map(([dt,evList])=>`
   <div style="margin-bottom:14px">
     <div style="font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${fmtDate(dt)===fmtDate(td)?'HOJE':fmtDate(dt)}</div>
     ${evList.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div class="card" style="margin-bottom:6px;padding:11px;display:flex;gap:10px;align-items:center">
