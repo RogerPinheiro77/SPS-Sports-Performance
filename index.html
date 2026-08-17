@@ -2253,11 +2253,18 @@ function renderPresencas(){
   <div class="tw" style="overflow-x:auto"><table style="min-width:100%"><thead>${thead}</thead><tbody>${rows}</tbody></table></div>`;
 }
 const PLAN_MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+// Para eventos tipo 'Jogo', vai buscar o ícone da competição ao Jogo
+// correspondente (ligados por data+equipa — não há gameId guardado no evento).
+function _planEvTitle(e){
+  if(e.type!=='Jogo')return e.title;
+  const mg=APP.games.find(g=>g.date===e.date&&(g.teamId||g.team_id)===(e.teamId||e.team_id));
+  return mg?`${_jogoIcon(mg)} ${e.title}`:e.title;
+}
 function _planEvHtml(e,tall){
   const c=EV_COLORS[e.type]||'#27a34a';
   const isTraining=e.type==='Treino'||e.type==='Ativação'||e.type==='Recuperação'||e.type==='Ginásio';
   return`<div class="cal-ev" style="background:${c}22;color:${c};border-left:2px solid ${c};display:flex;align-items:center;justify-content:space-between;gap:4px">
-    <span onclick="event.stopPropagation();editEvent('${e.id}')" style="flex:1;overflow:hidden;text-overflow:ellipsis;${tall?'':'white-space:nowrap'}">${e.time?e.time.slice(0,5)+' ':''} ${e.title}</span>
+    <span onclick="event.stopPropagation();editEvent('${e.id}')" style="flex:1;overflow:hidden;text-overflow:ellipsis;${tall?'':'white-space:nowrap'}">${e.time?e.time.slice(0,5)+' ':''} ${_planEvTitle(e)}</span>
     ${isTraining?`<span onclick="event.stopPropagation();openAttendanceModal('${e.id}')" title="Marcar presenças" style="cursor:pointer;font-size:11px;flex-shrink:0;padding:0 3px;opacity:.8">📋</span><span onclick="event.stopPropagation();openTrainingUnit('${e.id}','${e.date||''}')" title="Unidade de Treino" style="cursor:pointer;font-size:11px;flex-shrink:0;padding:0 3px;opacity:.8">🗒️</span>`:''}
   </div>`;
 }
@@ -2356,7 +2363,7 @@ function _planPrintCellHtml(dt,day,dowLabel,tall){
   const td=today();
   const isToday=dt===td;
   const evs=APP.schedule.filter(e=>e.date===dt).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-  const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="font-size:7pt;padding:1.5mm 2mm;margin-bottom:1.5mm;border-left:2px solid ${c};background:${c}15;border-radius:2px;line-height:1.3">${e.time?e.time.slice(0,5)+' · ':''}<b>${e.title}</b></div>`;}).join('');
+  const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="font-size:7pt;padding:1.5mm 2mm;margin-bottom:1.5mm;border-left:2px solid ${c};background:${c}15;border-radius:2px;line-height:1.3">${e.time?e.time.slice(0,5)+' · ':''}<b>${_planEvTitle(e)}</b></div>`;}).join('');
   return `<div style="min-height:${tall?'150mm':'26mm'};border:1px solid #ddd;border-radius:2px;padding:2mm;background:${isToday?'#1d6f3b0d':'#fff'}">
     ${dowLabel?`<div style="font-size:7pt;color:#888;text-transform:uppercase;font-weight:700">${dowLabel}</div>`:''}
     <div style="font-size:9pt;font-weight:700;color:${isToday?'#1d6f3b':'#333'};margin-bottom:1.5mm">${day}</div>
@@ -2565,16 +2572,40 @@ function _syncConvocatoriaFromGame(g){
 
 // ─── Tipo de Jogo + Competição (dropdown ligado às competições da época) ──
 const JOGO_TIPOS={oficial:'🏆 Oficial',treino:'🎽 Treino',particular:'🤝 Particular / Amigável'};
+// Competições da época guardam-se como {name,icon} — _compObj normaliza entradas
+// antigas (só string) para o mesmo formato, para nunca partir com dados legados.
+const COMP_ICON_PRESETS=['🏆','⚽','🥇','🎯','🏅','🎖️'];
+let _newCompIcon=COMP_ICON_PRESETS[0];
+function _compObj(c){return typeof c==='string'?{name:c,icon:'🏅'}:c;}
+function _compList(){return (APP.config.competitions||[]).map(_compObj);}
+function _compIconFor(name){
+  if(!name)return '';
+  const f=_compList().find(c=>c.name===name);
+  return f?f.icon:'🏅';
+}
+// Ícone a mostrar num Jogo: tipo Treino/Particular tem prioridade (já é visual e
+// claro), Oficial usa o ícone da competição associada (comparando por prefixo,
+// porque g.comp costuma ser "Nome da Competição — Fase — Jornada X").
+function _jogoIcon(g){
+  if(!g)return '⚽';
+  if(g.tipo==='treino')return '🎽';
+  if(g.tipo==='particular')return '🤝';
+  if(g.comp){
+    const match=_compList().find(c=>g.comp===c.name||g.comp.startsWith(c.name+' —')||g.comp.startsWith(c.name+' -'));
+    if(match)return match.icon;
+  }
+  return '🏆';
+}
 function _tipoJogoSelectHtml(prefix,tipo){
   tipo=tipo||'oficial';
   return `<select class="fc" id="${prefix}-tipo" onchange="_onTipoJogoChange('${prefix}')">${Object.entries(JOGO_TIPOS).map(([k,l])=>`<option value="${k}" ${tipo===k?'selected':''}>${l}</option>`).join('')}</select>`;
 }
 function _compSelectHtml(prefix,selected){
-  const comps=APP.config.competitions||[];
-  const known=comps.includes(selected);
+  const comps=_compList();
+  const known=comps.some(c=>c.name===selected);
   return `<select class="fc" id="${prefix}-comp" onchange="_onCompChange('${prefix}')">
     <option value="">—</option>
-    ${comps.map(c=>`<option value="${escHtml(c)}" ${c===selected?'selected':''}>${escHtml(c)}</option>`).join('')}
+    ${comps.map(c=>`<option value="${escHtml(c.name)}" ${c.name===selected?'selected':''}>${c.icon} ${escHtml(c.name)}</option>`).join('')}
     ${selected&&!known?`<option value="${escHtml(selected)}" selected>${escHtml(selected)}</option>`:''}
     <option value="__new__">+ Nova competição...</option>
   </select>`;
@@ -2593,9 +2624,10 @@ function _onCompChange(prefix){
   const name=(prompt('Nome da nova competição:')||'').trim();
   if(!name){sel.value='';return;}
   if(!APP.config.competitions)APP.config.competitions=[];
-  if(!APP.config.competitions.includes(name))APP.config.competitions.push(name);
+  if(!_compList().some(c=>c.name===name))APP.config.competitions.push({name,icon:'🏅'});
   saveData();
   sel.outerHTML=_compSelectHtml(prefix,name);
+  toast('Competição adicionada com ícone genérico 🏅 — podes mudar o ícone em Config');
 }
 
 function openJogo(id,tab='info'){
@@ -2644,7 +2676,7 @@ function renderJogos(){
     const team=APP.teams.find(t=>t.id===g.teamId);
     return `<tr>
       <td>${fmtDate(g.date)}${g.time?' <span style="color:var(--t2)">'+g.time.slice(0,5)+'</span>':''}</td>
-      <td><div style="display:flex;align-items:center;gap:8px">${g.oppLogo?`<img src="${g.oppLogo}" style="width:24px;height:24px;object-fit:contain;border-radius:3px" onerror="this.style.display='none'">`:'<span>⚽</span>'}<div><strong>${escHtml(g.opp)}</strong>${g.tipo&&g.tipo!=='oficial'?`<span class="bdg" style="background:var(--bg4);color:var(--t2);margin-left:6px">${JOGO_TIPOS[g.tipo]||g.tipo}</span>`:''}${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${escHtml(g.comp)}</span>`:''}</div></div></td>
+      <td><div style="display:flex;align-items:center;gap:8px">${g.oppLogo?`<img src="${g.oppLogo}" style="width:24px;height:24px;object-fit:contain;border-radius:3px" onerror="this.style.display='none'">`:'<span>⚽</span>'}<div><strong title="${escHtml(g.tipo==='treino'?'Treino':g.tipo==='particular'?'Particular / Amigável':(g.comp||'Oficial'))}">${_jogoIcon(g)} ${escHtml(g.opp)}</strong>${g.tipo&&g.tipo!=='oficial'?`<span class="bdg" style="background:var(--bg4);color:var(--t2);margin-left:6px">${JOGO_TIPOS[g.tipo]||g.tipo}</span>`:''}${g.comp?`<br><span style="font-size:10px;color:var(--t2)">${escHtml(g.comp)}</span>`:''}</div></div></td>
       <td>${ha} ${escHtml(g.loc||'')}</td>
       <td>${team?escHtml(team.name):'—'}</td>
       <td style="text-align:center">${res} ${rb}</td>
@@ -2713,7 +2745,7 @@ function _renderJogoDetailFull(){
       <div>
         <div class="sh-t" style="display:flex;align-items:center;gap:8px">
           ${g.oppLogo?`<img src="${g.oppLogo}" style="width:26px;height:26px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`:''}
-          ${escHtml(res)} ${escHtml(g.opp)}
+          ${escHtml(res)} ${_jogoIcon(g)} ${escHtml(g.opp)}
           ${g.tipo&&g.tipo!=='oficial'?`<span class="bdg" style="background:var(--bg4);color:var(--t2)">${JOGO_TIPOS[g.tipo]||g.tipo}</span>`:''}
         </div>
         <div style="font-size:12px;color:var(--t2)">${fmtDate(g.date)}${g.time?' '+g.time.slice(0,5):''} • ${ha}${g.comp?' • '+escHtml(g.comp):''}</div>
@@ -6352,13 +6384,17 @@ function renderConfig(){
       <button class="btn btn-g btn-sm" onclick="saveConfig()">💾 Guardar</button>
     </div></div>
     <div class="card"><div class="ch"><span class="ct">🏆 Competições da Época</span></div><div class="cb">
-      <div class="al al-b" style="margin-bottom:12px;font-size:11px">Define aqui as competições em que a equipa está inscrita. Depois escolhes de uma lista ao criar um jogo Oficial, em vez de escreveres à mão.</div>
-      <div id="cfg-comps-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
-        ${(APP.config.competitions||[]).length?(APP.config.competitions||[]).map(c=>`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--brd);border-radius:20px;padding:4px 6px 4px 12px;font-size:11px">${escHtml(c)}<button onclick="removeCompetition('${escHtml(c).replace(/'/g,"\\'")}')" style="border:none;background:var(--bg4);color:var(--t2);width:16px;height:16px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">✕</button></span>`).join(''):'<span style="font-size:11px;color:var(--t2)">Ainda sem competições definidas</span>'}
+      <div class="al al-b" style="margin-bottom:12px;font-size:11px">Define aqui as competições em que a equipa está inscrita, cada uma com um ícone à escolha — esse ícone aparece depois na lista de Jogos e no Planeamento, para distinguires de relance Taça, Campeonato, etc.</div>
+      <div id="cfg-comps-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+        ${_compList().length?_compList().map(c=>`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--brd);border-radius:20px;padding:4px 6px 4px 12px;font-size:11px">${c.icon} ${escHtml(c.name)}<button onclick="removeCompetition('${escHtml(c.name).replace(/'/g,"\\'")}')" style="border:none;background:var(--bg4);color:var(--t2);width:16px;height:16px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">✕</button></span>`).join(''):'<span style="font-size:11px;color:var(--t2)">Ainda sem competições definidas</span>'}
+      </div>
+      <div class="fl" style="margin-bottom:6px">Ícone da nova competição</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        ${COMP_ICON_PRESETS.map(ic=>`<button type="button" onclick="_newCompIcon='${ic}';renderConfig()" title="Usar este ícone" style="width:34px;height:34px;border-radius:8px;border:2px solid ${_newCompIcon===ic?'var(--acc)':'var(--brd)'};background:var(--bg3);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">${ic}</button>`).join('')}
       </div>
       <div style="display:flex;gap:8px">
         <input class="fc" id="cfg-new-comp" placeholder="Ex: Campeonato Nacional Feminino" onkeydown="if(event.key==='Enter'){event.preventDefault();addCompetition();}">
-        <button class="btn btn-gh btn-sm" onclick="addCompetition()">+ Adicionar</button>
+        <button class="btn btn-gh btn-sm" onclick="addCompetition()">${_newCompIcon} Adicionar</button>
       </div>
     </div></div>
     <div class="card"><div class="ch"><span class="ct">👥 Utilizadores</span></div><div class="cb">
@@ -6500,13 +6536,13 @@ function addCompetition(){
   const name=(el.value||'').trim();
   if(!name)return;
   if(!APP.config.competitions)APP.config.competitions=[];
-  if(APP.config.competitions.includes(name))return toast('Essa competição já existe','err');
-  APP.config.competitions.push(name);
-  saveData();el.value='';renderConfig();toast('Competição adicionada ✓');
+  if(_compList().some(c=>c.name===name))return toast('Essa competição já existe','err');
+  APP.config.competitions.push({name,icon:_newCompIcon});
+  saveData();el.value='';_newCompIcon=COMP_ICON_PRESETS[0];renderConfig();toast('Competição adicionada ✓');
 }
 function removeCompetition(name){
   if(!confirm('Remover "'+name+'" da lista de competições?'))return;
-  APP.config.competitions=(APP.config.competitions||[]).filter(c=>c!==name);
+  APP.config.competitions=(APP.config.competitions||[]).filter(c=>_compObj(c).name!==name);
   saveData();renderConfig();toast('Competição removida');
 }
 function updateSidebarLogo(){
