@@ -7737,7 +7737,16 @@ loadData();
     var svgIcon = 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192"><rect width="192" height="192" rx="38" fill="'+clubColor+'"/><text x="96" y="120" text-anchor="middle" font-family="system-ui" font-weight="900" font-size="80" fill="white">'+shortName+'</text></svg>';
     var iconSrc = clubLogo || svgIcon;
     var iconType = clubLogo ? (clubLogo.startsWith('data:image/png')?'image/png':clubLogo.startsWith('data:image/jpeg')||clubLogo.startsWith('data:image/jpg')?'image/jpeg':'image/png') : 'image/svg+xml';
-    applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
+    // Se a URL já indica modo atleta (?atleta=1), aplicar logo à partida o manifest "SPS
+    // Atleta" com startUrl fixo em ?atleta=1 — sem isto, havia uma janela entre o boot e o
+    // login efetivo (showAtletaApp/_showWelcomeScreen, que só corrigiam o manifest depois)
+    // em que "Adicionar ao Ecrã Principal" ainda apanhava o manifest genérico do clube, sem
+    // o parâmetro — o ícone instalado voltava a abrir sempre no ecrã de staff.
+    if(typeof _forceAtletaMode!=='undefined'&&_forceAtletaMode){
+      applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE,startUrl:location.pathname+'?atleta=1'});
+    } else {
+      applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
+    }
     // Service Worker desativado temporariamente
     // Banner de instalacao -- mesmo visual em Android e iOS, so muda o que acontece ao tocar
     // em "Instalar": Android usa o prompt nativo (beforeinstallprompt); iOS nao tem esse evento
