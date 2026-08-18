@@ -506,6 +506,10 @@ function genPwd(len=8){
 // Password inicial das atletas — MFC26@<número de camisola>. Têm de a trocar por uma própria no 1º acesso.
 // Exige número de camisola atribuído (garante que o plantel está sempre atualizado com números).
 function _defaultAthletePwd(num){ return num?('MFC26@'+num):null; }
+// Link/QR dedicado para atletas: .../index.html?atleta=1 abre logo o formulário
+// de atleta, sem mostrar o ecrã de staff — evita a confusão de terem de encontrar
+// o botão "Entrar como Atleta" (ver memória feedback_sps_athlete_only_entry_url).
+const _forceAtletaMode=new URLSearchParams(location.search).get('atleta')==='1';
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -532,6 +536,7 @@ function renderLoginScreen(){
     setTimeout(()=>document.getElementById('setup-name')?.focus(),80);
     return;
   }
+  if(_forceAtletaMode){ showAthleteLoginForm(true); return; }
   el.innerHTML=`
     <div class="fg"><label class="lbl">Utilizador</label>
       <input class="ctrl" id="login-user" placeholder="Nome ou email"
@@ -547,8 +552,11 @@ function renderLoginScreen(){
     <button class="btn-login" style="background:linear-gradient(135deg,#0e6251,#1a8a6e);box-shadow:0 4px 15px rgba(14,98,81,.3)" onclick="showAthleteLoginForm()">⚽ Entrar como Atleta</button>`;
   setTimeout(()=>document.getElementById('login-user')?.focus(),80);
 }
-function showAthleteLoginForm(){
+function showAthleteLoginForm(forced){
   const el=document.getElementById('login-main');
+  const backBtn=forced
+    ? '<button class="link-btn" style="display:block;margin:10px auto 0;opacity:.6" onclick="location.href=location.pathname">🔒 Sou staff</button>'
+    : '<button class="link-btn" style="display:block;margin:10px auto 0" onclick="renderLoginScreen()">← Voltar</button>';
   el.innerHTML=`
     <div style="font-size:13px;font-weight:800;color:var(--c1l);margin-bottom:14px;text-align:center">⚽ Acesso Atleta</div>
     <div class="fg"><label class="lbl">Nº de atleta, nome ou email</label>
@@ -561,7 +569,7 @@ function showAthleteLoginForm(){
     </div>
     <div class="login-err" id="at-login-err"></div>
     <button class="btn-login" onclick="handleAthleteLogin()">→ Entrar</button>
-    <button class="link-btn" style="display:block;margin:10px auto 0" onclick="renderLoginScreen()">← Voltar</button>`;
+    ${backBtn}`;
   setTimeout(()=>document.getElementById('at-login-user')?.focus(),80);
 }
 async function createFirstAdmin(){
