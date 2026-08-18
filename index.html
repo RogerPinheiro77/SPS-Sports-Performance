@@ -684,7 +684,7 @@ function showStaffApp(){
 function showAtletaApp(at){
   document.getElementById('screen-login').style.display='none';
   document.getElementById('atleta-app').classList.add('on');
-  applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE});
+  applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE,startUrl:location.pathname+'?atleta=1'});
   if(window._flushPwaBar)window._flushPwaBar();
   document.getElementById('at-name').textContent=at.name;
   const _atAvEl=document.getElementById('at-topbar-av');
@@ -7559,7 +7559,7 @@ async function pullCloud(){
     if(ROLE!=='atleta'&&_curPg)navTo(_curPg);
   }catch(e){console.warn('pullCloud error',e);toast('Erro sync: '+e.message,'err');}
 }
-async function pushAppMeta(){
+async function pushAppMeta(_pushRetry){
   if(!_supa||!_cid){console.log('[pushAppMeta] skipped: supa=',!!_supa,'cid=',_cid);return;}
   try{
     // Guarda contra cópias desatualizadas: este separador pode ter ficado aberto horas
@@ -7571,10 +7571,33 @@ async function pushAppMeta(){
     try{
       const {data:chk}=await _supa.from('clubs').select('updated_at').eq('id',_cid).maybeSingle();
       if(chk&&chk.updated_at&&_metaSyncAt&&new Date(chk.updated_at).getTime()>new Date(_metaSyncAt).getTime()+2000){
-        console.warn('[pushAppMeta] cloud mais recente que a última sincronização deste separador — a atualizar antes de gravar, para não apagar alterações de outra sessão');
+        console.warn('[pushAppMeta] cloud mais recente que a última sincronização deste separador — a fundir com a alteração local antes de gravar');
+        // ATENÇÃO (2026-08-18, sps-v22): a versão anterior desta guarda fazia só pullCloud()
+        // e ABORTAVA — o que apagava em silêncio qualquer alteração local ainda não gravada
+        // (ex: uma atleta submetia a autoavaliação, outra sessão tinha mexido na cloud entretanto,
+        // e o pullCloud() sobrescrevia APP.evalResponses ANTES da autoavaliação alguma vez chegar
+        // à cloud — a atleta via "submetida" no ecrã mas ao reabrir voltava a pedir para preencher).
+        // Corrigido: guarda-se um snapshot dos arrays locais, deixa-se o pullCloud atualizar tudo
+        // com os dados frescos de outras sessões, e depois qualquer item que exista no snapshot
+        // local substitui (por id) o equivalente vindo da cloud — a alteração que disparou este
+        // push nunca se perde, e o que outras sessões acrescentaram entretanto também não. Ver
+        // memória feedback_sps_meta_staleness_guard / feedback_sps_meta_local_change_lost_on_merge.
+        const _localSnap={
+          games:APP.games||[], evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
+          evalResponses:APP.evalResponses||[], trainings:APP.trainings||[], convocatorias:APP.convocatorias||[],
+          scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[]
+        };
         await pullCloud();
-        toast('⚠️ Havia dados mais recentes na nuvem — atualizámos primeiro. Repete a última alteração se necessário.','err');
-        return;
+        Object.keys(_localSnap).forEach(key=>{
+          const fresh=APP[key]||[];
+          const local=_localSnap[key]||[];
+          const localIds=new Set(local.filter(x=>x&&x.id).map(x=>x.id));
+          const keep=fresh.filter(f=>!f||!f.id||!localIds.has(f.id));
+          APP[key]=[...keep,...local];
+        });
+        saveData();
+        if(!_pushRetry)return pushAppMeta(true);
+        console.warn('[pushAppMeta] staleness persistente mesmo após fusão — a gravar mesmo assim para não bloquear o utilizador');
       }
     }catch(e){console.warn('[pushAppMeta] staleness check falhou, a prosseguir mesmo assim',e);}
     console.log('[pushAppMeta] pushing for club_id=',_cid,'evalResponses=',((APP.evalResponses||[]).length));
@@ -7677,7 +7700,12 @@ var _ATLETA_ICON_APPLE='assets/icon_atleta_apple.png';
 function applyPWAManifest(opts){
   try{
     var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, icon192=opts.icon192||iconSrc, icon512=opts.icon512||iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
-    var manifest={name:name,short_name:shortName,start_url:location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:themeColor,icons:[
+    // startUrl opcional: por defeito é só o pathname (comportamento antigo, correto para
+    // staff/fisio/nutri). A app da atleta passa sempre '?atleta=1' explicitamente (ver
+    // showAtletaApp) para que o ícone instalado no ecrã principal do telemóvel abra sempre
+    // direto no login de atleta — sem isto, o ícone reabria sempre o ecrã de staff com
+    // "Entrar como Atleta" só como botão secundário, mesmo depois de corrigido no browser.
+    var manifest={name:name,short_name:shortName,start_url:opts.startUrl||location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:themeColor,icons:[
       {src:icon192,sizes:'192x192',type:iconType,purpose:'any maskable'},
       {src:icon512,sizes:'512x512',type:iconType,purpose:'any maskable'}
     ]};
@@ -7982,7 +8010,7 @@ function _checkAtletaToken(){
 function _showWelcomeScreen(at, tok, isReset){
   var loginScr = document.getElementById('screen-login');
   if(loginScr) loginScr.style.display='none';
-  applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE});
+  applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE,startUrl:location.pathname+'?atleta=1'});
 
   var club      = APP.config.clubName||'Sport Performance';
   var clubColor = APP.config.color||'#1d6f3b';
