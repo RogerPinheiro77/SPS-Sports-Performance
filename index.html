@@ -3659,6 +3659,18 @@ function _createNewUT(){
   _trId=tr.id;_trView='detail';_trExTab='aquecimento';renderTreinos();
 }
 
+// Calcula a hora de fim automaticamente (hora início + duração) sempre que um dos dois
+// campos muda — evita ter de preencher a hora de fim à mão em cada Unidade de Treino.
+// Continua editável à mão depois, para os casos em que a sessão não segue a duração padrão.
+function _autoHoraFim(){
+  const hi=document.getElementById('tr-hinicio'),du=document.getElementById('tr-dur'),hf=document.getElementById('tr-hfim');
+  if(!hi||!du||!hf||!hi.value)return;
+  const dur=parseInt(du.value,10)||90;
+  const [h,m]=hi.value.split(':').map(Number);
+  if(isNaN(h)||isNaN(m))return;
+  const total=((h*60+m+dur)%1440+1440)%1440;
+  hf.value=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
+}
 function deleteTreino(id){
   if(!confirm('Apagar esta unidade de treino?'))return;
   APP.trainings=APP.trainings.filter(t=>t.id!==id);
@@ -3705,10 +3717,10 @@ function _renderTrDetail(){
     </div>
     <div class="fr3" style="gap:10px;flex-wrap:wrap;margin-top:8px">
       <div class="form-g"><label class="fl">Data</label><input class="fc" id="tr-date" type="date" value="${tr.date||today()}"></div>
-      <div class="form-g"><label class="fl">Hora início</label><input class="fc" id="tr-hinicio" type="time" value="${tr.horaInicio||''}" placeholder="09:00"></div>
+      <div class="form-g"><label class="fl">Hora início</label><input class="fc" id="tr-hinicio" type="time" value="${tr.horaInicio||''}" placeholder="09:00" oninput="_autoHoraFim()"></div>
       <div class="form-g"><label class="fl">Hora fim</label><input class="fc" id="tr-hfim" type="time" value="${tr.horaFim||''}" placeholder="10:30"></div>
       <div class="form-g"><label class="fl">Local</label><input class="fc" id="tr-local" value="${escHtml(tr.local||'')}" placeholder="Campo principal"></div>
-      <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="tr-dur" type="number" value="${tr.duracao||90}"></div>
+      <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="tr-dur" type="number" value="${tr.duracao||90}" oninput="_autoHoraFim()"></div>
       <div class="form-g"><label class="fl">Nº Jogadoras</label><input class="fc" id="tr-jog" type="number" value="${tr.jogadoras||18}"></div>
     </div>
     <div class="form-g" style="margin-top:8px"><label class="fl">Notas Gerais</label><textarea class="fc" id="tr-notes" rows="2" placeholder="Observações, contexto, situação da equipa...">${escHtml(tr.notes||'')}</textarea></div>
@@ -7521,7 +7533,7 @@ async function pushAppMeta(){
     // (ou dias) sem recarregar, com um APP.games/evaluations/etc. antigo em memória. Se
     // gravássemos sempre por cima sem verificar, qualquer alteração feita por outra pessoa
     // desde o último pull deste separador seria apagada em silêncio (já aconteceu: 36 jogos
-    // de Campeonato/Taça perdidos em 2026-08-18 — ver memória project_sps_meta_staleness_guard).
+    // de Campeonato/Taça perdidos em 2026-08-18 — ver memória feedback_sps_meta_staleness_guard).
     // Verificação leve (1 SELECT) antes de cada gravação do blob inteiro.
     try{
       const {data:chk}=await _supa.from('clubs').select('updated_at').eq('id',_cid).maybeSingle();
