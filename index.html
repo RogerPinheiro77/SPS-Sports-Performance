@@ -3953,12 +3953,23 @@ function saveTreinoPatch(trId){
         ev.date=tr.date;
         ev.time=tr.horaInicio||ev.time;
         ev.location=tr.local||ev.location;
+        // Defesa: garante sempre um dur válido (a duração da Unidade), mesmo que as horas
+        // não estejam preenchidas — o desbloqueio automático do PSE ignora por completo
+        // qualquer evento com dur vazio/nulo (ver renderAtPSE), por isso um dur em falta
+        // aqui bloqueia silenciosamente o PSE de toda a equipa nesse dia.
+        ev.dur=tr.duracao||ev.dur||90;
         if(tr.horaInicio&&tr.horaFim){
           const [sh,sm]=tr.horaInicio.split(':').map(Number);
           const [eh,em]=tr.horaFim.split(':').map(Number);
           const durMin=(eh*60+em)-(sh*60+sm);
           if(durMin>0)ev.dur=durMin;
         }
+        // Antes disto, a correção acima só existia na memória local (e num campo
+        // meta.schedule que nunca é lido de volta — ver pullCloud) — nunca chegava à
+        // tabela schedule_events, que é a fonte de verdade real do Planeamento e do
+        // desbloqueio do PSE. Sem este cloudUpsert, editar a hora de uma UT "corrigia"
+        // a vista local mas continuava partido para todos os outros dispositivos.
+        if(_sync&&_supa&&_cid)cloudUpsert('schedule_events',{...ev,team_id:ev.teamId,club_id:_cid});
       }
     }
   }
