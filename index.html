@@ -666,6 +666,7 @@ function showAtletaApp(at){
   document.getElementById('screen-login').style.display='none';
   document.getElementById('atleta-app').classList.add('on');
   applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE});
+  if(window._flushPwaBar)window._flushPwaBar();
   document.getElementById('at-name').textContent=at.name;
   const _atAvEl=document.getElementById('at-topbar-av');
   if(_atAvEl){if(at.photo){_atAvEl.innerHTML='<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';}else{_atAvEl.textContent=initials(at.name);}}
@@ -7500,16 +7501,27 @@ loadData();
       b.innerHTML='<span>\u{1F4F1} Instala a app no teu dispositivo</span><div style="display:flex;gap:8px"><button onclick="installPWA()" style="background:#fff;color:'+clubColor+';border:none;padding:7px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">Instalar</button><button onclick="document.getElementById(\'pwa-bar\').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 10px;border-radius:6px;cursor:pointer">\u2715</button></div>';
       document.body.appendChild(b);
     }
+    // O banner só faz sentido para atletas (marca própria "SPS Atleta", ver showAtletaApp) —
+    // staff usa a plataforma via browser normal, instalar não traz vantagem nenhuma.
+    // Por isso o banner nunca aparece antes de sabermos o papel: se ainda não é uma sessão
+    // de atleta quando o evento dispara, fica "pendente" e só é mostrado se/quando
+    // showAtletaApp() correr (ver window._flushPwaBar ali).
+    var _pwaBarPending=false;
+    function _maybeShowPwaBar(){
+      if(typeof ROLE!=='undefined'&&ROLE==='atleta') _showPwaBar();
+      else _pwaBarPending=true;
+    }
+    window._flushPwaBar=function(){ if(_pwaBarPending){_pwaBarPending=false;_showPwaBar();} };
     // Banner Android -- so depois do browser confirmar (via beforeinstallprompt) que e instalavel
     window.addEventListener('beforeinstallprompt',function(e){
       e.preventDefault();window._pwaE=e;
-      _showPwaBar();
+      _maybeShowPwaBar();
     });
     window.addEventListener('appinstalled',function(){var b=document.getElementById('pwa-bar');if(b)b.remove();});
     // Banner iOS -- sem beforeinstallprompt, mostra sempre que a app nao estiver ja instalada (standalone)
     var _isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
     var _isStandalone=window.navigator.standalone||window.matchMedia('(display-mode:standalone)').matches;
-    if(_isIOS&&!_isStandalone) _showPwaBar();
+    if(_isIOS&&!_isStandalone) _maybeShowPwaBar();
   }catch(err){console.warn('PWA:',err);}
 })();
 
