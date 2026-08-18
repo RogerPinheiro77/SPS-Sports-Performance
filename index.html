@@ -374,6 +374,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-fisio-dash"></div>
       <div class="pg" id="pg-fisio-ep"></div>
       <div class="pg" id="pg-fisio-trat"></div>
+      <div class="pg" id="pg-fisio-anamnese"></div>
       <div class="pg" id="pg-nutri-dash"></div>
       <div class="pg" id="pg-nutri-aval"></div>
       <div class="pg" id="pg-nutri-planos"></div>
@@ -446,6 +447,7 @@ function defApp(){
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],
+    anamnesis:[],
     users:[]
   };
 }
@@ -645,6 +647,11 @@ function logout(){
 }
 
 // ─── STAFF APP INIT ───────────────────────────────────────
+// Ícone quadrado gerado em SVG (mesmo padrão do ícone genérico do clube em initPWA),
+// usado para dar marca própria de PWA a Fisio/Nutri sem precisar de ficheiros PNG novos.
+function _roleIconSVG(text,color){
+  return 'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192"><rect width="192" height="192" rx="38" fill="'+color+'"/><text x="96" y="120" text-anchor="middle" font-family="system-ui" font-weight="900" font-size="64" fill="white">'+text+'</text></svg>';
+}
 function showStaffApp(){
   document.getElementById('screen-login').style.display='none';
   document.getElementById('staff-app').classList.add('on');
@@ -658,6 +665,14 @@ function showStaffApp(){
     const el=document.getElementById('sb-uname');if(el)el.textContent=sess.name;
     const av=document.getElementById('sb-av');if(av){if(sess.photo)av.innerHTML='<img src="'+sess.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';else av.textContent=sess.name.slice(0,1).toUpperCase();}
   }
+  // App própria no ecrã inicial para Fisio e Nutri (espaços pequenos e focados) — os
+  // restantes cargos mantêm a marca genérica do clube já aplicada em initPWA().
+  if(ROLE==='fisio'){
+    applyPWAManifest({name:'SPS Fisio',shortName:'SPS Fisio',iconSrc:_roleIconSVG('FIS','#c0392b'),iconType:'image/svg+xml',themeColor:'#c0392b'});
+  } else if(ROLE==='nutri'){
+    applyPWAManifest({name:'SPS Nutri',shortName:'SPS Nutri',iconSrc:_roleIconSVG('NUT','#3d7a52'),iconType:'image/svg+xml',themeColor:'#3d7a52'});
+  }
+  if(window._flushPwaBar)window._flushPwaBar();
   renderSidebar();
   navTo('dashboard');
   if(_sync)pullCloud();
@@ -708,6 +723,7 @@ const ALL_PAGES=[
   {id:'fisio-dash',icon:'🏠',label:'Dashboard'},
   {id:'fisio-ep',icon:'🩺',label:'Episódios'},
   {id:'fisio-trat',icon:'💊',label:'Tratamentos'},
+  {id:'fisio-anamnese',icon:'📋',label:'Anamnese'},
   {sec:'Nutrição'},
   {id:'nutri-dash',icon:'🏠',label:'Dashboard'},
   {id:'nutri-aval',icon:'📏',label:'Avaliações'},
@@ -723,7 +739,7 @@ const ROLE_DEFS={
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','pse-wellness','treinos','treinos-ind','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
-  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat'],readOnly:false,manageUsers:false},
+  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat','fisio-anamnese'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos'],readOnly:true,manageUsers:false}
@@ -802,9 +818,9 @@ function navTo(id){
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
-  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
+  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
   document.getElementById('pg-title').textContent=titles[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -878,6 +894,13 @@ function _avHtml(name,photo,size,fs){
 function wellnessColor(score){if(!score)return'wd0';if(score>=70)return'wdg';if(score>=45)return'wdy';return'wdr';}
 function sevBadge(s){const m={ligeira:'bg-g',moderada:'bg-y',grave:'bg-o','muito grave':'bg-r'};return`<span class="bdg ${m[s]||'bg-gr'}">${s||'—'}</span>`;}
 function statusBadge(s){const m={ativo:'bg-r',reabilitação:'bg-y',alta:'bg-g',disponivel:'bg-g',indisponivel:'bg-r'};return`<span class="bdg ${m[s]||'bg-gr'}">${s||'—'}</span>`;}
+// Anamnese (histórico clínico): registo 1x por atleta, tabela dedicada athlete_anamnesis
+// (não no meta blob) — evita o risco de sobrescrita silenciosa já visto com outros
+// campos partilhados nesta app (ver memória feedback_sps_full_meta_blob_overwrite_risk).
+function _getAnamnesis(athleteId){
+  return (APP.anamnesis||[]).find(a=>a.athleteId===athleteId)
+    || {id:athleteId,athleteId,selfReport:{},selfReportUpdatedAt:null,clinicalNotes:'',clinicalNotesUpdatedAt:null,clinicalNotesUpdatedBy:null,fisioViewedAt:null};
+}
 
 
 function _handleStaffPhoto(input,previewId){
@@ -5485,6 +5508,84 @@ function saveTratamento(){
 }
 function deleteTrat(id){if(!confirm('Apagar?'))return;APP.treatments=APP.treatments.filter(t=>t.id!==id);saveData();toast('Apagado');renderFisioTrat();}
 
+// ── Anamnese (Histórico Clínico) — lado fisio ───────────────────────────────
+// Duas camadas: (1) autorreportado pela atleta, editável por ela (ver atSaveAnamnese
+// na app da atleta); (2) historial automático a partir de APP.injuries/APP.treatments,
+// que a fisio já regista normalmente — não precisa de duplicar/atualizar nada à parte.
+function renderFisioAnamnese(){
+  const athletes=APP.athletes.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=athletes.map(at=>{
+    const an=_getAnamnesis(at.id);
+    const filled=!!an.selfReportUpdatedAt;
+    const isNew=filled&&(!an.fisioViewedAt||an.selfReportUpdatedAt>an.fisioViewedAt);
+    return `<div class="card" style="margin-bottom:8px;padding:12px;cursor:pointer" onclick="openAnamneseDetail('${at.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px">${_avHtml(at.name,at.photo,26)}<div style="font-size:13px;font-weight:700">${escHtml(at.name)} <span style="font-size:10px;color:var(--t2);font-weight:400">${at.pos||''}${at.num?' · #'+at.num:''}</span></div></div>
+        <div style="display:flex;gap:6px">
+          ${isNew?'<span class="bdg bg-y">🔔 Atualizado</span>':''}
+          <span class="bdg ${filled?'bg-g':'bg-r'}">${filled?'Preenchido':'Por preencher'}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('pg-fisio-anamnese').innerHTML=`
+  <div class="sh"><div class="sh-t">📋 Anamnese — Histórico Clínico</div></div>
+  ${rows||'<div class="empty"><div class="ei">📋</div><p>Sem atletas no plantel</p></div>'}`;
+}
+function _anamDetailField(label,val){
+  return `<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--t2);text-transform:uppercase;font-weight:700">${label}</div><div style="font-size:12px">${val?escHtml(val):'—'}</div></div>`;
+}
+function openAnamneseDetail(athleteId){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  if(!APP.anamnesis)APP.anamnesis=[];
+  let an=APP.anamnesis.find(a=>a.athleteId===athleteId);
+  if(!an){an={id:athleteId,athleteId,selfReport:{},selfReportUpdatedAt:null,clinicalNotes:'',clinicalNotesUpdatedAt:null,clinicalNotesUpdatedBy:null,fisioViewedAt:null};APP.anamnesis.push(an);}
+  const sr=an.selfReport||{};
+  // Marcar como vista pela fisio (limpa o aviso "🔔 Atualizado" na lista)
+  an.fisioViewedAt=new Date().toISOString();
+  saveData();
+  if(_sync)cloudUpsert('athlete_anamnesis',{...an,club_id:_cid});
+
+  const injs=APP.injuries.filter(i=>i.athleteId===athleteId).sort((a,b)=>b.date.localeCompare(a.date));
+  const timelineHtml=injs.length?injs.map(inj=>{
+    const treats=APP.treatments.filter(t=>t.injuryId===inj.id).sort((a,b)=>b.date.localeCompare(a.date));
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--brd)">
+      <div style="font-size:12px;font-weight:700">${fmtDate(inj.date)} — ${escHtml(inj.diagnosis||inj.type||'')} ${statusBadge(inj.status)}</div>
+      <div style="font-size:10px;color:var(--t2)">${inj.bodyPart||''}</div>
+      ${treats.map(t=>`<div style="font-size:10px;color:var(--t2);padding-left:10px">↳ ${fmtDate(t.date)} · ${t.type}</div>`).join('')}
+    </div>`;
+  }).join(''):'<div style="font-size:11px;color:var(--t2)">Sem episódios registados desde que está no clube.</div>';
+
+  openMod('📋 Anamnese — '+at.name,
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px">Autorreportado pela atleta'+(an.selfReportUpdatedAt?' · atualizado em '+fmtDate(an.selfReportUpdatedAt.slice(0,10)):' · ainda não preenchido')+'</div>'
+    +_anamDetailField('Lesões anteriores',sr.previousInjuries)
+    +_anamDetailField('Cirurgias',sr.surgeries)
+    +_anamDetailField('Condições crónicas',sr.chronicConditions)
+    +_anamDetailField('Alergias',sr.allergies)
+    +_anamDetailField('Medicação',sr.medication)
+    +_anamDetailField('Histórico familiar',sr.familyHistory)
+    +_anamDetailField('Outras notas',sr.notes)
+    +'<div class="sh" style="margin-top:14px"><div class="sh-t" style="font-size:12px">Historial no clube</div></div>'
+    +'<div style="max-height:180px;overflow-y:auto">'+timelineHtml+'</div>'
+    +'<div class="fg" style="margin-top:14px"><label class="lbl">Notas clínicas (só visível para a fisio)</label>'
+    +'<textarea class="ctrl" id="an-clinical" rows="4">'+(an.clinicalNotes?escHtml(an.clinicalNotes):'')+'</textarea></div>'
+    +'<button class="btn btn-g" style="width:100%" onclick="saveClinicalNotes(\''+athleteId+'\')">Guardar notas clínicas</button>'
+  ,'lg');
+  renderFisioAnamnese();
+}
+async function saveClinicalNotes(athleteId){
+  const an=(APP.anamnesis||[]).find(a=>a.athleteId===athleteId);
+  if(!an)return;
+  const sess=getSession();
+  an.clinicalNotes=document.getElementById('an-clinical')?.value.trim()||'';
+  an.clinicalNotesUpdatedAt=new Date().toISOString();
+  an.clinicalNotesUpdatedBy=sess?sess.name:'';
+  saveData();
+  if(_sync)await cloudUpsert('athlete_anamnesis',{...an,club_id:_cid});
+  closeMod();
+  toast('Notas clínicas guardadas ✓');
+}
+
 // ─── NUTRIÇÃO ─────────────────────────────────────────────
 function renderNutriDash(){
   const athletes=APP.athletes.sort((a,b)=>a.name.localeCompare(b.name));
@@ -7051,12 +7152,63 @@ function renderAtNutri(){
   </div></div>`:
   `<div class="empty"><div class="ei"><i class="ti ti-salad" aria-hidden="true"></i></div><p>Sem plano nutricional ativo</p><div class="esub">O teu nutricionista ainda não definiu um plano</div></div>`}`;
 }
+// ── Histórico Clínico (Anamnese) — lado atleta ──────────────────────────────
+function _anamneseSummaryCard(){
+  const an=_getAnamnesis(AID);
+  const filled=!!an.selfReportUpdatedAt;
+  return `<div class="card" style="margin-bottom:12px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:800"><i class="ti ti-clipboard-text" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>Histórico Clínico</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">${filled?'Atualizado em '+fmtDate(an.selfReportUpdatedAt.slice(0,10)):'Ainda não preenchido'}</div>
+      </div>
+      <button class="btn btn-g btn-sm" onclick="atOpenAnamnese()">${filled?'✏️ Editar':'+ Preencher'}</button>
+    </div>
+  </div>`;
+}
+function _anField(id,label,val){
+  return '<div class="fg"><label class="lbl">'+label+'</label><textarea class="ctrl" id="'+id+'" rows="2" placeholder="—">'+(val?escHtml(val):'')+'</textarea></div>';
+}
+function atOpenAnamnese(){
+  const an=_getAnamnesis(AID);
+  const sr=an.selfReport||{};
+  openMod('📋 Histórico Clínico',
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:12px">Conta-nos o teu histórico de lesões e saúde antes de entrares no clube. Podes editar sempre que quiseres.</div>'
+    +_anField('an-prev','Lesões anteriores (tipo, quando, tratamento feito)',sr.previousInjuries)
+    +_anField('an-surg','Cirurgias',sr.surgeries)
+    +_anField('an-chronic','Condições crónicas / doenças',sr.chronicConditions)
+    +_anField('an-allerg','Alergias',sr.allergies)
+    +_anField('an-med','Medicação habitual',sr.medication)
+    +_anField('an-fam','Histórico familiar relevante',sr.familyHistory)
+    +_anField('an-notes','Outras notas',sr.notes)
+    +'<button class="btn btn-g" style="width:100%;margin-top:8px" onclick="atSaveAnamnese()">Guardar</button>'
+  );
+}
+async function atSaveAnamnese(){
+  const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
+  const g=id=>document.getElementById(id)?.value.trim()||'';
+  const selfReport={
+    previousInjuries:g('an-prev'),surgeries:g('an-surg'),chronicConditions:g('an-chronic'),
+    allergies:g('an-allerg'),medication:g('an-med'),familyHistory:g('an-fam'),notes:g('an-notes')
+  };
+  if(!APP.anamnesis)APP.anamnesis=[];
+  let an=APP.anamnesis.find(a=>a.athleteId===AID);
+  if(!an){an={id:AID,athleteId:AID,selfReport:{},clinicalNotes:'',clinicalNotesUpdatedAt:null,clinicalNotesUpdatedBy:null,fisioViewedAt:null};APP.anamnesis.push(an);}
+  an.selfReport=selfReport;
+  an.selfReportUpdatedAt=new Date().toISOString();
+  saveData();
+  if(_sync)await cloudUpsert('athlete_anamnesis',{...an,club_id:_cid});
+  closeMod();
+  toast('Histórico clínico guardado ✓');
+  renderAtFisio();
+}
 function renderAtFisio(){
   const injs=APP.injuries.filter(i=>i.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date));
   const active=injs.filter(i=>i.status==='ativo'||i.status==='reabilitação');
   const phases=['Avaliação inicial','Controlo da dor','Recuperação funcional','Treino específico','Retorno ao jogo'];
   document.getElementById('atp-fisio').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-first-aid-kit" style="margin-right:6px;vertical-align:-3px;color:#f87171" aria-hidden="true"></i>Fisioterapia</div>
+  ${_anamneseSummaryCard()}
   ${active.map(inj=>{const treats=APP.treatments.filter(t=>t.injuryId===inj.id).sort((a,b)=>b.date.localeCompare(a.date));return`<div class="card" style="margin-bottom:12px"><div class="ch"><span class="ct"><i class="ti ti-stethoscope" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>${inj.diagnosis||inj.type}</span>${statusBadge(inj.status)}</div>
   <div class="cb" style="padding:12px">
     <div style="font-size:11px;color:var(--t2);margin-bottom:8px">${inj.bodyPart||''} · ${inj.date} ${inj.returnDate?'· Retorno previsto: '+fmtDate(inj.returnDate):''}</div>
@@ -7311,7 +7463,8 @@ async function pullCloud(){
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
-      ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}]
+      ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
+      ['athlete_anamnesis','anamnesis',(d)=>APP.anamnesis=d.map(r=>({id:r.id,athleteId:r.athlete_id,selfReport:r.self_report||{},selfReportUpdatedAt:r.self_report_updated_at,clinicalNotes:r.clinical_notes||'',clinicalNotesUpdatedAt:r.clinical_notes_updated_at,clinicalNotesUpdatedBy:r.clinical_notes_updated_by,fisioViewedAt:r.fisio_viewed_at}))]
     ];
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
@@ -7421,7 +7574,9 @@ const _CLOUD_TABLE_SCHEMA={
   attendance_records:{cols:['id','event_id','athlete_id','date','present','status','reason','created_at'],
     rename:{eventId:'event_id',athleteId:'athlete_id',createdAt:'created_at'}},
   staff_users:{cols:['id','name','email','role','photo','password_hash','is_admin','active','created_at'],
-    rename:{passwordHash:'password_hash',isAdmin:'is_admin',createdAt:'created_at'}}
+    rename:{passwordHash:'password_hash',isAdmin:'is_admin',createdAt:'created_at'}},
+  athlete_anamnesis:{cols:['id','athlete_id','self_report','self_report_updated_at','clinical_notes','clinical_notes_updated_at','clinical_notes_updated_by','fisio_viewed_at'],
+    rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',clinicalNotes:'clinical_notes',clinicalNotesUpdatedAt:'clinical_notes_updated_at',clinicalNotesUpdatedBy:'clinical_notes_updated_by',fisioViewedAt:'fisio_viewed_at'}}
 };
 async function cloudUpsert(table,row){
   if(!_supa||!_cid)return;
@@ -7501,17 +7656,20 @@ loadData();
       b.innerHTML='<span>\u{1F4F1} Instala a app no teu dispositivo</span><div style="display:flex;gap:8px"><button onclick="installPWA()" style="background:#fff;color:'+clubColor+';border:none;padding:7px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">Instalar</button><button onclick="document.getElementById(\'pwa-bar\').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 10px;border-radius:6px;cursor:pointer">\u2715</button></div>';
       document.body.appendChild(b);
     }
-    // O banner só faz sentido para atletas (marca própria "SPS Atleta", ver showAtletaApp) —
-    // staff usa a plataforma via browser normal, instalar não traz vantagem nenhuma.
-    // Por isso o banner nunca aparece antes de sabermos o papel: se ainda não é uma sessão
-    // de atleta quando o evento dispara, fica "pendente" e só é mostrado se/quando
-    // showAtletaApp() correr (ver window._flushPwaBar ali).
+    // O banner só faz sentido para papéis com marca própria de PWA: atleta ("SPS Atleta",
+    // ver showAtletaApp) e agora também fisio/nutri ("SPS Fisio"/"SPS Nutri", ver
+    // showStaffApp — espaços pequenos e focados, ver memória project_sps_fisio_nutri_own_app).
+    // Restante staff usa a plataforma via browser normal, instalar não traz vantagem.
+    // Por isso o banner nunca aparece antes de sabermos o papel: se ainda não qualifica
+    // quando o evento dispara, fica "pendente" e só é mostrado se/quando showAtletaApp()
+    // ou showStaffApp() correr com um papel válido (ver window._flushPwaBar).
     var _pwaBarPending=false;
+    function _pwaBarRole(){return typeof ROLE!=='undefined'&&(ROLE==='atleta'||ROLE==='fisio'||ROLE==='nutri');}
     function _maybeShowPwaBar(){
-      if(typeof ROLE!=='undefined'&&ROLE==='atleta') _showPwaBar();
+      if(_pwaBarRole()) _showPwaBar();
       else _pwaBarPending=true;
     }
-    window._flushPwaBar=function(){ if(_pwaBarPending){_pwaBarPending=false;_showPwaBar();} };
+    window._flushPwaBar=function(){ if(_pwaBarPending&&_pwaBarRole()){_pwaBarPending=false;_showPwaBar();} };
     // Banner Android -- so depois do browser confirmar (via beforeinstallprompt) que e instalavel
     window.addEventListener('beforeinstallprompt',function(e){
       e.preventDefault();window._pwaE=e;
