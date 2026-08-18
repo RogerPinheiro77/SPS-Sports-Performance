@@ -437,6 +437,10 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 const DK='sps_plat_v2', SK='sps_supa2';
 let APP={}, ROLE=null, AID=null, _curPg='dashboard', _SESSION=null;
 let _supa=null,_cid=null,_sync=false;
+// Timestamp (ISO, vindo de clubs.updated_at) da última vez que este separador/dispositivo
+// recebeu o meta blob da cloud — usado por pushAppMeta() para detetar cópias desatualizadas
+// antes de gravar por cima (ver feedback_sps_full_meta_blob_overwrite_risk).
+let _metaSyncAt=null;
 
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
@@ -7480,9 +7484,10 @@ async function pullCloud(){
       return;
     }
     // Pull app_meta (users, config, games, evaluations, etc.)
-    const {data:clubRow,error:metaErr}=await _supa.from('clubs').select('meta').eq('id',_cid).maybeSingle();
+    const {data:clubRow,error:metaErr}=await _supa.from('clubs').select('meta,updated_at').eq('id',_cid).maybeSingle();
     const meta=clubRow&&clubRow.meta?{data:clubRow.meta}:null;
     console.log('[pullCloud] club_id=',_cid,'meta found=',!!(meta&&meta.data),'error=',metaErr);
+    if(clubRow&&clubRow.updated_at)_metaSyncAt=clubRow.updated_at;
     if(meta&&meta.data){
       const m=meta.data;
       // 'users' já não vem daqui — tem tabela própria (staff_users, ver pulls acima).
@@ -7512,6 +7517,21 @@ async function pullCloud(){
 async function pushAppMeta(){
   if(!_supa||!_cid){console.log('[pushAppMeta] skipped: supa=',!!_supa,'cid=',_cid);return;}
   try{
+    // Guarda contra cópias desatualizadas: este separador pode ter ficado aberto horas
+    // (ou dias) sem recarregar, com um APP.games/evaluations/etc. antigo em memória. Se
+    // gravássemos sempre por cima sem verificar, qualquer alteração feita por outra pessoa
+    // desde o último pull deste separador seria apagada em silêncio (já aconteceu: 36 jogos
+    // de Campeonato/Taça perdidos em 2026-08-18 — ver memória project_sps_meta_staleness_guard).
+    // Verificação leve (1 SELECT) antes de cada gravação do blob inteiro.
+    try{
+      const {data:chk}=await _supa.from('clubs').select('updated_at').eq('id',_cid).maybeSingle();
+      if(chk&&chk.updated_at&&_metaSyncAt&&new Date(chk.updated_at).getTime()>new Date(_metaSyncAt).getTime()+2000){
+        console.warn('[pushAppMeta] cloud mais recente que a última sincronização deste separador — a atualizar antes de gravar, para não apagar alterações de outra sessão');
+        await pullCloud();
+        toast('⚠️ Havia dados mais recentes na nuvem — atualizámos primeiro. Repete a última alteração se necessário.','err');
+        return;
+      }
+    }catch(e){console.warn('[pushAppMeta] staleness check falhou, a prosseguir mesmo assim',e);}
     console.log('[pushAppMeta] pushing for club_id=',_cid,'evalResponses=',((APP.evalResponses||[]).length));
     // NOTA (2026-08-18): 'users' deixou de fazer parte deste blob — tem tabela própria
     // (staff_users), exatamente como 'athletes'. Motivo: qualquer dispositivo com uma cópia
@@ -7545,7 +7565,9 @@ async function pushAppMeta(){
       microcycles:APP.microcycles||[],
       sessions:APP.sessions||[]
     };
-    await _supa.from('clubs').update({meta:meta,updated_at:new Date().toISOString()}).eq('id',_cid);
+    const _pushTs=new Date().toISOString();
+    await _supa.from('clubs').update({meta:meta,updated_at:_pushTs}).eq('id',_cid);
+    _metaSyncAt=_pushTs;
   }catch(e){console.warn('pushAppMeta error',e);}
 }
 // Mapa das colunas REAIS de cada tabela no Supabase + renomeações de campos locais
@@ -7756,6 +7778,24 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
   const lm=document.getElementById('login-main');
   if(lm) lm.innerHTML='<div style="text-align:center;padding:30px 10px;color:rgba(255,255,255,.5);font-size:12px">A sincronizar dados...</div>';
   Promise.race([_initialSyncPromise,_initTimeout]).then(()=>renderLoginScreen()).catch(()=>renderLoginScreen());
+})();
+
+// ── Refrescar meta ao voltar de background ──────────────────────────────────
+// Complemento à guarda de _metaSyncAt em pushAppMeta(): em vez de só detetar o
+// problema no momento de gravar, tenta evitá-lo à partida. Um separador deixado
+// aberto em segundo plano (telemóvel bloqueado, outro separador em foco) nunca
+// recebe alterações feitas por outras pessoas entretanto — ao voltar a ficar
+// visível, se já passou tempo suficiente para valer a pena, faz um pullCloud()
+// silencioso antes que a pessoa comece a editar/gravar com dados antigos.
+(function(){
+  let _hiddenAt=null;
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){_hiddenAt=Date.now();return;}
+    if(document.visibilityState==='visible'&&_hiddenAt&&(Date.now()-_hiddenAt)>60000){
+      if(_sync&&_supa&&_cid&&(ROLE||AID))pullCloud().catch(()=>{});
+    }
+    _hiddenAt=null;
+  });
 })();
 
 // ─── FASE 2 + 3: LINK/TOKEN + AUTH SIMPLIFICADA ─────────────────────────────
