@@ -575,6 +575,7 @@ async function createFirstAdmin(){
   const hash=await hashPwd(pwd);
   const user={id:uid(),name,email,role:'treinador',passwordHash:hash,isAdmin:true,active:true,createdAt:today()};
   APP.users.push(user);saveData();
+  if(_sync)cloudUpsert('staff_users',{...user,club_id:_cid});
   setSession({userId:user.id,role:'treinador',isAdmin:true,name:user.name});
   ROLE='treinador';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
 }
@@ -905,7 +906,7 @@ function _handleMyPhoto(input){
       const sess=getSession();
       if(!sess)return;
       const u=APP.users.find(u=>u.id===sess.userId);
-      if(u){u.photo=b64;sess.photo=b64;setSession(sess);saveData();}
+      if(u){u.photo=b64;sess.photo=b64;setSession(sess);saveData();if(_sync)cloudUpsert('staff_users',{...u,club_id:_cid});}
       // Update preview
       const prev=document.getElementById('my-photo-prev');
       if(prev)prev.innerHTML='<img src="'+b64+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
@@ -6362,24 +6363,32 @@ async function addUserFromConfig(){
   const hash=await hashPwd(rawPwd);
   const uPhoto=document.getElementById('new-user-photo')?document.getElementById('new-user-photo').getAttribute('data-val')||'':'';
   const user={id:uid(),name,email,role,photo:uPhoto,passwordHash:hash,isAdmin:false,active:true,createdAt:today()};
-  APP.users.push(user);saveData();toast('Utilizador criado ✓');renderConfig();showUserCredsModal(user,rawPwd);
+  APP.users.push(user);saveData();
+  if(_sync)cloudUpsert('staff_users',{...user,club_id:_cid});
+  toast('Utilizador criado ✓');renderConfig();showUserCredsModal(user,rawPwd);
 }
 async function resetUserPwd(id){
   const user=APP.users.find(u=>u.id===id);if(!user)return;
   const rawPwd=genPwd(8);const hash=await hashPwd(rawPwd);
-  user.passwordHash=hash;saveData();toast('Password reposta ✓');showUserCredsModal(user,rawPwd);
+  user.passwordHash=hash;saveData();
+  if(_sync)cloudUpsert('staff_users',{...user,club_id:_cid});
+  toast('Password reposta ✓');showUserCredsModal(user,rawPwd);
 }
 function toggleUserActive(id){
   const sess=getSession();
   if(sess&&sess.userId===id)return toast('Não podes desativar a tua própria conta','err');
   const user=APP.users.find(u=>u.id===id);if(!user)return;
-  user.active=!user.active;saveData();toast(user.active?'Utilizador ativado':'Utilizador desativado');renderConfig();
+  user.active=!user.active;saveData();
+  if(_sync)cloudUpsert('staff_users',{...user,club_id:_cid});
+  toast(user.active?'Utilizador ativado':'Utilizador desativado');renderConfig();
 }
-function deleteUser(id){
+async function deleteUser(id){
   const sess=getSession();
   if(sess&&sess.userId===id)return toast('Não podes apagar a tua própria conta','err');
   if(!confirm('Apagar utilizador?'))return;
-  APP.users=APP.users.filter(u=>u.id!==id);saveData();toast('Apagado');renderConfig();
+  APP.users=APP.users.filter(u=>u.id!==id);saveData();
+  if(_sync&&_supa){try{await _supa.from('staff_users').delete().eq('id',id);}catch(err){console.warn('deleteUser cloud:',err);}}
+  toast('Apagado');renderConfig();
 }
 // ── Alteração voluntária de password (lado atleta, dentro da app) ────────────
 function atOpenChangePwd(){
@@ -7292,7 +7301,8 @@ async function pullCloud(){
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
-      ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))]
+      ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
+      ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}]
     ];
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
@@ -7313,7 +7323,7 @@ async function pullCloud(){
     console.log('[pullCloud] club_id=',_cid,'meta found=',!!(meta&&meta.data),'error=',metaErr);
     if(meta&&meta.data){
       const m=meta.data;
-      if(m.users&&m.users.length){APP.users=m.users;APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}
+      // 'users' já não vem daqui — tem tabela própria (staff_users, ver pulls acima).
       if(m.config)APP.config=Object.assign(APP.config||{},m.config);
       if(m.teams&&m.teams.length)APP.teams=m.teams;
       if(m.games&&m.games.length)APP.games=m.games;
@@ -7341,10 +7351,13 @@ async function pushAppMeta(){
   if(!_supa||!_cid){console.log('[pushAppMeta] skipped: supa=',!!_supa,'cid=',_cid);return;}
   try{
     console.log('[pushAppMeta] pushing for club_id=',_cid,'evalResponses=',((APP.evalResponses||[]).length));
-    // Strip large base64 photos to keep payload small
-    const stripPhotos=arr=>(arr||[]).map(o=>{const c={...o};delete c.photo;delete c.drawing;return c;});
+    // NOTA (2026-08-18): 'users' deixou de fazer parte deste blob — tem tabela própria
+    // (staff_users), exatamente como 'athletes'. Motivo: qualquer dispositivo com uma cópia
+    // desatualizada de APP.users em memória (ex: telemóvel de atleta com a app aberta há
+    // horas) reescrevia SILENCIOSAMENTE a lista de utilizadores inteira sempre que gravava
+    // qualquer coisa — já apagou contas de staff reais duas vezes numa sessão.
+    // Ver memória do projeto feedback_sps_full_meta_blob_overwrite_risk.
     const meta={
-      users:stripPhotos(APP.users||[]),
       config:APP.config||{},
       teams:APP.teams||[],
       games:(APP.games||[]).map(g=>{const c={...g};return c;}),
@@ -7397,7 +7410,9 @@ const _CLOUD_TABLE_SCHEMA={
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
     rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at',doneTime:'done_time'}},
   attendance_records:{cols:['id','event_id','athlete_id','date','present','status','reason','created_at'],
-    rename:{eventId:'event_id',athleteId:'athlete_id',createdAt:'created_at'}}
+    rename:{eventId:'event_id',athleteId:'athlete_id',createdAt:'created_at'}},
+  staff_users:{cols:['id','name','email','role','photo','password_hash','is_admin','active','created_at'],
+    rename:{passwordHash:'password_hash',isAdmin:'is_admin',createdAt:'created_at'}}
 };
 async function cloudUpsert(table,row){
   if(!_supa||!_cid)return;
@@ -7419,7 +7434,7 @@ async function cloudUpsert(table,row){
     }
     await _supa.from(table).upsert(payload,{onConflict:'id'});
   }catch(e){console.warn('cloudUpsert error',table,e);}
-  // Also push app meta to keep users/config/etc in sync
+  // Also push app meta to keep config/games/etc in sync (users NÃO está aqui, tem tabela própria)
   pushAppMeta();
 }
 // ─── INIT ──────────────────────────────────────────
