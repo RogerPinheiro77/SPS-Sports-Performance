@@ -840,6 +840,22 @@ function fmtDateShort(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');retu
 function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/(86400000));}
 function ageYears(dob){if(!dob)return'';const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;}
 function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase():'?';}
+// Alcunha vs nome completo — a modalidade identifica as atletas mais pela alcunha do que
+// pelo nome próprio (ex: "Barbara Martins" é conhecida por "Lisa"). Duas funções centrais
+// em vez de espalhar a lógica por cada sítio que mostra o nome de uma atleta:
+// _shortName  → contexto de trabalho no dia a dia (checklists, grelhas) — alcunha em
+//               primeiro plano, cai para o primeiro nome se não houver alcunha definida.
+// _displayName → contexto de identificação formal (convocatórias, fichas, relatórios) —
+//               nome completo sempre primeiro, alcunha entre parêntesis a seguir se existir.
+function _shortName(at){
+  if(!at)return '';
+  if(at.alcunha&&at.alcunha.trim())return at.alcunha.trim();
+  return (at.name||'').split(' ')[0]||'';
+}
+function _displayName(at){
+  if(!at)return '';
+  return at.alcunha&&at.alcunha.trim()?(at.name||'')+' ("'+at.alcunha.trim()+'")':(at.name||'');
+}
 // Mapa de posições (PT) -> coordenadas (%) num campo vertical, 0=linha de fundo adversária, 100=baliza própria
 const _POS_COORDS={
   'guarda redes':[50,134],'gr':[50,134],
@@ -1072,7 +1088,7 @@ function renderDashboard(){
       <td style="padding:5px 8px">
         <div style="display:flex;align-items:center;gap:8px">
           <div class="at-av" style="width:28px;height:28px;font-size:10px;flex-shrink:0">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:initials(at.name)}</div>
-          <div><div style="font-size:12px;font-weight:700;white-space:nowrap">${at.name}</div><div style="font-size:10px;color:var(--t3)">${at.pos||'—'} | ${ageYears(at.dob)||'?'}</div></div>
+          <div title="${escHtml(at.name)}"><div style="font-size:12px;font-weight:700;white-space:nowrap">${escHtml(_shortName(at))}</div><div style="font-size:10px;color:var(--t3)">${at.pos||'—'} | ${ageYears(at.dob)||'?'}</div></div>
         </div>
       </td>
       <td style="padding:5px 8px;text-align:center;white-space:nowrap"><span style="font-size:10px;font-weight:700;color:${stC}">● ${stLbl}</span></td>
@@ -1265,7 +1281,7 @@ function renderDashboard(){
           return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
             <span style="font-size:10px;color:var(--t3);width:12px;flex-shrink:0">${i+1}</span>
             <div style="flex:1;min-width:0">
-              <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.at.name.split(' ').slice(0,2).join(' ')}</div>
+              <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(x.at.name)}">${escHtml(_shortName(x.at))}</div>
               <div style="height:3px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:3px"><div style="width:${bw}%;height:100%;background:${c};border-radius:2px"></div></div>
             </div>
             <span style="font-size:13px;font-weight:800;color:${c};flex-shrink:0">${x.r}</span>
@@ -1368,6 +1384,7 @@ function renderPlantel(teamId){
     </div>
     <div class="fr"><div class="form-g"><label class="fl">Nome Completo *</label><input class="fc" id="af-name" placeholder="Nome da atleta"></div>
     <div class="form-g"><label class="fl">Posição Principal</label><select class="fc" id="af-pos"><option value="">—</option>${_POS_CODES.map(c=>`<option>${c}</option>`).join('')}</select></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Alcunha <span style="color:var(--t2);font-weight:400">(como é conhecida na modalidade)</span></label><input class="fc" id="af-alcunha" placeholder="Ex: Lisa"></div></div>
     <div class="fr"><div class="form-g" style="grid-column:1/-1"><label class="fl">Posições Secundárias</label><select class="fc" id="af-pos-sec" multiple size="4" style="height:auto">${_POS_CODES.map(c=>`<option>${c}</option>`).join('')}</select><div style="font-size:10px;color:var(--t2);margin-top:2px">Ctrl/Cmd+clique para escolher várias — refletem-se no campinho</div></div></div>
     <div class="fr3"><div class="form-g"><label class="fl">Nº Camisola <span style="color:var(--t2);font-weight:400">(necessário para gerar acesso)</span></label><input class="fc" id="af-num" type="number" min="1" max="99"></div>
     <div class="form-g"><label class="fl">Data Nasc.</label><input class="fc" id="af-dob" type="date"></div>
@@ -1414,6 +1431,7 @@ function renderPlantel(teamId){
     return `<div class="at-card ${inj?'inj':''}" onclick="openAthleteModal('${at.id}')">
         <div class="at-av">${av}<span ${at.photo?'style="display:none"':''}>${initials(at.name)}</span></div>
         <div class="at-name">${at.name}</div>
+        ${at.alcunha?`<div style="font-size:10px;color:var(--t2);font-style:italic;margin-top:-2px">"${escHtml(at.alcunha)}"</div>`:''}
         <div class="at-pos">${at.pos||'—'} ${at.nat||''}</div>
         <div class="at-num">${at.num?'#'+at.num:''} ${at.age||ageYears(at.dob)?'· '+(at.age||ageYears(at.dob))+'a':''}</div>
         ${inj?`<div class="bdg bg-r" style="margin:4px auto 0;font-size:9px">🩺 ${inj.type||'Lesão'}</div>`:''}
@@ -1455,6 +1473,7 @@ function renderPlantel(teamId){
     const at=APP.athletes.find(a=>a.id===_editAtId);
     if(at){
       document.getElementById('af-name').value=at.name||'';
+      const _afAlc=document.getElementById('af-alcunha');if(_afAlc)_afAlc.value=at.alcunha||'';
       const _posArr=(at.pos||'').split('/').map(s=>s.trim()).filter(Boolean).map(_posToCode).filter(Boolean);
       document.getElementById('af-pos').value=_posArr[0]||'';
       const _posSecEl=document.getElementById('af-pos-sec');
@@ -1851,6 +1870,7 @@ function importFromZeroZero(){
 function saveAthlete(){
   const name=document.getElementById('af-name').value.trim();
   if(!name)return toast('Nome obrigatório','err');
+  const alcunha=(document.getElementById('af-alcunha')?.value||'').trim();
   const _posMain=document.getElementById('af-pos').value;
   const _posSecEl=document.getElementById('af-pos-sec');
   const _posSec=_posSecEl?Array.from(_posSecEl.selectedOptions).map(o=>o.value).filter(v=>v&&v!==_posMain):[];
@@ -1858,13 +1878,13 @@ function saveAthlete(){
   if(_editAtId){
     const idx=APP.athletes.findIndex(a=>a.id===_editAtId);
     if(idx>=0){
-      APP.athletes[idx]={...APP.athletes[idx],name,pos:posCombined,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:document.getElementById('af-email').value||APP.athletes[idx].email||'',fpfId:document.getElementById('af-fpf-id').value};
+      APP.athletes[idx]={...APP.athletes[idx],name,alcunha,pos:posCombined,num:+document.getElementById('af-num').value||null,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:document.getElementById('af-email').value||APP.athletes[idx].email||'',fpfId:document.getElementById('af-fpf-id').value};
       if(_sync)cloudUpsert('athletes',{...APP.athletes[idx],club_id:_cid,team_id:APP.athletes[idx].teamId});
     }
   } else {
     const atEmail=document.getElementById('af-email').value||'';
     const numVal=+document.getElementById('af-num').value||null;
-    const at={id:uid(),teamId:_plantelTeam,name,pos:posCombined,num:numVal,number:numVal,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today(),mustChangePwd:true};
+    const at={id:uid(),teamId:_plantelTeam,name,alcunha,pos:posCombined,num:numVal,number:numVal,dob:document.getElementById('af-dob').value,nat:document.getElementById('af-nat').value,height:document.getElementById('af-height').value,foot:document.getElementById('af-foot').value,club:document.getElementById('af-club').value,photo:document.getElementById('af-photo').value,email:atEmail,fpfId:document.getElementById('af-fpf-id').value,clubHistory:window._lastImportedHistory||[],createdAt:today(),mustChangePwd:true};
     const rawPwd=_defaultAthletePwd(numVal);
     if(!rawPwd){
       // Sem número de camisola — grava a atleta mas não gera acesso ainda
@@ -2002,7 +2022,7 @@ function openAthleteModal(id){
     // ── Top bar ──
     +'<div style="position:sticky;top:0;background:var(--bg1);border-bottom:1px solid var(--brd);padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:10">'
       +'<button onclick="document.getElementById(\'athlete-profile-ov\').remove()" style="background:var(--bg3);border:none;border-radius:8px;padding:6px 12px;color:var(--t1);cursor:pointer;font-size:13px">← Voltar</button>'
-      +'<span style="font-weight:800;font-size:15px">'+at.name+'</span>'
+      +'<span style="font-weight:800;font-size:15px">'+escHtml(_displayName(at))+'</span>'
       +'<span style="margin-left:auto;font-size:12px;padding:3px 10px;border-radius:20px;background:'+(activeInj?'#f8717122':'#4ade8022')+';color:'+(activeInj?'#f87171':'#4ade80')+'">'+(activeInj?'🔴 Lesionada':'🟢 Disponível')+'</span>'
     +'</div>'
     // ── Header ──
@@ -2010,7 +2030,8 @@ function openAthleteModal(id){
       +'<div style="width:80px;height:80px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;flex-shrink:0;overflow:hidden">'+(at.photo?'<img src="'+at.photo+'" style="width:100%;height:100%;object-fit:cover">':initials(at.name))+'</div>'
       +(at.pos?'<div style="flex-shrink:0;text-align:center">'+_pitchSvg(at.pos,86,120)+'<div style="font-size:9px;color:var(--t2);margin-top:2px;max-width:100px">'+at.pos+'</div></div>':'')
       +'<div style="flex:1;min-width:200px">'
-        +'<div style="font-size:22px;font-weight:900">'+(at.num?'<span style="color:var(--c1);">#'+at.num+'</span> ':'')+at.name+'</div>'
+        +'<div style="font-size:22px;font-weight:900">'+(at.num?'<span style="color:var(--c1);">#'+at.num+'</span> ':'')+escHtml(at.name)+'</div>'
+        +(at.alcunha?'<div style="font-size:13px;color:var(--t2);font-style:italic;margin-top:-2px">"'+escHtml(at.alcunha)+'"</div>':'')
         +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+(at.pos||'—')+' · '+(at.nat||'—')+' · '+(at.dob?ageYears(at.dob)+' anos':'—')+'</div>'
         +'<div style="font-size:12px;color:var(--t3);margin-top:2px">'+(at.height?at.height+'cm · ':'')+at.foot+' '+(at.foot?' · ':'')+'</div>'
         +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
@@ -2177,7 +2198,7 @@ function _attRowHtml(at){
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:28px;height:28px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${at.photo?'<img src="'+at.photo+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">':at.name.split(' ').map(w=>w[0]).slice(0,2).join('')}</div>
-        <span style="font-size:13px">${at.name}<span style="color:var(--t2);font-size:10px;margin-left:4px">${at.pos||''}</span></span>
+        <span style="font-size:13px" title="${escHtml(at.name)}">${escHtml(_shortName(at))}<span style="color:var(--t2);font-size:10px;margin-left:4px">${at.pos||''}</span></span>
       </div>
       <div style="display:flex;gap:6px">
         ${btn('treino','✅','#4ade80')}
@@ -2278,7 +2299,7 @@ function renderPresencas(){
     const pres=recs.filter(a=>a.present).length;
     const pct=recs.length?Math.round(pres/recs.length*100):null;
     return`<tr>
-      <td style="position:sticky;left:0;background:var(--bg2);white-space:nowrap;padding-right:12px"><div style="display:flex;align-items:center;gap:6px">${_avHtml(at.name,at.photo,22)}<span style="font-size:12px">${escHtml(at.name)}</span></div></td>
+      <td style="position:sticky;left:0;background:var(--bg2);white-space:nowrap;padding-right:12px"><div style="display:flex;align-items:center;gap:6px" title="${escHtml(at.name)}">${_avHtml(at.name,at.photo,22)}<span style="font-size:12px">${escHtml(_shortName(at))}</span></div></td>
       ${evs.map(ev=>cell(ev,at)).join('')}
       <td style="text-align:center;font-weight:800;font-size:12px">${pct!==null?pct+'%':'—'}</td>
     </tr>`;
@@ -2942,7 +2963,7 @@ function _jogoPreHtml(g){
       <input type="checkbox" ${isC?'checked':''} onchange="toggleConvocado('${g.id}','${a.id}',this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
       <div style="width:22px;height:22px;background:var(--pri);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||'?'}</div>
       <div style="flex:1;min-width:90px">
-        <div style="font-size:13px;font-weight:600">${escHtml(a.name)}</div>
+        <div style="font-size:13px;font-weight:600">${escHtml(_displayName(a))}</div>
         <div style="font-size:10px;color:var(--t2)">${a.pos||'—'}</div>
       </div>
       ${isCap?'<span style="background:#ffd700;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">CAP</span>':''}
@@ -3552,7 +3573,7 @@ function exportConvocatoriaListPDF(gid){
   const ats=g.convocatoria.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
   const cap=APP.athletes.find(a=>a.id===g.captain);
   const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
-  const rows=ats.map(a=>`<tr><td>${escHtml(a.name)}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td></tr>`).join('');
+  const rows=ats.map(a=>`<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td></tr>`).join('');
   const body=`
     <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Lista de Convocados</h2>
     <p><b>Adversário:</b> ${g.opp}${g.loc?' — '+g.loc:''}</p>
@@ -4041,7 +4062,7 @@ function _trAtChecklistHtml(){
   for(let i=0;i<slots;i++){
     const a=ats[i];
     cells.push(a
-      ?`<div style="display:flex;align-items:center;gap:4px;white-space:nowrap"><span style="display:inline-block;width:7px;height:7px;border:1px solid #888;flex-shrink:0"></span><span>${escHtml(String(a.number||a.num||'—'))}. ${escHtml((a.name||'').split(' ')[0])}</span></div>`
+      ?`<div style="display:flex;align-items:center;gap:4px;white-space:nowrap"><span style="display:inline-block;width:7px;height:7px;border:1px solid #888;flex-shrink:0"></span><span>${escHtml(String(a.number||a.num||'—'))}. ${escHtml(_shortName(a))}</span></div>`
       :`<div style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:7px;height:7px;border:1px solid #ddd;flex-shrink:0"></span><span style="color:#ddd">—</span></div>`);
   }
   return`<div>
@@ -4183,7 +4204,7 @@ async function _pdfBrandify(bytes){
       const cx=chX+col*colW,cy=top-40-row*rowH;
       page.drawRectangle({x:cx,y:cy,width:5.5,height:5.5,borderColor:rgb(0.55,0.55,0.55),borderWidth:0.6});
       const a=athletes[i];
-      const label=a?`${a.number||a.num||'—'}. ${(a.name||'').split(' ')[0]}`:'—';
+      const label=a?`${a.number||a.num||'—'}. ${_shortName(a)}`:'—';
       page.drawText(label,{x:cx+8.5,y:cy+0.5,size:6.8,font:reg,color:a?rgb(0.2,0.2,0.2):rgb(0.82,0.82,0.82)});
     }
   }
@@ -4223,7 +4244,7 @@ function printSessaoPSEWellness(){
     <div class="pr-title">${title}</div>
     <p style="font-size:9pt;color:#666;margin-bottom:8px">PSE reportado no dia do treino (${fmtDate(d.dt)}) · Wellness reportado no dia seguinte (${fmtDate(d.nextDt)})</p>
     <table><thead><tr><th>Atleta</th><th>PSE</th><th>Dur.</th><th>UA</th><th>Tipo</th><th>Sono</th><th>Fad.</th><th>Str.</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
-    <tbody>${d.rows.map(r=>`<tr><td>${escHtml(r.at.name)}</td><td>${r.pse?r.pse.pse+'/10':'—'}</td><td>${r.pse?r.pse.duration+'m':'—'}</td><td>${r.pse?r.pse.ua:'—'}</td><td>${r.pse?escHtml(r.pse.sessionType||'—'):'—'}</td><td>${r.well?r.well.sleep:'—'}</td><td>${r.well?r.well.fatigue:'—'}</td><td>${r.well?r.well.stress:'—'}</td><td>${r.well?r.well.pain:'—'}</td><td>${r.well?r.well.mood:'—'}</td><td>${r.well?r.well.score:'—'}</td><td>${r.well?escHtml(r.well.cycle||'—'):'—'}</td></tr>`).join('')}</tbody></table>
+    <tbody>${d.rows.map(r=>`<tr><td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td><td>${r.pse?r.pse.pse+'/10':'—'}</td><td>${r.pse?r.pse.duration+'m':'—'}</td><td>${r.pse?r.pse.ua:'—'}</td><td>${r.pse?escHtml(r.pse.sessionType||'—'):'—'}</td><td>${r.well?r.well.sleep:'—'}</td><td>${r.well?r.well.fatigue:'—'}</td><td>${r.well?r.well.stress:'—'}</td><td>${r.well?r.well.pain:'—'}</td><td>${r.well?r.well.mood:'—'}</td><td>${r.well?r.well.score:'—'}</td><td>${r.well?escHtml(r.well.cycle||'—'):'—'}</td></tr>`).join('')}</tbody></table>
     <p style="font-size:8pt;color:#999;margin-top:8px">${d.rows.length} atletas · ${d.rows.filter(r=>r.pse).length} com PSE · ${d.rows.filter(r=>r.well).length} com Wellness</p>
   `;
   _printWin(title,body);
@@ -4256,7 +4277,7 @@ function renderPSEWellness(){
       const isExp=_pwExpand.has(expKey);
       const hist=atPSE.slice(0,10);
       const histRow=isExp?`<tr><td colspan="9" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)}</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${hist.length?hist.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${p.pse}/10</td><td>${p.duration} min</td><td>${p.ua}</td><td>${escHtml(p.sessionType||'—')}</td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table></div></td></tr>`:'';
-      return`<tr><td><div style="display:flex;align-items:center;gap:7px"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:2px 6px">${isExp?'▴':'▾'}</button>${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
+      return`<tr><td><div style="display:flex;align-items:center;gap:7px" title="${escHtml(at.name)}"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:2px 6px">${isExp?'▴':'▾'}</button>${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_shortName(at))}</strong></div></td><td>${at.pos||'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.pse:'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.duration+'min':'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.ua:'—'}</td>
@@ -4308,7 +4329,7 @@ function renderPSEWellness(){
     athletes.sort((a,b)=>a.name.localeCompare(b.name)).forEach(at=>{
       const expKey='wellness_'+at.id;
       const isExp=_pwExpand.has(expKey);
-      hmHtml+=`<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;font-size:11px"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:1px 5px;margin-right:5px">${isExp?'▴':'▾'}</button>${at.name}</td>`;
+      hmHtml+=`<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;font-size:11px" title="${escHtml(at.name)}"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:1px 5px;margin-right:5px">${isExp?'▴':'▾'}</button>${escHtml(_shortName(at))}</td>`;
       last7days.forEach(d=>{
         const w=APP.wellness.find(x=>x.athleteId===at.id&&x.date===d);
         if(w){
@@ -4349,7 +4370,7 @@ function renderPSEWellness(){
     // todas as atletas da equipa, com pré-visualização e botão para A4.
     const d=_getSessaoPWData();
     const rowsHtml=d.rows.map(r=>`<tr>
-      <td><div style="display:flex;align-items:center;gap:7px">${_avHtml(r.at.name,r.at.photo,24)}<strong>${escHtml(r.at.name)}</strong></div></td>
+      <td><div style="display:flex;align-items:center;gap:7px" title="${escHtml(r.at.name)}">${_avHtml(r.at.name,r.at.photo,24)}<strong>${escHtml(_shortName(r.at))}</strong></div></td>
       <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
       <td style="text-align:center">${r.pse?r.pse.duration+' min':'—'}</td>
       <td style="text-align:center">${r.pse?r.pse.ua:'—'}</td>
@@ -4584,7 +4605,7 @@ function _renderEvalAvaliar(){
     const autoStatus=auto?'<span style="color:#1D9E75;font-weight:700;font-size:11px">✓ Preenchida</span>':'<span style="color:var(--t2);font-size:11px">— Pendente</span>';
     const tecStatus=tec?'<span style="color:#1D9E75;font-weight:700;font-size:11px">✓ Preenchida</span>':'<span style="color:var(--t2);font-size:11px">— Pendente</span>';
     return`<tr>
-      <td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td>
+      <td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_displayName(at))}</strong></div></td>
       <td>${at.pos||'—'}</td>
       <td>${autoStatus}</td>
       <td>${tecStatus}</td>
@@ -4689,7 +4710,7 @@ function _renderEvalForm(){
   document.getElementById(pg).innerHTML=`
   <div class="sh" style="flex-wrap:wrap;gap:8px">
     <button class="btn btn-gh btn-sm" onclick="_evalType=null;${isAuto?'renderAtAval()':'renderAvaliacoes()'}">← Voltar</button>
-    <div style="font-size:14px;font-weight:700">${isAuto?'Autoavaliação':'Avaliação Técnica'} — ${escHtml(at.name)}</div>
+    <div style="font-size:14px;font-weight:700">${isAuto?'Autoavaliação':'Avaliação Técnica'} — ${escHtml(_displayName(at))}</div>
     <button class="btn btn-g btn-sm" onclick="saveEvalResponse()">💾 Guardar</button>
   </div>
   <div style="font-size:12px;color:var(--t2);margin-bottom:14px">Período: ${escHtml(period.title)} · Avalia de 1 (⭐) a 5 (⭐⭐⭐⭐⭐)</div>
@@ -4934,7 +4955,7 @@ function exportEvalPDFAtleta(periodId,athleteId){
     +'<div style="display:flex;align-items:center;gap:18px;border-bottom:3px solid #1D9E75;padding-bottom:14px;margin-bottom:18px">'
     +atPh
     +'<div style="flex:1">'
-    +'<div style="font-size:22px;font-weight:800;color:#1D9E75">'+escHtml(at.name)+'</div>'
+    +'<div style="font-size:22px;font-weight:800;color:#1D9E75">'+escHtml(at.name)+(at.alcunha?' <span style="font-size:14px;font-weight:600;color:#888">("'+escHtml(at.alcunha)+'")</span>':'')+'</div>'
     +'<div style="font-size:13px;color:#555;margin-top:3px">'+escHtml(at.pos||'—')+(at.num?' &nbsp;·&nbsp; #'+at.num:'')+(at.dob?' &nbsp;·&nbsp; Nasc. '+fmtDate(at.dob):'')+'</div>'
     +'<div style="font-size:11px;color:#888;margin-top:2px">'+escHtml(clubN)+' &nbsp;·&nbsp; '+escHtml(period.title)+'</div>'
     +'</div>'
@@ -5044,7 +5065,7 @@ function exportEvalPDF(periodId,athleteId){
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
         ${_atPh}
         <div style="flex:1">
-          <div style="font-size:20px;font-weight:800;color:#1D9E75">${escHtml(at.name)}</div>
+          <div style="font-size:20px;font-weight:800;color:#1D9E75">${escHtml(at.name)}${at.alcunha?` <span style="font-size:13px;font-weight:600;color:#888">("${escHtml(at.alcunha)}")</span>`:''}</div>
           <div style="font-size:13px;color:#555;margin-top:2px">${escHtml(at.pos||'—')}${at.num?' · #'+at.num:''}${at.dob?' · Nasc. '+fmtDate(at.dob):''}</div>
           <div style="font-size:11px;color:#888;margin-top:2px">${escHtml(_clubN)}</div>
         </div>
@@ -5151,7 +5172,7 @@ function renderConvocatorias(){
           const inj=APP.injuries.find(i=>i.athleteId===at.id&&(i.status==='ativo'||i.status==='reabilitação'));
           return`<label style="display:flex;align-items:center;gap:7px;padding:6px 8px;background:var(--bg4);border-radius:var(--rs);cursor:pointer;font-size:12px">
             <input type="checkbox" value="${at.id}" ${inj?'disabled title="Lesionada"':''}>
-            ${_avHtml(at.name,at.photo,22)}<span>${at.num?'#'+at.num+' ':''}<strong>${at.name}</strong> ${inj?'🩺':''}</span>
+            ${_avHtml(at.name,at.photo,22)}<span>${at.num?'#'+at.num+' ':''}<strong>${escHtml(_displayName(at))}</strong> ${inj?'🩺':''}</span>
           </label>`;}).join('')}
       </div>
     </div>
@@ -5172,7 +5193,7 @@ function renderConvocatorias(){
       <div class="cb" style="padding:12px">
         ${logisticaBits.length?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">${logisticaBits.join(' · ')}</div>`:''}
         <div style="display:flex;flex-wrap:wrap;gap:6px">
-          ${selected.map(at=>{const wasSeen=seen.some(s=>s.athleteId===at.id);return`<span class="bdg ${wasSeen?'bg-g':'bg-gr'}" title="${wasSeen?'Vista':'Ainda não vista'}">${at.num?'#'+at.num+' ':''}${escHtml(at.name)}${wasSeen?' ✓':''}</span>`;}).join('')}
+          ${selected.map(at=>{const wasSeen=seen.some(s=>s.athleteId===at.id);return`<span class="bdg ${wasSeen?'bg-g':'bg-gr'}" title="${wasSeen?'Vista':'Ainda não vista'}">${at.num?'#'+at.num+' ':''}${escHtml(_displayName(at))}${wasSeen?' ✓':''}</span>`;}).join('')}
         </div>
       </div>
     </div>`;}).join(''):`<div class="empty"><div class="ei">📋</div><p>Sem convocatórias</p></div>`;
@@ -5316,7 +5337,7 @@ function renderTreinosInd(){
     const plans=APP.trainingPlans.filter(p=>p.athleteId===at.id).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||''));
     const active=plans.filter(p=>!p.done).length;
     const done=plans.filter(p=>p.done).length;
-    return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
+    return`<tr><td><div style="display:flex;align-items:center;gap:7px" title="${escHtml(at.name)}">${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_shortName(at))}</strong></div></td><td>${at.pos||'—'}</td>
     <td style="text-align:center"><span class="bdg bg-b">${active} ativa${active!==1?'s':''}</span></td>
     <td style="text-align:center"><span class="bdg bg-g">${done} concluída${done!==1?'s':''}</span></td>
     <td><button class="btn btn-xs btn-g" onclick="_tiAtId='${at.id}';_showTiForm=true;renderTreinosInd()">+ Ficha</button>
@@ -5379,7 +5400,7 @@ function renderFormacao(){
   <div class="pgrid">${currentAt.length?currentAt.sort((a,b)=>(a.num||99)-(b.num||99)).map(at=>`
     <div class="at-card" onclick="openAthleteModal('${at.id}')">
       <div class="at-av">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:initials(at.name)}</div>
-      <div class="at-name">${at.name}</div><div class="at-pos">${at.pos||'—'}</div>
+      <div class="at-name">${at.name}</div>${at.alcunha?`<div style="font-size:10px;color:var(--t2);font-style:italic;margin-top:-2px">"${escHtml(at.alcunha)}"</div>`:''}<div class="at-pos">${at.pos||'—'}</div>
       <div class="at-num">${at.num?'#'+at.num:''}</div>
     </div>`).join(''):'<div class="empty" style="grid-column:1/-1"><p>Sem atletas</p></div>'}
   </div>`:''}`;
@@ -5405,7 +5426,7 @@ function renderFisioDash(){
     return`<div class="card" style="margin-bottom:10px;padding:14px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         <div>
-          <div style="font-size:13px;font-weight:800">${at?.name||'?'} <span style="font-size:10px;color:var(--t2)">${at?.pos||''}</span></div>
+          <div style="font-size:13px;font-weight:800">${at?escHtml(_displayName(at)):'?'} <span style="font-size:10px;color:var(--t2)">${at?.pos||''}</span></div>
           <div style="font-size:11px;color:var(--t2)">${inj.type||'—'} · ${inj.diagnosis||'—'} · ${inj.bodyPart||''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
@@ -5442,7 +5463,7 @@ function renderFisioEp(){
   const formHtml=_showEpForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">${_editEpId?'Editar Episódio':'Novo Episódio de Lesão'}</div><button class="btn btn-sm btn-gh" onclick="_showEpForm=false;_editEpId=null;renderFisioEp()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="epf-at"><option value="">— Atleta —</option>${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}">${a.name} (${APP.teams.find(t=>t.id===a.teamId)?.name||'—'})</option>`).join('')}</select></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="epf-at"><option value="">— Atleta —</option>${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}">${escHtml(_displayName(a))} (${APP.teams.find(t=>t.id===a.teamId)?.name||'—'})</option>`).join('')}</select></div>
     <div class="form-g"><label class="fl">Data Lesão *</label><input class="fc" id="epf-date" type="date" value="${today()}"></div></div>
     <div class="fr"><div class="form-g"><label class="fl">Tipo</label><select class="fc" id="epf-type"><option>Muscular</option><option>Ligamentar</option><option>Óssea</option><option>Tendinosa</option><option>Contusão</option><option>Outro</option></select></div>
     <div class="form-g"><label class="fl">Segmento / Localização</label><input class="fc" id="epf-body" placeholder="Ex: Coxa direita, Tornozelo..."></div></div>
@@ -5498,7 +5519,7 @@ function renderFisioTrat(){
   const at=inj?APP.athletes.find(a=>a.id===inj.athleteId):null;
   const formHtml=`
   <div class="ipanel" style="max-width:600px">
-    <div class="sh"><div class="sh-t">Registar Tratamento ${at?'— '+at.name:''}</div></div>
+    <div class="sh"><div class="sh-t">Registar Tratamento ${at?'— '+escHtml(_displayName(at)):''}</div></div>
     <div class="form-g"><label class="fl">Episódio de Lesão</label>
       <select class="fc" id="tf-inj" onchange="_tratEpId=this.value;renderFisioTrat()">${APP.injuries.filter(i=>i.status!=='alta').map(i=>{const a=APP.athletes.find(x=>x.id===i.athleteId);return`<option value="${i.id}" ${i.id===_tratEpId?'selected':''}>${a?.name||'?'} — ${i.diagnosis||i.type} (${i.status})</option>`;}).join('')}</select>
     </div>
@@ -5547,7 +5568,7 @@ function renderFisioAnamnese(){
     const isNew=filled&&(!an.fisioViewedAt||an.selfReportUpdatedAt>an.fisioViewedAt);
     return `<div class="card" style="margin-bottom:8px;padding:12px;cursor:pointer" onclick="openAnamneseDetail('${at.id}')">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:8px">${_avHtml(at.name,at.photo,26)}<div style="font-size:13px;font-weight:700">${escHtml(at.name)} <span style="font-size:10px;color:var(--t2);font-weight:400">${at.pos||''}${at.num?' · #'+at.num:''}</span></div></div>
+        <div style="display:flex;align-items:center;gap:8px">${_avHtml(at.name,at.photo,26)}<div style="font-size:13px;font-weight:700">${escHtml(_displayName(at))} <span style="font-size:10px;color:var(--t2);font-weight:400">${at.pos||''}${at.num?' · #'+at.num:''}</span></div></div>
         <div style="display:flex;gap:6px">
           ${isNew?'<span class="bdg bg-y">🔔 Atualizado</span>':''}
           <span class="bdg ${filled?'bg-g':'bg-r'}">${filled?'Preenchido':'Por preencher'}</span>
@@ -5583,7 +5604,7 @@ function openAnamneseDetail(athleteId){
     </div>`;
   }).join(''):'<div style="font-size:11px;color:var(--t2)">Sem episódios registados desde que está no clube.</div>';
 
-  openMod('📋 Anamnese — '+at.name,
+  openMod('📋 Anamnese — '+_displayName(at),
     '<div style="font-size:11px;color:var(--t2);margin-bottom:10px">Autorreportado pela atleta'+(an.selfReportUpdatedAt?' · atualizado em '+fmtDate(an.selfReportUpdatedAt.slice(0,10)):' · ainda não preenchido')+'</div>'
     +_anamDetailField('Lesões anteriores',sr.previousInjuries)
     +_anamDetailField('Cirurgias',sr.surgeries)
@@ -5622,7 +5643,7 @@ function renderNutriDash(){
     const plan=APP.nutritionPlans.find(p=>p.athleteId===at.id&&p.active);
     const bmi=last?.bmi?+last.bmi:null;
     const bmiClass=bmi?(bmi<18.5?'bg-y':bmi<25?'bg-g':bmi<30?'bg-y':'bg-r'):'bg-gr';
-    return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${at.name}</strong></div></td><td>${at.pos||'—'}</td>
+    return`<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_displayName(at))}</strong></div></td><td>${at.pos||'—'}</td>
     <td style="text-align:center">${last?last.weight+'kg':'—'}</td>
     <td style="text-align:center">${bmi?`<span class="bdg ${bmiClass}">${bmi}</span>`:'—'}</td>
     <td style="text-align:center">${last?last.bodyFat+'%':'—'}</td>
@@ -5650,7 +5671,7 @@ function renderNutriAval(){
   const formHtml=_showNaForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">Nova Avaliação ${_naAtId?'— '+APP.athletes.find(a=>a.id===_naAtId)?.name:''}</div><button class="btn btn-sm btn-gh" onclick="_showNaForm=false;renderNutriAval()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="na-at" onchange="_naAtId=this.value">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_naAtId?'selected':''}>${a.name}</option>`).join('')}</select></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="na-at" onchange="_naAtId=this.value">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_naAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
     <div class="form-g"><label class="fl">Data *</label><input class="fc" id="na-date" type="date" value="${today()}"></div></div>
     <div class="fr3"><div class="form-g"><label class="fl">Peso (kg)</label><input class="fc" id="na-wt" type="number" step="0.1" oninput="calcBMI()"></div>
     <div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="na-ht" type="number" oninput="calcBMI()"></div>
@@ -5702,7 +5723,7 @@ function renderNutriPlanos(){
   const formHtml=_showNpForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">${_editNpId?'Editar Plano':'Novo Plano Nutricional'}</div><button class="btn btn-sm btn-gh" onclick="_showNpForm=false;_editNpId=null;renderNutriPlanos()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="np-at">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_npAtId?'selected':''}>${a.name}</option>`).join('')}</select></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="np-at">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_npAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
     <div class="form-g"><label class="fl">Nome do Plano *</label><input class="fc" id="np-name" placeholder="Ex: Plano Competição"></div></div>
     <div class="fr3"><div class="form-g"><label class="fl">Objetivo</label><input class="fc" id="np-obj" placeholder="Manutenção / Definição..."></div>
     <div class="form-g"><label class="fl">Total kcal</label><input class="fc" id="np-kcal" type="number" placeholder="2200"></div>
@@ -5757,7 +5778,7 @@ let _repWellMode='diario',_repPseMode='diario',_repAtMode='semanal';
 function renderRelatorios(){
   const ats=APP.athletes.sort((a,b)=>a.name.localeCompare(b.name));
   const teams=[{id:'',name:'Todas as Equipas'},...APP.teams];
-  const atOpts=ats.map(a=>`<option value="${a.id}">${a.name} (${a.pos||'—'})</option>`).join('');
+  const atOpts=ats.map(a=>`<option value="${a.id}">${escHtml(_displayName(a))} (${a.pos||'—'})</option>`).join('');
   const teamOpts=teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
   const td=_fmtISO(new Date());
   const ym=td.slice(0,7);
@@ -6262,7 +6283,7 @@ function printAthleteReport(){
     <div class="profile-header">
       ${photoHtml}
       <div style="flex:1">
-        <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}</div>
+        <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}${at.alcunha?` <span style="font-size:10pt;font-weight:600;color:#888">("${escHtml(at.alcunha)}")</span>`:''}</div>
         <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'} ${at.num?'· Nº '+at.num:''}${age?' · '+age+' anos':''}</div>
         <div style="font-size:9pt;color:#1d6f3b;font-weight:700;margin-top:3px">Período: ${periodLabel}</div>
       </div>
@@ -6360,7 +6381,7 @@ function _getWellData(){
 function exportWellnessCSV(){
   const d=_getWellData();
   const headers=['Data','Atleta','Sono','Fadiga','Stress','Dor Muscular','Humor','Score','Ciclo'];
-  const rows=[headers,...d.recs.map(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);return[w.date,at?at.name:'—',w.sleep,w.fatigue,w.stress,w.pain,w.mood,w.score,w.cycle||''];})];
+  const rows=[headers,...d.recs.map(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);return[w.date,at?_displayName(at):'—',w.sleep,w.fatigue,w.stress,w.pain,w.mood,w.score,w.cycle||''];})];
   if(!d.recs.length)return toast('Sem dados para exportar','err');
   _dlCSV(rows,`wellness_${d.mode==='diario'?(d.dt||today()):((d.at?.name||'atleta')+'_'+d.ym)}.csv`);
   toast('CSV exportado ✓');
@@ -6372,7 +6393,7 @@ function printWellness(){
   const body=`
     <div class="pr-title">${title}</div>
     <table><thead><tr><th>Data</th>${d.mode==='diario'?'<th>Atleta</th>':''}<th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
-    <tbody>${d.recs.map(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td>${d.mode==='diario'?`<td>${at?'<div style="display:flex;align-items:center;gap:6px">'+_avHtml(at.name,at.photo,22)+'<span>'+escHtml(at.name)+'</span></div>':'—'}</td>`:''}<td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')}</tbody></table>
+    <tbody>${d.recs.map(w=>{const at=APP.athletes.find(a=>a.id===w.athleteId);const c=w.score>=70?'bg-g':w.score>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td>${d.mode==='diario'?`<td>${at?'<div style="display:flex;align-items:center;gap:6px" title="'+escHtml(at.name)+'">'+_avHtml(at.name,at.photo,22)+'<span>'+escHtml(_shortName(at))+'</span></div>':'—'}</td>`:''}<td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="badge ${c}">${w.score}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')}</tbody></table>
     <p style="font-size:8pt;color:#999">Total: ${d.recs.length} registos · Média score: ${d.recs.length?Math.round(d.recs.reduce((s,w)=>s+w.score,0)/d.recs.length):'—'}</p>
   `;
   _printWin(title,body);
@@ -6396,7 +6417,7 @@ function _getPseData(){
 function exportPseCSV(){
   const d=_getPseData();
   const headers=['Data','Atleta','PSE (0-10)','Duração (min)','UA (PSE×Dur)','Tipo de Sessão'];
-  const rows=[headers,...d.recs.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return[p.date,at?at.name:'—',p.pse,p.duration,p.ua,p.sessionType||''];})];
+  const rows=[headers,...d.recs.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return[p.date,at?_displayName(at):'—',p.pse,p.duration,p.ua,p.sessionType||''];})];
   if(!d.recs.length)return toast('Sem dados para exportar','err');
   _dlCSV(rows,`pse_${d.mode==='diario'?(d.dt||today()):((d.at?.name||'atleta')+'_'+d.ym)}.csv`);
   toast('CSV exportado ✓');
@@ -6410,7 +6431,7 @@ function printPse(){
   const body=`
     <div class="pr-title">${title}</div>
     <table><thead><tr><th>Data</th>${d.mode==='diario'?'<th>Atleta</th>':''}<th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead>
-    <tbody>${d.recs.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return`<tr><td>${fmtDate(p.date)}</td>${d.mode==='diario'?`<td>${at?'<div style="display:flex;align-items:center;gap:6px">'+_avHtml(at.name,at.photo,22)+'<span>'+escHtml(at.name)+'</span></div>':'—'}</td>`:''}<td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`;}).join('')}</tbody></table>
+    <tbody>${d.recs.map(p=>{const at=APP.athletes.find(a=>a.id===p.athleteId);return`<tr><td>${fmtDate(p.date)}</td>${d.mode==='diario'?`<td>${at?'<div style="display:flex;align-items:center;gap:6px" title="'+escHtml(at.name)+'">'+_avHtml(at.name,at.photo,22)+'<span>'+escHtml(_shortName(at))+'</span></div>':'—'}</td>`:''}<td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`;}).join('')}</tbody></table>
     <div class="kpi-row" style="margin-top:12px">
       <div class="kpi"><div class="kpi-v">${d.recs.length}</div><div class="kpi-l">Registos</div></div>
       <div class="kpi"><div class="kpi-v">${avgPse}</div><div class="kpi-l">PSE Médio</div></div>
@@ -6446,7 +6467,7 @@ function exportAttendanceCSV(){
   const d=_getAttReportData();
   if(!d.rows.length)return toast('Sem atletas para exportar','err');
   const headers=['Atleta','Treinos no mês','Presenças','Tratamento','Faltas (total)','Justificada','Não Justificada','Lesão','Doença','Outro','Sem motivo','% Assiduidade'];
-  const rows=[headers,...d.rows.map(r=>[r.at.name,d.evsCount,r.presente,r.tratamento,r.ausenteTotal,r.justificada,r.nao_justificada,r.lesao,r.doenca,r.outro,r.sem_motivo,r.pct!==null?r.pct+'%':'—'])];
+  const rows=[headers,...d.rows.map(r=>[_shortName(r.at),d.evsCount,r.presente,r.tratamento,r.ausenteTotal,r.justificada,r.nao_justificada,r.lesao,r.doenca,r.outro,r.sem_motivo,r.pct!==null?r.pct+'%':'—'])];
   _dlCSV(rows,`presencas_${(d.team?.name||'equipa')}_${d.ym}.csv`);
   toast('CSV exportado ✓');
 }
@@ -6459,7 +6480,7 @@ function printAttendance(){
     <table><thead><tr><th>Atleta</th><th>Treinos</th><th>Presente</th><th>Tratamento</th><th>Faltas</th><th>Motivos</th><th>%</th></tr></thead>
     <tbody>${d.rows.map(r=>{
       const motivos=[r.justificada?'Just.: '+r.justificada:'',r.nao_justificada?'Não Just.: '+r.nao_justificada:'',r.lesao?'Lesão: '+r.lesao:'',r.doenca?'Doença: '+r.doenca:'',r.outro?'Outro: '+r.outro:'',r.sem_motivo?'S/ motivo: '+r.sem_motivo:''].filter(Boolean).join(', ')||'—';
-      return`<tr><td>${escHtml(r.at.name)}</td><td>${d.evsCount}</td><td>${r.presente}</td><td>${r.tratamento}</td><td>${r.ausenteTotal}</td><td style="font-size:9pt">${motivos}</td><td><strong>${r.pct!==null?r.pct+'%':'—'}</strong></td></tr>`;
+      return`<tr><td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td><td>${d.evsCount}</td><td>${r.presente}</td><td>${r.tratamento}</td><td>${r.ausenteTotal}</td><td style="font-size:9pt">${motivos}</td><td><strong>${r.pct!==null?r.pct+'%':'—'}</strong></td></tr>`;
     }).join('')}</tbody></table>
   `;
   _printWin(title,body);
@@ -6471,10 +6492,11 @@ function showAthleteCredsModal(at,rawPwd){
   const login=at.email||String(at.number||at.num||at.name);
   const club=APP.config.clubName||'Clube';
   const emailSubj=encodeURIComponent('Acesso à Plataforma '+club);
-  const emailBody=encodeURIComponent('Olá '+at.name+',\n\nAqui tens os teus dados de acesso à plataforma de desempenho do '+club+':\n\n🔗 URL: '+url+'\n👤 Utilizador: '+login+'\n🔑 Password: '+rawPwd+'\n\nAcede com o botão "Entrar como Atleta".\n\nCumprimentos,\n'+club);
+  const greetName=_shortName(at)||at.name;
+  const emailBody=encodeURIComponent('Olá '+greetName+',\n\nAqui tens os teus dados de acesso à plataforma de desempenho do '+club+':\n\n🔗 URL: '+url+'\n👤 Utilizador: '+login+'\n🔑 Password: '+rawPwd+'\n\nAcede com o botão "Entrar como Atleta".\n\nCumprimentos,\n'+club);
   const mailHref='mailto:'+(at.email||'')+'?subject='+emailSubj+'&body='+emailBody;
   const gmailHref='https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(at.email||'')+'&su='+emailSubj+'&body='+emailBody;
-  const waText=encodeURIComponent('Olá '+at.name+'! Acesso à plataforma:\n🔗 URL: '+url+'\n👤 Utilizador: '+login+'\n🔑 Password: '+rawPwd);
+  const waText=encodeURIComponent('Olá '+greetName+'! Acesso à plataforma:\n🔗 URL: '+url+'\n👤 Utilizador: '+login+'\n🔑 Password: '+rawPwd);
   const waHref='https://wa.me/?text='+waText;
   const isDefault=rawPwd===_defaultAthletePwd(at.num||at.number);
   openMod('🔑 Credenciais de '+at.name,`<div style="font-size:13px;margin-bottom:14px">${isDefault?'Password inicial (fórmula do clube + nº de camisola) — a atleta terá de definir uma password própria no primeiro acesso.':'Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.'}</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${login}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('URL: ${url}\nUtilizador: ${login}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${gmailHref}" target="_blank">📧 Gmail</a><a class="btn btn-gh" href="${mailHref}" target="_blank">📨 Email</a><a class="btn btn-gh" href="${waHref}" target="_blank" style="color:#25d366;border-color:#25d366">💬 WhatsApp</a></div><div class="al al-b" style="margin-top:12px;font-size:11px">Se a atleta esquecer a password: Plantel → Perfil da atleta → 🔑 Repor Password (volta a MFC26@ + nº de camisola)</div>`);
@@ -7598,7 +7620,7 @@ async function pushAppMeta(){
 // tal e qual (incluindo campos camelCase que não existem como coluna), o que fazia o
 // Supabase rejeitar o pedido inteiro — ou seja, o sync individual nunca funcionava de facto.
 const _CLOUD_TABLE_SCHEMA={
-  athletes:{cols:['id','name','pos','num','dob','nationality','height','foot','photo','club','created_at','team_id','password_hash','email','weight','birth_country','situation','full_name','history','must_change_pwd'],
+  athletes:{cols:['id','name','alcunha','pos','num','dob','nationality','height','foot','photo','club','created_at','team_id','password_hash','email','weight','birth_country','situation','full_name','history','must_change_pwd'],
     rename:{teamId:'team_id',passwordHash:'password_hash',nat:'nationality',clubHistory:'history',mustChangePwd:'must_change_pwd'}},
   wellness_records:{cols:['id','athlete_id','date','sleep','fatigue','stress','pain','mood','score','cycle','submitted_at'],
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
@@ -7872,7 +7894,7 @@ async function gerarLinkAtleta(id){
 
   var link    = _atletaLink(at);
   var club    = APP.config.clubName||'Sport Performance';
-  var nome    = at.name.split(' ')[0];
+  var nome    = _shortName(at)||at.name.split(' ')[0];
   var waMsg   = encodeURIComponent('Ola '+nome+'!\n\nO teu acesso a app '+club+':\n\n'+link+'\n\nClica no link, escolhe a tua password e instala a app.\n\n'+club);
   var qrUrl   = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data='+encodeURIComponent(link);
   var linkEsc = link.replace(/'/g,"\\'");
