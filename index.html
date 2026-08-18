@@ -6338,7 +6338,7 @@ function printAttendance(){
 
 // ─── CREDENTIALS HELPERS ─────────────────────────
 function showAthleteCredsModal(at,rawPwd){
-  const url=window.location.href.split('?')[0];
+  const url=window.location.href.split('?')[0]+'?atleta=1';
   const login=at.email||String(at.number||at.num||at.name);
   const club=APP.config.clubName||'Clube';
   const emailSubj=encodeURIComponent('Acesso à Plataforma '+club);
