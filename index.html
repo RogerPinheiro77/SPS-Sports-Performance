@@ -4108,7 +4108,7 @@ async function _pdfBrandify(bytes){
   // Cabeçalho de marca (logo do clube + logo SPS + lista de presenças) só na
   // página 1 — as restantes páginas do plano ficam tal como o original, sem
   // faixa nenhuma (pedido explícito do Roger, 2026-08-18).
-  const BAND_H=138;
+  const BAND_H=156;
   const page=doc.getPages()[0];
   if(page){
     const {width,height}=page.getSize();
