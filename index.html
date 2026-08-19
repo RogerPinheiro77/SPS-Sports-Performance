@@ -512,6 +512,11 @@ function genPwd(len=8){
 // Password inicial das atletas — MFC26@<número de camisola>. Têm de a trocar por uma própria no 1º acesso.
 // Exige número de camisola atribuído (garante que o plantel está sempre atualizado com números).
 function _defaultAthletePwd(num){ return num?('MFC26@'+num):null; }
+// Password inicial fixa para novas contas de staff (fisio, nutri, etc) — igual para todos,
+// obriga a definir uma password própria no 1º acesso (ver handleLogin/_showStaffPwdSetup).
+// Mesma lógica das atletas, mas sem número (staff não tem camisola) — string fixa combinada
+// com o Roger. Troca-se sempre no 1º uso, por isso não precisa de ser única por pessoa.
+function _defaultStaffPwd(){ return 'MFC@26'; }
 // Link/QR dedicado para atletas: .../index.html?atleta=1 abre logo o formulário
 // de atleta, sem mostrar o ecrã de staff — evita a confusão de terem de encontrar
 // o botão "Entrar como Atleta" (ver memória feedback_sps_athlete_only_entry_url).
@@ -604,8 +609,45 @@ async function handleLogin(){
     (u.email.toLowerCase()===username.toLowerCase()||u.name.toLowerCase()===username.toLowerCase()));
   if(!user){err.textContent='❌ Utilizador ou password incorretos.';document.getElementById('login-pwd').value='';return;}
   err.textContent='';
+  if(user.mustChangePwd){
+    // Ainda usa a password fixa inicial (ver addUserFromConfig/resetUserPwd) — obriga a
+    // definir uma password própria antes de entrar, mesmo padrão do 1º acesso das atletas.
+    _showStaffPwdSetup(user);
+    return;
+  }
   setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
   ROLE=user.role;showStaffApp();
+}
+// ── 1º acesso staff: obrigar a definir password própria (troca a password fixa inicial) ──
+function _showStaffPwdSetup(user){
+  const el=document.getElementById('login-main');
+  if(!el)return;
+  el.innerHTML=`
+    <div style="font-size:13px;font-weight:800;color:var(--c1l);margin-bottom:6px;text-align:center">🔑 Define a tua password</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:14px;text-align:center">Primeiro acesso de ${escHtml(user.name)} — cria uma password só tua antes de continuar.</div>
+    <div class="fg"><label class="lbl">Nova password (mín. 6 caracteres)</label>
+      <input class="ctrl" type="password" id="staff-newpwd1" placeholder="••••••" autocomplete="new-password"></div>
+    <div class="fg"><label class="lbl">Confirmar password</label>
+      <input class="ctrl" type="password" id="staff-newpwd2" placeholder="••••••" autocomplete="new-password"
+        onkeydown="if(event.key==='Enter')_saveStaffPwdSetup('${user.id}')"></div>
+    <div class="login-err" id="staff-newpwd-err"></div>
+    <button class="btn-login" onclick="_saveStaffPwdSetup('${user.id}')">Guardar e entrar →</button>`;
+  setTimeout(()=>document.getElementById('staff-newpwd1')?.focus(),80);
+}
+async function _saveStaffPwdSetup(userId){
+  const user=APP.users.find(u=>u.id===userId);if(!user)return;
+  const p1=document.getElementById('staff-newpwd1')?.value||'';
+  const p2=document.getElementById('staff-newpwd2')?.value||'';
+  const err=document.getElementById('staff-newpwd-err');
+  if(p1.length<6){if(err)err.textContent='⚠️ Mínimo 6 caracteres.';return;}
+  if(p1!==p2){if(err)err.textContent='⚠️ As passwords não coincidem.';return;}
+  user.passwordHash=await hashPwd(p1);
+  user.mustChangePwd=false;
+  saveData();
+  if(_sync)await cloudUpsert('staff_users',{...user,club_id:_cid});
+  setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
+  ROLE=user.role;showStaffApp();
+  toast('Password definida ✓ Bem-vindo, '+user.name+'!');
 }
 async function handleAthleteLogin(){
   const username=(document.getElementById('at-login-user')?.value||'').trim();
@@ -6504,13 +6546,15 @@ function showAthleteCredsModal(at,rawPwd){
 function showUserCredsModal(user,rawPwd){
   const url=window.location.href.split('?')[0];
   const club=APP.config.clubName||'Clube';
+  const isDefault=rawPwd===_defaultStaffPwd();
+  const introMsg=isDefault?'Password inicial (igual para todos os novos utilizadores) — vai ser pedido para definir uma password própria no primeiro acesso.':'Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.';
   const emailSubj=encodeURIComponent('Acesso à Plataforma '+club);
-  const emailBody=encodeURIComponent('Olá '+user.name+',\n\nAqui tens os teus dados de acesso à plataforma de desempenho do '+club+':\n\n🔗 URL: '+url+'\n👤 Utilizador: '+user.email+'\n🔑 Password: '+rawPwd+'\n\nCumprimentos,\n'+club);
+  const emailBody=encodeURIComponent('Olá '+user.name+',\n\nAqui tens os teus dados de acesso à plataforma de desempenho do '+club+':\n\n🔗 URL: '+url+'\n👤 Utilizador: '+user.email+'\n🔑 Password: '+rawPwd+(isDefault?' (vais ter de definir a tua própria no primeiro acesso)':'')+'\n\nCumprimentos,\n'+club);
   const mailHref='mailto:'+user.email+'?subject='+emailSubj+'&body='+emailBody;
   const gmailHref='https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(user.email)+'&su='+emailSubj+'&body='+emailBody;
   const waText2=encodeURIComponent('Olá '+user.name+'! Acesso à plataforma:\n🔗 URL: '+url+'\n👤 Utilizador: '+user.email+'\n🔑 Password: '+rawPwd);
   const waHref2='https://wa.me/?text='+waText2;
-  openMod('🔑 Credenciais de '+user.name,`<div style="font-size:13px;margin-bottom:14px">Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${user.email}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('URL: ${url}\nUtilizador: ${user.email}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${gmailHref}" target="_blank">📧 Gmail</a><a class="btn btn-gh" href="${mailHref}" target="_blank">📨 Email</a><a class="btn btn-gh" href="${waHref2}" target="_blank" style="color:#25d366;border-color:#25d366">💬 WhatsApp</a></div>`);
+  openMod('🔑 Credenciais de '+user.name,`<div style="font-size:13px;margin-bottom:14px">${introMsg}</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${user.email}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('URL: ${url}\nUtilizador: ${user.email}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${gmailHref}" target="_blank">📧 Gmail</a><a class="btn btn-gh" href="${mailHref}" target="_blank">📨 Email</a><a class="btn btn-gh" href="${waHref2}" target="_blank" style="color:#25d366;border-color:#25d366">💬 WhatsApp</a></div>`);
 }
 async function addUserFromConfig(){
   const name=document.getElementById('new-user-name').value.trim();
@@ -6518,18 +6562,25 @@ async function addUserFromConfig(){
   const role=document.getElementById('new-user-role').value;
   if(!name||!email)return toast('Nome e email obrigatórios','err');
   if(APP.users.find(u=>u.email.toLowerCase()===email.toLowerCase()))return toast('Email já existe','err');
-  const rawPwd=genPwd(8);
+  // Password inicial fixa (não gerada aleatoriamente) — mais rápido de criar/comunicar,
+  // sobretudo para cargos como fisio/nutri com rotação de pessoas. A pessoa é obrigada a
+  // definir a sua própria password no 1º acesso (handleLogin → _showStaffPwdSetup), tal
+  // como já acontece com as atletas — mantém identificação individual real, sem o overhead
+  // de gerir uma password aleatória por conta.
+  const rawPwd=_defaultStaffPwd();
   const hash=await hashPwd(rawPwd);
   const uPhoto=document.getElementById('new-user-photo')?document.getElementById('new-user-photo').getAttribute('data-val')||'':'';
-  const user={id:uid(),name,email,role,photo:uPhoto,passwordHash:hash,isAdmin:false,active:true,createdAt:today()};
+  const user={id:uid(),name,email,role,photo:uPhoto,passwordHash:hash,isAdmin:false,active:true,mustChangePwd:true,createdAt:today()};
   APP.users.push(user);saveData();
   if(_sync)cloudUpsert('staff_users',{...user,club_id:_cid});
   toast('Utilizador criado ✓');renderConfig();showUserCredsModal(user,rawPwd);
 }
 async function resetUserPwd(id){
   const user=APP.users.find(u=>u.id===id);if(!user)return;
-  const rawPwd=genPwd(8);const hash=await hashPwd(rawPwd);
-  user.passwordHash=hash;saveData();
+  // Repor = voltar à password fixa + obrigar a definir uma nova no próximo acesso (mesmo
+  // padrão do reset de password das atletas — ver resetAthletePwd).
+  const rawPwd=_defaultStaffPwd();const hash=await hashPwd(rawPwd);
+  user.passwordHash=hash;user.mustChangePwd=true;saveData();
   if(_sync)cloudUpsert('staff_users',{...user,club_id:_cid});
   toast('Password reposta ✓');showUserCredsModal(user,rawPwd);
 }
@@ -7512,7 +7563,7 @@ async function pullCloud(){
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
-      ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
+      ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
       ['athlete_anamnesis','anamnesis',(d)=>APP.anamnesis=d.map(r=>({id:r.id,athleteId:r.athlete_id,selfReport:r.self_report||{},selfReportUpdatedAt:r.self_report_updated_at,clinicalNotes:r.clinical_notes||'',clinicalNotesUpdatedAt:r.clinical_notes_updated_at,clinicalNotesUpdatedBy:r.clinical_notes_updated_by,fisioViewedAt:r.fisio_viewed_at}))]
     ];
     for(const [tbl,,setter] of pulls){
@@ -7663,8 +7714,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at',doneTime:'done_time'}},
   attendance_records:{cols:['id','event_id','athlete_id','date','present','status','reason','created_at'],
     rename:{eventId:'event_id',athleteId:'athlete_id',createdAt:'created_at'}},
-  staff_users:{cols:['id','name','email','role','photo','password_hash','is_admin','active','created_at'],
-    rename:{passwordHash:'password_hash',isAdmin:'is_admin',createdAt:'created_at'}},
+  staff_users:{cols:['id','name','email','role','photo','password_hash','is_admin','active','created_at','must_change_pwd'],
+    rename:{passwordHash:'password_hash',isAdmin:'is_admin',createdAt:'created_at',mustChangePwd:'must_change_pwd'}},
   athlete_anamnesis:{cols:['id','athlete_id','self_report','self_report_updated_at','clinical_notes','clinical_notes_updated_at','clinical_notes_updated_by','fisio_viewed_at'],
     rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',clinicalNotes:'clinical_notes',clinicalNotesUpdatedAt:'clinical_notes_updated_at',clinicalNotesUpdatedBy:'clinical_notes_updated_by',fisioViewedAt:'fisio_viewed_at'}}
 };
