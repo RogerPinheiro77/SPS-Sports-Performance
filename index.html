@@ -3814,7 +3814,7 @@ function _renderTrDetail(){
 // janela usada em todo o resto da app, ver _acwrAt). É sempre relativo à DATA
 // desta unidade (não a hoje), para se poder analisar sessões passadas tal
 // como estavam então, mesmo que o estado atual de uma atleta já tenha mudado.
-function _trAnaliseHtml(tr){
+function _trAnaliseCompute(tr){
   const ats=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId).slice().sort((a,b)=>a.name.localeCompare(b.name));
   const dt=tr.date;
   const nextDt=addDaysStr(dt,1);
@@ -3827,7 +3827,10 @@ function _trAnaliseHtml(tr){
     const acwr=_acwrAt(at.id,dt);
     return {at,pse,well,att,inj,trat,acwr};
   });
-
+  return {ats,dt,nextDt,rows};
+}
+function _trAnaliseHtml(tr){
+  const {dt,nextDt,rows}=_trAnaliseCompute(tr);
   const isFuture=dt>today();
   const alerts=[];
   if(!isFuture){
@@ -3875,7 +3878,13 @@ function _trAnaliseHtml(tr){
   </tr>`).join('');
 
   return `
-  <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Análise da Sessão — ${fmtDate(dt)}</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+    <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px">Análise da Sessão — ${fmtDate(dt)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-gh" onclick="printAnaliseSessao('${tr.id}')">📄 PDF Sessão</button>
+      <button class="btn btn-sm btn-gh" onclick="printAnaliseCumulativa('${tr.id}')">📄 PDF Acumulado / Condição p/ Jogo</button>
+    </div>
+  </div>
   ${alertsHtml}
   ${summaryHtml}
   <div style="overflow-x:auto">
@@ -3886,6 +3895,111 @@ function _trAnaliseHtml(tr){
   </div>
   <div style="font-size:10px;color:var(--t2);margin-top:8px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7 dias) ÷ crónica (28 dias) até ${fmtDate(dt)} — mesma janela usada em toda a app.</div>
   `;
+}
+// ─── PDF: Análise da Sessão (A4, mesmo mecanismo de impressão do resto da app) ──
+function printAnaliseSessao(trId){
+  const tr=(APP.trainings||[]).find(t=>t.id===trId);if(!tr)return toast('Unidade não encontrada','err');
+  const {dt,nextDt,rows}=_trAnaliseCompute(tr);
+  const attLabel=(status)=>status==='treino'?'<span class="badge bg-g">Presente</span>':status==='tratamento'?'<span class="badge bg-y">Tratamento</span>':status==='ausente'?'<span class="badge bg-r">Ausente</span>':'—';
+  const acwrBdg=(v)=>{
+    if(v===null||v===undefined)return '—';
+    const cls=(v>1.5||v<0.8)?'bg-r':(v>=1.0?'bg-g':'bg-y');
+    return `<span class="badge ${cls}">${v}</span>`;
+  };
+  const rowsHtml=rows.map(r=>`<tr>
+    <td>${escHtml(r.at.name)}</td>
+    <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
+    <td style="text-align:center">${r.pse?r.pse.ua:'—'}</td>
+    <td style="text-align:center">${r.well?r.well.score:'—'}</td>
+    <td style="text-align:center">${attLabel(r.att&&r.att.status)}</td>
+    <td style="text-align:center">${r.inj?'Lesão: '+escHtml(r.inj.type||'—'):(r.trat?'Tratamento':'—')}</td>
+    <td style="text-align:center">${acwrBdg(r.acwr)}</td>
+  </tr>`).join('');
+  const title=`Análise da Sessão — ${escHtml(tr.title||'Unidade de Treino')} — ${fmtDate(dt)}`;
+  const body=`
+    <div class="pr-title">${title}</div>
+    <p style="font-size:9pt;color:#666;margin-bottom:10px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7d) ÷ crónica (28d) até ${fmtDate(dt)}.</p>
+    <table><thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Presença</th><th>Fisio</th><th>ACWR</th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table>
+    <p style="font-size:8pt;color:#999;margin-top:8px">${rows.length} atletas · ${rows.filter(r=>r.pse).length} com PSE · ${rows.filter(r=>r.att&&r.att.status==='treino').length} presentes</p>
+  `;
+  _printWin(title,body);
+}
+// ─── CONDIÇÃO PARA O JOGO ────────────────────────────────────────────────────
+// Semáforo por atleta (não um número único, para não passar falsa precisão): pior
+// dos 4 fatores vence, mesmo princípio do painel "Estado da Atleta" (ver openAthleteModal).
+// Portão: lesão ativa/tratamento na data → indisponível, não entra nos outros fatores.
+// Fatores: 1) ACWR (mesmas zonas usadas em toda a app), 2) wellness médio dos
+// últimos 2 dias antes da data, 3) faltas não justificadas nos últimos 7 dias,
+// 4) minutos no último jogo antes da data (recuperação: <=1 dia+60min = risco,
+// janela de 48-72h é a convenção habitual em ciências do desporto).
+function _condicaoJogoCompute(tr){
+  const ats=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const dt=tr.date;
+  const nextGame=(APP.games||[]).filter(g=>g.date>=dt).sort((a,b)=>a.date.localeCompare(b.date))[0]||null;
+  const lastGame=(APP.games||[]).filter(g=>g.date<dt).sort((a,b)=>b.date.localeCompare(a.date))[0]||null;
+  const rows=ats.map(at=>{
+    const inj=(APP.injuries||[]).find(i=>i.athleteId===at.id&&i.date<=dt&&(!i.returnDate||i.returnDate>=dt));
+    const trat=(APP.treatments||[]).find(t=>t.athleteId===at.id&&t.date===dt);
+    if(inj||trat){
+      return {at,gate:true,gateTxt:inj?'Lesionada':'Em tratamento',overallLvl:'r',overallLabel:'Indisponível'};
+    }
+    const acwr=_acwrAt(at.id,dt);
+    const acwrLvl=acwr===null?null:((acwr>1.5||acwr<0.8)?'r':(acwr>=1.0?'g':'y'));
+
+    const wellDays=[addDaysStr(dt,1),dt].map(d=>APP.wellness.find(w=>w.athleteId===at.id&&w.date===d)).filter(Boolean);
+    const wellAvg=wellDays.length?Math.round(wellDays.reduce((s,w)=>s+(+w.score||0),0)/wellDays.length):null;
+    const wellLvl=wellAvg===null?null:(wellAvg>=70?'g':wellAvg>=45?'y':'r');
+
+    const last7=Array.from({length:7},(_,i)=>addDaysStr(dt,-i));
+    const faltas=(APP.attendance||[]).filter(a=>a.athleteId===at.id&&last7.includes(a.date)&&a.status==='ausente'&&!a.reason).length;
+    const faltasLvl=faltas>=2?'r':faltas===1?'y':'g';
+
+    let minsInfo=null,minsLvl='g';
+    if(lastGame){
+      const st=(lastGame.playerStats||[]).find(s=>s.aid===at.id);
+      const mins=st?(+st.mins||0):0;
+      const daysSince=Math.round((new Date(dt+'T00:00:00')-new Date(lastGame.date+'T00:00:00'))/86400000);
+      minsInfo={date:lastGame.date,mins,daysSince};
+      if(daysSince<=1&&mins>=60)minsLvl='r';
+      else if((daysSince<=1&&mins>=30)||(daysSince===2&&mins>=60))minsLvl='y';
+      else minsLvl='g';
+    }
+
+    const lvls=[acwrLvl,wellLvl,faltasLvl,minsInfo?minsLvl:null].filter(Boolean);
+    const overallLvl=lvls.includes('r')?'r':(lvls.includes('y')?'y':'g');
+    const overallLabel=overallLvl==='r'?'Risco':overallLvl==='y'?'Atenção':'Ótima';
+    return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,overallLvl,overallLabel};
+  });
+  return {dt,rows,nextGame,lastGame};
+}
+function printAnaliseCumulativa(trId){
+  const tr=(APP.trainings||[]).find(t=>t.id===trId);if(!tr)return toast('Unidade não encontrada','err');
+  const {dt,rows,nextGame}=_condicaoJogoCompute(tr);
+  const lvlBadge=(lvl,label)=>`<span class="badge bg-${lvl}">${label}</span>`;
+  const rowsHtml=rows.map(r=>{
+    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="4" style="text-align:center;color:#999">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
+    const minsTxt=r.minsInfo?`${r.minsInfo.mins}min (há ${r.minsInfo.daysSince}d)`:'—';
+    return `<tr>
+      <td>${escHtml(r.at.name)}</td>
+      <td style="text-align:center">${r.acwr!==null?r.acwr:'—'}</td>
+      <td style="text-align:center">${r.wellAvg!==null?r.wellAvg:'—'}</td>
+      <td style="text-align:center">${r.faltas}</td>
+      <td style="text-align:center">${minsTxt}</td>
+      <td style="text-align:center">${lvlBadge(r.overallLvl,r.overallLabel)}</td>
+    </tr>`;
+  }).join('');
+  const gameNote=nextGame?`<p style="font-size:9pt;color:#666;margin-bottom:4px">Próximo jogo: <strong>${fmtDate(nextGame.date)}</strong>${nextGame.opp?' vs '+escHtml(nextGame.opp):''} — ${Math.round((new Date(nextGame.date+'T00:00:00')-new Date(dt+'T00:00:00'))/86400000)} dia(s) após esta análise.</p>`:'';
+  const title=`Condição para o Jogo — ${escHtml(tr.title||'Unidade de Treino')} — ${fmtDate(dt)}`;
+  const body=`
+    <div class="pr-title">${title}</div>
+    ${gameNote}
+    <p style="font-size:9pt;color:#666;margin-bottom:10px">Semáforo por atleta: pior dos 4 fatores vence (ACWR, wellness médio recente, faltas não justificadas nos últimos 7 dias, minutos no último jogo). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores.</p>
+    <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness méd.</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Condição</th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table>
+    <p style="font-size:8pt;color:#999;margin-top:8px">${rows.filter(r=>!r.gate&&r.overallLvl==='g').length} em condição ótima · ${rows.filter(r=>!r.gate&&r.overallLvl==='y').length} em atenção · ${rows.filter(r=>r.overallLvl==='r').length} em risco/indisponíveis</p>
+  `;
+  _printWin(title,body);
 }
 
 function _exCardHtml(trId,phase,ex,idx){
