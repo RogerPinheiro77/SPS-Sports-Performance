@@ -4336,6 +4336,13 @@ function _trAtChecklistHtml(){
 
 // ─── IMPORTAR PDF (Plano de Treino) — mantém o PDF original, só rebate marca ───
 const SPS_LOGO_URL='https://rogerpinheiro77.github.io/SPS-Sports-Performance/assets/logo_sps.jpg';
+// Assinatura/credenciais do Roger no rodapé de todas as impressões (_printWin) — pedido
+// explícito, imagem fornecida e recortada em 3 peças (assinatura, selo UEFA A, contactos)
+// para poderem ficar lado a lado. Nunca tratar/recomprimir estes ficheiros — mesma regra
+// já usada para o logo SPS (ver memória project_sps_branding_logo).
+const RODAPE_ASSINATURA_URL='https://rogerpinheiro77.github.io/SPS-Sports-Performance/assets/rodape_assinatura.png';
+const RODAPE_UEFA_URL='https://rogerpinheiro77.github.io/SPS-Sports-Performance/assets/rodape_uefa.png';
+const RODAPE_CONTACTOS_URL='https://rogerpinheiro77.github.io/SPS-Sports-Performance/assets/rodape_contactos.png';
 
 function triggerImportTreinoPDF(){
   const el=document.getElementById('tr-pdf-inp');
@@ -6225,9 +6232,15 @@ function _printWin(title,bodyHtml,headerExtra,sideLogo,landscape){
     .pr-club{font-size:13pt;font-weight:700;color:#1d6f3b}
     .pr-sub{font-size:9pt;color:#666;margin-top:2px}
     .pr-title{font-size:14pt;font-weight:700;margin-bottom:14px;color:#1d6f3b;border-left:4px solid #1d6f3b;padding-left:8px}
-    .pr-footer{margin-top:20px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#999;display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .pr-footer-brand{display:flex;align-items:center;gap:5px}
-    .pr-footer-brand img{width:14px;height:14px;border-radius:3px;object-fit:cover}
+    .pr-footer{margin-top:20px;border-top:1px solid #ccc;padding-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .pr-footer-brand{display:flex;align-items:center;gap:6px;font-size:7.5pt;color:#999;flex-shrink:0;width:34mm;line-height:1.3}
+    .pr-footer-brand img{width:14px;height:14px;border-radius:3px;object-fit:cover;flex-shrink:0}
+    .pr-footer-center{display:flex;align-items:center;gap:8px;flex-shrink:0}
+    .pr-footer-center img{display:block}
+    .pr-footer-uefa{height:7mm}
+    .pr-footer-contacts{height:7mm}
+    .pr-footer-div{width:1px;align-self:stretch;background:#ddd}
+    .pr-footer-sig{height:9mm;flex-shrink:0}
     table{width:100%;border-collapse:collapse;margin-bottom:14px}
     th{background:#1d6f3b;color:#fff;padding:6px 8px;text-align:left;font-size:9pt}
     td{padding:5px 8px;border-bottom:1px solid #eee;font-size:9pt}
@@ -6259,7 +6272,15 @@ function _printWin(title,bodyHtml,headerExtra,sideLogo,landscape){
     `}
   </div>
   ${bodyHtml}
-  <div class="pr-footer"><span>${club} · ${season}</span><span class="pr-footer-brand"><img src="${SPS_LOGO_URL}"> SPS Sports Performance System</span><span>Gerado em ${new Date().toLocaleDateString('pt-PT')}</span></div>
+  <div class="pr-footer">
+    <div class="pr-footer-brand"><img src="${SPS_LOGO_URL}"><span>SPS Sports Performance System</span></div>
+    <div class="pr-footer-center">
+      <img class="pr-footer-uefa" src="${RODAPE_UEFA_URL}">
+      <div class="pr-footer-div"></div>
+      <img class="pr-footer-contacts" src="${RODAPE_CONTACTOS_URL}">
+    </div>
+    <img class="pr-footer-sig" src="${RODAPE_ASSINATURA_URL}">
+  </div>
   </body></html>`;
   const w=window.open('','_blank','width=900,height=700');
   w.document.write(html);w.document.close();
