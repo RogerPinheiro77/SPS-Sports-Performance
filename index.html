@@ -3867,15 +3867,21 @@ function _trAnaliseHtml(tr){
     return `<span class="bdg ${cls}">${v}</span>`;
   };
 
-  const tableRows=rows.map(r=>`<tr>
+  const tableRows=rows.map(r=>{
+    const uz=r.pse?_uaZone(r.pse.ua):null;
+    const dec=_decisaoDiaria(r);
+    return `<tr>
     <td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td>
     <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
-    <td style="text-align:center">${r.pse?r.pse.ua:'—'}</td>
+    <td style="text-align:center">${r.pse?r.pse.ua+(uz&&uz.cls?` <span class="bdg ${uz.cls}">${uz.label}</span>`:''):'—'}</td>
     <td style="text-align:center">${r.well?r.well.score:'—'}</td>
+    <td style="text-align:center">${r.well&&r.well.cycle&&r.well.cycle!=='N/A'?escHtml(r.well.cycle):'—'}</td>
+    <td style="text-align:center">${r.well&&r.well.cycleImpact!==undefined&&r.well.cycleImpact!==null?r.well.cycleImpact:'—'}</td>
     <td style="text-align:center">${attLabel(r.att&&r.att.status)}</td>
     <td style="text-align:center">${r.inj?'🩺 '+escHtml(r.inj.type||'Lesão'):(r.trat?'Tratamento':'—')}</td>
     <td style="text-align:center">${acwrBdg(r.acwr)}</td>
-  </tr>`).join('');
+    <td style="text-align:center">${dec.lvl?`<span class="bdg bg-${dec.lvl}">${dec.label}</span>`:dec.label}</td>
+  </tr>`;}).join('');
 
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -3889,11 +3895,11 @@ function _trAnaliseHtml(tr){
   ${summaryHtml}
   <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Presença</th><th>Fisio</th><th>ACWR (cumulativo até à data)</th></tr></thead>
+      <thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Impacto</th><th>Presença</th><th>Fisio</th><th>ACWR (cumulativo até à data)</th><th>Decisão do dia</th></tr></thead>
       <tbody>${tableRows}</tbody>
     </table>
   </div>
-  <div style="font-size:10px;color:var(--t2);margin-top:8px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7 dias) ÷ crónica (28 dias) até ${fmtDate(dt)} — mesma janela usada em toda a app.</div>
+  <div style="font-size:10px;color:var(--t2);margin-top:8px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7 dias) ÷ crónica (28 dias) até ${fmtDate(dt)} — mesma janela usada em toda a app · "Decisão do dia" combina UA da sessão + wellness + impacto do ciclo (pior combinação vence) — apoio à decisão, não substitui avaliação clínica.</div>
   `;
 }
 // ─── PDF: Análise da Sessão (A4, mesmo mecanismo de impressão do resto da app) ──
@@ -3906,20 +3912,25 @@ function printAnaliseSessao(trId){
     const cls=(v>1.5||v<0.8)?'bg-r':(v>=1.0?'bg-g':'bg-y');
     return `<span class="badge ${cls}">${v}</span>`;
   };
-  const rowsHtml=rows.map(r=>`<tr>
+  const rowsHtml=rows.map(r=>{
+    const uz=r.pse?_uaZone(r.pse.ua):null;
+    const dec=_decisaoDiaria(r);
+    return `<tr>
     <td>${escHtml(r.at.name)}</td>
     <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
-    <td style="text-align:center">${r.pse?r.pse.ua:'—'}</td>
+    <td style="text-align:center">${r.pse?r.pse.ua+(uz&&uz.cls?` <span class="badge ${uz.cls}">${uz.label}</span>`:''):'—'}</td>
     <td style="text-align:center">${r.well?r.well.score:'—'}</td>
+    <td style="text-align:center">${r.well&&r.well.cycle&&r.well.cycle!=='N/A'?escHtml(r.well.cycle):'—'}${r.well&&r.well.cycleImpact?' ('+r.well.cycleImpact+')':''}</td>
     <td style="text-align:center">${attLabel(r.att&&r.att.status)}</td>
     <td style="text-align:center">${r.inj?'Lesão: '+escHtml(r.inj.type||'—'):(r.trat?'Tratamento':'—')}</td>
     <td style="text-align:center">${acwrBdg(r.acwr)}</td>
-  </tr>`).join('');
+    <td style="text-align:center">${dec.lvl?`<span class="badge bg-${dec.lvl}">${dec.label}</span>`:dec.label}</td>
+  </tr>`;}).join('');
   const title=`Análise da Sessão — ${escHtml(tr.title||'Unidade de Treino')} — ${fmtDate(dt)}`;
   const body=`
     <div class="pr-title">${title}</div>
-    <p style="font-size:9pt;color:#666;margin-bottom:10px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7d) ÷ crónica (28d) até ${fmtDate(dt)}.</p>
-    <table><thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Presença</th><th>Fisio</th><th>ACWR</th></tr></thead>
+    <p style="font-size:9pt;color:#666;margin-bottom:10px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7d) ÷ crónica (28d) até ${fmtDate(dt)} · Decisão do dia combina UA da sessão + wellness + impacto do ciclo — apoio à decisão, não substitui avaliação clínica.</p>
+    <table><thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Presença</th><th>Fisio</th><th>ACWR</th><th>Decisão</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table>
     <p style="font-size:8pt;color:#999;margin-top:8px">${rows.length} atletas · ${rows.filter(r=>r.pse).length} com PSE · ${rows.filter(r=>r.att&&r.att.status==='treino').length} presentes</p>
   `;
@@ -3966,10 +3977,18 @@ function _condicaoJogoCompute(tr){
       else minsLvl='g';
     }
 
-    const lvls=[acwrLvl,wellLvl,faltasLvl,minsInfo?minsLvl:null].filter(Boolean);
+    // Ciclo/impacto: mesmo registo de wellness já usado acima (wellDays[0] = mais recente
+    // disponível). Não é um fator isolado — só entra no pior-vence se o impacto for
+    // relevante (>=2), conforme decidido com o Roger (fase por si só não muda a carga).
+    const cycleRec=wellDays[0]||null;
+    const cycleImpact=cycleRec?(+cycleRec.cycleImpact||0):0;
+    const cyclePhase=cycleRec&&cycleRec.cycle&&cycleRec.cycle!=='N/A'?cycleRec.cycle:null;
+    const cycleLvl=cycleImpact>=3?'r':cycleImpact===2?'y':null;
+
+    const lvls=[acwrLvl,wellLvl,faltasLvl,minsInfo?minsLvl:null,cycleLvl].filter(Boolean);
     const overallLvl=lvls.includes('r')?'r':(lvls.includes('y')?'y':'g');
     const overallLabel=overallLvl==='r'?'Risco':overallLvl==='y'?'Atenção':'Ótima';
-    return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,overallLvl,overallLabel};
+    return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,cyclePhase,cycleImpact,cycleLvl,overallLvl,overallLabel};
   });
   return {dt,rows,nextGame,lastGame};
 }
@@ -3978,12 +3997,14 @@ function printAnaliseCumulativa(trId){
   const {dt,rows,nextGame}=_condicaoJogoCompute(tr);
   const lvlBadge=(lvl,label)=>`<span class="badge bg-${lvl}">${label}</span>`;
   const rowsHtml=rows.map(r=>{
-    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="4" style="text-align:center;color:#999">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
+    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="5" style="text-align:center;color:#999">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
     const minsTxt=r.minsInfo?`${r.minsInfo.mins}min (há ${r.minsInfo.daysSince}d)`:'—';
+    const cycleTxt=r.cyclePhase?escHtml(r.cyclePhase)+(r.cycleImpact?' ('+r.cycleImpact+')':''):'—';
     return `<tr>
       <td>${escHtml(r.at.name)}</td>
       <td style="text-align:center">${r.acwr!==null?r.acwr:'—'}</td>
       <td style="text-align:center">${r.wellAvg!==null?r.wellAvg:'—'}</td>
+      <td style="text-align:center">${cycleTxt}</td>
       <td style="text-align:center">${r.faltas}</td>
       <td style="text-align:center">${minsTxt}</td>
       <td style="text-align:center">${lvlBadge(r.overallLvl,r.overallLabel)}</td>
@@ -3994,8 +4015,8 @@ function printAnaliseCumulativa(trId){
   const body=`
     <div class="pr-title">${title}</div>
     ${gameNote}
-    <p style="font-size:9pt;color:#666;margin-bottom:10px">Semáforo por atleta: pior dos 4 fatores vence (ACWR, wellness médio recente, faltas não justificadas nos últimos 7 dias, minutos no último jogo). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores.</p>
-    <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness méd.</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Condição</th></tr></thead>
+    <p style="font-size:9pt;color:#666;margin-bottom:10px">Semáforo por atleta: pior dos 5 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo). A fase do ciclo por si só não altera o semáforo — só entra quando a própria atleta reporta impacto elevado (2-3). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
+    <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness méd.</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Condição</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table>
     <p style="font-size:8pt;color:#999;margin-top:8px">${rows.filter(r=>!r.gate&&r.overallLvl==='g').length} em condição ótima · ${rows.filter(r=>!r.gate&&r.overallLvl==='y').length} em atenção · ${rows.filter(r=>r.overallLvl==='r').length} em risco/indisponíveis</p>
   `;
@@ -5656,6 +5677,22 @@ function addFormTeam(){
 }
 
 // ─── FISIOTERAPIA ─────────────────────────────────────────
+// Snapshot do dia (não histórico): usa o wellness reportado HOJE por cada atleta do
+// plantel principal (quem não reportou não entra na lista — não há dado para avaliar).
+// Reaproveita o mesmo núcleo _riscoCiclo/_cargaWellnessCicloSev usado na Análise da UT,
+// só que aqui é "hoje" em vez de "na data da UT" — sinal de atenção operacional, não
+// diagnóstico nem previsão de lesão.
+function _riscoCicloHojeRows(){
+  const dt=today();
+  const ats=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId);
+  return ats.map(at=>{
+    const well=(APP.wellness||[]).find(w=>w.athleteId===at.id&&w.date===dt);
+    const pse=(APP.pse||[]).find(p=>p.athleteId===at.id&&p.date===dt);
+    const inj=(APP.injuries||[]).find(i=>i.athleteId===at.id&&i.status==='ativo');
+    const trat=(APP.treatments||[]).find(t=>t.athleteId===at.id&&t.date===dt);
+    return {at,well,pse,inj,trat,risco:_riscoCiclo({pse,well,inj,trat})};
+  }).filter(r=>r.well);
+}
 function renderFisioDash(){
   const active=APP.injuries.filter(i=>i.status==='ativo');
   const rehab=APP.injuries.filter(i=>i.status==='reabilitação');
@@ -5687,6 +5724,36 @@ function renderFisioDash(){
     </div>`;
   }).join('');
 
+  const cicloRows=_riscoCicloHojeRows();
+  const cicloAlerta=cicloRows.filter(r=>r.risco.lvl&&r.risco.lvl!=='g').sort((a,b)=>{
+    const ord={r:0,o:1,y:2};return (ord[a.risco.lvl]??9)-(ord[b.risco.lvl]??9);
+  });
+  const cicloHtml=`
+  <div class="sh"><div class="sh-t">🔄 Risco por Ciclo — Hoje</div><span style="font-size:10px;color:var(--t2)">${cicloRows.length} atleta(s) reportaram wellness hoje</span></div>
+  <div style="font-size:11px;color:var(--t2);margin:-6px 0 8px">Sinal de atenção operacional a partir de carga + wellness + impacto do ciclo autorreportado — não é diagnóstico nem previsão de lesão.</div>
+  ${cicloAlerta.length?`<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px"><div class="tw"><table><thead><tr><th>Atleta</th><th>Fase</th><th>Impacto</th><th>Wellness</th><th>Risco</th></tr></thead>
+  <tbody>${cicloAlerta.map(r=>`<tr>
+    <td>${escHtml(_displayName(r.at))}</td>
+    <td>${r.well.cycle&&r.well.cycle!=='N/A'?escHtml(r.well.cycle):'—'}</td>
+    <td>${r.well.cycleImpact!==undefined&&r.well.cycleImpact!==null?r.well.cycleImpact:'—'}</td>
+    <td>${r.well.score}</td>
+    <td><span class="bdg bg-${r.risco.lvl}">${r.risco.label}</span></td>
+  </tr>`).join('')}</tbody></table></div></div>`
+  :`<div class="empty" style="margin-bottom:14px"><div class="ei">✅</div><p>Sem alertas hoje</p><div class="esub">${cicloRows.length?'Todas as atletas que reportaram estão em zona normal':'Ainda ninguém reportou wellness hoje'}</div></div>`}`;
+
+  const cicloRefHtml=`
+  <details class="card" style="padding:14px;margin-bottom:14px">
+    <summary style="cursor:pointer;font-size:13px;font-weight:800">📚 Referência: Ciclo Menstrual e Capacidades Físicas</summary>
+    <div style="font-size:11px;color:var(--t2);margin-top:10px;line-height:1.5">
+      <p style="margin-bottom:8px"><strong>Aviso:</strong> as associações abaixo são tendências de <em>grupo</em>, retiradas da literatura geral de ciências do desporto — a variabilidade individual é grande e a evidência tem limitações e inconsistências entre estudos. <strong>Não usar como regra automática</strong> para decidir a carga de uma atleta específica (ex.: "Fase X = maior/menor carga"). A decisão diária deve continuar a basear-se no autorreporte de cada atleta (wellness + impacto do ciclo) e, no futuro, na sua baseline individual — nunca só na fase.</p>
+      <p style="margin-bottom:6px"><strong>Menstruação:</strong> sintomatologia muito variável entre atletas (cólicas, fadiga, alterações de sono/humor nalgumas); evidência sobre efeito no desempenho é inconsistente — algumas atletas sem qualquer alteração percebida, outras com quebra de energia. Foco em conforto e gestão sintomática, não em reduzir carga por defeito.</p>
+      <p style="margin-bottom:6px"><strong>Folicular:</strong> estrogénio em subida; parte da literatura associa maior tolerância ao treino e recuperação percebida mais rápida nalgumas atletas, mas o efeito é pequeno e nem sempre replicado.</p>
+      <p style="margin-bottom:6px"><strong>Ovulação:</strong> pico de estrogénio; existem hipóteses sobre maior risco de lesão ligamentar (ex. LCA) associadas a esta fase, mas a evidência é debatida e não permite prever risco individual — não deve, por si só, condicionar convocação ou volume de treino.</p>
+      <p style="margin-bottom:6px"><strong>Lútea:</strong> progesterona elevada; algumas atletas reportam mais fadiga, alteração da temperatura corporal e retenção, com possível impacto percebido no esforço nalguma literatura, sem consenso forte.</p>
+      <p style="margin-top:8px;color:var(--t2)">Sempre que existir incerteza científica relevante, ela é sinalizada acima em vez de convertida numa regra fixa.</p>
+    </div>
+  </details>`;
+
   document.getElementById('pg-fisio-dash').innerHTML=`
   <div class="kpis">
     <div class="kpi red"><div class="kpi-lbl">Ativas</div><div class="kpi-val" style="color:#f87171">${active.length}</div><div class="kpi-sub">Lesões em curso</div></div>
@@ -5694,6 +5761,8 @@ function renderFisioDash(){
     <div class="kpi grn"><div class="kpi-lbl">Alta</div><div class="kpi-val" style="color:#4ade80">${alta}</div><div class="kpi-sub">Total altas</div></div>
     <div class="kpi"><div class="kpi-lbl">Tratamentos</div><div class="kpi-val">${APP.treatments.length}</div><div class="kpi-sub">Total registados</div></div>
   </div>
+  ${cicloHtml}
+  ${cicloRefHtml}
   <div class="sh"><div class="sh-t">🩺 Atletas em Acompanhamento</div>
     <button class="btn btn-g" onclick="navTo('fisio-ep')">+ Novo Episódio</button>
   </div>
@@ -6198,6 +6267,54 @@ function _printWin(title,bodyHtml,headerExtra,sideLogo,landscape){
 }
 
 // ── Relatório de Atleta ────────────────────────────────────────────────────────
+// Classificação de carga de UMA sessão (não confundir com ACWR, que é acumulado 7/28 dias).
+// Bandas de referência iniciais definidas com o Roger — não são valores fisiológicos
+// universais, servem de ponto de partida até termos baseline coletiva do plantel (ver
+// memória project_sps_sistema_carga_wellness_ciclo). Cores: abaixo do ideal = azul,
+// zona-alvo = verde, acima do ideal, crescente = amarelo → laranja → vermelho.
+function _uaZone(ua){
+  if(ua===null||ua===undefined||isNaN(ua))return {label:'—',cls:''};
+  if(ua<=150)return {label:'Muito baixa',cls:'bg-b'};
+  if(ua<=300)return {label:'Baixa',cls:'bg-b'};
+  if(ua<=450)return {label:'Ótima/controlada',cls:'bg-g'};
+  if(ua<=600)return {label:'Moderada',cls:'bg-g'};
+  if(ua<=750)return {label:'Alta',cls:'bg-y'};
+  if(ua<=900)return {label:'Muito alta',cls:'bg-o'};
+  return {label:'Extrema',cls:'bg-r'};
+}
+// Núcleo partilhado: severidade 0-3 combinando carga da sessão (UA) + wellness + impacto
+// do ciclo reportado. Duas leituras diferentes sobre o mesmo cálculo consoante o contexto:
+// _decisaoDiaria (linguagem de decisão de treino, para o treinador) e _riscoCiclo
+// (linguagem de risco/atenção operacional, para a fisio) — nunca diagnóstico médico.
+// 'r' é o registo de uma atleta num dia (espera-se {pse:{ua}, well:{score,cycleImpact}, inj, trat}).
+// Vermelho exige combinação de fatores no pior nível (não um único fator isolado), seguindo
+// o princípio do Roger: associações isoladas não devem virar regras automáticas de alarme.
+function _cargaWellnessCicloSev(r){
+  const cargaSev=r&&r.pse?(r.pse.ua>750?2:r.pse.ua>600?1:0):null;
+  const wellSev=r&&r.well?(r.well.score<45?2:r.well.score<70?1:0):null;
+  const impacto=r&&r.well?(+r.well.cycleImpact||0):0;
+  const impactoSev=impacto>=3?2:impacto===2?1:0;
+  const sevs=[cargaSev,wellSev,impactoSev].filter(v=>v!==null);
+  if(!sevs.length)return null;
+  const severeCount=sevs.filter(v=>v===2).length;
+  const elevatedCount=sevs.filter(v=>v===1).length;
+  if(severeCount>=2)return 3;
+  if(severeCount===1)return 2;
+  if(elevatedCount>=1)return 1;
+  return 0;
+}
+function _decisaoDiaria(r){
+  if(r&&(r.inj||r.trat))return {lvl:null,label:'—'};
+  const sev=_cargaWellnessCicloSev(r);
+  if(sev===null)return {lvl:null,label:'Sem dados suficientes'};
+  return [{lvl:'g',label:'🟢 Treino normal'},{lvl:'y',label:'🟡 Monitorizar / considerar individualização'},{lvl:'o',label:'🟠 Ajustar volume/intensidade'},{lvl:'r',label:'🔴 Avaliação individual antes da sessão'}][sev];
+}
+function _riscoCiclo(r){
+  if(r&&(r.inj||r.trat))return {lvl:null,label:'—'};
+  const sev=_cargaWellnessCicloSev(r);
+  if(sev===null)return {lvl:null,label:'Sem dados suficientes'};
+  return [{lvl:'g',label:'🟢 Normal'},{lvl:'y',label:'🟡 Atenção'},{lvl:'o',label:'🟠 Alerta'},{lvl:'r',label:'🔴 Intervenção/avaliação individual'}][sev];
+}
 function _acwrAt(id,endDate){
   const days7=Array.from({length:7},(_,i)=>addDaysStr(endDate,-(6-i)));
   const days28=Array.from({length:28},(_,i)=>addDaysStr(endDate,-(27-i)));
@@ -7086,7 +7203,7 @@ function exportData(){
 function importData(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{try{APP=JSON.parse(ev.target.result);saveData();toast('Dados importados ✓');navTo(_curPg);}catch{toast('Erro no ficheiro','err');}};reader.readAsText(file);}
 
 // ─── ATLETA APP ───────────────────────────────────────────
-let _atPage='home', _wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:''}, _psfVal=0, _psfDur='';
+let _atPage='home', _wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:'',cycleImpact:0}, _psfVal=0, _psfDur='';
 let _atAgendaView='semana', _atAgendaDay=today(), _atAgendaWeekStart=getMonday(today()), _atAgendaMonth=new Date().getMonth(), _atAgendaYear=new Date().getFullYear(), _atAgendaSelDay=today();
 const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval()};
 function atNav(page,el){
@@ -7216,8 +7333,8 @@ function renderAtWellness(){
       <div style="font-size:11px;color:var(--t2)">Janela diária: ${APP.config.wellnessStart||'07:00'} – ${APP.config.wellnessEnd||'11:00'}</div>
     </div>
     <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Histórico (últimos 14 dias)</div>
-    <div class="tw"><table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
-    <tbody>${APP.wellness.filter(w=>w.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(w=>{const sc=w.score;const c=sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="bdg ${c}">${sc}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
+    <div class="tw"><table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th><th>Impacto</th></tr></thead>
+    <tbody>${APP.wellness.filter(w=>w.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(w=>{const sc=w.score;const c=sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="bdg ${c}">${sc}</span></td><td>${w.cycle||'—'}</td><td>${w.cycleImpact!==undefined&&w.cycleImpact!==null?w.cycleImpact:'—'}</td></tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
     return;
   }
   const wDims=[{k:'sleep',label:'Sono',sub:'Qualidade do sono (1=Mau → 5=Excelente)',max:5},{k:'fatigue',label:'Fadiga',sub:'Nível de fadiga (1=Sem fadiga → 10=Exausto)',max:10},{k:'stress',label:'Stress',sub:'Stress/Ansiedade (1=Sem stress → 10=Muito stressado)',max:10},{k:'pain',label:'Dor Muscular',sub:'Dores musculares (0=Sem dor → 10=Muita dor)',max:10,min:0},{k:'mood',label:'Humor',sub:'Estado de humor (1=Muito mau → 5=Excelente)',max:5}];
@@ -7236,14 +7353,17 @@ function renderAtWellness(){
             ${cycleOpts.map(o=>`<option value="${o}" ${_wfVals.cycle===o?'selected':''}>${o}</option>`).join('')}
           </select>
         </div>
+        <div class="wf-row"><div><div class="wf-l">Impacto do Ciclo</div><div class="wf-s">Quanto a fase atual te está a afetar hoje (0=Sem impacto → 3=Grande impacto)</div></div>
+          <div class="wf-sc">${[0,1,2,3].map(n=>`<button class="wsb ${_wfVals.cycleImpact==n?'on':''}" onclick="_wfVals.cycleImpact=${n};this.closest('.wf-row').querySelectorAll('.wsb').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${n}</button>`).join('')}</div>
+        </div>
         ${wDims.map(d=>`<div class="wf-row"><div><div class="wf-l">${d.label}</div><div class="wf-s">${d.sub}</div></div>${scaleHtml(d.k,d.min,d.max)}</div>`).join('')}
       </div>
     </div>
   </div>
   <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitWellness()"><i class="ti ti-send" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>Submeter Questionário</button>
   <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Histórico (últimos 14 dias)</div>
-  <div class="tw"><table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead>
-  <tbody>${APP.wellness.filter(w=>w.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(w=>{const sc=w.score;const c=sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="bdg ${c}">${sc}</span></td><td>${w.cycle||'—'}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
+  <div class="tw"><table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th><th>Impacto</th></tr></thead>
+  <tbody>${APP.wellness.filter(w=>w.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(w=>{const sc=w.score;const c=sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="bdg ${c}">${sc}</span></td><td>${w.cycle||'—'}</td><td>${w.cycleImpact!==undefined&&w.cycleImpact!==null?w.cycleImpact:'—'}</td></tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
 }
 function submitWellness(){
   const v=_wfVals;
@@ -7251,10 +7371,10 @@ function submitWellness(){
   const score=calcWellnessScore(v);
   const td=today();
   const existing=APP.wellness.findIndex(w=>w.athleteId===AID&&w.date===td);
-  const entry={id:uid(),athleteId:AID,date:td,sleep:v.sleep,fatigue:v.fatigue,stress:v.stress,pain:v.pain||0,mood:v.mood,score,cycle:v.cycle||'N/A',submittedAt:new Date().toISOString()};
+  const entry={id:uid(),athleteId:AID,date:td,sleep:v.sleep,fatigue:v.fatigue,stress:v.stress,pain:v.pain||0,mood:v.mood,score,cycle:v.cycle||'N/A',cycleImpact:v.cycleImpact||0,submittedAt:new Date().toISOString()};
   if(existing>=0)APP.wellness[existing]=entry;else APP.wellness.push(entry);
   if(_sync)cloudUpsert('wellness_records',{...entry,athlete_id:entry.athleteId,club_id:_cid});
-  saveData();_wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:''};toast('Wellness submetido! Score: '+score+'/100');renderAtWellness();
+  saveData();_wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:'',cycleImpact:0};toast('Wellness submetido! Score: '+score+'/100');renderAtWellness();
 }
 function calcWellnessScore(v){
   let s=0;
@@ -7318,6 +7438,10 @@ function renderAtPSE(){
     <tbody>${APP.pse.filter(p=>p.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
     return;
   }
+  // Pré-preenche a duração com a da Unidade de Treino/evento de hoje, se a atleta ainda não
+  // tiver escrito nada — reduz erro de preenchimento, mas continua editável (treinos
+  // individualizados ou sessões que corram mais/menos tempo do que o previsto).
+  if(!_psfDur&&_pEvs.length&&_pEvs[0].dur)_psfDur=String(_pEvs[0].dur);
   const borgLabels={0:'Repouso',1:'Muito fácil',2:'Fácil',3:'Moderado',4:'Algo difícil',5:'Difícil',6:'',7:'Muito difícil',8:'',9:'Extremamente difícil',10:'Esforço máximo'};
   document.getElementById('atp-pse').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-chart-bar" style="margin-right:6px;vertical-align:-3px;color:#4ade80" aria-hidden="true"></i>PSE — Carga de Treino</div>
@@ -7754,7 +7878,7 @@ async function pullCloud(){
   try{
     const pulls=[
       ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash,nat:r.nationality||r.nat,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}))],
-      ['wellness_records','wellness',(d)=>APP.wellness=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at}))],
+      ['wellness_records','wellness',(d)=>APP.wellness=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at,cycleImpact:r.cycle_impact}))],
       ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at}))],
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at}))],
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professionalName:r.professional_name,registeredAt:r.registered_at}))],
@@ -7896,8 +8020,8 @@ async function pushAppMeta(_pushRetry){
 const _CLOUD_TABLE_SCHEMA={
   athletes:{cols:['id','name','alcunha','pos','num','dob','nationality','height','foot','photo','club','created_at','team_id','password_hash','email','weight','birth_country','situation','full_name','history','must_change_pwd'],
     rename:{teamId:'team_id',passwordHash:'password_hash',nat:'nationality',clubHistory:'history',mustChangePwd:'must_change_pwd'}},
-  wellness_records:{cols:['id','athlete_id','date','sleep','fatigue','stress','pain','mood','score','cycle','submitted_at'],
-    rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
+  wellness_records:{cols:['id','athlete_id','date','sleep','fatigue','stress','pain','mood','score','cycle','cycle_impact','submitted_at'],
+    rename:{athleteId:'athlete_id',submittedAt:'submitted_at',cycleImpact:'cycle_impact'}},
   pse_records:{cols:['id','athlete_id','date','pse','duration','ua','session_type','submitted_at'],
     rename:{athleteId:'athlete_id',sessionType:'session_type',submittedAt:'submitted_at'}},
   injuries:{cols:['id','athlete_id','date','type','diagnosis','severity','status','return_date','notes','phase','phase_desc','progress','registered_by','registered_at','body_part'],
