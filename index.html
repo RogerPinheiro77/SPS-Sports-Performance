@@ -3745,17 +3745,22 @@ function _getTr(){return APP.trainings.find(t=>t.id===_trId);}
 
 function _renderTrDetail(){
   const tr=_getTr();if(!tr){_trView='list';renderTreinos();return;}
+  const isAnalise=_trExTab==='analise';
   const tabsHtml=_PHASES.map(ph=>{
     const cnt=(tr.exercises[ph.id]||[]).length;
     const active=_trExTab===ph.id;
     return`<button class="btn btn-sm" onclick="_trExTab='${ph.id}';_renderTrDetail()" style="border:1px solid ${ph.color};color:${active?'#fff':ph.color};background:${active?ph.color:'transparent'};font-size:12px">${ph.label}${cnt>0?' ('+cnt+')':''}</button>`;
-  }).join('');
-  const ph=_PHASES.find(p=>p.id===_trExTab);
-  const exs=(tr.exercises[_trExTab]||[]);
-  const exHtml=exs.length?exs.map((ex,i)=>_exCardHtml(tr.id,_trExTab,ex,i)).join(''):`
-  <div style="border:1.5px dashed var(--brd);border-radius:10px;padding:24px;text-align:center;color:var(--t2);font-size:13px">
-    Sem exercícios em "${ph.label}".<br><small>Clica em "Adicionar Exercício" abaixo.</small>
-  </div>`;
+  }).join('')
+  +`<button class="btn btn-sm" onclick="_trExTab='analise';_renderTrDetail()" style="border:1px solid #6b46c1;color:${isAnalise?'#fff':'#6b46c1'};background:${isAnalise?'#6b46c1':'transparent'};font-size:12px">📊 Análise</button>`;
+  let ph=null,exHtml='';
+  if(!isAnalise){
+    ph=_PHASES.find(p=>p.id===_trExTab);
+    const exs=(tr.exercises[_trExTab]||[]);
+    exHtml=exs.length?exs.map((ex,i)=>_exCardHtml(tr.id,_trExTab,ex,i)).join(''):`
+    <div style="border:1.5px dashed var(--brd);border-radius:10px;padding:24px;text-align:center;color:var(--t2);font-size:13px">
+      Sem exercícios em "${ph.label}".<br><small>Clica em "Adicionar Exercício" abaixo.</small>
+    </div>`;
+  }
   const usedKB=Math.round(JSON.stringify(APP.trainings).length/1024);
   const maxKB=5120;const pct=Math.min(100,Math.round(usedKB/maxKB*100));
   const stColor=pct>80?'#c0392b':pct>50?'#e67e22':'#1D9E75';
@@ -3794,11 +3799,92 @@ function _renderTrDetail(){
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabsHtml}</div>
+  ${isAnalise?_trAnaliseHtml(tr):`
   <div id="tr-ex-list" style="display:flex;flex-direction:column;gap:10px">${exHtml}</div>
   <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-g" style="flex:1" onclick="addExercicioUT('${tr.id}','${_trExTab}')">+ Adicionar Exercício — ${ph.label}</button>
     <button class="btn btn-gh" style="flex:1" onclick="pickFromBiblioteca('${tr.id}','${_trExTab}')">📚 Da Biblioteca</button>
   </div>
+  `}
+  `;
+}
+// ─── ANÁLISE DA UNIDADE DE TREINO ───────────────────────────────────────────
+// Cruza dados da própria sessão (PSE/Wellness/Presenças/Fisio nesse dia) com o
+// estado cumulativo de cada atleta à data do treino (ACWR 7/28 dias — mesma
+// janela usada em todo o resto da app, ver _acwrAt). É sempre relativo à DATA
+// desta unidade (não a hoje), para se poder analisar sessões passadas tal
+// como estavam então, mesmo que o estado atual de uma atleta já tenha mudado.
+function _trAnaliseHtml(tr){
+  const ats=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const dt=tr.date;
+  const nextDt=addDaysStr(dt,1);
+  const rows=ats.map(at=>{
+    const pse=APP.pse.filter(p=>p.athleteId===at.id&&p.date===dt).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''))[0]||null;
+    const well=APP.wellness.find(w=>w.athleteId===at.id&&w.date===nextDt)||null;
+    const att=tr.eventId?(APP.attendance||[]).find(a=>a.eventId===tr.eventId&&a.athleteId===at.id):null;
+    const inj=(APP.injuries||[]).find(i=>i.athleteId===at.id&&i.date<=dt&&(!i.returnDate||i.returnDate>=dt));
+    const trat=(APP.treatments||[]).find(t=>t.athleteId===at.id&&t.date===dt);
+    const acwr=_acwrAt(at.id,dt);
+    return {at,pse,well,att,inj,trat,acwr};
+  });
+
+  const isFuture=dt>today();
+  const alerts=[];
+  if(!isFuture){
+    const semJustif=rows.filter(r=>r.att&&r.att.status==='ausente'&&!r.att.reason).length;
+    if(semJustif>0)alerts.push({lvl:'y',txt:`⚠️ ${semJustif} ausência${semJustif>1?'s':''} sem motivo registado.`});
+    const riskACWR=rows.filter(r=>r.acwr!==null&&(r.acwr>1.5||r.acwr<0.8));
+    if(riskACWR.length>0)alerts.push({lvl:'r',txt:`🔴 ${riskACWR.length} atleta${riskACWR.length>1?'s':''} em zona de risco de ACWR: ${riskACWR.map(r=>escHtml(_shortName(r.at))).join(', ')}.`});
+    const lowWell=rows.filter(r=>r.well&&r.well.score<45);
+    if(lowWell.length>0)alerts.push({lvl:'y',txt:`😴 ${lowWell.length} atleta${lowWell.length>1?'s':''} com wellness baixo no dia seguinte: ${lowWell.map(r=>escHtml(_shortName(r.at))).join(', ')}.`});
+    const injCount=rows.filter(r=>r.inj).length;
+    if(injCount>0)alerts.push({lvl:'b',txt:`🩺 ${injCount} atleta${injCount>1?'s':''} com lesão ativa nesta data.`});
+  }
+  const alertsHtml=isFuture
+    ?`<div class="al al-b">Esta sessão ainda não decorreu (${fmtDate(dt)}) — ainda sem dados para analisar.</div>`
+    :(alerts.length?alerts.map(a=>`<div class="al al-${a.lvl}">${a.txt}</div>`).join(''):`<div class="al al-b">Sem alertas relevantes para esta sessão.</div>`);
+
+  const pseVals=rows.filter(r=>r.pse).map(r=>+r.pse.pse||0);
+  const pseAvg=pseVals.length?(pseVals.reduce((s,v)=>s+v,0)/pseVals.length).toFixed(1):'—';
+  const uaVals=rows.filter(r=>r.pse).map(r=>+r.pse.ua||0);
+  const uaAvg=uaVals.length?Math.round(uaVals.reduce((s,v)=>s+v,0)/uaVals.length):'—';
+  const presentes=rows.filter(r=>r.att&&r.att.status==='treino').length;
+
+  const summaryHtml=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0">
+    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${pseAvg}</div><div style="font-size:10px;color:var(--t2)">PSE médio /10</div></div>
+    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${uaAvg}</div><div style="font-size:10px;color:var(--t2)">UA médio</div></div>
+    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${presentes}/${rows.length}</div><div style="font-size:10px;color:var(--t2)">Presentes</div></div>
+    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${rows.filter(r=>r.pse).length}/${rows.length}</div><div style="font-size:10px;color:var(--t2)">Com PSE</div></div>
+  </div>`;
+
+  const attLabel=(status)=>status==='treino'?'<span class="bdg bg-g">Presente</span>':status==='tratamento'?'<span class="bdg bg-y">Tratamento</span>':status==='ausente'?'<span class="bdg bg-r">Ausente</span>':'<span style="color:var(--t2)">—</span>';
+  const acwrBdg=(v)=>{
+    if(v===null||v===undefined)return '<span style="color:var(--t2)">—</span>';
+    const cls=(v>1.5||v<0.8)?'bg-r':(v>=1.0?'bg-g':'bg-y');
+    return `<span class="bdg ${cls}">${v}</span>`;
+  };
+
+  const tableRows=rows.map(r=>`<tr>
+    <td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td>
+    <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
+    <td style="text-align:center">${r.pse?r.pse.ua:'—'}</td>
+    <td style="text-align:center">${r.well?r.well.score:'—'}</td>
+    <td style="text-align:center">${attLabel(r.att&&r.att.status)}</td>
+    <td style="text-align:center">${r.inj?'🩺 '+escHtml(r.inj.type||'Lesão'):(r.trat?'Tratamento':'—')}</td>
+    <td style="text-align:center">${acwrBdg(r.acwr)}</td>
+  </tr>`).join('');
+
+  return `
+  <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Análise da Sessão — ${fmtDate(dt)}</div>
+  ${alertsHtml}
+  ${summaryHtml}
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Presença</th><th>Fisio</th><th>ACWR (cumulativo até à data)</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  </div>
+  <div style="font-size:10px;color:var(--t2);margin-top:8px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7 dias) ÷ crónica (28 dias) até ${fmtDate(dt)} — mesma janela usada em toda a app.</div>
   `;
 }
 
