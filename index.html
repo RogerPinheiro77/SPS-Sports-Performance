@@ -4405,6 +4405,23 @@ async function _pdfBrandify(bytes){
     spsLogoImg=await doc.embedJpg(await r.arrayBuffer());
   }catch(e){console.warn('Não consegui carregar o logo SPS:',e);}
 
+  // Rodapé de marca (assinatura + selo UEFA A + contactos) — mesmas imagens usadas
+  // no rodapé de _printWin (ver RODAPE_*_URL), pedido explícito do Roger para
+  // também aparecer neste PDF importado. São PNG (não JPG como os logos acima).
+  let uefaImg=null,contactsImg=null,sigImg=null;
+  try{
+    const r=await fetch(RODAPE_UEFA_URL);
+    uefaImg=await doc.embedPng(await r.arrayBuffer());
+  }catch(e){console.warn('Não consegui carregar o selo UEFA A:',e);}
+  try{
+    const r=await fetch(RODAPE_CONTACTOS_URL);
+    contactsImg=await doc.embedPng(await r.arrayBuffer());
+  }catch(e){console.warn('Não consegui carregar os contactos:',e);}
+  try{
+    const r=await fetch(RODAPE_ASSINATURA_URL);
+    sigImg=await doc.embedPng(await r.arrayBuffer());
+  }catch(e){console.warn('Não consegui carregar a assinatura:',e);}
+
   const athletes=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId)
     .slice().sort((a,b)=>(+(a.number||a.num)||999)-(+(b.number||b.num)||999));
 
@@ -4478,6 +4495,54 @@ async function _pdfBrandify(bytes){
       page.drawText(label,{x:cx+8.5,y:cy+0.5,size:6.8,font:reg,color:a?rgb(0.2,0.2,0.2):rgb(0.82,0.82,0.82)});
     }
   }
+
+  // Rodapé de marca na ÚLTIMA página do plano (assinatura + selo UEFA A + logo SPS
+  // + contactos) — pedido explícito do Roger, mesmo conteúdo do rodapé de _printWin,
+  // desenhado diretamente no PDF porque este documento é importado (não HTML).
+  // translateContent() desloca o conteúdo já existente da página para cima, abrindo
+  // espaço em baixo sem sobrepor nada do plano original. Isolado em try/catch para
+  // não deitar abaixo o resto da exportação (cabeçalho+checklist) se algo falhar aqui.
+  try{
+    const pages=doc.getPages();
+    const lastPage=pages[pages.length-1];
+    if(lastPage&&(spsLogoImg||uefaImg||contactsImg||sigImg)){
+      const {width:lw,height:lh}=lastPage.getSize();
+      const FOOT_H=64;
+      lastPage.setSize(lw,lh+FOOT_H);
+      lastPage.translateContent(0,FOOT_H);
+      lastPage.drawRectangle({x:0,y:FOOT_H-1,width:lw,height:1,color:rgb(0.8,0.8,0.8)});
+
+      // esquerda: logo SPS + texto (mesma marca do cabeçalho)
+      const leftX=24;
+      if(spsLogoImg){
+        lastPage.drawImage(spsLogoImg,{x:leftX,y:16,width:14,height:14});
+      }
+      _leftWrap(lastPage,reg,'SPS Sports Performance System',6.5,rgb(0.55,0.55,0.55),leftX+20,26,110,8);
+
+      // centro: selo UEFA A + contactos, com linha divisória fina entre os dois
+      const centerH=20,centerGap=10;
+      let uefaW=0,contactsW=0;
+      if(uefaImg){const d=uefaImg.scale(1);uefaW=centerH*(d.width/d.height);}
+      if(contactsImg){const d=contactsImg.scale(1);contactsW=centerH*(d.width/d.height);}
+      const centerW=uefaW+contactsW+(uefaImg&&contactsImg?centerGap:0);
+      let cx=lw/2-centerW/2;
+      const centerY=16;
+      if(uefaImg){lastPage.drawImage(uefaImg,{x:cx,y:centerY,width:uefaW,height:centerH});cx+=uefaW;}
+      if(uefaImg&&contactsImg){
+        lastPage.drawRectangle({x:cx+centerGap/2,y:centerY-2,width:0.6,height:centerH+4,color:rgb(0.85,0.85,0.85)});
+      }
+      cx+=centerGap;
+      if(contactsImg){lastPage.drawImage(contactsImg,{x:cx,y:centerY,width:contactsW,height:centerH});}
+
+      // direita: assinatura digital
+      if(sigImg){
+        const sigH=26,rightMargin=24;
+        const d=sigImg.scale(1);
+        const sigW=sigH*(d.width/d.height);
+        lastPage.drawImage(sigImg,{x:lw-rightMargin-sigW,y:14,width:sigW,height:sigH});
+      }
+    }
+  }catch(e){console.warn('Não consegui desenhar o rodapé de assinatura no PDF importado:',e);}
 
   return await doc.save();
 }
