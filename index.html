@@ -1973,7 +1973,7 @@ function openAthleteModal(id){
   const avgWell7=w7.length?Math.round(w7.reduce((s,w)=>s+(+w.score||0),0)/w7.length):null;
   // Attendance
   if(!APP.attendance)APP.attendance=[];
-  const attRecs=APP.attendance.filter(a=>a.athleteId===id&&a.status!=='tratamento'); // tratamento não conta para a % de presenças
+  const attRecs=APP.attendance.filter(a=>a.athleteId===id&&a.status!=='tratamento'&&!(a.status==='ausente'&&a.reason==='ferias')); // tratamento e férias não contam para a % de presenças
   const attTotal=attRecs.length;
   const attPres=attRecs.filter(a=>a.present).length;
   const attRate=attTotal?Math.round(attPres/attTotal*100):null;
@@ -2201,11 +2201,14 @@ function openAthleteModal(id){
 // ─── PLANEAMENTO (CALENDÁRIO) ─────────────────────────────
 let _calYear=new Date().getFullYear(), _calMonth=new Date().getMonth();
 let _planView='mes', _planWeekStart=getMonday(today());
-const ATT_REASONS={justificada:'Justificada',nao_justificada:'Não Justificada',lesao:'Lesão',doenca:'Doença',outro:'Outro'};
-function openAttendanceModal(eventId){
+const ATT_REASONS={justificada:'Justificada',nao_justificada:'Não Justificada',lesao:'Lesão',doenca:'Doença',ferias:'Férias',outro:'Outro'};
+function openAttendanceModal(eventId,onlyAthleteId){
   const ev=APP.schedule.find(e=>e.id===eventId);if(!ev)return;
-  const athletes=APP.athletes.filter(a=>a.teamId===ev.teamId||!ev.teamId).sort((a,b)=>a.name.localeCompare(b.name));
-  if(!athletes.length)return toast('Sem atletas nesta equipa','err');
+  let athletes=APP.athletes.filter(a=>a.teamId===ev.teamId||!ev.teamId).sort((a,b)=>a.name.localeCompare(b.name));
+  // Marcação manual de uma só atleta (clique numa célula vazia da grelha de Presenças) —
+  // reaproveita o mesmo modal, só que filtrado a uma atleta, para não mexer nas outras.
+  if(onlyAthleteId)athletes=athletes.filter(a=>a.id===onlyAthleteId);
+  if(!athletes.length)return toast(onlyAthleteId?'Atleta não encontrada nesta equipa':'Sem atletas nesta equipa','err');
   if(!APP.attendance)APP.attendance=[];
   // Estado atual desta sessão: id (para atualizar em vez de duplicar na cloud),
   // status ('treino'|'tratamento'|'ausente') e motivo (só relevante se ausente).
@@ -2221,7 +2224,7 @@ function openAttendanceModal(eventId){
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:4000;display:flex;align-items:center;justify-content:center;padding:16px';
   m.innerHTML=`<div style="background:var(--bg2);border-radius:14px;padding:20px;max-width:460px;width:100%;border:1px solid var(--brd);max-height:85vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <div style="font-weight:800;font-size:15px">📋 Presenças</div>
+      <div style="font-weight:800;font-size:15px">📋 ${onlyAthleteId?escHtml(_shortName(athletes[0])):'Presenças'}</div>
       <button class="btn btn-xs btn-gh" onclick="this.closest('[style*=fixed]').remove()">✕</button>
     </div>
     <div style="font-size:11px;color:var(--t2);margin-bottom:14px">${ev.title} · ${fmtDate(ev.date)}${ev.time?' · '+ev.time:''}</div>
@@ -2331,13 +2334,13 @@ function renderPresencas(){
   const STMAP={treino:['✅','#4ade80'],tratamento:['🏥','#38bdf8'],ausente:['❌','#f87171']};
   const cell=(ev,at)=>{
     const rec=APP.attendance.find(a=>a.eventId===ev.id&&a.athleteId===at.id);
-    if(!rec)return`<td style="text-align:center;cursor:pointer;color:var(--t2)" onclick="openAttendanceModal('${ev.id}')" title="${escHtml(at.name)} — por marcar">—</td>`;
+    if(!rec)return`<td style="text-align:center;cursor:pointer;color:var(--t2)" onclick="openAttendanceModal('${ev.id}','${at.id}')" title="${escHtml(at.name)} — por marcar (clique para marcar só esta atleta)">—</td>`;
     const[icon,color]=STMAP[rec.status]||['—','var(--t2)'];
     const label=rec.status==='ausente'?(ATT_REASONS[rec.reason]||'Ausente (sem motivo)'):rec.status==='tratamento'?'Tratamento':'Presente';
-    return`<td style="text-align:center;cursor:pointer" onclick="openAttendanceModal('${ev.id}')" title="${escHtml(at.name)} — ${label}"><span style="font-size:14px">${icon}</span></td>`;
+    return`<td style="text-align:center;cursor:pointer" onclick="openAttendanceModal('${ev.id}','${at.id}')" title="${escHtml(at.name)} — ${label}"><span style="font-size:14px">${icon}</span></td>`;
   };
   const rows=athletes.map(at=>{
-    const recs=APP.attendance.filter(a=>a.athleteId===at.id&&a.status!=='tratamento'&&evs.some(e=>e.id===a.eventId));
+    const recs=APP.attendance.filter(a=>a.athleteId===at.id&&a.status!=='tratamento'&&!(a.status==='ausente'&&a.reason==='ferias')&&evs.some(e=>e.id===a.eventId));
     const pres=recs.filter(a=>a.present).length;
     const pct=recs.length?Math.round(pres/recs.length*100):null;
     return`<tr>
@@ -6266,7 +6269,7 @@ function renderRelatorios(){
         <div class="form-g"><label class="fl">Equipa</label><select class="fc" id="rep-att-team">${teamOpts}</select></div>
         <div class="form-g"><label class="fl">Mês</label><input class="fc" type="month" id="rep-att-month" value="${ym}"></div>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Por atleta: treinos no mês, presenças, tratamentos e faltas por motivo (justificada, não justificada, lesão, doença, outro).</div>
+      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Por atleta: treinos no mês, presenças, tratamentos, férias e faltas por motivo (justificada, não justificada, lesão, doença, outro). Tratamento e férias não contam para a % de assiduidade.</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-g btn-sm" onclick="exportAttendanceCSV()">📊 Exportar CSV</button>
         <button class="btn btn-gh btn-sm" onclick="printAttendance()">🖨️ PDF / Imprimir</button>
@@ -6532,8 +6535,9 @@ function printAthleteReport(){
   const attRecsP=APP.attendance.filter(a=>a.athleteId===id&&evIdsP.has(a.eventId));
   const attPresente=attRecsP.filter(a=>a.status==='treino').length;
   const attTratamento=attRecsP.filter(a=>a.status==='tratamento').length;
-  const attAusentes=attRecsP.filter(a=>a.status==='ausente');
-  const attReasonLbl={justificada:'Justificada',nao_justificada:'Não Justificada',lesao:'Lesão',doenca:'Doença',outro:'Outro'};
+  const attAusentesAll=attRecsP.filter(a=>a.status==='ausente');
+  const attFerias=attAusentesAll.filter(a=>a.reason==='ferias');
+  const attAusentes=attAusentesAll.filter(a=>a.reason!=='ferias'); // férias não conta como falta (como o tratamento)
   const attDenom=attPresente+attAusentes.length;
   const attPct=attDenom?Math.round(attPresente/attDenom*100):null;
 
@@ -6589,7 +6593,7 @@ function printAthleteReport(){
   const evIdsPrev=new Set(evsPeriodoPrev.map(e=>e.id));
   const attRecsPrev=APP.attendance.filter(a=>a.athleteId===id&&evIdsPrev.has(a.eventId));
   const attPresentePrev=attRecsPrev.filter(a=>a.status==='treino').length;
-  const attAusentesPrev=attRecsPrev.filter(a=>a.status==='ausente');
+  const attAusentesPrev=attRecsPrev.filter(a=>a.status==='ausente'&&a.reason!=='ferias');
   const attDenomPrev=attPresentePrev+attAusentesPrev.length;
   const attPctPrev=attDenomPrev?Math.round(attPresentePrev/attDenomPrev*100):null;
   const gamesPrev=APP.games.filter(g=>g.date>=prevStart&&g.date<=prevEnd&&((g.lineup&&g.lineup.includes(id))||(g.subs&&g.subs.includes(id))||(g.playerStats||[]).some(s=>s.aid===id)));
@@ -6644,9 +6648,9 @@ function printAthleteReport(){
     activeInjuries:activeInPeriod.map(i=>escHtml(i.diagnosis||i.type||'—'))
   });
 
-  const attTable=`<table><thead><tr><th>Sessões</th><th>Presente</th><th>Tratamento</th><th>Ausente</th></tr></thead>
-    <tbody><tr><td>${evsPeriodo.length}</td><td>${attPresente}</td><td>${attTratamento}</td><td>${attAusentes.length}</td></tr></tbody></table>
-    ${attAusentes.length?`<table style="margin-top:4px"><thead><tr><th>Data</th><th>Motivo</th></tr></thead><tbody>${attAusentes.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${attReasonLbl[a.reason]||'—'}</td></tr>`).join('')}</tbody></table>`:''}`;
+  const attTable=`<table><thead><tr><th>Sessões</th><th>Presente</th><th>Tratamento</th><th>Férias</th><th>Ausente</th></tr></thead>
+    <tbody><tr><td>${evsPeriodo.length}</td><td>${attPresente}</td><td>${attTratamento}</td><td>${attFerias.length}</td><td>${attAusentes.length}</td></tr></tbody></table>
+    ${attAusentes.length?`<table style="margin-top:4px"><thead><tr><th>Data</th><th>Motivo</th></tr></thead><tbody>${attAusentes.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${ATT_REASONS[a.reason]||'—'}</td></tr>`).join('')}</tbody></table>`:''}`;
 
   let pseTable;
   if(!pseRecs.length){
@@ -6898,12 +6902,13 @@ function _getAttReportData(){
     const recs=APP.attendance.filter(a=>a.athleteId===at.id&&evIds.has(a.eventId));
     const presente=recs.filter(a=>a.status==='treino').length;
     const tratamento=recs.filter(a=>a.status==='tratamento').length;
-    const ausentes=recs.filter(a=>a.status==='ausente');
+    const feriasRecs=recs.filter(a=>a.status==='ausente'&&a.reason==='ferias');
+    const ausentes=recs.filter(a=>a.status==='ausente'&&a.reason!=='ferias'); // férias não conta como falta (como o tratamento)
     const byReason={justificada:0,nao_justificada:0,lesao:0,doenca:0,outro:0,sem_motivo:0};
     ausentes.forEach(a=>{if(a.reason&&byReason[a.reason]!==undefined)byReason[a.reason]++;else byReason.sem_motivo++;});
     const denom=presente+ausentes.length;
     const pct=denom?Math.round(presente/denom*100):null;
-    return {at,presente,tratamento,ausenteTotal:ausentes.length,...byReason,pct};
+    return {at,presente,tratamento,ferias:feriasRecs.length,ausenteTotal:ausentes.length,...byReason,pct};
   });
   const team=APP.teams.find(t=>t.id===teamId);
   return {teamId,team,ym,evsCount:evs.length,rows};
@@ -6911,8 +6916,8 @@ function _getAttReportData(){
 function exportAttendanceCSV(){
   const d=_getAttReportData();
   if(!d.rows.length)return toast('Sem atletas para exportar','err');
-  const headers=['Atleta','Treinos no mês','Presenças','Tratamento','Faltas (total)','Justificada','Não Justificada','Lesão','Doença','Outro','Sem motivo','% Assiduidade'];
-  const rows=[headers,...d.rows.map(r=>[_shortName(r.at),d.evsCount,r.presente,r.tratamento,r.ausenteTotal,r.justificada,r.nao_justificada,r.lesao,r.doenca,r.outro,r.sem_motivo,r.pct!==null?r.pct+'%':'—'])];
+  const headers=['Atleta','Treinos no mês','Presenças','Tratamento','Férias','Faltas (total)','Justificada','Não Justificada','Lesão','Doença','Outro','Sem motivo','% Assiduidade'];
+  const rows=[headers,...d.rows.map(r=>[_shortName(r.at),d.evsCount,r.presente,r.tratamento,r.ferias,r.ausenteTotal,r.justificada,r.nao_justificada,r.lesao,r.doenca,r.outro,r.sem_motivo,r.pct!==null?r.pct+'%':'—'])];
   _dlCSV(rows,`presencas_${(d.team?.name||'equipa')}_${d.ym}.csv`);
   toast('CSV exportado ✓');
 }
@@ -6922,10 +6927,10 @@ function printAttendance(){
   const title=`Presenças Mensal — ${d.team?.name||'Todas as Equipas'} — ${d.ym}`;
   const body=`
     <div class="pr-title">${title}</div>
-    <table><thead><tr><th>Atleta</th><th>Treinos</th><th>Presente</th><th>Tratamento</th><th>Faltas</th><th>Motivos</th><th>%</th></tr></thead>
+    <table><thead><tr><th>Atleta</th><th>Treinos</th><th>Presente</th><th>Tratamento</th><th>Férias</th><th>Faltas</th><th>Motivos</th><th>%</th></tr></thead>
     <tbody>${d.rows.map(r=>{
       const motivos=[r.justificada?'Just.: '+r.justificada:'',r.nao_justificada?'Não Just.: '+r.nao_justificada:'',r.lesao?'Lesão: '+r.lesao:'',r.doenca?'Doença: '+r.doenca:'',r.outro?'Outro: '+r.outro:'',r.sem_motivo?'S/ motivo: '+r.sem_motivo:''].filter(Boolean).join(', ')||'—';
-      return`<tr><td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td><td>${d.evsCount}</td><td>${r.presente}</td><td>${r.tratamento}</td><td>${r.ausenteTotal}</td><td style="font-size:9pt">${motivos}</td><td><strong>${r.pct!==null?r.pct+'%':'—'}</strong></td></tr>`;
+      return`<tr><td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td><td>${d.evsCount}</td><td>${r.presente}</td><td>${r.tratamento}</td><td>${r.ferias}</td><td>${r.ausenteTotal}</td><td style="font-size:9pt">${motivos}</td><td><strong>${r.pct!==null?r.pct+'%':'—'}</strong></td></tr>`;
     }).join('')}</tbody></table>
   `;
   _printWin(title,body);
