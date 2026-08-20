@@ -2508,10 +2508,24 @@ function saveEvent(){
   if(!type||!title||!date)return toast('Tipo, título e data obrigatórios','err');
   const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value};
   if(_editEvId){const i=APP.schedule.findIndex(e=>e.id===_editEvId);if(i>=0)APP.schedule[i]=ev;}
-  else{APP.schedule.push(ev);if(_sync)cloudUpsert('schedule_events',{...ev,club_id:_cid});}
+  else{APP.schedule.push(ev);}
+  // Antes só o ramo de evento novo chamava cloudUpsert — editar um evento existente
+  // "corrigia" a vista local mas nunca chegava à Supabase; no refresh seguinte,
+  // pullCloud() lia a tabela schedule_events (ainda com os dados antigos) e
+  // sobrescrevia a edição. Ver feedback_sps_pse_dur_sync_bug para o mesmo bug já
+  // resolvido nas Unidades de Treino — aqui era o mesmo problema no Planeamento.
+  if(_sync)cloudUpsert('schedule_events',{...ev,club_id:_cid});
   saveData();_showEvForm=false;_editEvId=null;toast('Evento guardado ✓');renderPlaneamento();
 }
-function deleteEvent(id){if(!confirm('Apagar evento?'))return;APP.schedule=APP.schedule.filter(e=>e.id!==id);saveData();toast('Evento apagado');closeMod();renderPlaneamento();}
+async function deleteEvent(id){
+  if(!confirm('Apagar evento?'))return;
+  APP.schedule=APP.schedule.filter(e=>e.id!==id);
+  saveData();
+  // Apagava só localmente — a linha continuava na Supabase, por isso o evento
+  // "apagado" voltava a aparecer no próximo pullCloud (refresh/reabrir a app).
+  if(_sync&&_supa){try{await _supa.from('schedule_events').delete().eq('id',id);}catch(err){console.warn('deleteEvent cloud:',err);}}
+  toast('Evento apagado');closeMod();renderPlaneamento();
+}
 
 // ─── MICROCICLOS ──────────────────────────────────────────
 let _mcWeek=getMonday(today()), _mcTeam='T1', _showMcForm=false, _mcDay=null, _editMcId=null;
@@ -3641,6 +3655,26 @@ function exportConvocatoriaListPDF(gid){
       </div>${body}</div>`);
 }
 
+// Liga um Jogo ao seu evento em Planeamento (schedule_events), pelo mesmo padrão já
+// usado nas Unidades de Treino (ver saveTreinoPatch / feedback_sps_pse_dur_sync_bug):
+// sem isto, criar/editar um Jogo só mexia em APP.games e o Planeamento nunca refletia
+// data/hora/local atualizados. g.eventId guarda a ligação permanente entre os dois.
+// matchDate/matchTeamId (opcionais) servem para jogos antigos, criados antes desta
+// ligação existir (ex: calendário do Campeonato), que já têm um evento correspondente
+// em Planeamento mas sem eventId guardado — evita criar um duplicado na 1ª edição.
+function _syncJogoSchedule(g,matchDate,matchTeamId){
+  if(!APP.schedule)APP.schedule=[];
+  const evData={title:'vs '+g.opp,type:'Jogo',date:g.date,time:g.time||'',location:g.loc||'',teamId:g.teamId||null,dur:120,notes:g.comp||''};
+  let ev=g.eventId?APP.schedule.find(e=>e.id===g.eventId):null;
+  if(!ev){
+    const md=matchDate!==undefined?matchDate:g.date, mt=matchTeamId!==undefined?matchTeamId:g.teamId;
+    ev=APP.schedule.find(e=>e.type==='Jogo'&&e.date===md&&(e.teamId||null)===(mt||null));
+  }
+  if(ev){Object.assign(ev,evData);}
+  else{ev={id:uid(),...evData};APP.schedule.push(ev);}
+  g.eventId=ev.id;
+  if(_sync)cloudUpsert('schedule_events',{...ev,club_id:_cid});
+}
 function saveJogo(){
   const opp=document.getElementById('jf-opp').value.trim();
   const date=document.getElementById('jf-date').value;
@@ -3651,19 +3685,28 @@ function saveJogo(){
   const comp=tipo==='oficial'&&compEl&&compEl.value!=='__new__'?compEl.value:'';
   if(_editJogoId){
     const g=APP.games.find(x=>x.id===_editJogoId);
-    if(g){g.opp=opp;g.date=date;g.time=document.getElementById('jf-time').value;g.ha=document.getElementById('jf-ha').value;g.loc=document.getElementById('jf-loc').value;g.tipo=tipo;g.comp=comp;if(oppLogo)g.oppLogo=oppLogo;}
+    if(g){
+      const prevDate=g.date,prevTeamId=g.teamId;
+      g.opp=opp;g.date=date;g.time=document.getElementById('jf-time').value;g.ha=document.getElementById('jf-ha').value;g.loc=document.getElementById('jf-loc').value;g.tipo=tipo;g.comp=comp;if(oppLogo)g.oppLogo=oppLogo;
+      _syncJogoSchedule(g,prevDate,prevTeamId);
+    }
     saveData();_showJogoForm=false;_editJogoId=null;toast('Jogo atualizado ✓');renderJogos();
   }else{
     const id=uid();
     const g={id,teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,tipo,comp,status:'agendado',g1:null,g2:null,notes:'',oppLogo};
-    _initG(g);APP.games.push(g);saveData();_showJogoForm=false;toast('Jogo criado ✓');openJogo(id);
+    _initG(g);_syncJogoSchedule(g);APP.games.push(g);saveData();_showJogoForm=false;toast('Jogo criado ✓');openJogo(id);
   }
 }
 
 function editJogo(id){openJogo(id);}
-function deleteJogo(id){
+async function deleteJogo(id){
   if(!confirm('Apagar este jogo e todos os seus dados?'))return;
-  APP.games=APP.games.filter(g=>g.id!==id);saveData();toast('Jogo apagado');
+  const eventId=APP.games.find(x=>x.id===id)?.eventId;
+  APP.games=APP.games.filter(x=>x.id!==id);
+  if(eventId)APP.schedule=APP.schedule.filter(e=>e.id!==eventId);
+  saveData();
+  if(_sync&&_supa&&eventId){try{await _supa.from('schedule_events').delete().eq('id',eventId);}catch(err){console.warn('deleteJogo cloud (schedule):',err);}}
+  toast('Jogo apagado');
   _jogoView='list';_jogoDetailId=null;renderJogos();
 }
 // ─── TREINOS (UNIDADES DE TREINO) ─────────────────────────
