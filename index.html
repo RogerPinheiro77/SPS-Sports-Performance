@@ -442,6 +442,19 @@ let _supa=null,_cid=null,_sync=false;
 // recebeu o meta blob da cloud — usado por pushAppMeta() para detetar cópias desatualizadas
 // antes de gravar por cima (ver feedback_sps_full_meta_blob_overwrite_risk).
 let _metaSyncAt=null;
+// Ids apagados localmente desde a última sincronização, por coleção do meta blob
+// (trainings, games, evalPeriods, evalResponses, convocatorias, scouting, sessions).
+// Usado pelo merge de staleness em pushAppMeta(): sem isto, um item apagado
+// localmente mas ainda presente na cópia antiga vinda da cloud era "ressuscitado"
+// pelo merge, porque a lógica só sabia comparar por id presente/ausente — não
+// distinguia "nunca existiu localmente" de "foi apagado localmente". Ver
+// feedback_sps_planeamento_cloud_sync_bug (mesma família de bug, agora no lado
+// das eliminações em vez do lado das edições).
+const _pendingDeletes={};
+function _markDeleted(key,ids){
+  if(!_pendingDeletes[key])_pendingDeletes[key]=new Set();
+  (Array.isArray(ids)?ids:[ids]).forEach(id=>{if(id)_pendingDeletes[key].add(id);});
+}
 
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
@@ -2501,7 +2514,7 @@ function exportPlaneamentoPDF(){
 }
 function clickDay(dt){_selDate=dt;_showEvForm=true;_editEvId=null;renderPlaneamento();}
 function editEvent(id){_editEvId=id;_showEvForm=true;const ev=APP.schedule.find(e=>e.id===id);_selDate=ev?.date;renderPlaneamento();}
-function saveEvent(){
+async function saveEvent(){
   const type=document.getElementById('ef-type').value;
   const title=document.getElementById('ef-title').value.trim();
   const date=document.getElementById('ef-date').value;
@@ -2514,7 +2527,10 @@ function saveEvent(){
   // pullCloud() lia a tabela schedule_events (ainda com os dados antigos) e
   // sobrescrevia a edição. Ver feedback_sps_pse_dur_sync_bug para o mesmo bug já
   // resolvido nas Unidades de Treino — aqui era o mesmo problema no Planeamento.
-  if(_sync)cloudUpsert('schedule_events',{...ev,club_id:_cid});
+  // await (em vez de disparar em paralelo com o saveData() a seguir): cloudUpsert
+  // já chama pushAppMeta() internamente — deixar as duas gravações correrem ao
+  // mesmo tempo sem esperar uma pela outra é uma corrida desnecessária.
+  if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
   saveData();_showEvForm=false;_editEvId=null;toast('Evento guardado ✓');renderPlaneamento();
 }
 async function deleteEvent(id){
@@ -2626,7 +2642,7 @@ function openMcSession(id){
   ${s.notes?`<div style="font-size:12px;color:var(--t2);margin-bottom:12px">${s.notes}</div>`:''}
   <div style="display:flex;gap:8px"><button class="btn btn-r btn-sm" onclick="deleteMcSession('${id}')">🗑️ Apagar</button><button class="btn btn-gh btn-sm" onclick="closeMod()">Fechar</button></div>`);
 }
-function deleteMcSession(id){APP.sessions=APP.sessions.filter(s=>s.id!==id);saveData();toast('Sessão apagada');closeMod();renderMicrociclos();}
+function deleteMcSession(id){_markDeleted('sessions',id);APP.sessions=APP.sessions.filter(s=>s.id!==id);saveData();toast('Sessão apagada');closeMod();renderMicrociclos();}
 
 // ─── JOGOS ────────────────────────────────────────────────
 const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -3662,7 +3678,7 @@ function exportConvocatoriaListPDF(gid){
 // matchDate/matchTeamId (opcionais) servem para jogos antigos, criados antes desta
 // ligação existir (ex: calendário do Campeonato), que já têm um evento correspondente
 // em Planeamento mas sem eventId guardado — evita criar um duplicado na 1ª edição.
-function _syncJogoSchedule(g,matchDate,matchTeamId){
+async function _syncJogoSchedule(g,matchDate,matchTeamId){
   if(!APP.schedule)APP.schedule=[];
   const evData={title:'vs '+g.opp,type:'Jogo',date:g.date,time:g.time||'',location:g.loc||'',teamId:g.teamId||null,dur:120,notes:g.comp||''};
   let ev=g.eventId?APP.schedule.find(e=>e.id===g.eventId):null;
@@ -3673,9 +3689,12 @@ function _syncJogoSchedule(g,matchDate,matchTeamId){
   if(ev){Object.assign(ev,evData);}
   else{ev={id:uid(),...evData};APP.schedule.push(ev);}
   g.eventId=ev.id;
-  if(_sync)cloudUpsert('schedule_events',{...ev,club_id:_cid});
+  // await: cloudUpsert já chama pushAppMeta() internamente — chamá-lo em paralelo
+  // com o saveData() do saveJogo() a seguir era uma corrida desnecessária entre
+  // duas gravações do mesmo blob (ver feedback_sps_planeamento_cloud_sync_bug).
+  if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
 }
-function saveJogo(){
+async function saveJogo(){
   const opp=document.getElementById('jf-opp').value.trim();
   const date=document.getElementById('jf-date').value;
   if(!opp||!date)return toast('Adversário e data obrigatórios','err');
@@ -3688,13 +3707,13 @@ function saveJogo(){
     if(g){
       const prevDate=g.date,prevTeamId=g.teamId;
       g.opp=opp;g.date=date;g.time=document.getElementById('jf-time').value;g.ha=document.getElementById('jf-ha').value;g.loc=document.getElementById('jf-loc').value;g.tipo=tipo;g.comp=comp;if(oppLogo)g.oppLogo=oppLogo;
-      _syncJogoSchedule(g,prevDate,prevTeamId);
+      await _syncJogoSchedule(g,prevDate,prevTeamId);
     }
     saveData();_showJogoForm=false;_editJogoId=null;toast('Jogo atualizado ✓');renderJogos();
   }else{
     const id=uid();
     const g={id,teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,tipo,comp,status:'agendado',g1:null,g2:null,notes:'',oppLogo};
-    _initG(g);_syncJogoSchedule(g);APP.games.push(g);saveData();_showJogoForm=false;toast('Jogo criado ✓');openJogo(id);
+    _initG(g);await _syncJogoSchedule(g);APP.games.push(g);saveData();_showJogoForm=false;toast('Jogo criado ✓');openJogo(id);
   }
 }
 
@@ -3702,6 +3721,7 @@ function editJogo(id){openJogo(id);}
 async function deleteJogo(id){
   if(!confirm('Apagar este jogo e todos os seus dados?'))return;
   const eventId=APP.games.find(x=>x.id===id)?.eventId;
+  _markDeleted('games',id);
   APP.games=APP.games.filter(x=>x.id!==id);
   if(eventId)APP.schedule=APP.schedule.filter(e=>e.id!==eventId);
   saveData();
@@ -3783,6 +3803,7 @@ function _autoHoraFim(){
 }
 function deleteTreino(id){
   if(!confirm('Apagar esta unidade de treino?'))return;
+  _markDeleted('trainings',id);
   APP.trainings=APP.trainings.filter(t=>t.id!==id);
   if(_trId===id){_trId=null;_trView='list';}
   saveData();toast('Unidade apagada');renderTreinos();
@@ -4255,7 +4276,7 @@ function _saveExModal(trId,phase,idx){
   saveData();closeMod();toast(idx<0?'Exercício adicionado ✓':'Exercício actualizado ✓');_renderTrDetail();
 }
 
-function saveTreinoPatch(trId){
+async function saveTreinoPatch(trId){
   const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
   const g=id=>document.getElementById(id);
   if(g('tr-title'))tr.title=g('tr-title').value.trim();
@@ -4279,7 +4300,7 @@ function saveTreinoPatch(trId){
       if(!APP.schedule)APP.schedule=[];
       APP.schedule.push(newEv);
       tr.eventId=newEv.id;
-      if(_sync&&_supa&&_cid)cloudUpsert('schedule_events',{...newEv,team_id:newEv.teamId,club_id:_cid});
+      if(_sync&&_supa&&_cid)await cloudUpsert('schedule_events',{...newEv,team_id:newEv.teamId,club_id:_cid});
     } else {
       // Atualizar evento existente
       const ev=APP.schedule.find(e=>e.id===tr.eventId);
@@ -4304,7 +4325,7 @@ function saveTreinoPatch(trId){
         // tabela schedule_events, que é a fonte de verdade real do Planeamento e do
         // desbloqueio do PSE. Sem este cloudUpsert, editar a hora de uma UT "corrigia"
         // a vista local mas continuava partido para todos os outros dispositivos.
-        if(_sync&&_supa&&_cid)cloudUpsert('schedule_events',{...ev,team_id:ev.teamId,club_id:_cid});
+        if(_sync&&_supa&&_cid)await cloudUpsert('schedule_events',{...ev,team_id:ev.teamId,club_id:_cid});
       }
     }
   }
@@ -4863,7 +4884,7 @@ function saveScout(){
   saveData();_showScoutForm=false;_editScoutId=null;toast('Scout guardado ✓');renderScouting();
 }
 function editScout(id){_editScoutId=id;_showScoutForm=true;renderScouting();}
-function deleteScout(id){if(!confirm('Apagar?'))return;APP.scouting=APP.scouting.filter(s=>s.id!==id);saveData();toast('Apagado');renderScouting();}
+function deleteScout(id){if(!confirm('Apagar?'))return;_markDeleted('scouting',id);APP.scouting=APP.scouting.filter(s=>s.id!==id);saveData();toast('Apagado');renderScouting();}
 
 // ─── AVALIAÇÕES ───────────────────────────────────────────
 // Criteria from "Avaliação individual.xlsx"
@@ -5188,6 +5209,8 @@ function togglePeriod(id){
 
 function deletePeriod(id){
   if(!confirm('Apagar período e todas as avaliações associadas?'))return;
+  _markDeleted('evalPeriods',id);
+  _markDeleted('evalResponses',(APP.evalResponses||[]).filter(r=>r.periodId===id).map(r=>r.id));
   APP.evalPeriods=APP.evalPeriods.filter(p=>p.id!==id);
   APP.evalResponses=(APP.evalResponses||[]).filter(r=>r.periodId!==id);
   saveData();toast('Período apagado');renderAvaliacoes();
@@ -5601,7 +5624,7 @@ function saveConvocatoria(){
   APP.convocatorias.push(c);
   saveData();_showConvForm=false;toast('Convocatória guardada ✓');renderConvocatorias();
 }
-function deleteConv(id){if(!confirm('Apagar?'))return;APP.convocatorias=APP.convocatorias.filter(c=>c.id!==id);saveData();toast('Apagada');renderConvocatorias();}
+function deleteConv(id){if(!confirm('Apagar?'))return;_markDeleted('convocatorias',id);APP.convocatorias=APP.convocatorias.filter(c=>c.id!==id);saveData();toast('Apagada');renderConvocatorias();}
 
 // ─── BIBLIOTECA ───────────────────────────────────────────
 let _libCat='', _showLibForm=false, _editLibId=null;
@@ -8211,7 +8234,10 @@ async function pushAppMeta(_pushRetry){
           const fresh=APP[key]||[];
           const local=_localSnap[key]||[];
           const localIds=new Set(local.filter(x=>x&&x.id).map(x=>x.id));
-          const keep=fresh.filter(f=>!f||!f.id||!localIds.has(f.id));
+          const deletedIds=_pendingDeletes[key]||new Set();
+          // Um item da cloud só sobrevive ao merge se não tiver sido também editado
+          // (localIds — a versão local ganha) nem apagado (deletedIds) nesta sessão.
+          const keep=fresh.filter(f=>!f||!f.id||(!localIds.has(f.id)&&!deletedIds.has(f.id)));
           APP[key]=[...keep,...local];
         });
         saveData();
@@ -8255,6 +8281,9 @@ async function pushAppMeta(_pushRetry){
     const _pushTs=new Date().toISOString();
     await _supa.from('clubs').update({meta:meta,updated_at:_pushTs}).eq('id',_cid);
     _metaSyncAt=_pushTs;
+    // A partir daqui a cloud já reflete as eliminações desta sessão — não é preciso
+    // continuar a protegê-las no próximo merge.
+    Object.keys(_pendingDeletes).forEach(k=>_pendingDeletes[k].clear());
   }catch(e){console.warn('pushAppMeta error',e);}
 }
 // Mapa das colunas REAIS de cada tabela no Supabase + renomeações de campos locais
