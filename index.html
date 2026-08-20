@@ -390,6 +390,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <img src="assets/logo_sps_atleta.png" alt="SPS Atleta" style="width:38px;height:38px;object-fit:contain;flex-shrink:0" onerror="this.style.display='none'">
     <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
     <button class="tb-btn" id="at-refresh-btn" onclick="atManualRefresh()" title="Atualizar dados"><i class="ti ti-refresh" style="font-size:15px" aria-hidden="true"></i></button>
+    <button class="tb-btn" onclick="atOpenManual()" title="Manual da App"><i class="ti ti-help-circle" style="font-size:15px" aria-hidden="true"></i></button>
     <button class="tb-btn" onclick="atOpenChangePwd()" title="Alterar password"><i class="ti ti-key" style="font-size:15px" aria-hidden="true"></i></button>
     <button class="tb-btn" onclick="logout()" title="Sair"><i class="ti ti-logout" style="font-size:15px" aria-hidden="true"></i></button>
   </div>
@@ -7007,6 +7008,80 @@ async function deleteUser(id){
   APP.users=APP.users.filter(u=>u.id!==id);saveData();
   if(_sync&&_supa){try{await _supa.from('staff_users').delete().eq('id',id);}catch(err){console.warn('deleteUser cloud:',err);}}
   toast('Apagado');renderConfig();
+}
+// ── Manual da App (lado atleta) ───────────────────────────────────────────
+// Versão em ecrã, por secções, do mesmo conteúdo do Guia_App_Atleta_SPS.pdf
+// (ver memória project_sps_manual_atleta_icone_pendente) — em vez de abrir um
+// PDF à parte, fica sempre disponível dentro da própria app (inclui offline,
+// já que o modal e o texto vêm no bundle cacheado pelo Service Worker).
+const _MANUAL_SECOES=[
+  {id:'casa',icon:'ti-home',title:'Casa',html:`
+    <p>O teu resumo do dia, com atalhos para tudo. Cada atalho mostra logo se já preencheste algo ou se há algo pendente.</p>
+    <div class="tw"><table><thead><tr><th>Atalho</th><th>O que indica</th></tr></thead><tbody>
+    <tr><td>Wellness</td><td>Se já preencheste o questionário de hoje.</td></tr>
+    <tr><td>PSE</td><td>Se já registaste o esforço da última sessão.</td></tr>
+    <tr><td>Agenda</td><td>Eventos de hoje ou a próxima data marcada.</td></tr>
+    <tr><td>Avaliações</td><td>Se há autoavaliação por preencher.</td></tr>
+    <tr><td>Nutrição</td><td>Se tens plano nutricional ativo.</td></tr>
+    <tr><td>Fisio</td><td>Disponibilidade ou acompanhamento por lesão.</td></tr>
+    <tr><td>Convocatórias</td><td>Se foste convocada para o próximo jogo.</td></tr>
+    <tr><td>Treino Ind.</td><td>Planos de treino individual pendentes.</td></tr>
+    </tbody></table></div>`},
+  {id:'wellness',icon:'ti-heart-rate-monitor',title:'Wellness',html:`
+    <p>Preenche <b>todos os dias</b>, de preferência de manhã — ajuda a equipa técnica e a fisioterapia a ajustar a tua carga de treino.</p>
+    <div class="tw"><table><thead><tr><th>Indicador</th><th>Escala</th><th>Significado</th></tr></thead><tbody>
+    <tr><td>Sono</td><td>1–5</td><td>1 = Mau · 5 = Excelente</td></tr>
+    <tr><td>Fadiga</td><td>1–10</td><td>1 = Sem fadiga · 10 = Exausta</td></tr>
+    <tr><td>Stress</td><td>1–10</td><td>1 = Sem stress · 10 = Muito stressada</td></tr>
+    <tr><td>Dor Muscular</td><td>0–10</td><td>0 = Sem dor · 10 = Muita dor</td></tr>
+    <tr><td>Humor</td><td>1–5</td><td>1 = Muito mau · 5 = Excelente</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:10px"><b>Fase do Ciclo</b> e, à parte, <b>Impacto do Ciclo</b> — o quanto a fase te afeta hoje:</p>
+    <div class="tw"><table><thead><tr><th>Nível</th><th>Significado</th></tr></thead><tbody>
+    <tr><td>0</td><td>Sem impacto — sentes-te normal.</td></tr>
+    <tr><td>1</td><td>Impacto ligeiro — não te condiciona no treino.</td></tr>
+    <tr><td>2</td><td>Impacto moderado — sentes-te mais afetada.</td></tr>
+    <tr><td>3</td><td>Impacto grande — sintomas que te limitam claramente.</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:8px;color:var(--t2);font-size:11.5px">A fase do ciclo, por si só, nunca muda automaticamente a tua carga — o que conta é como reportas.</p>`},
+  {id:'pse',icon:'ti-chart-bar',title:'PSE',html:`
+    <p>Regista-se <b>depois de cada treino ou jogo</b>, idealmente logo a seguir. É a partir daqui que se calcula a tua carga (UA) e o ACWR.</p>
+    <div class="tw"><table><thead><tr><th>Nível (Borg 0–10)</th><th>Sensação</th></tr></thead><tbody>
+    <tr><td>0</td><td>Repouso</td></tr><tr><td>1 – 2</td><td>Muito fácil / Fácil</td></tr>
+    <tr><td>3 – 4</td><td>Moderado / Algo difícil</td></tr><tr><td>5</td><td>Difícil</td></tr>
+    <tr><td>7</td><td>Muito difícil</td></tr><tr><td>9</td><td>Extremamente difícil</td></tr>
+    <tr><td>10</td><td>Esforço máximo</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:8px">Também indicas a duração da sessão (já vem pré-preenchida, mas podes ajustar) e o tipo (Treino, Jogo, Ginásio, Reabilitação, Ativação).</p>`},
+  {id:'agenda',icon:'ti-calendar',title:'Agenda',html:`
+    <p>Só de consulta — mostra os teus treinos, jogos e outros eventos da equipa.</p>
+    <div class="tw"><table><thead><tr><th>Vista</th><th>O que mostra</th></tr></thead><tbody>
+    <tr><td>Diária</td><td>Todos os eventos de um único dia.</td></tr>
+    <tr><td>Semanal</td><td>A semana inteira num relance (vista de arranque).</td></tr>
+    <tr><td>Mensal</td><td>Grelha do mês com um ponto colorido nos dias com evento.</td></tr>
+    </tbody></table></div>`},
+  {id:'nutri',icon:'ti-salad',title:'Nutrição',html:`
+    <p>Consultas aqui o teu plano nutricional (refeições, calorias e macros) sempre que o nutricionista o definir, e a tua última avaliação (peso, IMC, hidratação). Separador só de consulta — quem preenche é a equipa de nutrição.</p>`},
+  {id:'fisio',icon:'ti-first-aid-kit',title:'Fisioterapia',html:`
+    <p>Consultas aqui o acompanhamento de qualquer lesão em curso e preenches o teu <b>Histórico Clínico</b>.</p>
+    <p style="margin-top:8px">Histórico Clínico: texto livre (sem escalas) para lesões anteriores, cirurgias, condições crónicas, alergias, medicação habitual e histórico familiar relevante. Preenches uma vez e podes editar sempre que quiseres.</p>`},
+  {id:'treino',icon:'ti-barbell',title:'Treino',html:`
+    <p>Vês os próximos treinos da equipa (14 dias) e, se existirem, os teus <b>planos de treino individual</b> — sessões pensadas especificamente para ti.</p>
+    <p style="margin-top:8px">Quando terminas um plano individual, toca em "Marcar como concluído" — a app sugere logo de seguida que registes o teu PSE dessa sessão.</p>`},
+  {id:'aval',icon:'ti-star',title:'Avaliações',html:`
+    <p>Quando a equipa técnica abre um período de avaliação, preenches aqui a tua <b>Autoavaliação</b>, comparada depois com a avaliação feita pela equipa técnica.</p>
+    <p style="margin-top:8px">Cada critério é avaliado de 1 a 5 estrelas, em 6 categorias: Capacidades Físicas, Técnico Ofensivo, Técnico Defensivo, Tático Ofensivo, Tático Defensivo e Capacidades Mentais.</p>`},
+  {id:'convoc',icon:'ti-clipboard-list',title:'Convocatórias',html:`
+    <p>Vês se foste convocada para o próximo jogo, com toda a logística (concentração, transporte, refeições) e o teu estatuto (titular, suplente, capitã/vice-capitã).</p>
+    <p style="margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:8px;border:1px solid var(--brd)"><b>Importante:</b> não precisas de clicar em nada para confirmar. Assim que abres este separador, fica automaticamente registado para a equipa técnica que já tomaste conhecimento.</p>`},
+];
+function atOpenManual(openId){
+  const body=`<div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir. Aqui estão todas as escalas de preenchimento.</div>`
+    +_MANUAL_SECOES.map(s=>`<details ${openId===s.id?'open':''} style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
+      <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
+      <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
+    </details>`).join('');
+  openMod('📖 Manual da App',body,'lg');
 }
 // ── Alteração voluntária de password (lado atleta, dentro da app) ────────────
 function atOpenChangePwd(){
