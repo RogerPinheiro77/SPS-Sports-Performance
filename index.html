@@ -7543,7 +7543,7 @@ function renderAtHome(){
   </div>
   ${inj?`<div class="al al-r" style="margin-bottom:10px"><i class="ti ti-stethoscope" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px">${cards.join('')}</div>
-  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct"><i class="ti ti-calendar-event" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}`;
+  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct"><i class="ti ti-calendar-event" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd);cursor:pointer" onclick="atOpenEventDetail('${e.id}')"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}`;
 }
 function renderAtWellness(){
   const td=today();
@@ -7711,13 +7711,39 @@ function _atEventsForAthlete(at){
 }
 function _atEvCardHtml(e){
   const c=EV_COLORS[e.type]||'#27a34a';
-  return `<div class="card" style="margin-bottom:6px;padding:11px;display:flex;gap:10px;align-items:center">
+  return `<div class="card" style="margin-bottom:6px;padding:11px;display:flex;gap:10px;align-items:center;cursor:pointer" onclick="atOpenEventDetail('${e.id}')">
     <div style="width:4px;height:40px;border-radius:2px;background:${c};flex-shrink:0"></div>
     <div style="flex:1"><div style="font-size:12px;font-weight:800">${e.title}</div>
     <div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''} ${e.dur?'· '+e.dur+'min':''}</div>
     ${e.notes?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${e.notes}</div>`:''}
     </div><span class="mc-sess s-tec" style="background:${c}22;color:${c};padding:3px 7px;font-size:9px">${e.type}</span>
   </div>`;
+}
+// Detalhe ao tocar num evento (Agenda + lista "Hoje" da Casa) — para Treino ligado a
+// uma Unidade de Treino reaproveita o modal rico já existente (concentração, os dois
+// locais, notas — ver atOpenTreinoDetail); para os restantes tipos mostra os campos
+// já guardados no próprio evento (schedule_events).
+function atOpenEventDetail(eventId){
+  const ev=(APP.schedule||[]).find(e=>e.id===eventId);if(!ev)return;
+  if(ev.type==='Treino'){
+    const tr=(APP.trainings||[]).find(t=>t.eventId===ev.id);
+    if(tr)return atOpenTreinoDetail(tr.id);
+  }
+  const esc=v=>escHtml(v||'—');
+  const rows=[
+    ['Tipo',esc(ev.type)],
+    ['Data',esc(fmtDate(ev.date))],
+    ['Hora',esc(ev.time?ev.time.slice(0,5):'')],
+    ['Local',esc(ev.location)],
+    ['Duração',ev.dur?ev.dur+' min':'—'],
+  ];
+  const body=`
+    <div class="tw"><table><tbody>
+    ${rows.map(([l,v])=>`<tr><td style="color:var(--t2);white-space:nowrap">${l}</td><td style="font-weight:700">${v}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${ev.notes?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:4px">Notas</div><div style="font-size:12.5px;line-height:1.5">${escHtml(ev.notes)}</div></div>`:''}
+  `;
+  openMod('📅 '+escHtml(ev.title||ev.type||'Evento'),body);
 }
 function _atAgendaTabsHtml(){
   return `<div style="display:flex;gap:6px;margin-bottom:14px;background:var(--bg3);padding:4px;border-radius:8px">
