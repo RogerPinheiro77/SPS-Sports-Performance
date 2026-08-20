@@ -2433,6 +2433,8 @@ function renderPlaneamento(){
     <div class="form-g"><label class="fl">Hora</label><input class="fc" id="ef-time" type="time"></div>
     <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="ef-dur" type="number" placeholder="90"></div></div>
     <div class="form-g"><label class="fl">Local</label><input class="fc" id="ef-loc" placeholder="Campo principal..."></div>
+    <div class="fr"><div class="form-g"><label class="fl">Hora concentração</label><input class="fc" id="ef-hconc" type="time"></div>
+    <div class="form-g"><label class="fl">Local concentração</label><input class="fc" id="ef-locconc" placeholder="Igual ao local, se vazio"></div></div>
     <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="ef-notes" rows="2"></textarea></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="saveEvent()">💾 Guardar</button>
     <button class="btn btn-gh" onclick="_showEvForm=false;_editEvId=null;renderPlaneamento()">Cancelar</button>
@@ -2468,7 +2470,9 @@ function renderPlaneamento(){
   ${calHtml}`;
   if(_editEvId&&_showEvForm){
     const ev=APP.schedule.find(e=>e.id===_editEvId);
-    if(ev){['type','title','date','time','dur','loc','notes'].forEach(f=>{const el=document.getElementById('ef-'+f);if(el)el.value=ev[f]||'';}); document.getElementById('ef-team').value=ev.teamId||'T1';}
+    // Mapa [sufixo-do-id, propriedade] — 'loc' e 'location' já não coincidiam
+    // (bug antigo: o Local nunca pré-preenchia ao editar); hconc/locconc são novos.
+    if(ev){[['type','type'],['title','title'],['date','date'],['time','time'],['dur','dur'],['loc','location'],['notes','notes'],['hconc','horaConcentracao'],['locconc','localConcentracao']].forEach(([f,p])=>{const el=document.getElementById('ef-'+f);if(el)el.value=ev[p]||'';}); document.getElementById('ef-team').value=ev.teamId||'T1';}
   }
 }
 function calNav(dir){_calMonth+=dir;if(_calMonth>11){_calMonth=0;_calYear++;}if(_calMonth<0){_calMonth=11;_calYear--;}renderPlaneamento();}
@@ -2519,7 +2523,7 @@ async function saveEvent(){
   const title=document.getElementById('ef-title').value.trim();
   const date=document.getElementById('ef-date').value;
   if(!type||!title||!date)return toast('Tipo, título e data obrigatórios','err');
-  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value};
+  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim()};
   if(_editEvId){const i=APP.schedule.findIndex(e=>e.id===_editEvId);if(i>=0)APP.schedule[i]=ev;}
   else{APP.schedule.push(ev);}
   // Antes só o ramo de evento novo chamava cloudUpsert — editar um evento existente
@@ -7737,6 +7741,9 @@ function atOpenEventDetail(eventId){
     ['Local',esc(ev.location)],
     ['Duração',ev.dur?ev.dur+' min':'—'],
   ];
+  if(ev.horaConcentracao||ev.localConcentracao){
+    rows.splice(2,0,['Concentração',esc(ev.horaConcentracao)],['Local de concentração',esc(ev.localConcentracao||ev.location)]);
+  }
   const body=`
     <div class="tw"><table><tbody>
     ${rows.map(([l,v])=>`<tr><td style="color:var(--t2);white-space:nowrap">${l}</td><td style="font-weight:700">${v}</td></tr>`).join('')}
@@ -8177,7 +8184,7 @@ async function pullCloud(){
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professionalName:r.professional_name,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
-      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at}))],
+      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
       ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
@@ -8331,8 +8338,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at'],
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at'}},
-  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id'],
-    rename:{createdAt:'created_at',teamId:'team_id'}},
+  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao'],
+    rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao'}},
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
     rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at',doneTime:'done_time'}},
   attendance_records:{cols:['id','event_id','athlete_id','date','present','status','reason','created_at'],
