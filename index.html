@@ -1984,6 +1984,70 @@ function _baselineStats(vals){
   const variance=vals.reduce((s,v)=>s+Math.pow(v-mean,2),0)/(n-1);
   return {n,mean:Math.round(mean*10)/10,sd:Math.round(Math.sqrt(variance)*10)/10};
 }
+// Desvio em σ de um valor face a uma baseline {n,mean,sd} — null se a baseline
+// não tiver dados suficientes (_BASELINE_MIN_N) ou sd=0 (evita dividir por zero
+// quando todos os registos são iguais). Global porque é reutilizado tanto no
+// perfil da atleta (baseline com todo o histórico) como na Análise da Unidade
+// de Treino (baseline só com histórico anterior a uma data — ver _athleteBaselineAt).
+function _devSigma(val,base){
+  return (base&&base.n>=_BASELINE_MIN_N&&base.sd>0&&val!=null&&!isNaN(val))?Math.round((val-base.mean)/base.sd*10)/10:null;
+}
+// Baseline de wellness/UA usando só o histórico ANTERIOR a uma data (não inclui
+// a própria data) — para saber se a carga/wellness de UMA sessão específica já
+// passada se desviou do que era "normal" para a atleta até àquele momento, sem
+// deixar a própria sessão influenciar a média com que está a ser comparada.
+function _athleteBaselineAt(id,beforeDate){
+  const wellVals=(APP.wellness||[]).filter(w=>w.athleteId===id&&w.date<beforeDate).map(w=>+w.score||0).filter(v=>!isNaN(v));
+  const uaVals=(APP.pse||[]).filter(p=>p.athleteId===id&&p.date<beforeDate).map(p=>+p.ua||0).filter(v=>!isNaN(v));
+  return {well:_baselineStats(wellVals),ua:_baselineStats(uaVals)};
+}
+// Monotonia e Strain (método de Foster) — janela de 7 dias terminando em endDate
+// (inclusive), mesma janela do ACWR agudo (_acwrAt) por consistência. Monotonia =
+// média da carga diária ÷ desvio-padrão da carga diária (desvio-padrão populacional,
+// não amostral — descreve a semana real observada, não estima um parâmetro de uma
+// amostra, ao contrário de _baselineStats). Strain = carga total da semana × monotonia.
+// Dias sem sessão contam como carga 0 (a variabilidade importa: uma semana com um dia
+// de descanso é literalmente menos monótona do que uma sem nenhum).
+function _monotoniaStrain(id,endDate){
+  const days7=Array.from({length:7},(_,i)=>addDaysStr(endDate,-(6-i)));
+  const byDay=days7.map(d=>(APP.pse||[]).filter(p=>p.athleteId===id&&p.date===d).reduce((s,p)=>s+(+p.ua||0),0));
+  const total=byDay.reduce((s,v)=>s+v,0);
+  const mean=total/7;
+  if(mean===0)return {total:0,mean:0,sd:0,monotonia:null,strain:null};
+  const variance=byDay.reduce((s,v)=>s+Math.pow(v-mean,2),0)/7;
+  const sd=Math.sqrt(variance);
+  const monotonia=sd>0?Math.round(mean/sd*100)/100:null;
+  const strain=monotonia!==null?Math.round(total*monotonia):null;
+  return {total:Math.round(total),mean:Math.round(mean),sd:Math.round(sd*10)/10,monotonia,strain};
+}
+// As três leituras cruzadas propostas pelo Roger (2026-08-21): wellness de chegada
+// (mesmo dia, manhã, antes do treino) × desvio da carga da sessão à baseline pessoal
+// (ou, sem baseline suficiente, às bandas fixas _uaZone como aproximação — mesmo
+// princípio de fallback já usado no resto da Fase 2). Só classifica quando o wellness
+// de chegada é claramente bom (≥70) ou claramente baixo (<45) — na zona intermédia não
+// há leitura clara o suficiente para gerar um padrão. Puramente descritivo: nomeia o
+// que se observa, não prescreve o que fazer (ver feedback_sps_evento_treino_dados_divergentes
+// e toda a cautela já estabelecida na Fase 1/2 sobre não confundir apoio à decisão com
+// diagnóstico ou prescrição automática).
+function _cargaLeitura(wellPreScore,ua,uaBaseline){
+  if(wellPreScore==null||ua==null)return null;
+  const dev=_devSigma(ua,uaBaseline);
+  let cargaAlta,cargaBaixa;
+  if(dev!==null){cargaAlta=dev>=1;cargaBaixa=dev<=-0.5;}
+  else{ // fallback: bandas fixas quando ainda não há baseline pessoal suficiente
+    const uz=_uaZone(ua);
+    cargaAlta=['Alta','Muito alta','Extrema'].includes(uz.label);
+    cargaBaixa=['Muito baixa','Baixa'].includes(uz.label);
+  }
+  const chegouBem=wellPreScore>=70, chegouFatigada=wellPreScore<45;
+  if(chegouFatigada&&cargaAlta)return {code:'acumulacao',dev,label:'🔴 Fadiga + carga alta',icon:'🔴',
+    txt:`chegou fatigada (wellness ${wellPreScore}) e a carga desta sessão ficou ${dev!==null?(dev>0?'+':'')+dev+'σ acima do normal para ela':'numa zona alta'} — sinal de possível acumulação, vale a pena vigiar de perto.`};
+  if(chegouBem&&cargaAlta)return {code:'destaque',dev,label:'⚠️ Sentiu mais que o esperado',icon:'⚠️',
+    txt:`chegou bem preparada (wellness ${wellPreScore}) mas sentiu a sessão ${dev!==null?(dev>0?'+':'')+dev+'σ acima do normal':'numa zona alta'} — pode ser descondicionamento ou algo não reportado, vale a pena confirmar com ela.`};
+  if(chegouFatigada&&cargaBaixa)return {code:'resiliencia',dev,label:'🟢 Tolerou bem apesar de fatiga',icon:'🟢',
+    txt:`chegou fatigada (wellness ${wellPreScore}) mas tolerou bem a carga${dev!==null?' ('+(dev>0?'+':'')+dev+'σ)':''} — sinal positivo de recuperação/resiliência.`};
+  return null;
+}
 function openAthleteModal(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
   const td=today();
@@ -2006,7 +2070,6 @@ function openAthleteModal(id){
   // Baseline individual (Fase 2, parte 1) — ver _baselineStats acima
   const wellBase=_baselineStats(wList.map(w=>+w.score||0).filter(v=>!isNaN(v)));
   const uaBase=_baselineStats(pList.map(p=>+p.ua||0).filter(v=>!isNaN(v)));
-  const _devSigma=(val,base)=>(base.n>=_BASELINE_MIN_N&&base.sd>0&&val!=null&&!isNaN(val))?Math.round((val-base.mean)/base.sd*10)/10:null;
   const wellDev=lastW?_devSigma(+lastW.score||0,wellBase):null;
   const uaDev=pList[0]?_devSigma(+pList[0].ua||0,uaBase):null;
   const _baselineRow=(label,base,dev,unit)=>{
@@ -3944,13 +4007,34 @@ function _trAnaliseCompute(tr){
   const rows=ats.map(at=>{
     const pse=APP.pse.filter(p=>p.athleteId===at.id&&p.date===dt).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''))[0]||null;
     const well=APP.wellness.find(w=>w.athleteId===at.id&&w.date===nextDt)||null;
+    // wellness da manhã do PRÓPRIO dia do treino — "como chegou", antes de treinar
+    // (distinto de "well", que é o do dia seguinte, "como ficou"). Ver _cargaLeitura.
+    const wellPre=APP.wellness.find(w=>w.athleteId===at.id&&w.date===dt)||null;
     const att=tr.eventId?(APP.attendance||[]).find(a=>a.eventId===tr.eventId&&a.athleteId===at.id):null;
     const inj=(APP.injuries||[]).find(i=>i.athleteId===at.id&&i.date<=dt&&(!i.returnDate||i.returnDate>=dt));
     const trat=(APP.treatments||[]).find(t=>t.athleteId===at.id&&t.date===dt);
     const acwr=_acwrAt(at.id,dt);
-    return {at,pse,well,att,inj,trat,acwr};
+    // Fase 2 (parte 1, aprofundamento pedido pelo Roger 2026-08-21): baseline pessoal
+    // até a esta data (exclui a própria sessão), monotonia/strain da semana, e a
+    // leitura cruzada wellness-de-chegada × desvio de carga.
+    const uaBaseline=_athleteBaselineAt(at.id,dt).ua;
+    const uaDev=pse?_devSigma(+pse.ua||0,uaBaseline):null;
+    const monStrain=_monotoniaStrain(at.id,dt);
+    const leitura=(wellPre&&pse)?_cargaLeitura(+wellPre.score||0,+pse.ua||0,uaBaseline):null;
+    return {at,pse,well,wellPre,att,inj,trat,acwr,uaBaseline,uaDev,monStrain,leitura};
   });
   return {ats,dt,nextDt,rows};
+}
+// Ordena e recorta as linhas com leitura cruzada para o bloco "Destaques" — prioridade
+// para acumulação (fadiga+carga alta, o padrão mais preocupante), depois destaque
+// (bem preparada mas sentiu muito), depois resiliência (informativo/positivo) — dentro
+// de cada grupo, maior |desvio| primeiro. Máximo 5 para não virar outra tabela.
+function _trDestaques(rows){
+  const ord={acumulacao:0,destaque:1,resiliencia:2};
+  return rows.filter(r=>r.leitura).sort((a,b)=>{
+    const d=ord[a.leitura.code]-ord[b.leitura.code];
+    return d!==0?d:Math.abs(b.leitura.dev||0)-Math.abs(a.leitura.dev||0);
+  }).slice(0,5);
 }
 function _trAnaliseHtml(tr){
   const {dt,nextDt,rows}=_trAnaliseCompute(tr);
@@ -3969,6 +4053,13 @@ function _trAnaliseHtml(tr){
   const alertsHtml=isFuture
     ?`<div class="al al-b">Esta sessão ainda não decorreu (${fmtDate(dt)}) — ainda sem dados para analisar.</div>`
     :(alerts.length?alerts.map(a=>`<div class="al al-${a.lvl}">${a.txt}</div>`).join(''):`<div class="al al-b">Sem alertas relevantes para esta sessão.</div>`);
+
+  const destaques=isFuture?[]:_trDestaques(rows);
+  const destaquesHtml=destaques.length?`<div style="margin:0 0 12px;background:var(--bg2);border:1px solid #6b46c155;border-left:3px solid #6b46c1;border-radius:10px;padding:12px 14px">
+    <div style="font-size:12px;font-weight:800;margin-bottom:6px">🔍 Destaques desta sessão</div>
+    ${destaques.map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--brd)"><strong>${escHtml(_shortName(r.at))}</strong>: ${r.leitura.txt}</div>`).join('')}
+    <div style="font-size:10px;color:var(--t2);margin-top:6px">Leitura cruzada de wellness de chegada (manhã do dia do treino) com o desvio da carga desta sessão face à baseline pessoal — descritivo, não substitui avaliação clínica.</div>
+  </div>`:'';
 
   const pseVals=rows.filter(r=>r.pse).map(r=>+r.pse.pse||0);
   const pseAvg=pseVals.length?(pseVals.reduce((s,v)=>s+v,0)/pseVals.length).toFixed(1):'—';
@@ -3993,6 +4084,7 @@ function _trAnaliseHtml(tr){
   const tableRows=rows.map(r=>{
     const uz=r.pse?_uaZone(r.pse.ua):null;
     const dec=_decisaoDiaria(r);
+    const ms=r.monStrain;
     return `<tr>
     <td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td>
     <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
@@ -4003,6 +4095,8 @@ function _trAnaliseHtml(tr){
     <td style="text-align:center">${attLabel(r.att&&r.att.status)}</td>
     <td style="text-align:center">${r.inj?'🩺 '+escHtml(r.inj.type||'Lesão'):(r.trat?'Tratamento':'—')}</td>
     <td style="text-align:center">${acwrBdg(r.acwr)}</td>
+    <td style="text-align:center;font-size:11px">${ms&&ms.monotonia!==null?ms.monotonia+' / '+ms.strain:'<span style="color:var(--t2)">—</span>'}</td>
+    <td style="text-align:center;font-size:11px">${r.leitura?r.leitura.label:'<span style="color:var(--t2)">—</span>'}</td>
     <td style="text-align:center">${dec.lvl?`<span class="bdg bg-${dec.lvl}">${dec.label}</span>`:dec.label}</td>
   </tr>`;}).join('');
 
@@ -4015,14 +4109,15 @@ function _trAnaliseHtml(tr){
     </div>
   </div>
   ${alertsHtml}
+  ${destaquesHtml}
   ${summaryHtml}
   <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Impacto</th><th>Presença</th><th>Fisio</th><th>ACWR (cumulativo até à data)</th><th>Decisão do dia</th></tr></thead>
+      <thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Impacto</th><th>Presença</th><th>Fisio</th><th>ACWR (cumulativo até à data)</th><th>Monotonia / Strain (7d)</th><th>Leitura</th><th>Decisão do dia</th></tr></thead>
       <tbody>${tableRows}</tbody>
     </table>
   </div>
-  <div style="font-size:10px;color:var(--t2);margin-top:8px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7 dias) ÷ crónica (28 dias) até ${fmtDate(dt)} — mesma janela usada em toda a app · "Decisão do dia" combina UA da sessão + wellness + impacto do ciclo (pior combinação vence) — apoio à decisão, não substitui avaliação clínica.</div>
+  <div style="font-size:10px;color:var(--t2);margin-top:8px">Wellness: coluna "Wellness" é do dia seguinte (${fmtDate(nextDt)}), "Leitura" cruza com o wellness da manhã deste dia (chegada) · Carga da sessão = duração × PSE (método de Foster) · ACWR = carga aguda (7 dias) ÷ crónica (28 dias) até ${fmtDate(dt)} · Monotonia = média ÷ desvio-padrão da carga diária dos últimos 7 dias, Strain = carga total da semana × monotonia (monotonia >2.0 é geralmente referida na literatura como zona de atenção) · "Decisão do dia" combina UA da sessão + wellness + impacto do ciclo (pior combinação vence) — tudo apoio à decisão, não substitui avaliação clínica.</div>
   `;
 }
 // ─── PDF: Análise da Sessão (A4, mesmo mecanismo de impressão do resto da app) ──
@@ -4038,6 +4133,7 @@ function printAnaliseSessao(trId){
   const rowsHtml=rows.map(r=>{
     const uz=r.pse?_uaZone(r.pse.ua):null;
     const dec=_decisaoDiaria(r);
+    const ms=r.monStrain;
     return `<tr>
     <td>${escHtml(r.at.name)}</td>
     <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
@@ -4047,13 +4143,21 @@ function printAnaliseSessao(trId){
     <td style="text-align:center">${attLabel(r.att&&r.att.status)}</td>
     <td style="text-align:center">${r.inj?'Lesão: '+escHtml(r.inj.type||'—'):(r.trat?'Tratamento':'—')}</td>
     <td style="text-align:center">${acwrBdg(r.acwr)}</td>
+    <td style="text-align:center;font-size:8pt">${ms&&ms.monotonia!==null?ms.monotonia+' / '+ms.strain:'—'}</td>
+    <td style="text-align:center;font-size:8pt">${r.leitura?r.leitura.label:'—'}</td>
     <td style="text-align:center">${dec.lvl?`<span class="badge bg-${dec.lvl}">${dec.label}</span>`:dec.label}</td>
   </tr>`;}).join('');
+  const destaques=_trDestaques(rows);
+  const destaquesHtml=destaques.length?`
+    <div style="font-size:9pt;font-weight:700;margin:8px 0 4px">🔍 Destaques desta sessão</div>
+    ${destaques.map(r=>`<p style="font-size:8.5pt;margin:2px 0"><strong>${escHtml(r.at.name)}</strong>: ${r.leitura.txt}</p>`).join('')}
+  `:'';
   const title=`Análise da Sessão — ${escHtml(tr.title||'Unidade de Treino')} — ${fmtDate(dt)}`;
   const body=`
     <div class="pr-title">${title}</div>
-    <p style="font-size:9pt;color:#666;margin-bottom:10px">Wellness reportado no dia seguinte (${fmtDate(nextDt)}) · ACWR = carga aguda (7d) ÷ crónica (28d) até ${fmtDate(dt)} · Decisão do dia combina UA da sessão + wellness + impacto do ciclo — apoio à decisão, não substitui avaliação clínica.</p>
-    <table><thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Presença</th><th>Fisio</th><th>ACWR</th><th>Decisão</th></tr></thead>
+    <p style="font-size:9pt;color:#666;margin-bottom:10px">Wellness = dia seguinte (${fmtDate(nextDt)}), Leitura cruza com o wellness da manhã deste dia · Carga da sessão = duração × PSE (Foster) · ACWR = carga aguda (7d) ÷ crónica (28d) até ${fmtDate(dt)} · Monotonia = média ÷ desvio-padrão da carga diária (7d), Strain = carga total × monotonia · Decisão do dia combina UA da sessão + wellness + impacto do ciclo — tudo apoio à decisão, não substitui avaliação clínica.</p>
+    ${destaquesHtml}
+    <table><thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Presença</th><th>Fisio</th><th>ACWR</th><th>Mon./Strain</th><th>Leitura</th><th>Decisão</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table>
     <p style="font-size:8pt;color:#999;margin-top:8px">${rows.length} atletas · ${rows.filter(r=>r.pse).length} com PSE · ${rows.filter(r=>r.att&&r.att.status==='treino').length} presentes</p>
   `;
@@ -4134,11 +4238,30 @@ function printAnaliseCumulativa(trId){
     </tr>`;
   }).join('');
   const gameNote=nextGame?`<p style="font-size:9pt;color:#666;margin-bottom:4px">Próximo jogo: <strong>${fmtDate(nextGame.date)}</strong>${nextGame.opp?' vs '+escHtml(nextGame.opp):''} — ${Math.round((new Date(nextGame.date+'T00:00:00')-new Date(dt+'T00:00:00'))/86400000)} dia(s) após esta análise.</p>`:'';
+  // Destaques do período (pedido pelo Roger 2026-08-21, mesmo espírito do bloco da
+  // Análise da Sessão): só para as atletas em risco disponíveis (não as já gated por
+  // lesão/tratamento, que já saltam à vista na tabela), junta os fatores que motivaram
+  // o 'r' numa frase — reaproveita os níveis já calculados em _condicaoJogoCompute, não
+  // inventa nenhum critério novo.
+  const destaquesRisco=rows.filter(r=>!r.gate&&r.overallLvl==='r').map(r=>{
+    const reasons=[];
+    if(r.acwrLvl==='r')reasons.push(`ACWR fora da zona segura (${r.acwr})`);
+    if(r.wellLvl==='r')reasons.push(`wellness médio baixo (${r.wellAvg})`);
+    if(r.faltasLvl==='r')reasons.push(`${r.faltas} faltas não justificadas nos últimos 7 dias`);
+    if(r.minsInfo&&r.minsLvl==='r')reasons.push(`recuperação curta após jogo (${r.minsInfo.mins}min há ${r.minsInfo.daysSince}d)`);
+    if(r.cycleLvl==='r')reasons.push(`impacto do ciclo elevado (${r.cycleImpact})`);
+    return {r,txt:reasons.join(' + ')};
+  }).filter(x=>x.txt);
+  const destaquesHtml=destaquesRisco.length?`
+    <div style="font-size:9pt;font-weight:700;margin:8px 0 4px">🔍 Destaques do período — atletas em risco</div>
+    ${destaquesRisco.map(x=>`<p style="font-size:8.5pt;margin:2px 0"><strong>${escHtml(x.r.at.name)}</strong>: ${x.txt}.</p>`).join('')}
+  `:'';
   const title=`Condição para o Jogo — ${escHtml(tr.title||'Unidade de Treino')} — ${fmtDate(dt)}`;
   const body=`
     <div class="pr-title">${title}</div>
     ${gameNote}
     <p style="font-size:9pt;color:#666;margin-bottom:10px">Semáforo por atleta: pior dos 5 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo). A fase do ciclo por si só não altera o semáforo — só entra quando a própria atleta reporta impacto elevado (2-3). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
+    ${destaquesHtml}
     <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness méd.</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Condição</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table>
     <p style="font-size:8pt;color:#999;margin-top:8px">${rows.filter(r=>!r.gate&&r.overallLvl==='g').length} em condição ótima · ${rows.filter(r=>!r.gate&&r.overallLvl==='y').length} em atenção · ${rows.filter(r=>r.overallLvl==='r').length} em risco/indisponíveis</p>
