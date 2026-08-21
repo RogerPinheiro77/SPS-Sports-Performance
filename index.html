@@ -2799,7 +2799,27 @@ function _initG(g){
   if(g.transporte===undefined)g.transporte='';
   if(g.refeicaoAntes===undefined)g.refeicaoAntes='';
   if(g.refeicaoApos===undefined)g.refeicaoApos='';
+  if(g.convocatoriaPublishAt===undefined)g.convocatoriaPublishAt='';
   return g;
+}
+// Data/hora local (mesmo formato do <input type="datetime-local">, "AAAA-MM-DDTHH:MM")
+// — usado para comparar com c.publishAt sem confusões de fuso horário (UTC vs local).
+function _nowLocalStr(){
+  const d=new Date(),p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// Uma convocatória sem publishAt está sempre visível (comportamento de sempre); com
+// publishAt, só fica visível para a atleta a partir dessa data/hora — pedido pelo
+// Roger para poder preparar a convocatória com antecedência sem a "queimar" já.
+function _convIsPublished(c){
+  return !c.publishAt||c.publishAt<=_nowLocalStr();
+}
+function _convPublishBadgeHtml(publishAt){
+  if(!publishAt)return '<span class="bdg bg-g" style="font-size:9px">Visível imediatamente</span>';
+  const published=publishAt<=_nowLocalStr();
+  return published
+    ?`<span class="bdg bg-g" style="font-size:9px">✓ Publicada</span>`
+    :`<span class="bdg bg-y" style="font-size:9px">🕓 Publica às ${escHtml(publishAt.replace('T',' '))}</span>`;
 }
 // Mantém APP.convocatorias sincronizada com a convocatória do Jogo — só há UM sítio
 // para preencher (separador Pré-Jogo do Jogo); a entrada que a atleta vê na aba
@@ -2815,7 +2835,7 @@ function _syncConvocatoriaFromGame(g){
   const data={teamId:g.teamId,date:g.date,notes:'vs '+g.opp,athletes:[...g.convocatoria],
     lineup:[...g.lineup],subs:[...g.subs],captain:g.captain,viceCaptain:g.viceCaptain,formation:g.formation,
     concentracaoLocal:g.concentracaoLocal,concentracaoHora:g.concentracaoHora,transporte:g.transporte,
-    refeicaoAntes:g.refeicaoAntes,refeicaoApos:g.refeicaoApos};
+    refeicaoAntes:g.refeicaoAntes,refeicaoApos:g.refeicaoApos,publishAt:g.convocatoriaPublishAt||''};
   if(i>=0){Object.assign(APP.convocatorias[i],data);}
   else{APP.convocatorias.push({id:uid(),gameId:g.id,seenBy:[],...data});}
 }
@@ -3201,8 +3221,9 @@ function _jogoPreHtml(g){
       </div>`:''}
     </div>`;
   }).join('');
-  const lSum=g.lineup.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg2);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.number||'?'} ${escHtml(a.name)}</span>`:''}).join('');
-  const sSum=g.subs.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.number||'?'} ${escHtml(a.name)}</span>`:''}).join('');
+  const lSum=g.lineup.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg2);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.num||'?'} ${escHtml(a.name)}</span>`:''}).join('');
+  const sSum=g.subs.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.num||'?'} ${escHtml(a.name)}</span>`:''}).join('');
+  const pubBadge=_convPublishBadgeHtml(g.convocatoriaPublishAt);
   return `<div>
   <div class="ipanel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -3212,6 +3233,12 @@ function _jogoPreHtml(g){
         <button class="btn btn-xs btn-g" onclick="convocarTodasAtletas('${g.id}')" title="Marca todas as atletas da equipa como convocadas">✓ Convocar Todas</button>
         <button class="btn btn-xs btn-r" onclick="desconvocarTodasAtletas('${g.id}')" title="Limpa toda a convocatória, onze e suplentes">Desconvocar Todas</button>
       </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px;background:var(--bg3);border-radius:6px">
+      <label class="fl" style="margin:0">🕓 Publicar na app das atletas em</label>
+      <input class="fc" type="datetime-local" style="width:auto" value="${escHtml(g.convocatoriaPublishAt||'')}" onchange="saveJogoField('${g.id}','convocatoriaPublishAt',this.value)">
+      ${pubBadge}
+      ${g.convocatoriaPublishAt?`<button class="btn btn-xs btn-gh" onclick="saveJogoField('${g.id}','convocatoriaPublishAt','')" title="Limpa a data — fica visível imediatamente">Publicar Agora</button>`:''}
     </div>
     ${g.lineup.length?`<div style="margin-bottom:8px"><strong style="font-size:10px;color:var(--t2)">ONZE INICIAL (${g.formation}):</strong><div style="margin-top:4px">${lSum}</div></div>`:''}
     ${g.subs.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">SUPLENTES:</strong><div style="margin-top:4px">${sSum}</div></div>`:''}
@@ -5842,6 +5869,7 @@ function renderConvocatorias(){
       <div class="form-g"><label class="fl">Hora</label><input class="fc" id="cf-time" type="time"></div>
     </div>
     <div class="form-g"><label class="fl">Notas</label><input class="fc" id="cf-notes" placeholder="Ex: Estágio Seleção Distrital"></div>
+    <div class="form-g"><label class="fl">🕓 Publicar na app das atletas em (opcional)</label><input class="fc" id="cf-publish" type="datetime-local" style="width:auto"><div style="font-size:10px;color:var(--t2);margin-top:3px">Vazio = fica visível assim que guardares. Preenche para a convocatória só aparecer a partir dessa data/hora.</div></div>
     <div class="form-g"><label class="fl">Selecionar Atletas (ordem alfabética) — estado mostrado é o dessa data, não impede seleção</label>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin-top:6px" id="conv-athletes">
         ${_convAthletesHtml(today())}
@@ -5858,7 +5886,9 @@ function renderConvocatorias(){
     const logisticaBits=[c.concentracaoLocal||c.concentracaoHora?`Concentração: ${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim():'',c.transporte?'Transporte: '+c.transporte:'',c.refeicaoAntes?'Antes: '+c.refeicaoAntes:'',c.refeicaoApos?'Após: '+c.refeicaoApos:''].filter(Boolean);
     return`<div class="card" style="margin-bottom:12px">
       <div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)} ${game?'vs '+escHtml(game.opp):''}</span>
-        <div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${c.time?' '+c.time:''} · ${selected.length} convocadas · 👁 vista por ${seen.length}/${selected.length}</span>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${c.time?' '+c.time:''} · ${selected.length} convocadas · 👁 vista por ${seen.length}/${selected.length}</span>
+        ${_convPublishBadgeHtml(c.publishAt)}
         ${game?`<button class="btn btn-xs btn-gh" onclick="openJogo('${game.id}');navTo('jogos')" title="Gerida pelo Jogo — abrir">🔗 Jogo</button>`:`<button class="btn btn-xs btn-r" onclick="deleteConv('${c.id}')">🗑️</button>`}</div>
       </div>
       <div class="cb" style="padding:12px">
@@ -5882,7 +5912,7 @@ function saveConvocatoria(){
   if(!date)return toast('Data obrigatória','err');
   const sel=[...document.querySelectorAll('#conv-athletes input:checked')].map(i=>i.value);
   if(!sel.length)return toast('Seleciona pelo menos uma atleta','err');
-  const c={id:uid(),teamId:_convTeam,gameId:null,date,time:document.getElementById('cf-time').value||'',notes:document.getElementById('cf-notes').value,athletes:sel,seenBy:[]};
+  const c={id:uid(),teamId:_convTeam,gameId:null,date,time:document.getElementById('cf-time').value||'',publishAt:document.getElementById('cf-publish').value||'',notes:document.getElementById('cf-notes').value,athletes:sel,seenBy:[]};
   APP.convocatorias.push(c);
   saveData();_showConvForm=false;toast('Convocatória guardada ✓');renderConvocatorias();
 }
@@ -7746,7 +7776,7 @@ function renderAtHome(){
   const nextEv=APP.schedule.filter(e=>e.date>td&&(e.teamId===at.teamId||!e.teamId)).sort((a,b)=>a.date.localeCompare(b.date))[0];
   const inj=APP.injuries.find(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação'));
   const injCount=APP.injuries.filter(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação')).length;
-  const convoc=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  const convoc=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td&&_convIsPublished(c)).sort((a,b)=>a.date.localeCompare(b.date))[0];
   const openEvals=(APP.evalPeriods||[]).filter(p=>(p.status==='open')&&(!p.teamId||p.teamId===at.teamId)&&!(APP.evalResponses||[]).find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto'));
   const pendingTreinos=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID&&!p.done).length;
   const hasNutriPlan=!!(APP.nutritionPlans||[]).find(p=>p.athleteId===AID&&p.active);
@@ -8278,8 +8308,8 @@ function markTreinoDone(id){
 }
 function renderAtConvoc(){
   const td=today();
-  const convs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date));
-  const past=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date<td).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const convs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td&&_convIsPublished(c)).sort((a,b)=>a.date.localeCompare(b.date));
+  const past=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date<td&&_convIsPublished(c)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   // Marca como "vista" (visível ao treinador) assim que a atleta abre esta página.
   let dirty=false;
   convs.concat(past).forEach(c=>{
