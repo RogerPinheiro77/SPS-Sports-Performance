@@ -266,6 +266,10 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid var(--bg4);border-top-color:var(--c1);border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* DIA DE JOGO — card em destaque no Início da app da atleta */
+.at-gameday-card{animation:gdPulse 2.4s ease-in-out infinite}
+@keyframes gdPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.35)}50%{box-shadow:0 0 0 6px rgba(220,38,38,0)}}
+
 /* PROGRESS */
 .prog-bar{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-top:4px}
 .prog-fill{height:100%;border-radius:3px;background:var(--c1);transition:width .4s}
@@ -7825,6 +7829,85 @@ function _atNavTo(page){
   const ni=Array.from(document.querySelectorAll('.at-ni')).find(n=>(n.getAttribute('onclick')||'').includes("'"+page+"'"));
   atNav(page,ni||null);
 }
+// ─── DIA DE JOGO (app da atleta) ───────────────────────────────────────────
+// Card em destaque no Início + ecrã com cronologia do dia — só quando há um Jogo
+// hoje, para a equipa da atleta, com convocatória publicada e ela incluída.
+// Horários calculados para trás a partir da hora do jogo (g.time) e da hora de
+// concentração (g.concentracaoHora); quando faltar uma delas, os blocos que
+// dependem só dela ficam sem hora fixa em vez de mostrar algo errado.
+// Pedido do Roger, 21/08/2026 — conteúdo é orientação geral de ciência do
+// desporto, não substitui indicação individualizada da fisio/nutricionista.
+function _atGameHoje(at){
+  const td=today();
+  const g=(APP.games||[]).find(x=>x.date===td&&(x.teamId===at.teamId||(!x.teamId&&!at.teamId)));
+  if(!g)return null;
+  const c=(APP.convocatorias||[]).find(x=>x.gameId===g.id);
+  if(!c||!c.athletes||!c.athletes.includes(AID))return null;
+  if(!_convIsPublished(c))return null;
+  return g;
+}
+function _dj_toMin(t){if(!t)return null;const p=t.split(':').map(Number);return p[0]*60+(p[1]||0);}
+function _dj_toHHMM(m){if(m==null)return null;m=((m%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
+function _diaJogoTimeline(g){
+  const kickoff=_dj_toMin(g.time),conc=_dj_toMin(g.concentracaoHora);
+  const items=[];
+  items.push({time:null,dom:'nutri',icon:'coffee',title:'Ao acordar',desc:'Hidrata bem (± 500 ml de água) e faz um pequeno-almoço equilibrado — hidratos de carbono + proteína, sem exageros em gordura.'});
+  items.push({time:null,dom:'mental',icon:'brain',title:'Ativação mental',desc:'Reserva uns minutos para visualizar o jogo: o teu papel, os pontos fortes a explorar, como queres sentir-te em campo.'});
+  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-210),dom:'nutri',icon:'salad',title:'Refeição pré-jogo',desc:'3-4h antes do jogo: prato rico em hidratos de carbono de fácil digestão, proteína moderada, pouca gordura e fibra.'});
+  items.push({time:null,dom:'nutri',icon:'droplet',title:'Hidratação ao longo da manhã',desc:'Bebe água regularmente, em pequenas quantidades — não deixes tudo para a última hora.'});
+  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-90),dom:'nutri',icon:'droplet',title:'Snack ligeiro (se precisares)',desc:'Fruta, barrita ou lanche leve de fácil digestão, com água — evita algo pesado tão perto do jogo.'});
+  if(conc!=null)items.push({time:_dj_toHHMM(conc),dom:'log',icon:'map-pin',title:'Concentração',desc:`Chegada ao local${g.concentracaoLocal?': '+g.concentracaoLocal:''}. Equipamento, avaliação com a fisio se precisares, ambiente de equipa.`});
+  const warm=kickoff!=null?kickoff-45:(conc!=null?conc+30:null);
+  if(warm!=null)items.push({time:_dj_toHHMM(warm),dom:'fisico',icon:'run',title:'Ativação / Aquecimento',desc:'Mobilidade, ativação neuromuscular progressiva, exercícios com bola — segue o protocolo do treinador.'});
+  if(kickoff!=null){
+    items.push({time:_dj_toHHMM(kickoff-15),dom:'mental',icon:'target',title:'Foco final',desc:'Respiração, foco no presente, confiança no trabalho feito. Última hidratação, em pequenos goles.'});
+    items.push({time:_dj_toHHMM(kickoff),dom:'jogo',icon:'ball-football',title:'Apito inicial',desc:'Boa sorte! ⚽'});
+    items.push({time:_dj_toHHMM(kickoff+(g.dur||105)),dom:'nutri',icon:'droplet',title:'Recuperação pós-jogo',desc:'Nos primeiros 30-60 min: hidrata e come algo com hidratos + proteína para começar a recuperar.'});
+  }
+  items.push({time:null,dom:'fisico',icon:'activity',title:'Alongamentos e mobilidade',desc:'Rotina de retorno à calma — ajuda na recuperação para o dia seguinte.'});
+  items.push({time:null,dom:'reg',icon:'clipboard-check',title:'Registar PSE',desc:'Assim que possível depois do jogo, regista a tua perceção de esforço na app.',action:'pse'});
+  return items;
+}
+const _DJ_DOM_COLOR={nutri:'#fb923c',mental:'#a78bfa',fisico:'#4ade80',log:'#38bdf8',jogo:'#f87171',reg:'#94a3b8'};
+function _djChecklistKey(gid){return `sps_diajogo_${gid}_${AID}`;}
+function _djGetChecks(gid){try{return JSON.parse(localStorage.getItem(_djChecklistKey(gid))||'{}');}catch{return{};}}
+function _djToggle(gid,idx){
+  const checks=_djGetChecks(gid);
+  checks[idx]=!checks[idx];
+  localStorage.setItem(_djChecklistKey(gid),JSON.stringify(checks));
+  _atOpenDiaJogo(gid);
+}
+function _atOpenDiaJogo(gid){
+  const g=(APP.games||[]).find(x=>x.id===gid);if(!g)return;
+  const items=_diaJogoTimeline(g);
+  const checks=_djGetChecks(gid);
+  const rows=items.map((it,i)=>{
+    const done=!!checks[i];
+    const color=_DJ_DOM_COLOR[it.dom]||'#94a3b8';
+    const clickAttr=it.action==='pse'?`onclick="closeMod();_atNavTo('pse')"`:`onclick="_djToggle('${g.id}',${i})"`;
+    return `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">${it.time||''}</div>
+      <div style="width:2px;background:${color};border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" ${clickAttr}>
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-${it.icon}" style="font-size:15px;color:${color}" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;${done?'text-decoration:line-through;color:var(--t2)':''}">${escHtml(it.title)}</span>
+          ${it.action==='pse'?'<span class="bdg bg-b" style="font-size:8px">abrir PSE</span>':`<span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid ${done?color:'var(--brd)'};background:${done?color:'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0">${done?'<i class="ti ti-check" style="font-size:11px;color:#0c0f14" aria-hidden="true"></i>':''}</span>`}
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">${escHtml(it.desc)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  const body=`
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:900">vs ${escHtml(g.opp)}</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:2px">${fmtDate(g.date)}${g.time?' · '+g.time:''}${g.loc?' · '+escHtml(g.loc):''}</div>
+      ${g.concentracaoHora||g.concentracaoLocal?`<div style="margin-top:8px;display:inline-block;background:var(--bg3);border-radius:8px;padding:6px 12px;font-size:11px"><i class="ti ti-map-pin" style="margin-right:4px;vertical-align:-2px;color:#38bdf8" aria-hidden="true"></i>Concentração ${g.concentracaoHora||''} ${g.concentracaoLocal?'· '+escHtml(g.concentracaoLocal):''}</div>`:''}
+    </div>
+    <div style="font-size:10px;color:var(--t2);text-align:center;margin-bottom:8px">Orientação geral — ajusta com a fisio/nutricionista se tiveres indicação diferente</div>
+    ${rows}`;
+  openMod('🏆 Dia de Jogo',body,'lg');
+}
 function renderAtHome(){
   const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
   const td=today();
@@ -7835,6 +7918,7 @@ function renderAtHome(){
   const inj=APP.injuries.find(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação'));
   const injCount=APP.injuries.filter(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação')).length;
   const convoc=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td&&_convIsPublished(c)).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  const gameHoje=_atGameHoje(at);
   const openEvals=(APP.evalPeriods||[]).filter(p=>(p.status==='open')&&(!p.teamId||p.teamId===at.teamId)&&!(APP.evalResponses||[]).find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto'));
   const pendingTreinos=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID&&!p.done).length;
   const hasNutriPlan=!!(APP.nutritionPlans||[]).find(p=>p.athleteId===AID&&p.active);
@@ -7873,7 +7957,14 @@ function renderAtHome(){
       injCount?`${injCount} lesão${injCount>1?'ões':''} ativa${injCount>1?'s':''}`:'Disponível ✓',
       injCount?'#f87171':'#4ade80',
       _bdg(injCount||'','#dc2626'),'220,38,38'),
-    _card('convoc','clipboard-list','#2dd4bf','Convocatórias',
+    gameHoje
+      ? `<div class="at-gameday-card" onclick="_atOpenDiaJogo('${gameHoje.id}')" style="background:rgba(220,38,38,.18);border:1.5px solid rgba(220,38,38,.55);border-radius:12px;padding:13px 11px;cursor:pointer;position:relative;min-height:90px">
+          ${_bdg('🏆','#dc2626')}
+          <i class="ti ti-trophy" style="font-size:24px;color:#f87171;display:block;margin-bottom:6px" aria-hidden="true"></i>
+          <div style="font-size:12px;font-weight:800;color:var(--t1)">Dia de Jogo!</div>
+          <div style="font-size:10px;color:#f87171;margin-top:3px;line-height:1.3">vs ${escHtml(gameHoje.opp)}${gameHoje.time?' · '+gameHoje.time:''}</div>
+        </div>`
+      : _card('convoc','clipboard-list','#2dd4bf','Convocatórias',
       convoc?`Convocada! ${fmtDate(convoc.date)}`:'Sem convocatórias',
       convoc?'#2dd4bf':'var(--t2)',
       convoc?_bdg('✓','#16a34a'):'',' 14,98,81'),
