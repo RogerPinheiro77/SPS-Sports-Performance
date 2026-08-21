@@ -2820,6 +2820,12 @@ function _initG(g){
   if(g.refeicaoApos===undefined)g.refeicaoApos='';
   if(g.convocatoriaPublishAt===undefined)g.convocatoriaPublishAt='';
   if(g.convocatoriaLaunched===undefined)g.convocatoriaLaunched=false;
+  if(g.djOffMeal===undefined)g.djOffMeal='';
+  if(g.djOffSnack===undefined)g.djOffSnack='';
+  if(g.djOffWarmup===undefined)g.djOffWarmup='';
+  if(g.djOffFocus===undefined)g.djOffFocus='';
+  if(g.djDurJogo===undefined)g.djDurJogo='';
+  if(g.djNota===undefined)g.djNota='';
   return g;
 }
 // Data/hora local (mesmo formato do <input type="datetime-local">, "AAAA-MM-DDTHH:MM")
@@ -3288,6 +3294,20 @@ function _jogoPreHtml(g){
       <div class="form-g"><label class="fl">Refeição Antes</label><input class="fc" id="jp-ref-antes" value="${escHtml(g.refeicaoAntes||'')}" placeholder="Ex: Almoço ligeiro 12h30" onblur="saveJogoField('${g.id}','refeicaoAntes',this.value)"></div>
       <div class="form-g"><label class="fl">Refeição Após</label><input class="fc" id="jp-ref-apos" value="${escHtml(g.refeicaoApos||'')}" placeholder="Ex: Lanche no regresso" onblur="saveJogoField('${g.id}','refeicaoApos',this.value)"></div>
     </div>
+  </div>
+  <div class="ipanel">
+    <div class="sh-t" style="font-size:15px;margin-bottom:12px">🏆 Cronologia "Dia de Jogo" (app da atleta)</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Ajusta só os tempos (em minutos) — o texto de cada bloco mantém-se. Deixa em branco para usar o valor recomendado.</div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Refeição pré-jogo (min antes)</label><input class="fc" type="number" id="jp-dj-meal" value="${escHtml(g.djOffMeal||'')}" placeholder="210" onblur="saveJogoField('${g.id}','djOffMeal',this.value)"></div>
+      <div class="form-g"><label class="fl">Snack ligeiro (min antes)</label><input class="fc" type="number" id="jp-dj-snack" value="${escHtml(g.djOffSnack||'')}" placeholder="90" onblur="saveJogoField('${g.id}','djOffSnack',this.value)"></div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Aquecimento (min antes)</label><input class="fc" type="number" id="jp-dj-warmup" value="${escHtml(g.djOffWarmup||'')}" placeholder="45" onblur="saveJogoField('${g.id}','djOffWarmup',this.value)"></div>
+      <div class="form-g"><label class="fl">Foco final (min antes)</label><input class="fc" type="number" id="jp-dj-focus" value="${escHtml(g.djOffFocus||'')}" placeholder="15" onblur="saveJogoField('${g.id}','djOffFocus',this.value)"></div>
+    </div>
+    <div class="form-g"><label class="fl">Duração do jogo, p/ recuperação (min)</label><input class="fc" type="number" id="jp-dj-dur" value="${escHtml(g.djDurJogo||'')}" placeholder="105" onblur="saveJogoField('${g.id}','djDurJogo',this.value)"></div>
+    <div class="form-g"><label class="fl">Nota para a atleta (aparece no ecrã Dia de Jogo)</label><textarea class="fc" id="jp-dj-nota" rows="2" placeholder="Ex: Traz o equipamento de treino também" onblur="saveJogoField('${g.id}','djNota',this.value)">${escHtml(g.djNota||'')}</textarea></div>
   </div>
   <div class="ipanel">
     <div class="sh-t" style="font-size:15px;margin-bottom:12px">👥 Atletas da Equipa (ordem alfabética)</div>
@@ -7866,21 +7886,24 @@ function _atOpenGameDiaEquipa(gid){
 }
 function _dj_toMin(t){if(!t)return null;const p=t.split(':').map(Number);return p[0]*60+(p[1]||0);}
 function _dj_toHHMM(m){if(m==null)return null;m=((m%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
+// Desvio (em minutos) de um bloco da cronologia — usa o valor personalizado do jogo
+// se o treinador o tiver definido no Pré-Jogo, senão cai no padrão de boas práticas.
+function _djOff(g,field,def){const v=parseInt(g[field],10);return isNaN(v)?def:v;}
 function _diaJogoTimeline(g){
   const kickoff=_dj_toMin(g.time),conc=_dj_toMin(g.concentracaoHora);
   const items=[];
   items.push({time:null,dom:'nutri',icon:'coffee',title:'Ao acordar',desc:'Hidrata bem (± 500 ml de água) e faz um pequeno-almoço equilibrado — hidratos de carbono + proteína, sem exageros em gordura.'});
   items.push({time:null,dom:'mental',icon:'brain',title:'Ativação mental',desc:'Reserva uns minutos para visualizar o jogo: o teu papel, os pontos fortes a explorar, como queres sentir-te em campo.'});
-  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-210),dom:'nutri',icon:'salad',title:'Refeição pré-jogo',desc:'3-4h antes do jogo: prato rico em hidratos de carbono de fácil digestão, proteína moderada, pouca gordura e fibra.'});
+  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffMeal',210)),dom:'nutri',icon:'salad',title:'Refeição pré-jogo',desc:'3-4h antes do jogo: prato rico em hidratos de carbono de fácil digestão, proteína moderada, pouca gordura e fibra.'});
   items.push({time:null,dom:'nutri',icon:'droplet',title:'Hidratação ao longo da manhã',desc:'Bebe água regularmente, em pequenas quantidades — não deixes tudo para a última hora.'});
-  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-90),dom:'nutri',icon:'droplet',title:'Snack ligeiro (se precisares)',desc:'Fruta, barrita ou lanche leve de fácil digestão, com água — evita algo pesado tão perto do jogo.'});
+  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffSnack',90)),dom:'nutri',icon:'droplet',title:'Snack ligeiro (se precisares)',desc:'Fruta, barrita ou lanche leve de fácil digestão, com água — evita algo pesado tão perto do jogo.'});
   if(conc!=null)items.push({time:_dj_toHHMM(conc),dom:'log',icon:'map-pin',title:'Concentração',desc:`Chegada ao local${g.concentracaoLocal?': '+g.concentracaoLocal:''}. Equipamento, avaliação com a fisio se precisares, ambiente de equipa.`});
-  const warm=kickoff!=null?kickoff-45:(conc!=null?conc+30:null);
+  const warm=kickoff!=null?kickoff-_djOff(g,'djOffWarmup',45):(conc!=null?conc+30:null);
   if(warm!=null)items.push({time:_dj_toHHMM(warm),dom:'fisico',icon:'run',title:'Ativação / Aquecimento',desc:'Mobilidade, ativação neuromuscular progressiva, exercícios com bola — segue o protocolo do treinador.'});
   if(kickoff!=null){
-    items.push({time:_dj_toHHMM(kickoff-15),dom:'mental',icon:'target',title:'Foco final',desc:'Respiração, foco no presente, confiança no trabalho feito. Última hidratação, em pequenos goles.'});
+    items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffFocus',15)),dom:'mental',icon:'target',title:'Foco final',desc:'Respiração, foco no presente, confiança no trabalho feito. Última hidratação, em pequenos goles.'});
     items.push({time:_dj_toHHMM(kickoff),dom:'jogo',icon:'ball-football',title:'Apito inicial',desc:'Boa sorte! ⚽'});
-    items.push({time:_dj_toHHMM(kickoff+(g.dur||105)),dom:'nutri',icon:'droplet',title:'Recuperação pós-jogo',desc:'Nos primeiros 30-60 min: hidrata e come algo com hidratos + proteína para começar a recuperar.'});
+    items.push({time:_dj_toHHMM(kickoff+_djOff(g,'djDurJogo',105)),dom:'nutri',icon:'droplet',title:'Recuperação pós-jogo',desc:'Nos primeiros 30-60 min: hidrata e come algo com hidratos + proteína para começar a recuperar.'});
   }
   items.push({time:null,dom:'fisico',icon:'activity',title:'Alongamentos e mobilidade',desc:'Rotina de retorno à calma — ajuda na recuperação para o dia seguinte.'});
   items.push({time:null,dom:'reg',icon:'clipboard-check',title:'Registar PSE',desc:'Assim que possível depois do jogo, regista a tua perceção de esforço na app.',action:'pse'});
@@ -7922,6 +7945,7 @@ function _atOpenDiaJogo(gid){
       <div style="font-size:12px;color:var(--t2);margin-top:2px">${fmtDate(g.date)}${g.time?' · '+g.time:''}${g.loc?' · '+escHtml(g.loc):''}</div>
       ${g.concentracaoHora||g.concentracaoLocal?`<div style="margin-top:8px;display:inline-block;background:var(--bg3);border-radius:8px;padding:6px 12px;font-size:11px"><i class="ti ti-map-pin" style="margin-right:4px;vertical-align:-2px;color:#38bdf8" aria-hidden="true"></i>Concentração ${g.concentracaoHora||''} ${g.concentracaoLocal?'· '+escHtml(g.concentracaoLocal):''}</div>`:''}
     </div>
+    ${g.djNota?`<div class="al al-b" style="margin-bottom:10px;font-size:11.5px">${escHtml(g.djNota)}</div>`:''}
     <div style="font-size:10px;color:var(--t2);text-align:center;margin-bottom:8px">Orientação geral — ajusta com a fisio/nutricionista se tiveres indicação diferente</div>
     ${rows}`;
   openMod('🏆 Dia de Jogo',body,'lg');
