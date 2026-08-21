@@ -1068,7 +1068,7 @@ function renderDashboard(){
   const mainAts=APP.athletes.filter(a=>a.teamId===selTeam||(selTeam==='T1'&&!a.teamId));
   // Convocatória ativa (a mais próxima no futuro) desta equipa — a coluna de "visto"
   // no Estado do Plantel só aparece quando existe uma (pedido do Roger, 21/08/2026).
-  const activeConv=(APP.convocatorias||[]).filter(c=>c.teamId===selTeam&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  const activeConv=(APP.convocatorias||[]).filter(c=>c.teamId===selTeam&&c.date>=td&&_convIsPublished(c)).sort((a,b)=>a.date.localeCompare(b.date))[0];
 
   // Injuries
   const injMap={};
@@ -2815,6 +2815,7 @@ function _initG(g){
   if(g.refeicaoAntes===undefined)g.refeicaoAntes='';
   if(g.refeicaoApos===undefined)g.refeicaoApos='';
   if(g.convocatoriaPublishAt===undefined)g.convocatoriaPublishAt='';
+  if(g.convocatoriaLaunched===undefined)g.convocatoriaLaunched=false;
   return g;
 }
 // Data/hora local (mesmo formato do <input type="datetime-local">, "AAAA-MM-DDTHH:MM")
@@ -2826,7 +2827,17 @@ function _nowLocalStr(){
 // Uma convocatória sem publishAt está sempre visível (comportamento de sempre); com
 // publishAt, só fica visível para a atleta a partir dessa data/hora — pedido pelo
 // Roger para poder preparar a convocatória com antecedência sem a "queimar" já.
+// Convocatórias ligadas a um Jogo (c.gameId) ficam sempre em rascunho — invisíveis
+// para as atletas, mesmo que já tenham data de publicação definida — até o treinador
+// clicar em "Publicar Convocatória" (g.convocatoriaLaunched). Evita que cada marcação
+// individual durante a edição (Convocar Todas, titulares, etc.) fique logo visível
+// a meio do trabalho. Convocatórias manuais (sem jogo) não têm este rascunho: já são
+// criadas de uma vez só, com o formulário "Nova Convocatória" (pedido do Roger, 21/08/2026).
 function _convIsPublished(c){
+  if(c.gameId){
+    const g=APP.games.find(x=>x.id===c.gameId);
+    if(g&&!g.convocatoriaLaunched)return false;
+  }
   return !c.publishAt||c.publishAt<=_nowLocalStr();
 }
 function _convPublishBadgeHtml(publishAt){
@@ -3238,7 +3249,9 @@ function _jogoPreHtml(g){
   }).join('');
   const lSum=g.lineup.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg2);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.num||'?'} ${escHtml(a.name)}</span>`:''}).join('');
   const sSum=g.subs.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.num||'?'} ${escHtml(a.name)}</span>`:''}).join('');
-  const pubBadge=_convPublishBadgeHtml(g.convocatoriaPublishAt);
+  const launched=!!g.convocatoriaLaunched;
+  const draftBadge='<span class="bdg bg-gr" style="font-size:9px">📝 Rascunho — atletas não veem nada ainda</span>';
+  const pubBadge=launched?_convPublishBadgeHtml(g.convocatoriaPublishAt):draftBadge;
   return `<div>
   <div class="ipanel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -3253,7 +3266,8 @@ function _jogoPreHtml(g){
       <label class="fl" style="margin:0">🕓 Publicar na app das atletas em</label>
       <input class="fc" type="datetime-local" style="width:auto" value="${escHtml(g.convocatoriaPublishAt||'')}" onchange="_setConvocatoriaPublishAt('${g.id}',this.value)">
       ${pubBadge}
-      ${g.convocatoriaPublishAt?`<button class="btn btn-xs btn-gh" onclick="_setConvocatoriaPublishAt('${g.id}','')" title="Limpa a data — fica visível imediatamente">Publicar Agora</button>`:''}
+      ${launched&&g.convocatoriaPublishAt?`<button class="btn btn-xs btn-gh" onclick="_setConvocatoriaPublishAt('${g.id}','')" title="Limpa a data — fica visível imediatamente">Publicar Agora</button>`:''}
+      <button class="btn btn-xs btn-g" onclick="_publishConvocatoriaJogo('${g.id}')" title="Torna a convocatória visível às atletas (imediatamente ou na data escolhida acima)">🚀 Publicar Convocatória</button>
     </div>
     ${g.lineup.length?`<div style="margin-bottom:8px"><strong style="font-size:10px;color:var(--t2)">ONZE INICIAL (${g.formation}):</strong><div style="margin-top:4px">${lSum}</div></div>`:''}
     ${g.subs.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">SUPLENTES:</strong><div style="margin-top:4px">${sSum}</div></div>`:''}
@@ -3293,8 +3307,20 @@ function convocarTodasAtletas(gid){
 function desconvocarTodasAtletas(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(!confirm('Limpar toda a convocatória, onze e suplentes deste jogo?'))return;
-  g.convocatoria=[];g.lineup=[];g.subs=[];g.captain='';g.viceCaptain='';
+  g.convocatoria=[];g.lineup=[];g.subs=[];g.captain='';g.viceCaptain='';g.convocatoriaLaunched=false;
   _syncConvocatoriaFromGame(g);saveData();toast('Convocatória limpa');_renderJogoDetailFull();
+}
+// Ação final e explícita que torna a convocatória deste jogo visível às atletas —
+// enquanto não for clicada, tudo o que for marcado (Convocar Todas, titulares,
+// logística, data de publicação) fica em rascunho, guardado mas invisível na app da
+// atleta (ver _convIsPublished). Pedido do Roger, 21/08/2026.
+function _publishConvocatoriaJogo(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(!g.convocatoria||!g.convocatoria.length)return toast('Convoca pelo menos uma atleta antes de publicar','err');
+  g.convocatoriaLaunched=true;
+  _syncConvocatoriaFromGame(g);saveData();
+  toast(g.convocatoriaPublishAt?'Convocatória agendada ✓':'Convocatória publicada ✓');
+  _renderJogoDetailFull();
 }
 
 function setStarter(gid,aid){
@@ -5915,7 +5941,7 @@ function renderConvocatorias(){
       <div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)} ${game?'vs '+escHtml(game.opp):''}</span>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${c.time?' '+c.time:''} · ${selected.length} convocadas · 👁 vista por ${seen.length}/${selected.length}</span>
-        ${_convPublishBadgeHtml(c.publishAt)}
+        ${game&&!game.convocatoriaLaunched?'<span class="bdg bg-gr" style="font-size:9px">📝 Rascunho — atletas não veem nada ainda</span>':_convPublishBadgeHtml(c.publishAt)}
         ${!game&&c.publishAt&&!_convIsPublished(c)?`<button class="btn btn-xs btn-gh" onclick="_publishConvNow('${c.id}')" title="Fica visível imediatamente">Publicar Agora</button>`:''}
         ${game?`<button class="btn btn-xs btn-gh" onclick="openJogo('${game.id}');navTo('jogos')" title="Gerida pelo Jogo — abrir">🔗 Jogo</button>`:`<button class="btn btn-xs btn-r" onclick="deleteConv('${c.id}')">🗑️</button>`}</div>
       </div>
