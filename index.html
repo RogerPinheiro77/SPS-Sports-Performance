@@ -7846,6 +7846,24 @@ function _atGameHoje(at){
   if(!_convIsPublished(c))return null;
   return g;
 }
+// Jogo hoje da equipa da atleta, independentemente de ela estar ou não convocada —
+// já é visível a qualquer atleta na lista "Hoje" da Agenda, por isso não revela nada
+// de novo. Usado para o card neutro de quem não foi convocada (pedido do Roger,
+// 21/08/2026): sem mencionar a convocatória, para não pesar emocionalmente.
+function _atGameHojeEquipa(at){
+  const td=today();
+  return (APP.games||[]).find(x=>x.date===td&&(x.teamId===at.teamId||(!x.teamId&&!at.teamId)))||null;
+}
+function _atOpenGameDiaEquipa(gid){
+  const g=(APP.games||[]).find(x=>x.id===gid);if(!g)return;
+  const body=`
+    <div style="text-align:center;padding:14px 0">
+      <div style="font-size:15px;font-weight:900">vs ${escHtml(g.opp)}</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:2px">${fmtDate(g.date)}${g.time?' · '+g.time:''}${g.loc?' · '+escHtml(g.loc):''}</div>
+      <div style="margin-top:22px;font-size:16px;font-weight:800;color:#4ade80">Contamos contigo 💚</div>
+    </div>`;
+  openMod('🏟️ Dia de Jogo da Equipa',body);
+}
 function _dj_toMin(t){if(!t)return null;const p=t.split(':').map(Number);return p[0]*60+(p[1]||0);}
 function _dj_toHHMM(m){if(m==null)return null;m=((m%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
 function _diaJogoTimeline(g){
@@ -7919,6 +7937,7 @@ function renderAtHome(){
   const injCount=APP.injuries.filter(i=>i.athleteId===AID&&(i.status==='ativo'||i.status==='reabilitação')).length;
   const convoc=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td&&_convIsPublished(c)).sort((a,b)=>a.date.localeCompare(b.date))[0];
   const gameHoje=_atGameHoje(at);
+  const gameHojeEquipa=gameHoje?null:_atGameHojeEquipa(at);
   const openEvals=(APP.evalPeriods||[]).filter(p=>(p.status==='open')&&(!p.teamId||p.teamId===at.teamId)&&!(APP.evalResponses||[]).find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto'));
   const pendingTreinos=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID&&!p.done).length;
   const hasNutriPlan=!!(APP.nutritionPlans||[]).find(p=>p.athleteId===AID&&p.active);
@@ -7963,6 +7982,12 @@ function renderAtHome(){
           <i class="ti ti-trophy" style="font-size:24px;color:#f87171;display:block;margin-bottom:6px" aria-hidden="true"></i>
           <div style="font-size:12px;font-weight:800;color:var(--t1)">Dia de Jogo!</div>
           <div style="font-size:10px;color:#f87171;margin-top:3px;line-height:1.3">vs ${escHtml(gameHoje.opp)}${gameHoje.time?' · '+gameHoje.time:''}</div>
+        </div>`
+      : gameHojeEquipa
+      ? `<div onclick="_atOpenGameDiaEquipa('${gameHojeEquipa.id}')" style="background:rgba(56,189,248,.14);border:1.5px solid rgba(56,189,248,.4);border-radius:12px;padding:13px 11px;cursor:pointer;position:relative;min-height:90px">
+          <i class="ti ti-calendar-event" style="font-size:24px;color:#38bdf8;display:block;margin-bottom:6px" aria-hidden="true"></i>
+          <div style="font-size:12px;font-weight:800;color:var(--t1)">Hoje há jogo</div>
+          <div style="font-size:10px;color:#38bdf8;margin-top:3px;line-height:1.3">vs ${escHtml(gameHojeEquipa.opp)}${gameHojeEquipa.time?' · '+gameHojeEquipa.time:''}</div>
         </div>`
       : _card('convoc','clipboard-list','#2dd4bf','Convocatórias',
       convoc?`Convocada! ${fmtDate(convoc.date)}`:'Sem convocatórias',
