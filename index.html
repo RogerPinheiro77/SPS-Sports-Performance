@@ -1066,6 +1066,9 @@ function renderDashboard(){
   // Athletes for current team
   const selTeam=_pwTeam||'T1';
   const mainAts=APP.athletes.filter(a=>a.teamId===selTeam||(selTeam==='T1'&&!a.teamId));
+  // Convocatória ativa (a mais próxima no futuro) desta equipa — a coluna de "visto"
+  // no Estado do Plantel só aparece quando existe uma (pedido do Roger, 21/08/2026).
+  const activeConv=(APP.convocatorias||[]).filter(c=>c.teamId===selTeam&&c.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
 
   // Injuries
   const injMap={};
@@ -1139,6 +1142,15 @@ function renderDashboard(){
     const obs=inj?'🩺':acd&&acd.r>1.5?'⚠️':acd&&acd.r<0.8&&acd.r>0?'⚡':'—';
     const lp=APP.pse.filter(p=>p.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
     const wkMinsAt=acd?acd.wkU:0;
+    let vistoCell='';
+    if(activeConv){
+      const convocada=(activeConv.athletes||[]).includes(at.id);
+      if(!convocada)vistoCell='<td style="padding:5px 8px;text-align:center;font-size:11px;color:var(--t3)">—</td>';
+      else{
+        const wasSeen=(activeConv.seenBy||[]).some(s=>s.athleteId===at.id);
+        vistoCell=`<td style="padding:5px 8px;text-align:center"><span class="bdg ${wasSeen?'bg-g':'bg-y'}" style="font-size:9px">${wasSeen?'✓ Vista':'Por ver'}</span></td>`;
+      }
+    }
     return`<tr style="border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer" onclick="openAthleteModal('${at.id}')">
       <td style="padding:5px 8px;font-size:11px;color:var(--t3)">${i+1}</td>
       <td style="padding:5px 8px">
@@ -1152,10 +1164,11 @@ function renderDashboard(){
       <td style="padding:5px 8px;min-width:130px">${cargaBar}</td>
       <td style="padding:5px 8px;text-align:center;font-size:11px;color:var(--t2)">${lp?lp.duration+'m':'—'}</td>
       <td style="padding:5px 8px;text-align:center;font-size:14px">${obs}</td>
+      ${vistoCell}
     </tr>`;
   }
 
-  const plantelRows=mainAts.sort((a,b)=>(a.num||99)-(b.num||99)).slice(0,9).map((at,i)=>plantelRow(at,i)).join('');
+  const plantelRows=mainAts.sort((a,b)=>(a.num||99)-(b.num||99)).map((at,i)=>plantelRow(at,i)).join('');
 
   // Next event & game
   const nextEv=APP.schedule.filter(e=>e.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
@@ -1245,19 +1258,21 @@ function renderDashboard(){
         <select class="fc" style="width:auto;font-size:11px" onchange="_pwTeam=this.value;renderDashboard()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===selTeam?'selected':''}>${t.name}</option>`).join('')}</select>
       </div>
       <div class="cb" style="padding:0">
+        <div style="max-height:312px;overflow-y:auto">
         <table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid rgba(255,255,255,.08)">
-            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:left">#</th>
-            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:left">ATLETA</th>
-            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">ESTADO</th>
-            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">WELLNESS</th>
-            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700">CARGA SEMANAL</th>
-            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">MINS</th>
-            <th style="padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">OBS.</th>
+            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:left">#</th>
+            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:left">ATLETA</th>
+            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">ESTADO</th>
+            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">WELLNESS</th>
+            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700">CARGA SEMANAL</th>
+            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">MINS</th>
+            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">OBS.</th>
+            ${activeConv?`<th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center" title="Convocatória de ${fmtDate(activeConv.date)}">CONVOCATÓRIA</th>`:''}
           </tr></thead>
-          <tbody>${plantelRows||`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--t2);font-size:12px">Sem atletas nesta equipa</td></tr>`}</tbody>
+          <tbody>${plantelRows||`<tr><td colspan="${activeConv?8:7}" style="text-align:center;padding:20px;color:var(--t2);font-size:12px">Sem atletas nesta equipa</td></tr>`}</tbody>
         </table>
-        ${mainAts.length>9?`<div style="text-align:center;padding:8px 0"><button class="btn btn-gh btn-sm" onclick="navTo('plantel')">Ver todas as ${mainAts.length} atletas →</button></div>`:''}
+        </div>
       </div>
     </div>
 
