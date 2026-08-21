@@ -1966,6 +1966,24 @@ function saveAthlete(){
   }
   saveData();_showAtForm=false;_editAtId=null;toast('Atleta guardada ✓');renderPlantel();
 }
+// Fase 2 (parte 1, baixo risco) do sistema Carga/Wellness/Ciclo — ver memória
+// project_sps_sistema_carga_wellness_ciclo. Baseline = média/desvio-padrão do
+// histórico próprio da atleta (não bandas fixas do plantel). Só para consulta:
+// não liga a nenhum alerta, badge ou decisão automática — isso fica para a
+// parte 2 (revisão das bandas com dados reais, início de outubro 2026).
+// MIN_BASE_N=8 evita mostrar uma "média" calculada com 2-3 registos, que seria
+// só ruído. Simplificação aceite para esta parte: a baseline inclui o próprio
+// registo mais recente (não leave-one-out) — irrelevante com n grande, a afinar
+// se necessário na parte 2.
+const _BASELINE_MIN_N=8;
+function _baselineStats(vals){
+  const n=vals.length;
+  if(!n)return {n:0,mean:null,sd:null};
+  const mean=vals.reduce((s,v)=>s+v,0)/n;
+  if(n<2)return {n,mean:Math.round(mean*10)/10,sd:null};
+  const variance=vals.reduce((s,v)=>s+Math.pow(v-mean,2),0)/(n-1);
+  return {n,mean:Math.round(mean*10)/10,sd:Math.round(Math.sqrt(variance)*10)/10};
+}
 function openAthleteModal(id){
   const at=APP.athletes.find(a=>a.id===id);if(!at)return;
   const td=today();
@@ -1985,6 +2003,22 @@ function openAthleteModal(id){
   const w7=wList.filter(w=>days7.includes(w.date));
   const lastW=wList[0];
   const avgWell7=w7.length?Math.round(w7.reduce((s,w)=>s+(+w.score||0),0)/w7.length):null;
+  // Baseline individual (Fase 2, parte 1) — ver _baselineStats acima
+  const wellBase=_baselineStats(wList.map(w=>+w.score||0).filter(v=>!isNaN(v)));
+  const uaBase=_baselineStats(pList.map(p=>+p.ua||0).filter(v=>!isNaN(v)));
+  const _devSigma=(val,base)=>(base.n>=_BASELINE_MIN_N&&base.sd>0&&val!=null&&!isNaN(val))?Math.round((val-base.mean)/base.sd*10)/10:null;
+  const wellDev=lastW?_devSigma(+lastW.score||0,wellBase):null;
+  const uaDev=pList[0]?_devSigma(+pList[0].ua||0,uaBase):null;
+  const _baselineRow=(label,base,dev,unit)=>{
+    if(base.n<_BASELINE_MIN_N)return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--brd);font-size:11.5px"><span>${label}</span><span style="color:var(--t2)">A construir — ${base.n}/${_BASELINE_MIN_N} registos</span></div>`;
+    return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--brd);font-size:11.5px"><span>${label}</span><span><strong>${base.mean}${unit}</strong> <span style="color:var(--t2)">± ${base.sd}${unit} (n=${base.n})</span>${dev!==null?` · último: <strong>${dev>0?'+':''}${dev}σ</strong>`:''}</span></div>`;
+  };
+  const baselineBlock=`<div style="margin:0 16px 16px;background:var(--bg2);border:1px solid #6b46c155;border-left:3px solid #6b46c1;border-radius:10px;padding:14px 16px">`
+    +`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:13px;font-weight:800">📊 Baseline Individual</span></div>`
+    +_baselineRow('Wellness (score diário)',wellBase,wellDev,'')
+    +_baselineRow('Carga de sessão (UA)',uaBase,uaDev,'')
+    +`<div style="font-size:10px;color:var(--t2);margin-top:8px">Média e desvio-padrão do histórico desta atleta (não das bandas fixas do plantel) — "σ" é quanto o registo mais recente se desvia do que é normal para ela. Só informativo: não gera alertas nem altera a decisão diária. A acumular dados desde 21/08/2026.</div>`
+    +'</div>';
   // Attendance
   if(!APP.attendance)APP.attendance=[];
   const attRecs=APP.attendance.filter(a=>a.athleteId===id&&a.status!=='tratamento'&&!(a.status==='ausente'&&a.reason==='ferias')); // tratamento e férias não contam para a % de presenças
@@ -2099,6 +2133,7 @@ function openAthleteModal(id){
       +'</div>'
     +'</div>'
     +estadoBlock
+    +baselineBlock
     // ── KPIs ──
     +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:16px">'
       +[['ACWR',acwr?'<span style="font-size:18px;font-weight:800;color:'+acwrColor+'">'+acwr+'</span>':'—','Carga A:C'],
