@@ -3852,7 +3852,10 @@ const _PHASES=[
   {id:'jogo',label:'Jogo / Forma Jogada',color:'#185FA5',bg:'#E6F1FB'},
   {id:'retorno',label:'Retorno à Calma',color:'#5F5E5A',bg:'#F1EFE8'}
 ];
-let _trView='list',_trId=null,_trExTab='aquecimento';
+// _trSortAsc=true (cronológica, mais antiga/próxima primeiro) passou a ser o defeito —
+// o Roger reportou que a ordem antiga (mais recente/futura primeiro) enterrava a
+// próxima sessão relevante no fundo da lista, com 122 UTs da época a ir até 30/06/2027.
+let _trView='list',_trId=null,_trExTab='aquecimento',_trSortAsc=true,_trSearch='';
 const _TUID=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
 function openTrainingUnit(eventId,eventDate){
@@ -3867,12 +3870,16 @@ function openTrainingUnit(eventId,eventDate){
   navTo('treinos');
 }
 
-function renderTreinos(){
-  if(!APP.trainings)APP.trainings=[];
-  if(_trView==='detail'&&_trId){_renderTrDetail();return;}
-  _trView='list';_trId=null;
-  const list=[...APP.trainings].sort((a,b)=>b.date.localeCompare(a.date));
-  const cards=list.length?list.map(tr=>{
+// Lista de cartões isolada numa função à parte — a pesquisa (oninput) atualiza só
+// esta div (#tr-cards-list), sem reconstruir a caixa de pesquisa em si. Reconstruir a
+// página inteira a cada tecla faria o campo perder o foco depois de cada carácter.
+function _trCardsHtml(){
+  const q=_trSearch.trim().toLowerCase();
+  const list=[...APP.trainings]
+    .filter(tr=>!q||(tr.title||'').toLowerCase().includes(q))
+    .sort((a,b)=>_trSortAsc?a.date.localeCompare(b.date):b.date.localeCompare(a.date));
+  if(!list.length)return `<div style="text-align:center;padding:48px 20px;color:var(--t2);font-size:14px">${q?'Nenhuma unidade encontrada para "'+escHtml(_trSearch)+'".':'Ainda não tens unidades de treino.<br><small>Cria uma pelo Planeamento clicando em 🗒️ num evento de treino, ou clica em "+ Nova Unidade".</small>'}</div>`;
+  return list.map(tr=>{
     const totalEx=Object.values(tr.exercises||{}).flat().length;
     return`<div class="card" style="cursor:pointer;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px" onclick="_trId='${tr.id}';_trView='detail';_trExTab='aquecimento';renderTreinos()">
       <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
@@ -3885,7 +3892,17 @@ function renderTreinos(){
         <button class="btn btn-sm btn-r" onclick="event.stopPropagation();deleteTreino('${tr.id}')">🗑️</button>
       </div>
     </div>`;
-  }).join(''):`<div style="text-align:center;padding:48px 20px;color:var(--t2);font-size:14px">Ainda não tens unidades de treino.<br><small>Cria uma pelo Planeamento clicando em 🗒️ num evento de treino, ou clica em "+ Nova Unidade".</small></div>`;
+  }).join('');
+}
+function _trSearchUpdate(v){
+  _trSearch=v;
+  const el=document.getElementById('tr-cards-list');
+  if(el)el.innerHTML=_trCardsHtml();
+}
+function renderTreinos(){
+  if(!APP.trainings)APP.trainings=[];
+  if(_trView==='detail'&&_trId){_renderTrDetail();return;}
+  _trView='list';_trId=null;
   document.getElementById('pg-treinos').innerHTML=`
   <div class="sh">
     <div style="font-size:15px;font-weight:800">Unidades de Treino</div>
@@ -3895,7 +3912,11 @@ function renderTreinos(){
     </div>
   </div>
   <input type="file" id="tr-pdf-inp" accept="application/pdf" style="display:none" onchange="handleImportTreinoPDF(this)">
-  <div style="display:flex;flex-direction:column;gap:8px">${cards}</div>`;
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+    <input class="fc" id="tr-search" style="flex:1;min-width:160px" placeholder="🔍 Pesquisar por número (ex: 23)" value="${escHtml(_trSearch)}" oninput="_trSearchUpdate(this.value)">
+    <button class="btn btn-gh btn-sm" onclick="_trSortAsc=!_trSortAsc;renderTreinos()" title="Inverter ordem">${_trSortAsc?'⬆️ Mais antiga primeiro':'⬇️ Mais recente primeiro'}</button>
+  </div>
+  <div id="tr-cards-list" style="display:flex;flex-direction:column;gap:8px">${_trCardsHtml()}</div>`;
 }
 
 function _createNewUT(){
