@@ -2819,6 +2819,29 @@ function _syncConvocatoriaFromGame(g){
   if(i>=0){Object.assign(APP.convocatorias[i],data);}
   else{APP.convocatorias.push({id:uid(),gameId:g.id,seenBy:[],...data});}
 }
+// Quando uma atleta sai do plantel (deleteAthlete → Scouting), o ID dela pode ficar
+// "fantasma" em jogos/convocatórias antigas já guardadas — purga-o de tudo para as
+// contagens (convocadas, vista por X/Y) nunca mais divergirem entre ecrãs.
+function _purgeAthleteRefs(id){
+  (APP.games||[]).forEach(g=>{
+    let changed=false;
+    if(g.convocatoria&&g.convocatoria.includes(id)){g.convocatoria=g.convocatoria.filter(x=>x!==id);changed=true;}
+    if(g.lineup&&g.lineup.includes(id)){g.lineup=g.lineup.filter(x=>x!==id);changed=true;}
+    if(g.subs&&g.subs.includes(id)){g.subs=g.subs.filter(x=>x!==id);changed=true;}
+    if(g.captain===id){g.captain='';changed=true;}
+    if(g.viceCaptain===id){g.viceCaptain='';changed=true;}
+    if(g.playerPositions&&g.playerPositions[id]){delete g.playerPositions[id];changed=true;}
+    if(g.playerTasks&&g.playerTasks[id]){delete g.playerTasks[id];changed=true;}
+    if(changed)_syncConvocatoriaFromGame(g);
+  });
+  (APP.convocatorias||[]).forEach(c=>{
+    if(c.athletes&&c.athletes.includes(id))c.athletes=c.athletes.filter(x=>x!==id);
+    if(c.seenBy&&c.seenBy.some(s=>s.athleteId===id))c.seenBy=c.seenBy.filter(s=>s.athleteId!==id);
+  });
+  // Convocatórias manuais (sem jogo) que ficaram vazias são removidas — as ligadas a
+  // jogo já foram tratadas acima pelo _syncConvocatoriaFromGame (remove se vazio).
+  APP.convocatorias=(APP.convocatorias||[]).filter(c=>c.gameId||(c.athletes&&c.athletes.length));
+}
 
 // ─── Tipo de Jogo + Competição (dropdown ligado às competições da época) ──
 const JOGO_TIPOS={oficial:'🏆 Oficial',treino:'🎽 Treino',particular:'🤝 Particular / Amigável'};
@@ -3148,16 +3171,25 @@ function _jogoPreHtml(g){
   const team=APP.teams.find(t=>t.id===g.teamId);
   const athletes=APP.athletes.filter(a=>a.teamId===g.teamId).sort((a,b)=>a.name.localeCompare(b.name));
   const convSet=new Set(g.convocatoria),lineSet=new Set(g.lineup),subSet=new Set(g.subs);
+  const validConvCount=athletes.filter(a=>convSet.has(a.id)).length;
+  // Estado de cada atleta nesta data (ACWR/wellness/ciclo/faltas/minutos + gate de
+  // lesão/tratamento) — mesmo cálculo já usado no PDF Condição p/ Jogo, só para
+  // informar quem convoca; nunca esconde ninguém da lista (decisão do Roger).
+  const condByAid={};
+  _condicaoJogoCompute({date:g.date}).rows.forEach(r=>condByAid[r.at.id]=r);
   const convRows=athletes.map(a=>{
     const isC=convSet.has(a.id),isS=lineSet.has(a.id),isSu=subSet.has(a.id);
     const isCap=g.captain===a.id,isVc=g.viceCaptain===a.id;
+    const cr=condByAid[a.id];
+    const condBadge=cr?(cr.gate?`<span class="bdg bg-r" style="font-size:9px" title="Estado nesta data">${escHtml(cr.gateTxt)}</span>`:`<span class="bdg bg-${cr.overallLvl}" style="font-size:9px" title="Estado nesta data">${cr.overallLabel}</span>`):'';
     return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isC?'var(--bg2)':'var(--bg3)'};border:1px solid var(--brd);border-radius:6px;margin-bottom:4px;flex-wrap:wrap">
       <input type="checkbox" ${isC?'checked':''} onchange="toggleConvocado('${g.id}','${a.id}',this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
-      <div style="width:22px;height:22px;background:var(--pri);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||'?'}</div>
+      <div style="width:22px;height:22px;background:var(--pri);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.num||'?'}</div>
       <div style="flex:1;min-width:90px">
         <div style="font-size:13px;font-weight:600">${escHtml(_displayName(a))}</div>
         <div style="font-size:10px;color:var(--t2)">${a.pos||'—'}</div>
       </div>
+      ${condBadge}
       ${isCap?'<span style="background:#ffd700;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">CAP</span>':''}
       ${isVc?'<span style="background:#c0c0c0;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">VCap</span>':''}
       ${isS?'<span class="bdg bg-g" style="font-size:9px">Titular</span>':isSu?'<span class="bdg bg-y" style="font-size:9px">Suplente</span>':''}
@@ -3175,7 +3207,11 @@ function _jogoPreHtml(g){
   <div class="ipanel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div class="sh-t" style="font-size:15px">📋 Convocatória — ${team?escHtml(team.name):'Equipa'}</div>
-      <span style="font-size:11px;color:var(--t2)">${g.convocatoria.length} convocadas • ${g.lineup.length}/11 titulares • ${g.subs.length} suplentes</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--t2)">${validConvCount} convocadas • ${g.lineup.length}/11 titulares • ${g.subs.length} suplentes</span>
+        <button class="btn btn-xs btn-g" onclick="convocarTodasAtletas('${g.id}')" title="Marca todas as atletas da equipa como convocadas">✓ Convocar Todas</button>
+        <button class="btn btn-xs btn-r" onclick="desconvocarTodasAtletas('${g.id}')" title="Limpa toda a convocatória, onze e suplentes">Desconvocar Todas</button>
+      </div>
     </div>
     ${g.lineup.length?`<div style="margin-bottom:8px"><strong style="font-size:10px;color:var(--t2)">ONZE INICIAL (${g.formation}):</strong><div style="margin-top:4px">${lSum}</div></div>`:''}
     ${g.subs.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">SUPLENTES:</strong><div style="margin-top:4px">${sSum}</div></div>`:''}
@@ -3205,6 +3241,18 @@ function toggleConvocado(gid,aid,checked){
   if(checked){if(!g.convocatoria.includes(aid))g.convocatoria.push(aid);}
   else{g.convocatoria=g.convocatoria.filter(x=>x!==aid);g.lineup=g.lineup.filter(x=>x!==aid);g.subs=g.subs.filter(x=>x!==aid);if(g.captain===aid)g.captain='';if(g.viceCaptain===aid)g.viceCaptain='';}
   _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
+}
+
+function convocarTodasAtletas(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  g.convocatoria=APP.athletes.filter(a=>a.teamId===g.teamId).map(a=>a.id);
+  _syncConvocatoriaFromGame(g);saveData();toast('Todas as atletas convocadas ✓');_renderJogoDetailFull();
+}
+function desconvocarTodasAtletas(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(!confirm('Limpar toda a convocatória, onze e suplentes deste jogo?'))return;
+  g.convocatoria=[];g.lineup=[];g.subs=[];g.captain='';g.viceCaptain='';
+  _syncConvocatoriaFromGame(g);saveData();toast('Convocatória limpa');_renderJogoDetailFull();
 }
 
 function setStarter(gid,aid){
@@ -5765,21 +5813,38 @@ function renderAtAval(){
 // do separador Pré-Jogo desse Jogo — só há um sítio para preencher. O formulário
 // manual aqui serve apenas para convocações sem jogo associado (seleção, estágios...).
 let _showConvForm=false, _editConvId=null, _convTeam='T1';
+// Lista de atletas do formulário manual, separada do resto do painel para poder
+// atualizar-se sozinha quando a Data muda (sem perder o que já estiver escrito nos
+// outros campos) — mesmo padrão já usado na pesquisa das Unidades de Treino.
+function _convAthletesHtml(dateVal){
+  const dt=dateVal||today();
+  const condByAid={};
+  _condicaoJogoCompute({date:dt}).rows.forEach(r=>condByAid[r.at.id]=r);
+  return APP.athletes.filter(a=>a.teamId===_convTeam).sort((a,b)=>a.name.localeCompare(b.name)).map(at=>{
+    const cr=condByAid[at.id];
+    const badge=cr?(cr.gate?`<span class="bdg bg-r" style="font-size:9px">${escHtml(cr.gateTxt)}</span>`:`<span class="bdg bg-${cr.overallLvl}" style="font-size:9px">${cr.overallLabel}</span>`):'';
+    return`<label style="display:flex;align-items:center;gap:7px;padding:6px 8px;background:var(--bg4);border-radius:var(--rs);cursor:pointer;font-size:12px">
+      <input type="checkbox" value="${at.id}">
+      ${_avHtml(at.name,at.photo,22)}<span style="flex:1">${at.num?'#'+at.num+' ':''}<strong>${escHtml(_displayName(at))}</strong></span>${badge}
+    </label>`;}).join('');
+}
+function _convDateChanged(){
+  const el=document.getElementById('conv-athletes');
+  if(el)el.innerHTML=_convAthletesHtml(document.getElementById('cf-date').value);
+}
 function renderConvocatorias(){
   const formHtml=_showConvForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">Nova Convocatória (sem jogo)</div><button class="btn btn-sm btn-gh" onclick="_showConvForm=false;_editConvId=null;renderConvocatorias()">✕</button></div>
     <div class="al al-b" style="margin-bottom:10px;font-size:11px">Para convocatórias de um Jogo, preenche no separador Pré-Jogo desse jogo — aparece aqui automaticamente. Usa este formulário só para convocações sem jogo associado.</div>
-    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="cf-date" type="date" value="${today()}"></div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Data *</label><input class="fc" id="cf-date" type="date" value="${today()}" onchange="_convDateChanged()"></div>
+      <div class="form-g"><label class="fl">Hora</label><input class="fc" id="cf-time" type="time"></div>
+    </div>
     <div class="form-g"><label class="fl">Notas</label><input class="fc" id="cf-notes" placeholder="Ex: Estágio Seleção Distrital"></div>
-    <div class="form-g"><label class="fl">Selecionar Atletas (ordem alfabética)</label>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-top:6px" id="conv-athletes">
-        ${APP.athletes.filter(a=>a.teamId===_convTeam).sort((a,b)=>a.name.localeCompare(b.name)).map(at=>{
-          const inj=APP.injuries.find(i=>i.athleteId===at.id&&(i.status==='ativo'||i.status==='reabilitação'));
-          return`<label style="display:flex;align-items:center;gap:7px;padding:6px 8px;background:var(--bg4);border-radius:var(--rs);cursor:pointer;font-size:12px">
-            <input type="checkbox" value="${at.id}" ${inj?'disabled title="Lesionada"':''}>
-            ${_avHtml(at.name,at.photo,22)}<span>${at.num?'#'+at.num+' ':''}<strong>${escHtml(_displayName(at))}</strong> ${inj?'🩺':''}</span>
-          </label>`;}).join('')}
+    <div class="form-g"><label class="fl">Selecionar Atletas (ordem alfabética) — estado mostrado é o dessa data, não impede seleção</label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin-top:6px" id="conv-athletes">
+        ${_convAthletesHtml(today())}
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-g" onclick="saveConvocatoria()">💾 Guardar</button><button class="btn btn-gh" onclick="_showConvForm=false;_editConvId=null;renderConvocatorias()">Cancelar</button></div>
@@ -5793,7 +5858,7 @@ function renderConvocatorias(){
     const logisticaBits=[c.concentracaoLocal||c.concentracaoHora?`Concentração: ${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim():'',c.transporte?'Transporte: '+c.transporte:'',c.refeicaoAntes?'Antes: '+c.refeicaoAntes:'',c.refeicaoApos?'Após: '+c.refeicaoApos:''].filter(Boolean);
     return`<div class="card" style="margin-bottom:12px">
       <div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)} ${game?'vs '+escHtml(game.opp):''}</span>
-        <div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)} · ${selected.length} convocadas · 👁 vista por ${seen.length}/${selected.length}</span>
+        <div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${c.time?' '+c.time:''} · ${selected.length} convocadas · 👁 vista por ${seen.length}/${selected.length}</span>
         ${game?`<button class="btn btn-xs btn-gh" onclick="openJogo('${game.id}');navTo('jogos')" title="Gerida pelo Jogo — abrir">🔗 Jogo</button>`:`<button class="btn btn-xs btn-r" onclick="deleteConv('${c.id}')">🗑️</button>`}</div>
       </div>
       <div class="cb" style="padding:12px">
@@ -5817,7 +5882,7 @@ function saveConvocatoria(){
   if(!date)return toast('Data obrigatória','err');
   const sel=[...document.querySelectorAll('#conv-athletes input:checked')].map(i=>i.value);
   if(!sel.length)return toast('Seleciona pelo menos uma atleta','err');
-  const c={id:uid(),teamId:_convTeam,gameId:null,date,notes:document.getElementById('cf-notes').value,athletes:sel,seenBy:[]};
+  const c={id:uid(),teamId:_convTeam,gameId:null,date,time:document.getElementById('cf-time').value||'',notes:document.getElementById('cf-notes').value,athletes:sel,seenBy:[]};
   APP.convocatorias.push(c);
   saveData();_showConvForm=false;toast('Convocatória guardada ✓');renderConvocatorias();
 }
@@ -7393,6 +7458,7 @@ async function deleteAthlete(id){
   APP.athletes=APP.athletes.filter(a=>a.id!==id);
   if(!APP.scouting)APP.scouting=[];
   APP.scouting.push({id:uid(),name:at.name,pos:at.pos||'',club:(APP.config.clubName||'Clube')+' (ex-)',nat:at.nat||'',age:ageYears(at.dob)||null,height:at.height||'',foot:at.foot||'',rating:0,notes:'Saiu do plantel em '+today()+'.'+(at.num?' Usava o nº'+at.num+'.':''),video:'',photo:at.photo||'',addedAt:today()});
+  _purgeAthleteRefs(id);
   saveData();
   if(_sync&&_supa){try{await _supa.from('athletes').delete().eq('id',id);}catch(err){console.warn('deleteAthlete cloud:',err);}}
   toast('Atleta movida para Scouting ✓');
