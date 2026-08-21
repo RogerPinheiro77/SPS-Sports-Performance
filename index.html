@@ -3236,9 +3236,9 @@ function _jogoPreHtml(g){
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px;background:var(--bg3);border-radius:6px">
       <label class="fl" style="margin:0">🕓 Publicar na app das atletas em</label>
-      <input class="fc" type="datetime-local" style="width:auto" value="${escHtml(g.convocatoriaPublishAt||'')}" onchange="saveJogoField('${g.id}','convocatoriaPublishAt',this.value)">
+      <input class="fc" type="datetime-local" style="width:auto" value="${escHtml(g.convocatoriaPublishAt||'')}" onchange="_setConvocatoriaPublishAt('${g.id}',this.value)">
       ${pubBadge}
-      ${g.convocatoriaPublishAt?`<button class="btn btn-xs btn-gh" onclick="saveJogoField('${g.id}','convocatoriaPublishAt','')" title="Limpa a data — fica visível imediatamente">Publicar Agora</button>`:''}
+      ${g.convocatoriaPublishAt?`<button class="btn btn-xs btn-gh" onclick="_setConvocatoriaPublishAt('${g.id}','')" title="Limpa a data — fica visível imediatamente">Publicar Agora</button>`:''}
     </div>
     ${g.lineup.length?`<div style="margin-bottom:8px"><strong style="font-size:10px;color:var(--t2)">ONZE INICIAL (${g.formation}):</strong><div style="margin-top:4px">${lSum}</div></div>`:''}
     ${g.subs.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">SUPLENTES:</strong><div style="margin-top:4px">${sSum}</div></div>`:''}
@@ -3314,6 +3314,18 @@ function saveJogoField(gid,field,val){
   g[field]=val;
   _syncConvocatoriaFromGame(g);
   saveData();
+}
+// Como saveJogoField() acima, mas com re-render — usado só para
+// convocatoriaPublishAt porque o badge/botão "Publicar Agora" no ecrã dependem
+// diretamente deste valor (os outros campos de saveJogoField são inputs de texto
+// que não precisam de refrescar mais nada à volta).
+function _setConvocatoriaPublishAt(gid,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  g.convocatoriaPublishAt=val;
+  _syncConvocatoriaFromGame(g);
+  saveData();
+  toast(val?'Publicação agendada ✓':'Publicada imediatamente ✓');
+  _renderJogoDetailFull();
 }
 
 function _jogoCampoHtml(g){
@@ -5889,6 +5901,7 @@ function renderConvocatorias(){
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${c.time?' '+c.time:''} · ${selected.length} convocadas · 👁 vista por ${seen.length}/${selected.length}</span>
         ${_convPublishBadgeHtml(c.publishAt)}
+        ${!game&&c.publishAt&&!_convIsPublished(c)?`<button class="btn btn-xs btn-gh" onclick="_publishConvNow('${c.id}')" title="Fica visível imediatamente">Publicar Agora</button>`:''}
         ${game?`<button class="btn btn-xs btn-gh" onclick="openJogo('${game.id}');navTo('jogos')" title="Gerida pelo Jogo — abrir">🔗 Jogo</button>`:`<button class="btn btn-xs btn-r" onclick="deleteConv('${c.id}')">🗑️</button>`}</div>
       </div>
       <div class="cb" style="padding:12px">
@@ -5917,6 +5930,10 @@ function saveConvocatoria(){
   saveData();_showConvForm=false;toast('Convocatória guardada ✓');renderConvocatorias();
 }
 function deleteConv(id){if(!confirm('Apagar?'))return;_markDeleted('convocatorias',id);APP.convocatorias=APP.convocatorias.filter(c=>c.id!==id);saveData();toast('Apagada');renderConvocatorias();}
+function _publishConvNow(id){
+  const c=APP.convocatorias.find(x=>x.id===id);if(!c)return;
+  c.publishAt='';saveData();toast('Publicada imediatamente ✓');renderConvocatorias();
+}
 
 // ─── BIBLIOTECA ───────────────────────────────────────────
 let _libCat='', _showLibForm=false, _editLibId=null;
