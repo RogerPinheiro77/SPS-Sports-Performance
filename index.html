@@ -2836,6 +2836,9 @@ function _initG(g){
   // Convocada que faltou ao jogo (compareceu à convocatória mas não apareceu) — {aid:motivoKey},
   // motivoKey reaproveita ATT_REASONS. Pedido do Roger, 24/08/2026.
   if(!g.noShow)g.noShow={};
+  // Notas por quadro do Campo Tático (Tático/Canto Def/Canto Of/Livre) — texto livre que
+  // aparece na caixa "Notas" do PDF desse quadro. Pedido do Roger, 24/08/2026.
+  if(!g.pitchNotes)g.pitchNotes={tatico:'',cornerDef:'',cornerOf:'',freeKick:''};
   return g;
 }
 // Data/hora local (mesmo formato do <input type="datetime-local">, "AAAA-MM-DDTHH:MM")
@@ -3466,6 +3469,7 @@ function _jogoCampoHtml(g){
   const mode=_jogoCampoTab;
   const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
   const modeTabs=_SETPIECE_TABS.map(([k,lb])=>`<button class="tab-btn ${mode===k?'on':''}" onclick="_jogoCampoTab='${k}';_renderJogoDetailFull()">${lb}</button>`).join('');
+  const modeLabel=(_SETPIECE_TABS.find(([k])=>k===mode)||['',''])[1]||'Campo';
   // Os 4 quadros mostram só meio campo, com a mesma grelha e círculos pequenos — o
   // tático deixou de ter formações predefinidas, pedido do Roger 24/08/2026 (antes só
   // se distinguia dos 3 de bolas paradas por mostrar o campo inteiro + formação 4-3-3
@@ -3537,6 +3541,10 @@ function _jogoCampoHtml(g){
         ${g.lineup.length?taskRows:`<p style="font-size:12px;color:var(--t2)">Adiciona titulares no Pré-Jogo.</p>`}
       </div>
     </div>
+    <div style="margin-top:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">NOTAS — ${escHtml(modeLabel)} (aparece no PDF deste quadro)</div>
+      <textarea class="fc" style="font-size:12px" rows="3" placeholder="Notas para este quadro..." onblur="savePitchNotes('${g.id}','${mode}',this.value)">${escHtml((g.pitchNotes||{})[mode]||'')}</textarea>
+    </div>
   </div>
   <div class="ipanel">
     <div class="sh-t" style="font-size:15px;margin-bottom:12px">🥅 Penalty</div>
@@ -3549,6 +3557,10 @@ function _jogoCampoHtml(g){
 // próprio SVG já desenhado no ecrã (com as posições atuais) + uma legenda por baixo com
 // número/alcunha/tarefa de cada titular, porque nos 3 quadros de bolas paradas o desenho
 // só mostra números. Pedido do Roger, 24/08/2026 — "individualmente", um PDF por quadro.
+// Layout vertical numa só página A4 (24/08/2026): campo grande em cima a ocupar quase
+// toda a largura, legenda compacta por baixo, e uma caixa de Notas no fundo com o texto
+// escrito no painel "Notas" desse quadro (g.pitchNotes[mode]) — em vez de linhas em
+// branco, mostra o que o Roger escreveu ali.
 function printJogoCampo(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   const mode=_jogoCampoTab;
@@ -3556,22 +3568,26 @@ function printJogoCampo(gid){
   if(!svgEl)return toast('Campo não encontrado','err');
   const svgHtml=svgEl.outerHTML
     .replace(/\son(?:mousedown|mousemove|mouseup|mouseleave|click)="[^"]*"/g,'')
-    .replace(/style="[^"]*"/,'style="width:100%;max-width:340px;display:block;border-radius:8px"');
+    .replace(/style="[^"]*"/,'style="width:100%;display:block;border-radius:6px"');
   const label=(_SETPIECE_TABS.find(([k])=>k===mode)||['',''])[1]||'Campo';
   const taskMap=_pitchTasks(g,mode);
   const legendRows=g.lineup.map((aid,i)=>{
     const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
     const task=taskMap[aid]||'';
-    return `<tr><td style="width:30px;text-align:center;font-weight:700">${a.number||i+1}</td><td>${escHtml(_shortName(a))}</td><td>${escHtml(task)||'—'}</td></tr>`;
+    return `<tr><td style="padding:3px 6px;font-size:8pt;width:24px;text-align:center;font-weight:700">${a.number||i+1}</td><td style="padding:3px 6px;font-size:8pt">${escHtml(_shortName(a))}</td><td style="padding:3px 6px;font-size:8pt">${escHtml(task)||'—'}</td></tr>`;
   }).join('');
+  const notes=(g.pitchNotes&&g.pitchNotes[mode])||'';
   const title=`${label} — vs ${escHtml(g.opp)} (${fmtDate(g.date)})`;
   const body=`
     <div class="pr-title">${title}</div>
-    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
-      <div style="width:300px;flex-shrink:0">${svgHtml}</div>
-      <div style="flex:1;min-width:200px">
-        <table><thead><tr><th>Nº</th><th>Atleta</th><th>Tarefa</th></tr></thead><tbody>${legendRows||'<tr><td colspan="3" style="text-align:center;color:#999">Sem titulares definidos</td></tr>'}</tbody></table>
-      </div>
+    <div style="max-width:170mm;margin:0 auto 10px">${svgHtml}</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:0">
+      <thead><tr><th style="padding:3px 6px;font-size:8pt">Nº</th><th style="padding:3px 6px;font-size:8pt">Atleta</th><th style="padding:3px 6px;font-size:8pt">Tarefa</th></tr></thead>
+      <tbody>${legendRows||'<tr><td colspan="3" style="text-align:center;color:#999;padding:6px">Sem titulares definidos</td></tr>'}</tbody>
+    </table>
+    <div style="margin-top:10px;border:0.5px solid #ccc;border-radius:4px;padding:8px 10px;min-height:22mm">
+      <div style="font-size:9pt;font-weight:700;color:#1d6f3b;margin-bottom:4px">Notas</div>
+      <div style="font-size:8.5pt;white-space:pre-wrap;line-height:1.5">${notes?escHtml(notes):''}</div>
     </div>
   `;
   _printWin(title,body);
@@ -3594,6 +3610,12 @@ function saveSetPiece(gid,type,val){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   if(!g.setpieces)g.setpieces={corners:'',freeKicks:'',penalty:''};
   g.setpieces[type]=val;saveData();
+}
+
+function savePitchNotes(gid,mode,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!g.pitchNotes)g.pitchNotes={tatico:'',cornerDef:'',cornerOf:'',freeKick:''};
+  g.pitchNotes[mode]=val;saveData();
 }
 
 function pitchDragStart(e,gid,aid,mode){
