@@ -2801,6 +2801,11 @@ function _initG(g){
   if(!g.subs)g.subs=[];
   if(!g.playerPositions)g.playerPositions={};
   if(!g.playerTasks)g.playerTasks={};
+  // Bolas paradas — 3 campos táticos interativos à parte do campo principal (Canto
+  // Defensivo/Ofensivo, Livre), cada um com as suas próprias posições e tarefas por
+  // atleta, independentes do campo tático (pedido do Roger, 24/08/2026).
+  if(!g.setpiecePositions)g.setpiecePositions={cornerDef:{},cornerOf:{},freeKick:{}};
+  if(!g.setpieceTasks)g.setpieceTasks={cornerDef:{},cornerOf:{},freeKick:{}};
   if(!g.captain)g.captain='';
   if(!g.viceCaptain)g.viceCaptain='';
   if(!g.oppFormation)g.oppFormation='';
@@ -3393,35 +3398,75 @@ function _setConvocatoriaPublishAt(gid,val){
   _renderJogoDetailFull();
 }
 
+// 4 campos táticos interativos por jogo: o principal (formação/onze, g.playerPositions
+// +g.playerTasks, como sempre existiu) e 3 de bolas paradas (Canto Defensivo/Ofensivo,
+// Livre), cada um com posições e tarefas próprias em g.setpiecePositions/g.setpieceTasks
+// — pedido do Roger, 24/08/2026, para poder montar rotinas específicas por fase de jogo.
+const _SETPIECE_TABS=[['tatico','🏟️ Tático'],['cornerDef','🔴 Canto Defensivo'],['cornerOf','🔵 Canto Ofensivo'],['freeKick','🎯 Livre']];
+let _jogoCampoTab='tatico';
+function _pitchPos(g,mode){
+  if(mode==='tatico'){if(!g.playerPositions)g.playerPositions={};return g.playerPositions;}
+  if(!g.setpiecePositions)g.setpiecePositions={cornerDef:{},cornerOf:{},freeKick:{}};
+  if(!g.setpiecePositions[mode])g.setpiecePositions[mode]={};
+  return g.setpiecePositions[mode];
+}
+function _pitchTasks(g,mode){
+  if(mode==='tatico'){if(!g.playerTasks)g.playerTasks={};return g.playerTasks;}
+  if(!g.setpieceTasks)g.setpieceTasks={cornerDef:{},cornerOf:{},freeKick:{}};
+  if(!g.setpieceTasks[mode])g.setpieceTasks[mode]={};
+  return g.setpieceTasks[mode];
+}
+// Posição inicial de cada atleta: no campo tático segue a formação escolhida (como
+// sempre); nos 3 campos de bolas paradas não há "formação" — arranca numa grelha simples
+// dentro da metade de campo visível, o treinador arrasta cada atleta para a posição real.
+function _pitchDefaultPos(mode,i,formation){
+  const PW=300,PH=420;
+  if(mode==='tatico'){
+    const preset=_FPOS[formation]||_FPOS['4-3-3'];
+    return preset[i]||[PW/2,PH/2];
+  }
+  return [40+(i%4)*70,110+Math.floor(i/4)*35];
+}
+// Altura máxima de arrasto (eixo Y) — no tático é o campo inteiro; nos 3 campos de bolas
+// paradas só se vê meio campo (área+baliza), por isso o limite é mais curto.
+function _pitchMaxY(mode){return mode==='tatico'?404:190;}
 function _jogoCampoHtml(g){
   const PW=300,PH=420;
-  const fBtns=Object.keys(_FPOS).map(f=>`<button class="tab-btn ${g.formation===f?'on':''}" onclick="setFormation('${g.id}','${f}')">${f}</button>`).join('');
+  const mode=_jogoCampoTab;
+  const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
+  const modeTabs=_SETPIECE_TABS.map(([k,lb])=>`<button class="tab-btn ${mode===k?'on':''}" onclick="_jogoCampoTab='${k}';_renderJogoDetailFull()">${lb}</button>`).join('');
+  const fBtns=mode==='tatico'?Object.keys(_FPOS).map(f=>`<button class="tab-btn ${g.formation===f?'on':''}" onclick="setFormation('${g.id}','${f}')">${f}</button>`).join(''):'';
+  // Nos 3 campos de bolas paradas só interessa organizar o espaço — círculos mais
+  // pequenos (para caberem vários lado a lado, ex: dentro da pequena área) e só o
+  // número, sem nome por baixo (nome completo continua no tooltip, ao tocar/passar
+  // o rato). O campo tático mantém-se como estava (pedido do Roger, 24/08/2026).
+  const isSet=mode!=='tatico';
+  const rad=isSet?7:15,numFs=isSet?7:10,sw=isSet?1.5:2.5,capFs=isSet?7:9,capOff=isSet?6:12,capY=isSet?-7:-10;
   const players=g.lineup.map((aid,i)=>{
     const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
-    const preset=_FPOS[g.formation]||_FPOS['4-3-3'];
-    const def=preset[i]||[PW/2,PH/2];
-    const pos=(g.playerPositions||{})[aid]||{x:def[0],y:def[1]};
+    const def=_pitchDefaultPos(mode,i,g.formation);
+    const pos=posMap[aid]||{x:def[0],y:def[1]};
     const isCap=g.captain===aid,isVc=g.viceCaptain===aid,isGK=i===0;
     const fill=isGK?'#27ae60':'#ffd700';
     const tf=isGK?'#fff':'#1a1a2e';
-    const nm=escHtml(a.name.split(' ').pop());
-    const task=(g.playerTasks||{})[aid]||'';
-    return `<g class="pitch-pl" data-aid="${aid}" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}')" onclick="pitchPlayerClick(event,'${g.id}','${aid}')">
-      <circle r="15" fill="${fill}" stroke="white" stroke-width="2.5"/>
-      <text text-anchor="middle" dy="4" font-size="10" font-weight="bold" fill="${tf}">${a.number||i+1}</text>
-      <text text-anchor="middle" y="26" font-size="7.5" fill="rgba(255,255,255,.9)">${nm}</text>
-      ${isCap?'<text x="12" y="-10" font-size="9" fill="#ffd700" font-weight="bold">C</text>':''}
-      ${isVc?'<text x="12" y="-10" font-size="9" fill="#ddd" font-weight="bold">VC</text>':''}
+    const nm=escHtml(_shortName(a));
+    const task=taskMap[aid]||'';
+    return `<g class="pitch-pl" data-aid="${aid}" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}')" onclick="pitchPlayerClick(event,'${g.id}','${aid}','${mode}')">
+      <circle r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/>
+      <text text-anchor="middle" dy="${isSet?2.5:4}" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||i+1}</text>
+      ${isSet?'':`<text text-anchor="middle" y="26" font-size="7.5" fill="rgba(255,255,255,.9)">${nm}</text>`}
+      ${isCap?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ffd700" font-weight="bold">C</text>`:''}
+      ${isVc?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ddd" font-weight="bold">VC</text>`:''}
       <title>${escHtml(a.name)}${task?' — '+escHtml(task):''}</title>
     </g>`;
   }).join('');
   const taskRows=g.lineup.map((aid,i)=>{
     const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
-    const task=(g.playerTasks||{})[aid]||'';
+    const task=taskMap[aid]||'';
     return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
       <div style="width:22px;height:22px;background:${i===0?'#27ae60':'var(--pri)'};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||i+1}</div>
-      <div style="font-size:11px;font-weight:600;width:80px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.name)}">${escHtml(a.name.split(' ')[0])}</div>
-      <input class="fc" style="font-size:11px;padding:3px 6px;flex:1" placeholder="Tarefa..." value="${escHtml(task)}" onblur="savePlayerTask('${g.id}','${aid}',this.value)">
+      <div style="font-size:11px;font-weight:600;width:80px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.name)}">${escHtml(_shortName(a))}</div>
+      <input class="fc" style="font-size:11px;padding:3px 6px;flex:1" placeholder="Tarefa..." value="${escHtml(task)}" onblur="savePlayerTask('${g.id}','${aid}',this.value,'${mode}')">
     </div>`;
   }).join('');
   return `<div>
@@ -3430,9 +3475,10 @@ function _jogoCampoHtml(g){
       <div class="sh-t" style="font-size:15px">🏟️ Campo Tático Interativo</div>
       <span style="font-size:11px;color:var(--t2)">Arrasta atletas • Clica para tarefa</span>
     </div>
-    <div class="tabs" style="margin-bottom:10px;flex-wrap:wrap">${fBtns}</div>
+    <div class="tabs" style="margin-bottom:8px;flex-wrap:wrap">${modeTabs}</div>
+    ${mode==='tatico'?`<div class="tabs" style="margin-bottom:10px;flex-wrap:wrap">${fBtns}</div>`:''}
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} ${PH}" style="width:100%;max-width:280px;display:block;border-radius:8px;flex-shrink:0;touch-action:none" onmousemove="pitchDragMove(event)" onmouseup="pitchDragEnd(event)" onmouseleave="pitchDragEnd(event)">
+      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} ${isSet?200:PH}" style="width:100%;max-width:280px;display:block;border-radius:8px;flex-shrink:0;touch-action:none" onmousemove="pitchDragMove(event)" onmouseup="pitchDragEnd(event)" onmouseleave="pitchDragEnd(event)">
         <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
         <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
         <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -3446,7 +3492,7 @@ function _jogoCampoHtml(g){
         <rect x="132" y="403" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
         <circle cx="150" cy="58" r="2.5" fill="rgba(255,255,255,.45)"/>
         <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>
-        ${g.lineup.length?players:`<text x="150" y="215" text-anchor="middle" fill="rgba(255,255,255,.35)" font-size="11">Define o onze no Pré-Jogo</text>`}
+        ${g.lineup.length?players:`<text x="150" y="${isSet?100:215}" text-anchor="middle" fill="rgba(255,255,255,.35)" font-size="11">Define o onze no Pré-Jogo</text>`}
       </svg>
       <div style="flex:1;min-width:180px">
         <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px;letter-spacing:.5px">TAREFAS INDIVIDUAIS</div>
@@ -3455,15 +3501,8 @@ function _jogoCampoHtml(g){
     </div>
   </div>
   <div class="ipanel">
-    <div class="sh-t" style="font-size:15px;margin-bottom:12px">⚽ Bolas Paradas</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-      <div><div style="font-size:12px;font-weight:700;margin-bottom:6px">🔄 Cantos</div>
-      <textarea class="fc" style="font-size:11px" rows="5" placeholder="Rotinas de canto..." onblur="saveSetPiece('${g.id}','corners',this.value)">${escHtml((g.setpieces||{}).corners||'')}</textarea></div>
-      <div><div style="font-size:12px;font-weight:700;margin-bottom:6px">🎯 Livres</div>
-      <textarea class="fc" style="font-size:11px" rows="5" placeholder="Situações de livre direto..." onblur="saveSetPiece('${g.id}','freeKicks',this.value)">${escHtml((g.setpieces||{}).freeKicks||'')}</textarea></div>
-      <div><div style="font-size:12px;font-weight:700;margin-bottom:6px">🥅 Penalty</div>
-      <textarea class="fc" style="font-size:11px" rows="5" placeholder="Ordem de marcação, executante..." onblur="saveSetPiece('${g.id}','penalty',this.value)">${escHtml((g.setpieces||{}).penalty||'')}</textarea></div>
-    </div>
+    <div class="sh-t" style="font-size:15px;margin-bottom:12px">🥅 Penalty</div>
+    <textarea class="fc" style="font-size:11px" rows="4" placeholder="Ordem de marcação, executante..." onblur="saveSetPiece('${g.id}','penalty',this.value)">${escHtml((g.setpieces||{}).penalty||'')}</textarea>
   </div>
   </div>`;
 }
@@ -3477,10 +3516,9 @@ function setFormation(gid,f){
   saveData();_renderJogoDetailFull();
 }
 
-function savePlayerTask(gid,aid,val){
+function savePlayerTask(gid,aid,val,mode){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
-  if(!g.playerTasks)g.playerTasks={};
-  g.playerTasks[aid]=val;saveData();
+  _pitchTasks(g,mode||'tatico')[aid]=val;saveData();
 }
 
 function saveSetPiece(gid,type,val){
@@ -3489,15 +3527,16 @@ function saveSetPiece(gid,type,val){
   g.setpieces[type]=val;saveData();
 }
 
-function pitchDragStart(e,gid,aid){
+function pitchDragStart(e,gid,aid,mode){
   e.preventDefault();e.stopPropagation();
   _pitchWasDrag=false;
+  mode=mode||_jogoCampoTab||'tatico';
   const svg=document.getElementById('pitch-svg-'+gid);if(!svg)return;
   const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
   const g=APP.games.find(x=>x.id===gid);
-  const pos=(g&&g.playerPositions&&g.playerPositions[aid])||{x:150,y:210};
-  _pitchDragging={gid,aid,sx:svgP.x,sy:svgP.y,ox:pos.x,oy:pos.y};
+  const pos=(g&&_pitchPos(g,mode)[aid])||{x:150,y:210};
+  _pitchDragging={gid,aid,mode,sx:svgP.x,sy:svgP.y,ox:pos.x,oy:pos.y};
 }
 
 function pitchDragMove(e){
@@ -3508,7 +3547,7 @@ function pitchDragMove(e){
   const dx=svgP.x-_pitchDragging.sx,dy=svgP.y-_pitchDragging.sy;
   if(Math.abs(dx)>4||Math.abs(dy)>4)_pitchWasDrag=true;
   const nx=Math.max(16,Math.min(284,_pitchDragging.ox+dx));
-  const ny=Math.max(16,Math.min(404,_pitchDragging.oy+dy));
+  const ny=Math.max(16,Math.min(_pitchMaxY(_pitchDragging.mode),_pitchDragging.oy+dy));
   const el=svg.querySelector('[data-aid="'+_pitchDragging.aid+'"]');
   if(el)el.setAttribute('transform','translate('+nx.toFixed(1)+','+ny.toFixed(1)+')');
 }
@@ -3522,23 +3561,24 @@ function pitchDragEnd(e){
       const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
       const dx=svgP.x-_pitchDragging.sx,dy=svgP.y-_pitchDragging.sy;
       const nx=Math.max(16,Math.min(284,_pitchDragging.ox+dx));
-      const ny=Math.max(16,Math.min(404,_pitchDragging.oy+dy));
+      const ny=Math.max(16,Math.min(_pitchMaxY(_pitchDragging.mode),_pitchDragging.oy+dy));
       const g=APP.games.find(x=>x.id===_pitchDragging.gid);
-      if(g){if(!g.playerPositions)g.playerPositions={};g.playerPositions[_pitchDragging.aid]={x:nx,y:ny};saveData();}
+      if(g){_pitchPos(g,_pitchDragging.mode||'tatico')[_pitchDragging.aid]={x:nx,y:ny};saveData();}
     }
   }
   _pitchDragging=null;
 }
 
-function pitchPlayerClick(e,gid,aid){
+function pitchPlayerClick(e,gid,aid,mode){
   if(_pitchWasDrag){_pitchWasDrag=false;return;}
+  mode=mode||_jogoCampoTab||'tatico';
   const a=APP.athletes.find(x=>x.id===aid);if(!a)return;
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
-  const task=(g.playerTasks||{})[aid]||'';
+  const taskMap=_pitchTasks(g,mode);
+  const task=taskMap[aid]||'';
   const nt=prompt('Tarefa tática — '+a.name+':',task);
   if(nt!==null){
-    if(!g.playerTasks)g.playerTasks={};
-    g.playerTasks[aid]=nt;saveData();
+    taskMap[aid]=nt;saveData();
     const svg=document.getElementById('pitch-svg-'+gid);
     if(svg){const ttl=svg.querySelector('[data-aid="'+aid+'"] title');if(ttl)ttl.textContent=a.name+(nt?' — '+nt:'');}
     document.querySelectorAll('input[onblur*="\''+aid+'\'"]').forEach(inp=>{inp.value=nt;});
@@ -3550,7 +3590,7 @@ function _initPitchEvents(gid){
   svg.addEventListener('touchstart',e=>{
     if(e.touches.length!==1)return;
     const t=e.touches[0],target=t.target.closest('.pitch-pl');
-    if(target){e.preventDefault();pitchDragStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},gid,target.dataset.aid);}
+    if(target){e.preventDefault();pitchDragStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},gid,target.dataset.aid,_jogoCampoTab);}
   },{passive:false});
   svg.addEventListener('touchmove',e=>{
     if(!_pitchDragging||e.touches.length!==1)return;
@@ -3559,13 +3599,13 @@ function _initPitchEvents(gid){
   svg.addEventListener('touchend',e=>{
     if(!_pitchDragging)return;
     const t=e.changedTouches[0];
-    const dgid=_pitchDragging.gid,daid=_pitchDragging.aid,wasD=_pitchWasDrag;
+    const dgid=_pitchDragging.gid,daid=_pitchDragging.aid,dmode=_pitchDragging.mode||'tatico',wasD=_pitchWasDrag;
     pitchDragEnd({clientX:t.clientX,clientY:t.clientY});
     if(!wasD){
       const a=APP.athletes.find(x=>x.id===daid);
       const g=APP.games.find(x=>x.id===dgid);
-      if(a&&g){const task=(g.playerTasks||{})[daid]||'';const nt=prompt('Tarefa — '+a.name+':',task);
-      if(nt!==null){if(!g.playerTasks)g.playerTasks={};g.playerTasks[daid]=nt;saveData();}}
+      if(a&&g){const taskMap=_pitchTasks(g,dmode);const task=taskMap[daid]||'';const nt=prompt('Tarefa — '+a.name+':',task);
+      if(nt!==null){taskMap[daid]=nt;saveData();}}
     }
   });
 }
