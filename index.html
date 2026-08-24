@@ -4044,6 +4044,17 @@ function _jogoExpHtml(g){
   </div>`;
 }
 
+// Ordena Guarda-Redes primeiro (independente do número), resto por número de camisola
+// crescente — usado na Ficha Pré-Jogo (versão para a secretaria), tanto no onze inicial
+// como nos suplentes. A Lista de Convocados alfabética (exportConvocatoriaListPDF) não
+// usa isto, fica em ordem alfabética como sempre. Pedido do Roger, 24/08/2026.
+function _sortGKFirst(list){
+  return list.slice().sort((a,b)=>{
+    const gkA=a.pos==='GR'?0:1,gkB=b.pos==='GR'?0:1;
+    if(gkA!==gkB)return gkA-gkB;
+    return (+(a.number||a.num)||999)-(+(b.number||b.num)||999);
+  });
+}
 function exportJogoPDF(gid,type){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   _initG(g);
@@ -4053,12 +4064,12 @@ function exportJogoPDF(gid,type){
   const comp=g.comp?' — '+g.comp:'';
   let body='';
   if(type==='prejogo'||type==='full'){
-    const ats=g.lineup.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
-    const sus=g.subs.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+    const ats=_sortGKFirst(g.lineup.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean));
+    const sus=_sortGKFirst(g.subs.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean));
     const cap=APP.athletes.find(a=>a.id===g.captain);
     const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
-    const lR=ats.map((a,i)=>`<tr><td>${a.number||i+1}</td><td>${a.name}</td><td>${a.pos||'—'}</td><td>${(g.playerTasks||{})[a.id]||''}</td></tr>`).join('');
-    const sR=sus.map((a,i)=>`<tr><td>${a.number||'S'+(i+1)}</td><td>${a.name}</td><td>${a.pos||'—'}</td><td></td></tr>`).join('');
+    const lR=ats.map((a,i)=>`<tr><td>${a.number||a.num||i+1}</td><td>${a.name}</td><td>${a.pos||'—'}</td><td>${(g.playerTasks||{})[a.id]||''}</td></tr>`).join('');
+    const sR=sus.map((a,i)=>`<tr><td>${a.number||a.num||'S'+(i+1)}</td><td>${a.name}</td><td>${a.pos||'—'}</td><td></td></tr>`).join('');
     body+=`<div><h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Ficha Pré-Jogo</h2>
       <p><b>Adversário:</b> ${g.opp} (${haStr})${g.loc?' — '+g.loc:''}</p>
       ${cap?`<p><b>Capitã:</b> ${cap.name}${vc?' &nbsp;|&nbsp; <b>Vice-Capitã:</b> '+vc.name:''}</p>`:''}
