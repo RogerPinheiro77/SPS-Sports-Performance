@@ -3604,6 +3604,12 @@ function _jogoPosHtml(g){
     ${ats.length?`<div class="tw"><table><thead><tr><th>Atleta</th><th>Min.</th><th>⚽</th><th>🟨</th><th>🟥</th><th>Sub↑</th><th>Sub↓</th></tr></thead><tbody>${sRows}</tbody></table></div>
     <button class="btn btn-g" style="margin-top:10px" onclick="savePostStats('${g.id}')">💾 Guardar Estatísticas</button>`:`<p style="color:var(--t2);font-size:12px">Define convocatória e onze no separador Pré-Jogo.</p>`}
   </div>
+  <div class="ipanel" style="margin-bottom:12px">
+    <div class="sh-t" style="font-size:15px;margin-bottom:6px">📋 Registar PSE Manualmente</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:8px;line-height:1.5">Usa quando uma atleta reportou o PSE por fora da app (ex: WhatsApp). A duração vem pré-preenchida com os minutos jogados de "Estatísticas Individuais" acima — ajusta se for diferente. Atletas já com PSE registado nesse dia aparecem bloqueadas, para não sobrepores por engano.</div>
+    ${ats.length?`<div class="tw"><table><thead><tr><th>Atleta</th><th>PSE</th><th>Duração</th><th></th></tr></thead><tbody>${_jogoPseManualRows(g,ats)}</tbody></table></div>
+    <button class="btn btn-g" style="margin-top:10px" onclick="saveJogoPseManual('${g.id}')">💾 Guardar PSE</button>`:`<p style="color:var(--t2);font-size:12px">Define convocatória e onze no separador Pré-Jogo.</p>`}
+  </div>
   <div class="ipanel">
     <div class="sh-t" style="font-size:15px;margin-bottom:10px">📝 Análise Pós-Jogo</div>
     <textarea class="fc" id="pos-notes" rows="6" placeholder="Reflexão sobre o desempenho da equipa, aspetos positivos e a melhorar...">${escHtml(g.postGameNotes||'')}</textarea>
@@ -3829,6 +3835,57 @@ function savePostStats(gid){
   g.playerStats=Object.values(map);saveData();toast('Estatísticas guardadas ✓');
 }
 
+// Registo manual de PSE (staff insere em nome da atleta, ex: reportado por WhatsApp
+// depois de um jogo) — usa o mesmo _CLOUD_TABLE_SCHEMA/pse_records que o autorregisto
+// da atleta, para entrar nos cálculos de ACWR/monotonia sem tratamento especial.
+// Atletas que já têm PSE nesse dia ficam bloqueadas por defeito (evita sobrepor por
+// engano); _pseManualShow guarda quais foram explicitamente destrancadas para substituir.
+let _pseManualShow=new Set();
+function _jogoPseManualRows(g,ats){
+  return ats.map(a=>{
+    const existing=APP.pse.find(p=>p.athleteId===a.id&&p.date===g.date);
+    const st=(g.playerStats||[]).find(s=>s.aid===a.id);
+    const defMin=st&&st.mins?st.mins:'';
+    if(existing&&!_pseManualShow.has(a.id)){
+      return `<tr>
+        <td style="font-size:11px">${escHtml(a.name)}</td>
+        <td colspan="2" style="font-size:11px;color:var(--t2)">✓ Já registado: <strong>${existing.pse}/10</strong> · ${existing.duration} min</td>
+        <td><button class="btn btn-gh btn-sm" style="padding:2px 8px;font-size:10px" onclick="_pseManualShow.add('${a.id}');_renderJogoDetailFull()">Substituir</button></td>
+      </tr>`;
+    }
+    return `<tr>
+      <td style="font-size:11px">${escHtml(a.name)}</td>
+      <td><select class="fc" style="padding:3px 4px;font-size:11px;width:56px" data-pse-aid="${a.id}" data-pse-field="pse"><option value="">—</option>${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}">${n}</option>`).join('')}</select></td>
+      <td><input class="fc" type="number" min="0" max="200" style="width:55px;padding:3px 5px;font-size:11px" placeholder="min" value="${defMin}" data-pse-aid="${a.id}" data-pse-field="duration"></td>
+      <td>${existing?'<span style="font-size:9px;color:#fbbf24">vai substituir</span>':''}</td>
+    </tr>`;
+  }).join('');
+}
+function saveJogoPseManual(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const pseSelects=[...document.querySelectorAll('[data-pse-field="pse"]')];
+  let saved=0;
+  pseSelects.forEach(sel=>{
+    const aid=sel.dataset.pseAid;
+    if(sel.value==='')return;
+    const durEl=document.querySelector(`[data-pse-field="duration"][data-pse-aid="${aid}"]`);
+    const dur=durEl?+durEl.value:0;
+    if(!dur)return;
+    APP.pse=APP.pse.filter(p=>!(p.athleteId===aid&&p.date===g.date));
+    const pseVal=+sel.value;
+    const entry={id:uid(),athleteId:aid,date:g.date,pse:pseVal,duration:dur,ua:Math.round(pseVal*dur),sessionType:'Jogo',submittedAt:new Date().toISOString()};
+    APP.pse.push(entry);
+    if(_sync)cloudUpsert('pse_records',{...entry,athlete_id:entry.athleteId,session_type:entry.sessionType,club_id:_cid});
+    _autoMarkAttendance(aid,g.date,'treino');
+    saved++;
+  });
+  if(!saved)return toast('Preenche PSE e duração de pelo menos uma atleta','err');
+  _pseManualShow.clear();
+  saveData();
+  toast(`PSE registado para ${saved} atleta${saved>1?'s':''} ✓`);
+  _renderJogoDetailFull();
+}
+
 function savePosNotes(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   const el=document.getElementById('pos-notes');if(el){g.postGameNotes=el.value;saveData();toast('Análise guardada ✓');}
@@ -3948,7 +4005,11 @@ function exportConvocatoriaListPDF(gid){
 // em Planeamento mas sem eventId guardado — evita criar um duplicado na 1ª edição.
 async function _syncJogoSchedule(g,matchDate,matchTeamId){
   if(!APP.schedule)APP.schedule=[];
-  const evData={title:'vs '+g.opp,type:'Jogo',date:g.date,time:g.time||'',location:g.loc||'',teamId:g.teamId||null,dur:120,notes:g.comp||''};
+  // Duração real do jogo (usada tanto para a hora de "recuperação pós-jogo" no cartão
+  // Dia de Jogo da atleta, como para o desbloqueio automático do PSE) — campo único
+  // g.djDurJogo, editável no Pré-Jogo, com 105 min por defeito (pedido do Roger, 24/08/2026).
+  const durJogo=parseInt(g.djDurJogo,10)||105;
+  const evData={title:'vs '+g.opp,type:'Jogo',date:g.date,time:g.time||'',location:g.loc||'',teamId:g.teamId||null,dur:durJogo,notes:g.comp||''};
   let ev=g.eventId?APP.schedule.find(e=>e.id===g.eventId):null;
   if(!ev){
     const md=matchDate!==undefined?matchDate:g.date, mt=matchTeamId!==undefined?matchTeamId:g.teamId;
