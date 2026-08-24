@@ -2831,6 +2831,9 @@ function _initG(g){
   if(g.djOffFocus===undefined)g.djOffFocus='';
   if(g.djDurJogo===undefined)g.djDurJogo='';
   if(g.djNota===undefined)g.djNota='';
+  // Convocada que faltou ao jogo (compareceu à convocatória mas não apareceu) — {aid:motivoKey},
+  // motivoKey reaproveita ATT_REASONS. Pedido do Roger, 24/08/2026.
+  if(!g.noShow)g.noShow={};
   return g;
 }
 // Data/hora local (mesmo formato do <input type="datetime-local">, "AAAA-MM-DDTHH:MM")
@@ -2893,6 +2896,7 @@ function _purgeAthleteRefs(id){
     if(g.viceCaptain===id){g.viceCaptain='';changed=true;}
     if(g.playerPositions&&g.playerPositions[id]){delete g.playerPositions[id];changed=true;}
     if(g.playerTasks&&g.playerTasks[id]){delete g.playerTasks[id];changed=true;}
+    if(g.noShow&&g.noShow[id]!==undefined){delete g.noShow[id];changed=true;}
     if(changed)_syncConvocatoriaFromGame(g);
   });
   (APP.convocatorias||[]).forEach(c=>{
@@ -3241,9 +3245,10 @@ function _jogoPreHtml(g){
   const convRows=athletes.map(a=>{
     const isC=convSet.has(a.id),isS=lineSet.has(a.id),isSu=subSet.has(a.id);
     const isCap=g.captain===a.id,isVc=g.viceCaptain===a.id;
+    const isNoShow=g.noShow&&g.noShow[a.id]!==undefined;
     const cr=condByAid[a.id];
     const condBadge=cr?(cr.gate?`<span class="bdg bg-r" style="font-size:9px" title="Estado nesta data">${escHtml(cr.gateTxt)}</span>`:`<span class="bdg bg-${cr.overallLvl}" style="font-size:9px" title="Estado nesta data">${cr.overallLabel}</span>`):'';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isC?'var(--bg2)':'var(--bg3)'};border:1px solid var(--brd);border-radius:6px;margin-bottom:4px;flex-wrap:wrap">
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isNoShow?'#fdecea':(isC?'var(--bg2)':'var(--bg3)')};border:1px solid var(--brd);border-radius:6px;margin-bottom:4px;flex-wrap:wrap">
       <input type="checkbox" ${isC?'checked':''} onchange="toggleConvocado('${g.id}','${a.id}',this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
       <div style="width:22px;height:22px;background:var(--pri);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.num||'?'}</div>
       <div style="flex:1;min-width:90px">
@@ -3254,12 +3259,18 @@ function _jogoPreHtml(g){
       ${isCap?'<span style="background:#ffd700;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">CAP</span>':''}
       ${isVc?'<span style="background:#c0c0c0;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">VCap</span>':''}
       ${isS?'<span class="bdg bg-g" style="font-size:9px">Titular</span>':isSu?'<span class="bdg bg-y" style="font-size:9px">Suplente</span>':''}
+      ${isNoShow?'<span class="bdg bg-r" style="font-size:9px">❌ Faltou</span>':''}
       ${isC?`<div style="display:flex;gap:3px">
         <button class="btn btn-xs ${isS?'btn-g':'btn-gh'}" onclick="setStarter('${g.id}','${a.id}')" title="Titular">11</button>
         <button class="btn btn-xs ${isSu?'btn-y':'btn-gh'}" onclick="setSub('${g.id}','${a.id}')" title="Suplente">S</button>
         <button class="btn btn-xs ${isCap?'btn-g':'btn-gh'}" onclick="setCaptain('${g.id}','${a.id}','cap')" title="Capitã">C</button>
         <button class="btn btn-xs ${isVc?'btn-g':'btn-gh'}" onclick="setCaptain('${g.id}','${a.id}','vc')" title="Vice">VC</button>
+        <button class="btn btn-xs ${isNoShow?'btn-r':'btn-gh'}" onclick="toggleFaltouJogo('${g.id}','${a.id}')" title="Convocada mas não compareceu">Faltou</button>
       </div>`:''}
+      ${isNoShow?`<div style="flex-basis:100%"><select class="fc" style="font-size:11px;padding:3px 6px;margin-top:2px" onchange="setFaltouMotivo('${g.id}','${a.id}',this.value)">
+        <option value="">Motivo...</option>
+        ${Object.entries(ATT_REASONS).map(([v,l])=>`<option value="${v}" ${g.noShow[a.id]===v?'selected':''}>${l}</option>`).join('')}
+      </select></div>`:''}
     </div>`;
   }).join('');
   const lSum=g.lineup.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg2);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.num||'?'} ${escHtml(a.name)}</span>`:''}).join('');
@@ -3364,6 +3375,28 @@ function setSub(gid,aid){
   if(g.subs.includes(aid)){g.subs=g.subs.filter(x=>x!==aid);}
   else{g.subs.push(aid);g.lineup=g.lineup.filter(x=>x!==aid);}
   _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
+}
+
+// Convocada que não compareceu ao jogo, com motivo (reaproveita ATT_REASONS). Continua
+// convocada (não sai da lista/contagem), só fica sinalizada — e é automaticamente
+// removida de titular/suplente/capitã/vice, porque não faz sentido continuar nesses
+// papéis. Pedido do Roger, 24/08/2026 — aparece também no Relatório de Atleta.
+function toggleFaltouJogo(gid,aid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(g.noShow[aid]!==undefined){delete g.noShow[aid];}
+  else{
+    g.noShow[aid]='';
+    g.lineup=g.lineup.filter(x=>x!==aid);
+    g.subs=g.subs.filter(x=>x!==aid);
+    if(g.captain===aid)g.captain='';
+    if(g.viceCaptain===aid)g.viceCaptain='';
+  }
+  _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
+}
+function setFaltouMotivo(gid,aid,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(g.noShow[aid]===undefined)return;
+  g.noShow[aid]=val;saveData();
 }
 
 function setCaptain(gid,aid,type){
@@ -7100,7 +7133,8 @@ function printAthleteReport(){
 
   const convocsP=(APP.convocatorias||[]).filter(c=>c.athletes&&c.athletes.includes(id)&&inRange(c.date)).sort((a,b)=>a.date.localeCompare(b.date));
 
-  const gamesP=APP.games.filter(g=>inRange(g.date)&&((g.lineup&&g.lineup.includes(id))||(g.subs&&g.subs.includes(id))||(g.playerStats||[]).some(s=>s.aid===id)));
+  const gamesP=APP.games.filter(g=>inRange(g.date)&&((g.lineup&&g.lineup.includes(id))||(g.subs&&g.subs.includes(id))||(g.playerStats||[]).some(s=>s.aid===id)||(g.noShow&&g.noShow[id]!==undefined)));
+  const noShowGamesP=gamesP.filter(g=>g.noShow&&g.noShow[id]!==undefined);
 
   const injuriesP=APP.injuries.filter(i=>i.athleteId===id&&i.date<=endDate&&(!i.returnDate||i.returnDate>=startDate));
   const treatsP=APP.treatments.filter(t=>t.athleteId===id&&inRange(t.date)).sort((a,b)=>a.date.localeCompare(b.date));
@@ -7142,7 +7176,7 @@ function printAthleteReport(){
   const attAusentesPrev=attRecsPrev.filter(a=>a.status==='ausente'&&a.reason!=='ferias');
   const attDenomPrev=attPresentePrev+attAusentesPrev.length;
   const attPctPrev=attDenomPrev?Math.round(attPresentePrev/attDenomPrev*100):null;
-  const gamesPrev=APP.games.filter(g=>g.date>=prevStart&&g.date<=prevEnd&&((g.lineup&&g.lineup.includes(id))||(g.subs&&g.subs.includes(id))||(g.playerStats||[]).some(s=>s.aid===id)));
+  const gamesPrev=APP.games.filter(g=>g.date>=prevStart&&g.date<=prevEnd&&((g.lineup&&g.lineup.includes(id))||(g.subs&&g.subs.includes(id))||(g.playerStats||[]).some(s=>s.aid===id)||(g.noShow&&g.noShow[id]!==undefined)));
   const latestEvalDate=[tecEntry?.p.openDate,autoEntry?.p.openDate].filter(Boolean).sort().pop()||null;
   const daysSinceEval=latestEvalDate?Math.round((new Date(endDate+'T00:00:00')-new Date(latestEvalDate+'T00:00:00'))/86400000):null;
   const cycleOvul=wellRecs.some(w=>w.cycle==='Ovulação');
@@ -7154,6 +7188,7 @@ function printAthleteReport(){
   if(avgWell!==null&&avgWellPrev!==null&&(avgWellPrev-avgWell)>=15)findings.push({lvl:'y',txt:`Queda de wellness face ao período anterior — ${avgWellPrev} → ${avgWell}`});
   if(attPct!==null&&attPct<80)findings.push({lvl:'y',txt:`Presenças abaixo do esperado — ${attPct}% no período`});
   if(naoJust.length)findings.push({lvl:'y',txt:`${naoJust.length} falta${naoJust.length>1?'s':''} não justificada${naoJust.length>1?'s':''} no período`});
+  if(noShowGamesP.length)findings.push({lvl:'y',txt:`${noShowGamesP.length} falta${noShowGamesP.length>1?'s':''} a jogo${noShowGamesP.length>1?'s':''} para o${noShowGamesP.length>1?'s':''} qual${noShowGamesP.length>1?'is':''} estava convocada`});
   if(activeInPeriod.length)findings.push({lvl:'r',txt:`Lesão em acompanhamento: ${activeInPeriod.map(i=>escHtml(i.diagnosis||i.type||'—')).join(', ')}`});
   if(!latestEvalDate)findings.push({lvl:'y',txt:'Sem avaliação técnica registada'});
   else if(daysSinceEval>60)findings.push({lvl:'y',txt:`Avaliação técnica desatualizada — última há ${daysSinceEval} dias`});
@@ -7234,6 +7269,11 @@ function printAthleteReport(){
   }).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem convocatórias no período</p>';
 
   const gamesTable=gamesP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Resultado</th><th>Min.</th><th>⚽</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${gamesP.sort((a,b)=>a.date.localeCompare(b.date)).map(g=>{
+    const noShow=g.noShow&&g.noShow[id]!==undefined;
+    if(noShow){
+      const motivo=ATT_REASONS[g.noShow[id]]||'Sem motivo indicado';
+      return `<tr><td>${fmtDate(g.date)}</td><td>${escHtml(g.opp)}</td><td colspan="5" style="color:#c0392b">❌ Convocada mas não compareceu — ${motivo}</td></tr>`;
+    }
     const st=(g.playerStats||[]).find(s=>s.aid===id);
     const res=g.g1!=null&&g.g2!=null?g.g1+'–'+g.g2:'—';
     return `<tr><td>${fmtDate(g.date)}</td><td>${escHtml(g.opp)}</td><td>${res}</td><td>${st?st.mins||0:'sem dados'}</td><td>${st?st.goals||0:'—'}</td><td>${st?st.yellow||0:'—'}</td><td>${st?st.red||0:'—'}</td></tr>`;
