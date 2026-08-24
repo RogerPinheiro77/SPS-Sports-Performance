@@ -368,6 +368,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-microciclos"></div>
       <div class="pg" id="pg-jogos"></div>
       <div class="pg" id="pg-treinos"></div>
+      <div class="pg" id="pg-condicao-plantel"></div>
       <div class="pg" id="pg-pse-wellness"></div>
       <div class="pg" id="pg-scouting"></div>
       <div class="pg" id="pg-avaliacoes"></div>
@@ -774,6 +775,7 @@ const ALL_PAGES=[
   {id:'treinos',icon:'📋',label:'Unidades de Treino'},
   {id:'formacao',icon:'🌱',label:'Formação'},
   {sec:'Análise'},
+  {id:'condicao-plantel',icon:'🚦',label:'Condição do Plantel'},
   {id:'pse-wellness',icon:'📊',label:'PSE & Wellness'},
   {id:'avaliacoes',icon:'⭐',label:'Avaliações'},
   {id:'convocatorias',icon:'📋',label:'Convocatórias'},
@@ -801,7 +803,7 @@ const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 const ROLE_DEFS={
   treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
-  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','pse-wellness','treinos','treinos-ind','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos','treinos-ind','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat','fisio-anamnese'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos'],readOnly:false,manageUsers:false},
@@ -882,9 +884,9 @@ function navTo(id){
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
-  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
+  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
   document.getElementById('pg-title').textContent=titles[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -4525,6 +4527,90 @@ function _condicaoJogoCompute(tr){
     return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,cyclePhase,cycleImpact,cycleLvl,overallLvl,overallLabel};
   });
   return {dt,rows,nextGame,lastGame};
+}
+// ─── CONDIÇÃO DO PLANTEL ────────────────────────────────────────────────────
+// Página própria (não presa a um treino nem jogo específico) para o Roger poder
+// ver o estado do plantel a qualquer momento antes de uma sessão — reaproveita
+// por completo o motor _condicaoJogoCompute(data), já usado no Pré-Jogo e no PDF
+// "Condição para o Jogo". Pedido do Roger, 24/08/2026: "ver como está o plantel
+// e alertas para atletas em risco e/ou recomendações" antes de cada treino —
+// serve igualmente para preparar um jogo, bastando escolher essa data.
+let _cpDate=today();
+function _cpRecommendation(lvl){
+  return {g:'🟢 Treino normal',y:'🟡 Monitorizar / considerar individualização',r:'🔴 Avaliação individual antes da sessão'}[lvl]||'—';
+}
+function renderCondicaoPlantel(){
+  const {dt,rows,nextGame,lastGame}=_condicaoJogoCompute({date:_cpDate});
+  const _ord={r:0,y:1,gate:2,g:3};
+  const sorted=rows.slice().sort((a,b)=>{
+    const ka=a.gate?'gate':a.overallLvl, kb=b.gate?'gate':b.overallLvl;
+    return _ord[ka]-_ord[kb];
+  });
+  const riscoCount=rows.filter(r=>!r.gate&&r.overallLvl==='r').length;
+  const atencaoCount=rows.filter(r=>!r.gate&&r.overallLvl==='y').length;
+  const otimaCount=rows.filter(r=>!r.gate&&r.overallLvl==='g').length;
+  const indispCount=rows.filter(r=>r.gate).length;
+
+  const gameNote=nextGame?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Próximo jogo: <strong>${fmtDate(nextGame.date)}</strong>${nextGame.opp?' vs '+escHtml(nextGame.opp):''}</div>`:'';
+
+  const kpiHtml=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px">
+    <div class="card" style="padding:10px;text-align:center;border-left:3px solid var(--danger,#c0392b)"><div style="font-size:20px;font-weight:800">${riscoCount}</div><div style="font-size:10px;color:var(--t2)">🔴 Em risco</div></div>
+    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${atencaoCount}</div><div style="font-size:10px;color:var(--t2)">🟡 Em atenção</div></div>
+    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${otimaCount}</div><div style="font-size:10px;color:var(--t2)">🟢 Ótima</div></div>
+    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${indispCount}</div><div style="font-size:10px;color:var(--t2)">Indisponíveis</div></div>
+  </div>`;
+
+  const destaquesRisco=rows.filter(r=>!r.gate&&r.overallLvl==='r').map(r=>{
+    const reasons=[];
+    if(r.acwrLvl==='r')reasons.push(`ACWR fora da zona segura (${r.acwr})`);
+    if(r.wellLvl==='r')reasons.push(`wellness médio baixo (${r.wellAvg})`);
+    if(r.faltasLvl==='r')reasons.push(`${r.faltas} faltas não justificadas nos últimos 7 dias`);
+    if(r.minsInfo&&r.minsLvl==='r')reasons.push(`recuperação curta após jogo (${r.minsInfo.mins}min há ${r.minsInfo.daysSince}d)`);
+    if(r.cycleLvl==='r')reasons.push(`impacto do ciclo elevado (${r.cycleImpact})`);
+    return {r,txt:reasons.join(' + ')};
+  }).filter(x=>x.txt);
+  const destaquesHtml=destaquesRisco.length?`<div style="margin:0 0 12px;background:var(--bg2);border:1px solid #c0392b55;border-left:3px solid #c0392b;border-radius:10px;padding:12px 14px">
+    <div style="font-size:12px;font-weight:800;margin-bottom:6px">🔍 Destaques — atletas em risco</div>
+    ${destaquesRisco.map(x=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--brd)"><strong>${escHtml(x.r.at.name)}</strong>: ${x.txt}.</div>`).join('')}
+  </div>`:'';
+
+  const lvlBadge=(lvl,label)=>`<span class="bdg bg-${lvl}" style="font-size:10px">${label}</span>`;
+  const rowsHtml=sorted.map(r=>{
+    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="6" style="text-align:center;color:var(--t2)">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
+    const minsTxt=r.minsInfo?`${r.minsInfo.mins}min (há ${r.minsInfo.daysSince}d)`:'—';
+    const cycleTxt=r.cyclePhase?escHtml(r.cyclePhase)+(r.cycleImpact?' ('+r.cycleImpact+')':''):'—';
+    return `<tr>
+      <td>${escHtml(r.at.name)}</td>
+      <td style="text-align:center">${r.acwr!==null?r.acwr:'—'}</td>
+      <td style="text-align:center">${r.wellAvg!==null?r.wellAvg:'—'}</td>
+      <td style="text-align:center">${cycleTxt}</td>
+      <td style="text-align:center">${r.faltas}</td>
+      <td style="text-align:center">${minsTxt}</td>
+      <td style="text-align:center">${lvlBadge(r.overallLvl,r.overallLabel)}</td>
+      <td style="text-align:center;font-size:11px">${_cpRecommendation(r.overallLvl)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('pg-condicao-plantel').innerHTML=`
+    <div class="card">
+      <div class="ch">
+        <span class="ct">CONDIÇÃO DO PLANTEL</span>
+        <input type="date" class="fc" style="width:auto;font-size:11px" value="${dt}" onchange="_cpDate=this.value;renderCondicaoPlantel()">
+      </div>
+      <div class="cb">
+        ${gameNote}
+        ${kpiHtml}
+        ${destaquesHtml}
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. último jogo</th><th>Estado</th><th>Recomendação</th></tr></thead>
+            <tbody>${rowsHtml||`<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--t2)">Sem atletas</td></tr>`}</tbody>
+          </table>
+        </div>
+        <div style="font-size:10px;color:var(--t2);margin-top:8px">Semáforo por atleta: pior dos 5 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</div>
+      </div>
+    </div>
+  `;
 }
 function printAnaliseCumulativa(trId){
   const tr=(APP.trainings||[]).find(t=>t.id===trId);if(!tr)return toast('Unidade não encontrada','err');
