@@ -3508,7 +3508,10 @@ function _jogoCampoHtml(g){
   <div class="ipanel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div class="sh-t" style="font-size:15px">🏟️ Campo Tático Interativo</div>
-      <span style="font-size:11px;color:var(--t2)">Arrasta atletas • Clica para tarefa</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--t2)">Arrasta atletas • Clica para tarefa</span>
+        <button class="btn btn-sm btn-gh" onclick="printJogoCampo('${g.id}')">📄 PDF deste Quadro</button>
+      </div>
     </div>
     <div class="tabs" style="margin-bottom:8px;flex-wrap:wrap">${modeTabs}</div>
     ${mode==='tatico'?`<div class="tabs" style="margin-bottom:10px;flex-wrap:wrap">${fBtns}</div>`:''}
@@ -3542,6 +3545,37 @@ function _jogoCampoHtml(g){
   </div>`;
 }
 
+// PDF de um único quadro do Campo Tático (o que estiver aberto no momento) — usa o
+// próprio SVG já desenhado no ecrã (com as posições atuais) + uma legenda por baixo com
+// número/alcunha/tarefa de cada titular, porque nos 3 quadros de bolas paradas o desenho
+// só mostra números. Pedido do Roger, 24/08/2026 — "individualmente", um PDF por quadro.
+function printJogoCampo(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const mode=_jogoCampoTab;
+  const svgEl=document.getElementById('pitch-svg-'+gid);
+  if(!svgEl)return toast('Campo não encontrado','err');
+  const svgHtml=svgEl.outerHTML
+    .replace(/\son(?:mousedown|mousemove|mouseup|mouseleave|click)="[^"]*"/g,'')
+    .replace(/style="[^"]*"/,'style="width:100%;max-width:340px;display:block;border-radius:8px"');
+  const label=(_SETPIECE_TABS.find(([k])=>k===mode)||['',''])[1]||'Campo';
+  const taskMap=_pitchTasks(g,mode);
+  const legendRows=g.lineup.map((aid,i)=>{
+    const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
+    const task=taskMap[aid]||'';
+    return `<tr><td style="width:30px;text-align:center;font-weight:700">${a.number||i+1}</td><td>${escHtml(_shortName(a))}</td><td>${escHtml(task)||'—'}</td></tr>`;
+  }).join('');
+  const title=`${label} — vs ${escHtml(g.opp)} (${fmtDate(g.date)})`;
+  const body=`
+    <div class="pr-title">${title}</div>
+    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+      <div style="width:300px;flex-shrink:0">${svgHtml}</div>
+      <div style="flex:1;min-width:200px">
+        <table><thead><tr><th>Nº</th><th>Atleta</th><th>Tarefa</th></tr></thead><tbody>${legendRows||'<tr><td colspan="3" style="text-align:center;color:#999">Sem titulares definidos</td></tr>'}</tbody></table>
+      </div>
+    </div>
+  `;
+  _printWin(title,body);
+}
 function setFormation(gid,f){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   g.formation=f;
@@ -4595,7 +4629,10 @@ function renderCondicaoPlantel(){
     <div class="card">
       <div class="ch">
         <span class="ct">CONDIÇÃO DO PLANTEL</span>
-        <input type="date" class="fc" style="width:auto;font-size:11px" value="${dt}" onchange="_cpDate=this.value;renderCondicaoPlantel()">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-sm btn-gh" onclick="printCondicaoPlantel()">📄 PDF</button>
+          <input type="date" class="fc" style="width:auto;font-size:11px" value="${dt}" onchange="_cpDate=this.value;renderCondicaoPlantel()">
+        </div>
       </div>
       <div class="cb">
         ${gameNote}
@@ -4611,6 +4648,71 @@ function renderCondicaoPlantel(){
       </div>
     </div>
   `;
+}
+// PDF da Condição do Plantel — mesmo padrão dos outros PDFs de análise (printAnaliseSessao/
+// printAnaliseCumulativa), mas para a data escolhida na página (_cpDate), não presa a um
+// treino. Pedido do Roger, 24/08/2026.
+function printCondicaoPlantel(){
+  const {dt,rows,nextGame}=_condicaoJogoCompute({date:_cpDate});
+  const _ord={r:0,y:1,gate:2,g:3};
+  const sorted=rows.slice().sort((a,b)=>{
+    const ka=a.gate?'gate':a.overallLvl, kb=b.gate?'gate':b.overallLvl;
+    return _ord[ka]-_ord[kb];
+  });
+  const riscoCount=rows.filter(r=>!r.gate&&r.overallLvl==='r').length;
+  const atencaoCount=rows.filter(r=>!r.gate&&r.overallLvl==='y').length;
+  const otimaCount=rows.filter(r=>!r.gate&&r.overallLvl==='g').length;
+  const indispCount=rows.filter(r=>r.gate).length;
+
+  const lvlBadge=(lvl,label)=>`<span class="badge bg-${lvl}">${label}</span>`;
+  const rowsHtml=sorted.map(r=>{
+    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="6" style="text-align:center;color:#999">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
+    const minsTxt=r.minsInfo?`${r.minsInfo.mins}min (há ${r.minsInfo.daysSince}d)`:'—';
+    const cycleTxt=r.cyclePhase?escHtml(r.cyclePhase)+(r.cycleImpact?' ('+r.cycleImpact+')':''):'—';
+    return `<tr>
+      <td>${escHtml(r.at.name)}</td>
+      <td style="text-align:center">${r.acwr!==null?r.acwr:'—'}</td>
+      <td style="text-align:center">${r.wellAvg!==null?r.wellAvg:'—'}</td>
+      <td style="text-align:center">${cycleTxt}</td>
+      <td style="text-align:center">${r.faltas}</td>
+      <td style="text-align:center">${minsTxt}</td>
+      <td style="text-align:center">${lvlBadge(r.overallLvl,r.overallLabel)}</td>
+      <td style="text-align:center;font-size:8pt">${_cpRecommendation(r.overallLvl)}</td>
+    </tr>`;
+  }).join('');
+
+  const destaquesRisco=rows.filter(r=>!r.gate&&r.overallLvl==='r').map(r=>{
+    const reasons=[];
+    if(r.acwrLvl==='r')reasons.push(`ACWR fora da zona segura (${r.acwr})`);
+    if(r.wellLvl==='r')reasons.push(`wellness médio baixo (${r.wellAvg})`);
+    if(r.faltasLvl==='r')reasons.push(`${r.faltas} faltas não justificadas nos últimos 7 dias`);
+    if(r.minsInfo&&r.minsLvl==='r')reasons.push(`recuperação curta após jogo (${r.minsInfo.mins}min há ${r.minsInfo.daysSince}d)`);
+    if(r.cycleLvl==='r')reasons.push(`impacto do ciclo elevado (${r.cycleImpact})`);
+    return {r,txt:reasons.join(' + ')};
+  }).filter(x=>x.txt);
+  const destaquesHtml=destaquesRisco.length?`
+    <div style="font-size:9pt;font-weight:700;margin:8px 0 4px">🔍 Destaques — atletas em risco</div>
+    ${destaquesRisco.map(x=>`<p style="font-size:8.5pt;margin:2px 0"><strong>${escHtml(x.r.at.name)}</strong>: ${x.txt}.</p>`).join('')}
+  `:'';
+
+  const gameNote=nextGame?`<p style="font-size:9pt;color:#666;margin-bottom:4px">Próximo jogo: <strong>${fmtDate(nextGame.date)}</strong>${nextGame.opp?' vs '+escHtml(nextGame.opp):''}</p>`:'';
+  const kpiHtml=`<div class="kpi-row">
+    <div class="kpi"><div class="kpi-v">${riscoCount}</div><div class="kpi-l">Em risco</div></div>
+    <div class="kpi"><div class="kpi-v">${atencaoCount}</div><div class="kpi-l">Em atenção</div></div>
+    <div class="kpi"><div class="kpi-v">${otimaCount}</div><div class="kpi-l">Ótima</div></div>
+    <div class="kpi"><div class="kpi-v">${indispCount}</div><div class="kpi-l">Indisponíveis</div></div>
+  </div>`;
+
+  const title=`Condição do Plantel — ${fmtDate(dt)}`;
+  const body=`
+    <div class="pr-title">${title}</div>
+    ${gameNote}
+    ${kpiHtml}
+    ${destaquesHtml}
+    <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Estado</th><th>Recomendação</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+    <p style="font-size:8pt;color:#666;margin-top:6px">Semáforo por atleta: pior dos 5 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
+  `;
+  _printWin(title,body);
 }
 function printAnaliseCumulativa(trId){
   const tr=(APP.trainings||[]).find(t=>t.id===trId);if(!tr)return toast('Unidade não encontrada','err');
