@@ -3478,33 +3478,39 @@ function _jogoCampoHtml(g){
   const showName=mode==='tatico';
   const rad=7,numFs=7,sw=1.5,capFs=7,capOff=6,capY=-7;
   const maxY=_pitchMaxY(mode);
-  const players=g.lineup.map((aid,i)=>{
-    const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
+  // Ordem pelo número da camisola (não pela ordem em que foram clicadas como titulares
+  // no Pré-Jogo) — pedido do Roger, 24/08/2026: os números devem manter-se consistentes
+  // com o número real de cada jogadora, em vez de aparecerem numa ordem arbitrária.
+  // isGK passa a olhar para a posição real (GR) em vez de "primeira da lista", que deixou
+  // de ser fiável depois desta reordenação.
+  const sortedLineup=g.lineup.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
+    .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+  const players=sortedLineup.map(({aid,a},i)=>{
     const def=_pitchDefaultPos(mode,i,g.formation);
     const rawPos=posMap[aid]||{x:def[0],y:def[1]};
     // Clamp defensivo: jogos que já tinham posições táticas guardadas no campo inteiro
     // (antes desta mudança) ficariam fora da área visível do meio-campo — em vez de
     // desaparecerem, aparecem encostadas ao limite, prontas a re-arrastar.
     const pos={x:rawPos.x,y:Math.min(rawPos.y,maxY)};
-    const isCap=g.captain===aid,isVc=g.viceCaptain===aid,isGK=i===0;
+    const isCap=g.captain===aid,isVc=g.viceCaptain===aid,isGK=a.pos==='GR';
     const fill=isGK?'#27ae60':'#ffd700';
     const tf=isGK?'#fff':'#1a1a2e';
     const nm=escHtml(_shortName(a));
     const task=taskMap[aid]||'';
     return `<g class="pitch-pl" data-aid="${aid}" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}')" onclick="pitchPlayerClick(event,'${g.id}','${aid}','${mode}')">
       <circle r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/>
-      <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||i+1}</text>
+      <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||i+1}</text>
       ${showName?`<text text-anchor="middle" y="16" font-size="6.5" fill="rgba(255,255,255,.9)">${nm}</text>`:''}
       ${isCap?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ffd700" font-weight="bold">C</text>`:''}
       ${isVc?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ddd" font-weight="bold">VC</text>`:''}
       <title>${escHtml(a.name)}${task?' — '+escHtml(task):''}</title>
     </g>`;
   }).join('');
-  const taskRows=g.lineup.map((aid,i)=>{
-    const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
+  const taskRows=sortedLineup.map(({aid,a})=>{
+    const isGK=a.pos==='GR';
     const task=taskMap[aid]||'';
     return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-      <div style="width:22px;height:22px;background:${i===0?'#27ae60':'var(--pri)'};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||i+1}</div>
+      <div style="width:22px;height:22px;background:${isGK?'#27ae60':'var(--pri)'};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||a.num||'?'}</div>
       <div style="font-size:11px;font-weight:600;width:80px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.name)}">${escHtml(_shortName(a))}</div>
       <input class="fc" style="font-size:11px;padding:3px 6px;flex:1" placeholder="Tarefa..." value="${escHtml(task)}" onblur="savePlayerTask('${g.id}','${aid}',this.value,'${mode}')">
     </div>`;
@@ -3571,10 +3577,12 @@ function printJogoCampo(gid){
     .replace(/style="[^"]*"/,'style="width:100%;display:block;border-radius:6px"');
   const label=(_SETPIECE_TABS.find(([k])=>k===mode)||['',''])[1]||'Campo';
   const taskMap=_pitchTasks(g,mode);
-  const legendRows=g.lineup.map((aid,i)=>{
-    const a=APP.athletes.find(x=>x.id===aid);if(!a)return '';
+  // Mesma ordem por número de camisola do quadro em ecrã (ver _jogoCampoHtml).
+  const sortedLineup=g.lineup.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
+    .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+  const legendRows=sortedLineup.map(({aid,a})=>{
     const task=taskMap[aid]||'';
-    return `<tr><td style="padding:3px 6px;font-size:8pt;width:24px;text-align:center;font-weight:700">${a.number||i+1}</td><td style="padding:3px 6px;font-size:8pt">${escHtml(_shortName(a))}</td><td style="padding:3px 6px;font-size:8pt">${escHtml(task)||'—'}</td></tr>`;
+    return `<tr><td style="padding:3px 6px;font-size:8pt;width:24px;text-align:center;font-weight:700">${a.number||a.num||'—'}</td><td style="padding:3px 6px;font-size:8pt">${escHtml(_shortName(a))}</td><td style="padding:3px 6px;font-size:8pt">${escHtml(task)||'—'}</td></tr>`;
   }).join('');
   const notes=(g.pitchNotes&&g.pitchNotes[mode])||'';
   const title=`${label} — vs ${escHtml(g.opp)} (${fmtDate(g.date)})`;
