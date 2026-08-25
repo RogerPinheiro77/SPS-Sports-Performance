@@ -810,6 +810,11 @@ const ROLE_DEFS={
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos'],readOnly:true,manageUsers:false}
 };
+// Títulos qualificados por página — partilhado entre navTo() (cabeçalho da página) e
+// _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
+// as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
+// "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -884,8 +889,7 @@ function navTo(id){
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
-  const titles={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
-  document.getElementById('pg-title').textContent=titles[id]||id;
+  document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
   const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
@@ -2219,7 +2223,11 @@ function openAthleteModal(id){
     if(at.club)return '<div style="font-size:11px;color:var(--t2)">Anterior: '+at.club+'</div>';
     return '<div style="color:var(--t2);font-size:11px">Sem histórico disponível</div>';
   })();
-  const convocBlock=convocs.length?convocs.map(c=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--brd)"><span>'+c.name+'</span><span style="color:var(--t2)">'+fmtDate(c.date)+'</span></div>').join(''):'<div style="color:var(--t2);font-size:12px">Sem convocatórias</div>';
+  const convocBlock=convocs.length?convocs.map(c=>{
+    const g=c.gameId?APP.games.find(x=>x.id===c.gameId):null;
+    const opp=g?'vs '+g.opp:(c.notes||'Convocatória');
+    return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--brd)"><span>'+escHtml(opp)+'</span><span style="color:var(--t2)">'+fmtDate(c.date)+'</span></div>';
+  }).join(''):'<div style="color:var(--t2);font-size:12px">Sem convocatórias</div>';
   // Build overlay
   const ov=document.createElement('div');
   ov.id='athlete-profile-ov';
@@ -2283,7 +2291,7 @@ function openAthleteModal(id){
       // Physio
       +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
         +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏥 Fisioterapia</div>'
-        +(activeInj?'<div style="font-size:11px;color:#f87171;margin-bottom:8px;padding:6px;background:#f8717111;border-radius:6px">⚠️ '+activeInj.diagnosis+'</div>':'')
+        +(activeInj?'<div style="font-size:11px;color:#f87171;margin-bottom:8px;padding:6px;background:#f8717111;border-radius:6px">⚠️ '+escHtml(activeInj.diagnosis||activeInj.type||'Lesão ativa')+'</div>':'')
         +(daysMissed?'<div style="font-size:11px;color:var(--t2);margin-bottom:8px">'+daysMissed+' dias perdidos</div>':'')
         +injBlock
       +'</div>'
@@ -2715,7 +2723,7 @@ async function deleteEvent(id){
   saveData();
   // Apagava só localmente — a linha continuava na Supabase, por isso o evento
   // "apagado" voltava a aparecer no próximo pullCloud (refresh/reabrir a app).
-  if(_sync&&_supa){try{await _supa.from('schedule_events').delete().eq('id',id);}catch(err){console.warn('deleteEvent cloud:',err);}}
+  if(_sync&&_supa){try{await _supa.from('schedule_events').delete().eq('id',id);}catch(err){_warnSyncFailure('schedule_events (apagar)',err);}}
   toast('Evento apagado');closeMod();renderPlaneamento();
 }
 
@@ -4243,7 +4251,7 @@ async function deleteJogo(id){
   APP.games=APP.games.filter(x=>x.id!==id);
   if(eventId)APP.schedule=APP.schedule.filter(e=>e.id!==eventId);
   saveData();
-  if(_sync&&_supa&&eventId){try{await _supa.from('schedule_events').delete().eq('id',eventId);}catch(err){console.warn('deleteJogo cloud (schedule):',err);}}
+  if(_sync&&_supa&&eventId){try{await _supa.from('schedule_events').delete().eq('id',eventId);}catch(err){_warnSyncFailure('schedule_events (apagar)',err);}}
   toast('Jogo apagado');
   _jogoView='list';_jogoDetailId=null;renderJogos();
 }
@@ -7885,7 +7893,7 @@ async function deleteUser(id){
   if(sess&&sess.userId===id)return toast('Não podes apagar a tua própria conta','err');
   if(!confirm('Apagar utilizador?'))return;
   APP.users=APP.users.filter(u=>u.id!==id);saveData();
-  if(_sync&&_supa){try{await _supa.from('staff_users').delete().eq('id',id);}catch(err){console.warn('deleteUser cloud:',err);}}
+  if(_sync&&_supa){try{await _supa.from('staff_users').delete().eq('id',id);}catch(err){_warnSyncFailure('staff_users (apagar)',err);}}
   toast('Apagado');renderConfig();
 }
 // ── Manual da App (lado atleta) ───────────────────────────────────────────
@@ -8007,7 +8015,7 @@ async function deleteAthlete(id){
   APP.scouting.push({id:uid(),name:at.name,pos:at.pos||'',club:(APP.config.clubName||'Clube')+' (ex-)',nat:at.nat||'',age:ageYears(at.dob)||null,height:at.height||'',foot:at.foot||'',rating:0,notes:'Saiu do plantel em '+today()+'.'+(at.num?' Usava o nº'+at.num+'.':''),video:'',photo:at.photo||'',addedAt:today()});
   _purgeAthleteRefs(id);
   saveData();
-  if(_sync&&_supa){try{await _supa.from('athletes').delete().eq('id',id);}catch(err){console.warn('deleteAthlete cloud:',err);}}
+  if(_sync&&_supa){try{await _supa.from('athletes').delete().eq('id',id);}catch(err){_warnSyncFailure('athletes (apagar)',err);}}
   toast('Atleta movida para Scouting ✓');
   closeMod();
   const ov=document.getElementById('athlete-profile-ov');if(ov)ov.remove();
@@ -8176,7 +8184,7 @@ function _updateNewUserRoleHint(){
   if(!sel||!hint)return;
   const def=ROLE_DEFS[sel.value];
   if(!def){hint.textContent='';return;}
-  const labels=_navForRole(sel.value).filter(p=>!p.sec).map(p=>p.label);
+  const labels=_navForRole(sel.value).filter(p=>!p.sec).map(p=>_NAV_TITLES[p.id]||p.label);
   hint.textContent=(def.readOnly?'👁️ Só consulta — ':'✏️ Acesso a: ')+(labels.join(', ')||'nenhuma página')+(def.manageUsers?' + Configurações/Utilizadores':'');
 }
 function saveConfig(){
@@ -8720,7 +8728,7 @@ async function deleteExtraTraining(id){
   if(!_extraEditable(entry))return toast('Já não é possível apagar este registo','err');
   if(!confirm('Apagar este registo de treino extra?'))return;
   APP.extraTrainings=APP.extraTrainings.filter(e=>e.id!==id);
-  if(_sync&&_supa){try{await _supa.from('extra_training_records').delete().eq('id',id);}catch(err){console.warn('deleteExtraTraining cloud:',err);}}
+  if(_sync&&_supa){try{await _supa.from('extra_training_records').delete().eq('id',id);}catch(err){_warnSyncFailure('extra_training_records (apagar)',err);}}
   if(_exEditId===id)_resetExtraForm();
   saveData();toast('Registo apagado');renderAtTreino();
 }
@@ -9039,7 +9047,7 @@ function renderAtConvoc(){
           ${isCap?'<span class="bdg bg-b">Capitã</span>':isVc?'<span class="bdg bg-b">Vice-Capitã</span>':''}
         </div>`:''}
         ${logistica.length?`<div style="margin-top:10px;font-size:11px;color:var(--t2)">${logistica.map(([l,v])=>`<div><strong>${l}:</strong> ${escHtml(v)}</div>`).join('')}</div>`:''}
-        ${c.notes?`<div class="al al-b" style="margin-top:8px;font-size:11px">${escHtml(c.notes)}</div>`:''}
+        ${(c.notes&&!(g&&c.notes==='vs '+g.opp))?`<div class="al al-b" style="margin-top:8px;font-size:11px">${escHtml(c.notes)}</div>`:''}
       </div>
     </div>`;
   }).join(''):`<div class="al al-b">Sem convocatórias próximas</div>`}
@@ -9332,7 +9340,7 @@ async function pushAppMeta(_pushRetry){
     // A partir daqui a cloud já reflete as eliminações desta sessão — não é preciso
     // continuar a protegê-las no próximo merge.
     Object.keys(_pendingDeletes).forEach(k=>_pendingDeletes[k].clear());
-  }catch(e){console.warn('pushAppMeta error',e);}
+  }catch(e){_warnSyncFailure('dados gerais (jogos/configuração/planeamento)',e);}
 }
 // Mapa das colunas REAIS de cada tabela no Supabase + renomeações de campos locais
 // (camelCase) para colunas (snake_case). Antes disto, cloudUpsert enviava o objeto local
@@ -9366,6 +9374,19 @@ const _CLOUD_TABLE_SCHEMA={
   extra_training_records:{cols:['id','athlete_id','date','type','duration','pse','ua','summary','guidance','submitted_at'],
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}}
 };
+// Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
+// console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud
+// (o dado ficava só local, sujeito a perder-se se o dispositivo fosse trocado/limpo).
+// Throttle de 10s para não inundar de toasts em cascata se a rede cair a meio de uma
+// sequência de gravações (ex: várias atletas a submeter PSE ao mesmo tempo).
+let _lastSyncErrToast=0;
+function _warnSyncFailure(table,err){
+  console.warn('cloudUpsert error',table,err);
+  const now=Date.now();
+  if(now-_lastSyncErrToast<10000)return;
+  _lastSyncErrToast=now;
+  toast('⚠️ Falha ao sincronizar com a cloud — o registo ficou guardado só neste dispositivo. Tenta novamente quando tiveres rede.','err');
+}
 async function cloudUpsert(table,row){
   if(!_supa||!_cid)return;
   try{
@@ -9384,8 +9405,12 @@ async function cloudUpsert(table,row){
     } else {
       payload={...row,club_id:_cid};
     }
-    await _supa.from(table).upsert(payload,{onConflict:'id'});
-  }catch(e){console.warn('cloudUpsert error',table,e);}
+    // supabase-js só rejeita a promise em falhas de rede/transporte — um erro devolvido
+    // pela API (RLS, coluna em falta, constraint) vem em {error} sem lançar exceção, por
+    // isso o try/catch sozinho não chegava para apanhar esse caso.
+    const {error}=await _supa.from(table).upsert(payload,{onConflict:'id'});
+    if(error){_warnSyncFailure(table,error);return;}
+  }catch(e){_warnSyncFailure(table,e);return;}
   // Also push app meta to keep config/games/etc in sync (users NÃO está aqui, tem tabela própria)
   pushAppMeta();
 }
