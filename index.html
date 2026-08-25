@@ -409,7 +409,6 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-page" id="atp-treino"></div>
     <div class="at-page" id="atp-convoc"></div>
     <div class="at-page" id="atp-aval"></div>
-    <div class="at-page" id="atp-extra"></div>
   </div>
   <nav class="at-bnav">
     <div class="at-ni on" onclick="atNav('home',this)"><span class="ic"><i class="ti ti-home" aria-hidden="true"></i></span>Casa</div>
@@ -421,7 +420,6 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-ni" onclick="atNav('treino',this)"><span class="ic"><i class="ti ti-barbell" aria-hidden="true"></i></span>Treino</div>
     <div class="at-ni" onclick="atNav('aval',this)"><span class="ic"><i class="ti ti-star" aria-hidden="true"></i></span>Aval.</div>
     <div class="at-ni" onclick="atNav('convoc',this)"><span class="ic"><i class="ti ti-clipboard-list" aria-hidden="true"></i></span>Convoc.</div>
-    <div class="at-ni" onclick="atNav('extra',this)"><span class="ic"><i class="ti ti-run" aria-hidden="true"></i></span>Extra</div>
   </nav>
 </div>
 
@@ -1083,6 +1081,17 @@ function renderDashboard(){
   APP.injuries.filter(i=>i.status==='ativo'||i.status==='reabilitação').forEach(i=>injMap[i.athleteId]=i);
   const injCount=Object.keys(injMap).length;
 
+  // Treino Extra (autorreportado) — mesmos limiares do 6º fator da Condição do Plantel
+  // (ver [[project_sps_condicao_plantel]]/[[project_sps_treino_extra_atleta_plano]]):
+  // 3+ sessões ou 150+ min nos últimos 7 dias = atenção, 5+/300+ = risco.
+  const extraLvlMap={};
+  mainAts.forEach(at=>{
+    const recs7=(APP.extraTrainings||[]).filter(e=>e.athleteId===at.id&&dys7.includes(e.date));
+    const cnt=recs7.length,min=recs7.reduce((s,e)=>s+(+e.duration||0),0);
+    extraLvlMap[at.id]=(cnt>=5||min>=300)?'r':(cnt>=3||min>=150)?'y':'g';
+  });
+  const extraHighCount=Object.values(extraLvlMap).filter(l=>l==='r').length;
+
   // PSE loads
   const wkUA=Math.round(APP.pse.filter(p=>wkDays.includes(p.date)&&mainAts.find(a=>a.id===p.athleteId)).reduce((s,p)=>s+(+p.ua||0),0));
   const lwkUA=Math.round(APP.pse.filter(p=>lwDays.includes(p.date)&&mainAts.find(a=>a.id===p.athleteId)).reduce((s,p)=>s+(+p.ua||0),0));
@@ -1147,7 +1156,7 @@ function renderDashboard(){
     const bc=acd&&acd.r>1.5?'#f87171':acd&&acd.r>1.3?'#fbbf24':'#4ade80';
     const cargaBar=`<div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:5px;background:rgba(255,255,255,.1);border-radius:3px"><div style="width:${bw}%;height:100%;background:${bc};border-radius:3px"></div></div><span style="font-size:10px;color:var(--t2);white-space:nowrap;min-width:50px">${u} u.a.</span></div>`;
     // Obs
-    const obs=inj?'🩺':acd&&acd.r>1.5?'⚠️':acd&&acd.r<0.8&&acd.r>0?'⚡':'—';
+    const obs=inj?'🩺':acd&&acd.r>1.5?'⚠️':extraLvlMap[at.id]==='r'?'🏃':acd&&acd.r<0.8&&acd.r>0?'⚡':'—';
     const lp=APP.pse.filter(p=>p.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
     const wkMinsAt=acd?acd.wkU:0;
     let vistoCell='';
@@ -1208,6 +1217,7 @@ function renderDashboard(){
   const lowSlp=wkW.filter(w=>+w.sleep<=2).length;if(lowSlp)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-y" style="font-size:9px">${lowSlp}</span> Atletas com sono abaixo do ideal</span>`);
   const hiPain=wkW.filter(w=>+w.pain>=7).length;if(hiPain)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-y" style="font-size:9px">${hiPain}</span> Atletas com dor reportada</span>`);
   if(injCount)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-r" style="font-size:9px">${injCount}</span> Atletas com lesão ativa</span>`);
+  if(extraHighCount)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-r" style="font-size:9px">${extraHighCount}</span> Atletas com treino extra elevado</span>`);
   if(!alts.length)alts.push(`<span style="color:#4ade80">✅ Sem alertas ativos</span>`);
 
   document.getElementById('pg-dashboard').innerHTML=`
@@ -2280,7 +2290,7 @@ function openAthleteModal(id){
         +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏃 Treino Extra</div>'
         +(extraList7.length?'<div style="font-size:11px;margin-bottom:8px;padding:5px 8px;background:var(--bg3);border-radius:6px">'+extraList7.length+' sessão'+(extraList7.length>1?'ões':'')+' · '+extraMin7+' min nos últimos 7 dias</div>':'<div style="color:var(--t2);font-size:11px;margin-bottom:8px">Sem treino extra nos últimos 7 dias</div>')
         +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos registos</div>'
-        +(extraList.length?extraList.slice(0,3).map(e=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--brd)"><span>'+(e.type||'—')+' · '+e.duration+'min · PSE '+e.pse+'</span><span style="color:var(--t2)">'+fmtDate(e.date)+'</span></div>').join(''):'<div style="color:var(--t2);font-size:12px">Sem registos</div>')
+        +(extraList.length?extraList.slice(0,3).map(e=>'<div style="padding:4px 0;border-bottom:1px solid var(--brd)"><div style="display:flex;justify-content:space-between;font-size:11px"><span>'+(e.type||'—')+' · '+e.duration+'min · PSE '+e.pse+'</span><span style="color:var(--t2)">'+fmtDate(e.date)+'</span></div>'+(e.summary?'<div style="font-size:10px;color:var(--t2);margin-top:2px;font-style:italic">"'+escHtml(e.summary)+'"</div>':'')+'</div>').join(''):'<div style="color:var(--t2);font-size:12px">Sem registos</div>')
       +'</div>'
     +'</div>'
     // ── Club history ──
@@ -7521,7 +7531,7 @@ function printAthleteReport(){
   // Treino Extra: mesma lógica de tabela simples do PSE/Wellness, sem gráfico (pedido
   // do Roger: "só mais uma linha" no relatório, não um gráfico novo).
   const extraTable=extraRecs.length
-    ?`<table><thead><tr><th>Data</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th></tr></thead><tbody>${extraRecs.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${escHtml(e.type||'—')}</td><td>${e.duration} min</td><td>${e.pse}/10</td><td>${e.ua}</td></tr>`).join('')}</tbody></table><p class="an-note">${extraRecs.length} sessão${extraRecs.length>1?'ões':''} · ${extraTotalMin} min total · UA extra ${extraTotalUA} (carga autorreportada, fora do clube — não incluída no ACWR oficial).</p>`
+    ?`<table><thead><tr><th>Data</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th><th>Resumo</th></tr></thead><tbody>${extraRecs.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${escHtml(e.type||'—')}</td><td>${e.duration} min</td><td>${e.pse}/10</td><td>${e.ua}</td><td style="font-size:8pt;color:#555">${escHtml(e.summary||'—')}</td></tr>`).join('')}</tbody></table><p class="an-note">${extraRecs.length} sessão${extraRecs.length>1?'ões':''} · ${extraTotalMin} min total · UA extra ${extraTotalUA} (carga autorreportada, fora do clube — não incluída no ACWR oficial).</p>`
     :'<p style="color:#999;font-size:8pt">Sem treino extra registado no período</p>';
 
   const convocTable=convocsP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Papel</th><th>Viu</th></tr></thead><tbody>${convocsP.map(c=>{
@@ -8228,7 +8238,7 @@ function importData(e){const file=e.target.files[0];if(!file)return;const reader
 let _atPage='home', _wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:'',cycleImpact:0}, _psfVal=0, _psfDur='';
 let _atAgendaView='semana', _atAgendaDay=today(), _atAgendaWeekStart=getMonday(today()), _atAgendaMonth=new Date().getMonth(), _atAgendaYear=new Date().getFullYear(), _atAgendaSelDay=today();
 // Treino Extra: registo autoiniciado pela atleta (fora do clube), sem ligação a agenda —
-// ver renderAtExtra/submitExtraTraining. _exEditId!=null quando o formulário está a
+// ver _atExtraHtml/submitExtraTraining (embutido no separador Treino). _exEditId!=null quando o formulário está a
 // editar um registo existente (dentro da janela de edição) em vez de criar um novo.
 let _exfVals={type:'Ginásio',pse:null,duration:'',summary:'',guidance:''}, _exEditId=null;
 const _EXTRA_TYPES=['Ginásio','Treino em casa','Corrida','Outro'];
@@ -8238,7 +8248,7 @@ function _extraEditable(entry){
   if(!entry||!entry.submittedAt)return false;
   return (Date.now()-new Date(entry.submittedAt).getTime())<_EXTRA_EDIT_WINDOW_H*3600*1000;
 }
-const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval(),extra:()=>renderAtExtra()};
+const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval()};
 function atNav(page,el){
   _atPage=page;
   document.querySelectorAll('.at-page').forEach(p=>p.classList.remove('on'));
@@ -8627,11 +8637,11 @@ function submitPSE(){
 // atleta durante _EXTRA_EDIT_WINDOW_H horas depois de submeter, para corrigir erros
 // de preenchimento sem abrir a porta a reescrever o histórico à vontade. Pedido do
 // Roger, 24/08/2026 — ver project_sps_treino_extra_atleta_plano.
-function renderAtExtra(){
+function _atExtraHtml(){
   const borgLabels={0:'Repouso',1:'Muito fácil',2:'Fácil',3:'Moderado',4:'Algo difícil',5:'Difícil',6:'',7:'Muito difícil',8:'',9:'Extremamente difícil',10:'Esforço máximo'};
   const mine=(APP.extraTrainings||[]).filter(e=>e.athleteId===AID).sort((a,b)=>(b.submittedAt||b.date).localeCompare(a.submittedAt||a.date));
   const editing=_exEditId?mine.find(e=>e.id===_exEditId):null;
-  document.getElementById('atp-extra').innerHTML=`
+  return `
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-run" style="margin-right:6px;vertical-align:-3px;color:#fb923c" aria-hidden="true"></i>Treino Extra</div>
   <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Registo de treinos fora do clube — ginásio, corrida, treino em casa, etc.</div>
   ${editing?`<div class="al al-y"><i class="ti ti-pencil" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>A editar o registo de ${fmtDate(editing.date)}. <a href="#" onclick="cancelEditExtra();return false" style="color:inherit;text-decoration:underline">Cancelar edição</a></div>`:''}
@@ -8671,13 +8681,13 @@ function submitExtraTraining(){
     if(!_extraEditable(entry))return toast('Já não é possível editar este registo','err');
     entry.type=type;entry.duration=dur;entry.pse=_exfVals.pse;entry.ua=ua;entry.summary=summary;entry.guidance=guidance;
     if(_sync)cloudUpsert('extra_training_records',{...entry,athlete_id:entry.athleteId,club_id:_cid});
-    saveData();_resetExtraForm();toast('Registo atualizado ✓');renderAtExtra();
+    saveData();_resetExtraForm();toast('Registo atualizado ✓');renderAtTreino();
     return;
   }
   const entry={id:uid(),athleteId:AID,date:today(),type,duration:dur,pse:_exfVals.pse,ua,summary,guidance,submittedAt:new Date().toISOString()};
   APP.extraTrainings.push(entry);
   if(_sync)cloudUpsert('extra_training_records',{...entry,athlete_id:entry.athleteId,club_id:_cid});
-  saveData();_resetExtraForm();toast(`Treino extra registado! UA: ${ua}`);renderAtExtra();
+  saveData();_resetExtraForm();toast(`Treino extra registado! UA: ${ua}`);renderAtTreino();
 }
 function editExtraTraining(id){
   const entry=(APP.extraTrainings||[]).find(e=>e.id===id&&e.athleteId===AID);
@@ -8685,9 +8695,9 @@ function editExtraTraining(id){
   if(!_extraEditable(entry))return toast('Já não é possível editar este registo','err');
   _exEditId=id;
   _exfVals={type:entry.type||'Ginásio',pse:entry.pse,duration:String(entry.duration||''),summary:entry.summary||'',guidance:entry.guidance||''};
-  renderAtExtra();
+  renderAtTreino();
 }
-function cancelEditExtra(){_resetExtraForm();renderAtExtra();}
+function cancelEditExtra(){_resetExtraForm();renderAtTreino();}
 async function deleteExtraTraining(id){
   const entry=(APP.extraTrainings||[]).find(e=>e.id===id&&e.athleteId===AID);
   if(!entry)return;
@@ -8696,7 +8706,7 @@ async function deleteExtraTraining(id){
   APP.extraTrainings=APP.extraTrainings.filter(e=>e.id!==id);
   if(_sync&&_supa){try{await _supa.from('extra_training_records').delete().eq('id',id);}catch(err){console.warn('deleteExtraTraining cloud:',err);}}
   if(_exEditId===id)_resetExtraForm();
-  saveData();toast('Registo apagado');renderAtExtra();
+  saveData();toast('Registo apagado');renderAtTreino();
 }
 function _atEventsForAthlete(at){
   return APP.schedule.filter(e=>(e.teamId===at?.teamId||!e.teamId));
@@ -8949,32 +8959,12 @@ function atOpenTreinoDetail(trId){
 function renderAtTreino(){
   const at=APP.athletes.find(a=>a.id===AID);
   const td=today();
-  // Unidades de treino da equipa (próximas 14 dias + hoje)
-  const teamTreinos=(APP.trainings||[]).filter(tr=>{
-    if(!tr.date||tr.date<td)return false;
-    const dtDiff=(new Date(tr.date)-new Date(td))/(1000*60*60*24);
-    if(dtDiff>14)return false;
-    if(tr.eventId){const ev=APP.schedule.find(e=>e.id===tr.eventId);if(ev&&ev.teamId&&at&&ev.teamId!==at.teamId)return false;}
-    return true;
-  }).sort((a,b)=>a.date.localeCompare(b.date));
   // Planos individuais
   const plans=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||''));
   const active=plans.filter(p=>!p.done);
   const done=plans.filter(p=>p.done);
   document.getElementById('atp-treino').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-barbell" style="margin-right:6px;vertical-align:-3px;color:#94a3b8" aria-hidden="true"></i>Treino</div>
-  ${teamTreinos.length?`<div style="margin-bottom:16px">
-    <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Treinos da equipa</div>
-    ${teamTreinos.map(tr=>`<div class="card" style="margin-bottom:8px;padding:12px 14px;cursor:pointer" onclick="atOpenTreinoDetail('${tr.id}')">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-        <div style="font-size:13px;font-weight:800">${escHtml(tr.title||'Treino')}</div>
-        <span class="bdg bg-g">${fmtDate(tr.date)}</span>
-      </div>
-      ${_atTreinoSummaryLine(tr)}
-      ${tr.objetivo?`<div style="font-size:11px;color:var(--t2);margin-top:3px">${escHtml(tr.objetivo)}</div>`:''}
-      <div style="font-size:10px;color:var(--t3);margin-top:4px">${Object.values(tr.exercises||{}).flat().length} exercício(s) · ${tr.duracao||0} min · toca para mais detalhes</div>
-    </div>`).join('')}
-  </div>`:''}
   ${active.length?`<div style="margin-bottom:14px">
     <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Planos individuais</div>
     ${active.map(p=>`<div class="card" style="margin-bottom:10px">
@@ -8992,7 +8982,8 @@ function renderAtTreino(){
   ${done.length?`<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">Concluídos</div>
   ${done.slice(0,5).map(p=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd);font-size:12px;opacity:.65">
     <span><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px;color:#4ade80" aria-hidden="true"></i>${p.title}</span><span style="color:var(--t2)">${p.doneAt?fmtDate(p.doneAt):''}</span>
-  </div>`).join('')}</div>`:''}`;
+  </div>`).join('')}</div>`:''}
+  <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--brd)">${_atExtraHtml()}</div>`;
 }
 function markTreinoDone(id){
   const idx=APP.trainingPlans.findIndex(p=>p.id===id);if(idx<0)return;
