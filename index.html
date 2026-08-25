@@ -3020,6 +3020,44 @@ function _onCompChange(prefix){
   toast('Competição adicionada com ícone genérico 🏅 — podes mudar o ícone em Config');
 }
 
+// Estatísticas agregadas da época (Ranking do Plantel + "As Minhas Estatísticas" na
+// app da atleta) — reaproveita g.playerStats já preenchido no Pós-Jogo, sem exigir
+// nenhum trabalho extra ao treinador. Só jogos Oficiais/Particulares já realizados
+// contam (mesmo critério de "realizadosStats" já usado nas estatísticas V/E/D/Golos).
+function _seasonGames(){
+  const td=today();
+  return APP.games.filter(g=>g.tipo!=='treino'&&(g.date<td||g.status==='realizado'));
+}
+function _seasonStatsFor(aid){
+  const games=_seasonGames();
+  let jogos=0,mins=0,goals=0,assists=0,yellow=0,red=0;
+  games.forEach(g=>{
+    const st=(g.playerStats||[]).find(s=>s.aid===aid);
+    if(st){jogos++;mins+=(+st.mins||0);goals+=(+st.goals||0);assists+=(+st.assists||0);yellow+=(+st.yellow||0);red+=(+st.red||0);}
+  });
+  return {jogos,mins,goals,assists,yellow,red};
+}
+function _seasonStatsAll(){
+  const ats=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId);
+  return ats.map(a=>({at:a,..._seasonStatsFor(a.id)})).sort((a,b)=>b.goals-a.goals||b.assists-a.assists||b.mins-a.mins);
+}
+function _rankingPlantelHtml(){
+  const rows=_seasonStatsAll();
+  if(!rows.length)return `<div class="empty"><div class="ei">🏆</div><p>Sem atletas no plantel</p></div>`;
+  const trs=rows.map((r,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><div style="display:flex;align-items:center;gap:6px"><div style="width:20px;height:20px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;flex-shrink:0">${r.at.number||r.at.num||'?'}</div>${escHtml(r.at.name)}</div></td>
+    <td style="text-align:center">${r.jogos}</td>
+    <td style="text-align:center">${r.mins}'</td>
+    <td style="text-align:center;font-weight:700">${r.goals}</td>
+    <td style="text-align:center;font-weight:700">${r.assists}</td>
+    <td style="text-align:center">${r.yellow}</td>
+    <td style="text-align:center">${r.red}</td>
+  </tr>`).join('');
+  return `<div class="tw"><table><thead><tr><th>#</th><th>Atleta</th><th>J</th><th>Min.</th><th>⚽</th><th>🅰️</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${trs}</tbody></table></div>
+  <p style="font-size:11px;color:var(--t2);margin-top:8px">Só jogos Oficiais/Particulares já realizados. Ordenado por golos, depois assistências, depois minutos.</p>`;
+}
+
 function openJogo(id,tab='info'){
   const g=APP.games.find(x=>x.id===id);
   if(!g)return;
@@ -3056,7 +3094,7 @@ function renderJogos(){
 
   const proximos=APP.games.filter(g=>g.date>=td&&g.status!=='cancelado').sort((a,b)=>a.date.localeCompare(b.date));
   const realizados=APP.games.filter(g=>g.date<td||g.status==='realizado').sort((a,b)=>b.date.localeCompare(a.date));
-  const tabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button></div>`;
+  const tabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button><button class="tab-btn ${_jogoTab==='ranking'?'on':''}" onclick="_jogoTab='ranking';renderJogos()">🏆 Ranking</button></div>`;
 
   const makeRow=g=>{
     const ha={casa:'🏠',fora:'✈️',neutro:'⚖️'}[g.ha]||'';
@@ -3078,7 +3116,7 @@ function renderJogos(){
   };
 
   const list=_jogoTab==='proximos'?proximos:realizados;
-  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Equipa</th><th>Resultado</th><th></th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`;
+  const tableHtml=_jogoTab==='ranking'?_rankingPlantelHtml():(list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Equipa</th><th>Resultado</th><th></th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`);
 
   // Jogos Treino não contam para estatísticas competitivas (V/E/D/Golos) — só Oficiais e Particulares.
   const realizadosStats=realizados.filter(g=>g.tipo!=='treino');
@@ -8520,7 +8558,19 @@ function renderAtHome(){
   </div>
   ${inj?`<div class="al al-r" style="margin-bottom:10px"><i class="ti ti-stethoscope" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px">${cards.join('')}</div>
-  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct"><i class="ti ti-calendar-event" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd);cursor:pointer" onclick="atOpenEventDetail('${e.id}')"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}`;
+  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct"><i class="ti ti-calendar-event" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd);cursor:pointer" onclick="atOpenEventDetail('${e.id}')"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}
+  ${(()=>{const ss=_seasonStatsFor(AID);return ss.jogos?`<div class="card" style="margin-top:10px">
+    <div class="ch"><span class="ct"><i class="ti ti-trophy" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>As Minhas Estatísticas</span></div>
+    <div class="cb" style="padding:12px 14px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+        <div><div style="font-size:18px;font-weight:800">${ss.jogos}</div><div style="font-size:10px;color:var(--t2)">Jogos</div></div>
+        <div><div style="font-size:18px;font-weight:800">${ss.mins}'</div><div style="font-size:10px;color:var(--t2)">Minutos</div></div>
+        <div><div style="font-size:18px;font-weight:800;color:#4ade80">${ss.goals}</div><div style="font-size:10px;color:var(--t2)">Golos</div></div>
+        <div><div style="font-size:18px;font-weight:800;color:#38bdf8">${ss.assists}</div><div style="font-size:10px;color:var(--t2)">Assist.</div></div>
+      </div>
+      <div style="font-size:10px;color:var(--t2);margin-top:8px;text-align:center">Época atual · só jogos Oficiais/Particulares</div>
+    </div>
+  </div>`:'';})()}`;
 }
 function renderAtWellness(){
   const td=today();
