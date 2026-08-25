@@ -409,6 +409,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-page" id="atp-treino"></div>
     <div class="at-page" id="atp-convoc"></div>
     <div class="at-page" id="atp-aval"></div>
+    <div class="at-page" id="atp-extra"></div>
   </div>
   <nav class="at-bnav">
     <div class="at-ni on" onclick="atNav('home',this)"><span class="ic"><i class="ti ti-home" aria-hidden="true"></i></span>Casa</div>
@@ -420,6 +421,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-ni" onclick="atNav('treino',this)"><span class="ic"><i class="ti ti-barbell" aria-hidden="true"></i></span>Treino</div>
     <div class="at-ni" onclick="atNav('aval',this)"><span class="ic"><i class="ti ti-star" aria-hidden="true"></i></span>Aval.</div>
     <div class="at-ni" onclick="atNav('convoc',this)"><span class="ic"><i class="ti ti-clipboard-list" aria-hidden="true"></i></span>Convoc.</div>
+    <div class="at-ni" onclick="atNav('extra',this)"><span class="ic"><i class="ti ti-run" aria-hidden="true"></i></span>Extra</div>
   </nav>
 </div>
 
@@ -470,7 +472,7 @@ function defApp(){
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],
-    anamnesis:[],
+    anamnesis:[],extraTrainings:[],
     users:[]
   };
 }
@@ -2118,6 +2120,10 @@ function openAthleteModal(id){
   // Training plans
   const plans=(APP.trainingPlans||[]).filter(p=>p.athleteId===id).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const activePlan=plans.find(p=>!p.done);
+  // Treino Extra (autorreportado, fora do clube) — ver project_sps_treino_extra_atleta_plano
+  const extraList=(APP.extraTrainings||[]).filter(e=>e.athleteId===id).sort((a,b)=>(b.submittedAt||b.date).localeCompare(a.submittedAt||a.date));
+  const extraList7=extraList.filter(e=>days7.includes(e.date));
+  const extraMin7=extraList7.reduce((s,e)=>s+(+e.duration||0),0);
   // Convocatórias
   const convocs=(APP.convocatorias||[]).filter(c=>c.athletes&&c.athletes.includes(id)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
   // Club history
@@ -2247,7 +2253,7 @@ function openAthleteModal(id){
       +'</div>'
     +'</div>'
     // ── 3-col grid ──
-    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:0 16px 16px">'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 16px 16px">'
       // Physio
       +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
         +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏥 Fisioterapia</div>'
@@ -2268,6 +2274,13 @@ function openAthleteModal(id){
         +(activePlan?'<div style="font-size:11px;margin-bottom:8px;padding:5px 8px;background:var(--bg3);border-radius:6px"><span style="font-weight:700">'+activePlan.title+'</span><span style="color:var(--t2);display:block;font-size:10px">'+activePlan.type+(activePlan.week?' · '+activePlan.week:'')+'</span></div>':'<div style="color:var(--t2);font-size:11px;margin-bottom:8px">Sem ficha ativa</div>')
         +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Convocatórias recentes</div>'
         +convocBlock
+      +'</div>'
+      // Treino Extra (autorreportado)
+      +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+        +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏃 Treino Extra</div>'
+        +(extraList7.length?'<div style="font-size:11px;margin-bottom:8px;padding:5px 8px;background:var(--bg3);border-radius:6px">'+extraList7.length+' sessão'+(extraList7.length>1?'ões':'')+' · '+extraMin7+' min nos últimos 7 dias</div>':'<div style="color:var(--t2);font-size:11px;margin-bottom:8px">Sem treino extra nos últimos 7 dias</div>')
+        +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos registos</div>'
+        +(extraList.length?extraList.slice(0,3).map(e=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--brd)"><span>'+(e.type||'—')+' · '+e.duration+'min · PSE '+e.pse+'</span><span style="color:var(--t2)">'+fmtDate(e.date)+'</span></div>').join(''):'<div style="color:var(--t2);font-size:12px">Sem registos</div>')
       +'</div>'
     +'</div>'
     // ── Club history ──
@@ -4577,6 +4590,15 @@ function _condicaoJogoCompute(tr){
     const faltas=(APP.attendance||[]).filter(a=>a.athleteId===at.id&&last7.includes(a.date)&&a.status==='ausente'&&!a.reason).length;
     const faltasLvl=faltas>=2?'r':faltas===1?'y':'g';
 
+    // Treino extra (autorreportado, fora do clube) nos últimos 7 dias — sinal de possível
+    // sobrecarga que a carga oficial do clube (ACWR acima) não vê, porque esse treino
+    // acontece por iniciativa da própria atleta. Limiares sugeridos pelo Roger, 24/08/2026:
+    // 3+ sessões ou 150+ min/semana = atenção; 5+ sessões ou 300+ min/semana = risco.
+    const extraRecs7=(APP.extraTrainings||[]).filter(e=>e.athleteId===at.id&&last7.includes(e.date));
+    const extraCount=extraRecs7.length;
+    const extraMin=extraRecs7.reduce((s,e)=>s+(+e.duration||0),0);
+    const extraLvl=(extraCount>=5||extraMin>=300)?'r':(extraCount>=3||extraMin>=150)?'y':'g';
+
     let minsInfo=null,minsLvl='g';
     if(lastGame){
       const st=(lastGame.playerStats||[]).find(s=>s.aid===at.id);
@@ -4596,10 +4618,10 @@ function _condicaoJogoCompute(tr){
     const cyclePhase=cycleRec&&cycleRec.cycle&&cycleRec.cycle!=='N/A'?cycleRec.cycle:null;
     const cycleLvl=cycleImpact>=3?'r':cycleImpact===2?'y':null;
 
-    const lvls=[acwrLvl,wellLvl,faltasLvl,minsInfo?minsLvl:null,cycleLvl].filter(Boolean);
+    const lvls=[acwrLvl,wellLvl,faltasLvl,minsInfo?minsLvl:null,cycleLvl,extraLvl].filter(Boolean);
     const overallLvl=lvls.includes('r')?'r':(lvls.includes('y')?'y':'g');
     const overallLabel=overallLvl==='r'?'Risco':overallLvl==='y'?'Atenção':'Ótima';
-    return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,cyclePhase,cycleImpact,cycleLvl,overallLvl,overallLabel};
+    return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,cyclePhase,cycleImpact,cycleLvl,extraCount,extraMin,extraLvl,overallLvl,overallLabel};
   });
   return {dt,rows,nextGame,lastGame};
 }
@@ -4642,6 +4664,7 @@ function renderCondicaoPlantel(){
     if(r.faltasLvl==='r')reasons.push(`${r.faltas} faltas não justificadas nos últimos 7 dias`);
     if(r.minsInfo&&r.minsLvl==='r')reasons.push(`recuperação curta após jogo (${r.minsInfo.mins}min há ${r.minsInfo.daysSince}d)`);
     if(r.cycleLvl==='r')reasons.push(`impacto do ciclo elevado (${r.cycleImpact})`);
+    if(r.extraLvl==='r')reasons.push(`${r.extraCount} treinos extra nos últimos 7 dias (${r.extraMin} min) — possível sobrecarga`);
     return {r,txt:reasons.join(' + ')};
   }).filter(x=>x.txt);
   const destaquesHtml=destaquesRisco.length?`<div style="margin:0 0 12px;background:var(--bg2);border:1px solid #c0392b55;border-left:3px solid #c0392b;border-radius:10px;padding:12px 14px">
@@ -4685,7 +4708,7 @@ function renderCondicaoPlantel(){
             <tbody>${rowsHtml||`<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--t2)">Sem atletas</td></tr>`}</tbody>
           </table>
         </div>
-        <div style="font-size:10px;color:var(--t2);margin-top:8px">Semáforo por atleta: pior dos 5 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</div>
+        <div style="font-size:10px;color:var(--t2);margin-top:8px">Semáforo por atleta: pior dos 6 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo, treino extra autorreportado nos últimos 7 dias). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</div>
       </div>
     </div>
   `;
@@ -4729,6 +4752,7 @@ function printCondicaoPlantel(){
     if(r.faltasLvl==='r')reasons.push(`${r.faltas} faltas não justificadas nos últimos 7 dias`);
     if(r.minsInfo&&r.minsLvl==='r')reasons.push(`recuperação curta após jogo (${r.minsInfo.mins}min há ${r.minsInfo.daysSince}d)`);
     if(r.cycleLvl==='r')reasons.push(`impacto do ciclo elevado (${r.cycleImpact})`);
+    if(r.extraLvl==='r')reasons.push(`${r.extraCount} treinos extra nos últimos 7 dias (${r.extraMin} min) — possível sobrecarga`);
     return {r,txt:reasons.join(' + ')};
   }).filter(x=>x.txt);
   const destaquesHtml=destaquesRisco.length?`
@@ -4751,7 +4775,7 @@ function printCondicaoPlantel(){
     ${kpiHtml}
     ${destaquesHtml}
     <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Estado</th><th>Recomendação</th></tr></thead><tbody>${rowsHtml}</tbody></table>
-    <p style="font-size:8pt;color:#666;margin-top:6px">Semáforo por atleta: pior dos 5 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
+    <p style="font-size:8pt;color:#666;margin-top:6px">Semáforo por atleta: pior dos 6 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo, treino extra autorreportado nos últimos 7 dias). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
   `;
   _printWin(title,body);
 }
@@ -4786,6 +4810,7 @@ function printAnaliseCumulativa(trId){
     if(r.faltasLvl==='r')reasons.push(`${r.faltas} faltas não justificadas nos últimos 7 dias`);
     if(r.minsInfo&&r.minsLvl==='r')reasons.push(`recuperação curta após jogo (${r.minsInfo.mins}min há ${r.minsInfo.daysSince}d)`);
     if(r.cycleLvl==='r')reasons.push(`impacto do ciclo elevado (${r.cycleImpact})`);
+    if(r.extraLvl==='r')reasons.push(`${r.extraCount} treinos extra nos últimos 7 dias (${r.extraMin} min) — possível sobrecarga`);
     return {r,txt:reasons.join(' + ')};
   }).filter(x=>x.txt);
   const destaquesHtml=destaquesRisco.length?`
@@ -4796,7 +4821,7 @@ function printAnaliseCumulativa(trId){
   const body=`
     <div class="pr-title">${title}</div>
     ${gameNote}
-    <p style="font-size:9pt;color:#666;margin-bottom:10px">Semáforo por atleta: pior dos 5 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo). A fase do ciclo por si só não altera o semáforo — só entra quando a própria atleta reporta impacto elevado (2-3). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
+    <p style="font-size:9pt;color:#666;margin-bottom:10px">Semáforo por atleta: pior dos 6 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo, treino extra autorreportado nos últimos 7 dias). A fase do ciclo por si só não altera o semáforo — só entra quando a própria atleta reporta impacto elevado (2-3). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
     ${destaquesHtml}
     <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness méd.</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Condição</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table>
@@ -7335,6 +7360,10 @@ function printAthleteReport(){
   const acwr=_acwrAt(id,endDate);
 
   const wellRecs=APP.wellness.filter(w=>w.athleteId===id&&inRange(w.date)).sort((a,b)=>a.date.localeCompare(b.date));
+  // Treino Extra (autorreportado, fora do clube) — carga própria, não somada ao ACWR oficial
+  const extraRecs=(APP.extraTrainings||[]).filter(e=>e.athleteId===id&&inRange(e.date)).sort((a,b)=>a.date.localeCompare(b.date));
+  const extraTotalMin=extraRecs.reduce((s,e)=>s+(+e.duration||0),0);
+  const extraTotalUA=extraRecs.reduce((s,e)=>s+(+e.ua||0),0);
   const avgWell=wellRecs.length?Math.round(wellRecs.reduce((s,w)=>s+(+w.score||0),0)/wellRecs.length):null;
 
   if(!APP.attendance)APP.attendance=[];
@@ -7384,7 +7413,8 @@ function printAthleteReport(){
     {v:avgWell??'—',l:'Wellness Médio'},
     {v:acwr??'—',l:'ACWR'},
     {v:attPct!=null?attPct+'%':'—',l:'Presenças'},
-    {v:gamesP.length,l:'Jogos no Período'}
+    {v:gamesP.length,l:'Jogos no Período'},
+    {v:extraRecs.length,l:'Treino Extra'}
   ];
 
   // ── Análise Automática do Período (baseada em regras, mesma lógica do painel Estado da Atleta) ──
@@ -7488,6 +7518,12 @@ function printAthleteReport(){
     wellTable=`<table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead><tbody>${wellRecs.map(wRow).join('')}</tbody></table>`;
   }
 
+  // Treino Extra: mesma lógica de tabela simples do PSE/Wellness, sem gráfico (pedido
+  // do Roger: "só mais uma linha" no relatório, não um gráfico novo).
+  const extraTable=extraRecs.length
+    ?`<table><thead><tr><th>Data</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th></tr></thead><tbody>${extraRecs.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${escHtml(e.type||'—')}</td><td>${e.duration} min</td><td>${e.pse}/10</td><td>${e.ua}</td></tr>`).join('')}</tbody></table><p class="an-note">${extraRecs.length} sessão${extraRecs.length>1?'ões':''} · ${extraTotalMin} min total · UA extra ${extraTotalUA} (carga autorreportada, fora do clube — não incluída no ACWR oficial).</p>`
+    :'<p style="color:#999;font-size:8pt">Sem treino extra registado no período</p>';
+
   const convocTable=convocsP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Papel</th><th>Viu</th></tr></thead><tbody>${convocsP.map(c=>{
     const g=c.gameId?APP.games.find(x=>x.id===c.gameId):null;
     const opp=g?g.opp:(c.notes||'—');
@@ -7585,6 +7621,9 @@ function printAthleteReport(){
     <h3>💊 Wellness</h3>
     ${wellChartImg?`<img src="${wellChartImg}" style="width:340px;display:block;margin:0 auto 4px">`:''}
     ${wellTable}
+
+    <h3>🏃 Treino Extra (autorreportado)</h3>
+    ${extraTable}
 
     <div class="g2">
       <div><h3>⭐ Avaliação Técnica ${evalDateLbl?'(mais recente — '+evalDateLbl+')':''}</h3>
@@ -8188,7 +8227,18 @@ function importData(e){const file=e.target.files[0];if(!file)return;const reader
 // ─── ATLETA APP ───────────────────────────────────────────
 let _atPage='home', _wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:'',cycleImpact:0}, _psfVal=0, _psfDur='';
 let _atAgendaView='semana', _atAgendaDay=today(), _atAgendaWeekStart=getMonday(today()), _atAgendaMonth=new Date().getMonth(), _atAgendaYear=new Date().getFullYear(), _atAgendaSelDay=today();
-const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval()};
+// Treino Extra: registo autoiniciado pela atleta (fora do clube), sem ligação a agenda —
+// ver renderAtExtra/submitExtraTraining. _exEditId!=null quando o formulário está a
+// editar um registo existente (dentro da janela de edição) em vez de criar um novo.
+let _exfVals={type:'Ginásio',pse:null,duration:'',summary:'',guidance:''}, _exEditId=null;
+const _EXTRA_TYPES=['Ginásio','Treino em casa','Corrida','Outro'];
+const _EXTRA_GUIDANCE=['','Sozinha','Treinador pessoal','Vídeo online','Outro'];
+const _EXTRA_EDIT_WINDOW_H=6; // janela de edição/eliminação do próprio registo, em horas
+function _extraEditable(entry){
+  if(!entry||!entry.submittedAt)return false;
+  return (Date.now()-new Date(entry.submittedAt).getTime())<_EXTRA_EDIT_WINDOW_H*3600*1000;
+}
+const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval(),extra:()=>renderAtExtra()};
 function atNav(page,el){
   _atPage=page;
   document.querySelectorAll('.at-page').forEach(p=>p.classList.remove('on'));
@@ -8568,6 +8618,85 @@ function submitPSE(){
   if(_sync)cloudUpsert('pse_records',{...entry,athlete_id:entry.athleteId,session_type:entry.sessionType,club_id:_cid});
   _autoMarkAttendance(AID,td,'treino');
   saveData();_psfVal=0;_psfDur='';toast(`PSE registado! UA: ${ua}`);renderAtPSE();
+}
+// ─── TREINO EXTRA ────────────────────────────────────────────────────────────
+// Registo autoiniciado pela atleta de treino feito por iniciativa própria fora do
+// clube (ginásio, corrida, treino em casa...) — ao contrário do PSE de clube, não
+// depende de nenhum evento agendado, por isso fica sempre disponível (sem janela
+// horária) e permite múltiplos registos por dia. Editável/eliminável pela própria
+// atleta durante _EXTRA_EDIT_WINDOW_H horas depois de submeter, para corrigir erros
+// de preenchimento sem abrir a porta a reescrever o histórico à vontade. Pedido do
+// Roger, 24/08/2026 — ver project_sps_treino_extra_atleta_plano.
+function renderAtExtra(){
+  const borgLabels={0:'Repouso',1:'Muito fácil',2:'Fácil',3:'Moderado',4:'Algo difícil',5:'Difícil',6:'',7:'Muito difícil',8:'',9:'Extremamente difícil',10:'Esforço máximo'};
+  const mine=(APP.extraTrainings||[]).filter(e=>e.athleteId===AID).sort((a,b)=>(b.submittedAt||b.date).localeCompare(a.submittedAt||a.date));
+  const editing=_exEditId?mine.find(e=>e.id===_exEditId):null;
+  document.getElementById('atp-extra').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-run" style="margin-right:6px;vertical-align:-3px;color:#fb923c" aria-hidden="true"></i>Treino Extra</div>
+  <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Registo de treinos fora do clube — ginásio, corrida, treino em casa, etc.</div>
+  ${editing?`<div class="al al-y"><i class="ti ti-pencil" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>A editar o registo de ${fmtDate(editing.date)}. <a href="#" onclick="cancelEditExtra();return false" style="color:inherit;text-decoration:underline">Cancelar edição</a></div>`:''}
+  <div class="card" style="margin-bottom:14px"><div class="cb" style="padding:14px">
+    <div style="margin-bottom:10px"><label class="fl">Tipo de treino</label>
+      <select class="fc" id="ex-type" onchange="_exfVals.type=this.value">${_EXTRA_TYPES.map(t=>`<option value="${t}" ${_exfVals.type===t?'selected':''}>${t}</option>`).join('')}</select>
+    </div>
+    <div style="margin-bottom:10px"><label class="fl">Duração (minutos) *</label><input class="fc" id="ex-dur" type="number" min="1" max="300" placeholder="45" value="${_exfVals.duration}" oninput="_exfVals.duration=this.value"></div>
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px">Como foi o esforço percebido? *</div>
+    <div class="pse-grid">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="psb ${_exfVals.pse===n?'on':''}" data-v="${n}" onclick="_exfVals.pse=${n};this.closest('.pse-grid').querySelectorAll('.psb').forEach(b=>b.classList.remove('on'));this.classList.add('on')"><div>${n}</div><div style="font-size:9px;color:var(--t2);line-height:1.2">${borgLabels[n]||''}</div></button>`).join('')}</div>
+    <div style="margin-top:10px"><label class="fl">Orientação (opcional)</label>
+      <select class="fc" id="ex-guidance" onchange="_exfVals.guidance=this.value">${_EXTRA_GUIDANCE.map(g=>`<option value="${g}" ${_exfVals.guidance===g?'selected':''}>${g||'—'}</option>`).join('')}</select>
+    </div>
+    <div style="margin-top:10px"><label class="fl">Resumo do treino (opcional)</label><textarea class="fc" id="ex-summary" rows="3" placeholder="O que fizeste..." oninput="_exfVals.summary=this.value">${escHtml(_exfVals.summary)}</textarea></div>
+  </div></div>
+  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitExtraTraining()"><i class="ti ti-send" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>${editing?'Guardar Alterações':'Registar Treino Extra'}</button>
+  <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Últimos Registos</div>
+  <div class="tw"><table><thead><tr><th>Data</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th><th></th></tr></thead>
+  <tbody>${mine.slice(0,14).map(e=>{
+    const canEdit=_extraEditable(e);
+    return `<tr><td>${fmtDate(e.date)}</td><td>${escHtml(e.type||'—')}</td><td>${e.duration} min</td><td>${e.pse}/10</td><td><strong>${e.ua}</strong></td><td style="white-space:nowrap">${canEdit?`<a href="#" onclick="editExtraTraining('${e.id}');return false" style="margin-right:8px" title="Editar"><i class="ti ti-edit" aria-hidden="true"></i></a><a href="#" onclick="deleteExtraTraining('${e.id}');return false" title="Apagar"><i class="ti ti-trash" aria-hidden="true"></i></a>`:''}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>
+  <div style="font-size:10px;color:var(--t2);margin-top:8px">Podes editar ou apagar um registo até ${_EXTRA_EDIT_WINDOW_H}h depois de o criares. A carga deste treino é contabilizada à parte da carga oficial do clube.</div>`;
+}
+function _resetExtraForm(){_exfVals={type:'Ginásio',pse:null,duration:'',summary:'',guidance:''};_exEditId=null;}
+function submitExtraTraining(){
+  const type=document.getElementById('ex-type').value;
+  const dur=+document.getElementById('ex-dur').value;
+  if(!dur)return toast('Duração obrigatória','err');
+  if(_exfVals.pse===null||_exfVals.pse===undefined)return toast('Seleciona o PSE','err');
+  const ua=Math.round(_exfVals.pse*dur);
+  const summary=(document.getElementById('ex-summary').value||'').trim();
+  const guidance=document.getElementById('ex-guidance').value||'';
+  if(_exEditId){
+    const entry=(APP.extraTrainings||[]).find(e=>e.id===_exEditId&&e.athleteId===AID);
+    if(!entry)return toast('Registo não encontrado','err');
+    if(!_extraEditable(entry))return toast('Já não é possível editar este registo','err');
+    entry.type=type;entry.duration=dur;entry.pse=_exfVals.pse;entry.ua=ua;entry.summary=summary;entry.guidance=guidance;
+    if(_sync)cloudUpsert('extra_training_records',{...entry,athlete_id:entry.athleteId,club_id:_cid});
+    saveData();_resetExtraForm();toast('Registo atualizado ✓');renderAtExtra();
+    return;
+  }
+  const entry={id:uid(),athleteId:AID,date:today(),type,duration:dur,pse:_exfVals.pse,ua,summary,guidance,submittedAt:new Date().toISOString()};
+  APP.extraTrainings.push(entry);
+  if(_sync)cloudUpsert('extra_training_records',{...entry,athlete_id:entry.athleteId,club_id:_cid});
+  saveData();_resetExtraForm();toast(`Treino extra registado! UA: ${ua}`);renderAtExtra();
+}
+function editExtraTraining(id){
+  const entry=(APP.extraTrainings||[]).find(e=>e.id===id&&e.athleteId===AID);
+  if(!entry)return;
+  if(!_extraEditable(entry))return toast('Já não é possível editar este registo','err');
+  _exEditId=id;
+  _exfVals={type:entry.type||'Ginásio',pse:entry.pse,duration:String(entry.duration||''),summary:entry.summary||'',guidance:entry.guidance||''};
+  renderAtExtra();
+}
+function cancelEditExtra(){_resetExtraForm();renderAtExtra();}
+async function deleteExtraTraining(id){
+  const entry=(APP.extraTrainings||[]).find(e=>e.id===id&&e.athleteId===AID);
+  if(!entry)return;
+  if(!_extraEditable(entry))return toast('Já não é possível apagar este registo','err');
+  if(!confirm('Apagar este registo de treino extra?'))return;
+  APP.extraTrainings=APP.extraTrainings.filter(e=>e.id!==id);
+  if(_sync&&_supa){try{await _supa.from('extra_training_records').delete().eq('id',id);}catch(err){console.warn('deleteExtraTraining cloud:',err);}}
+  if(_exEditId===id)_resetExtraForm();
+  saveData();toast('Registo apagado');renderAtExtra();
 }
 function _atEventsForAthlete(at){
   return APP.schedule.filter(e=>(e.teamId===at?.teamId||!e.teamId));
@@ -9062,7 +9191,12 @@ async function pullCloud(){
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
       ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
-      ['athlete_anamnesis','anamnesis',(d)=>APP.anamnesis=d.map(r=>({id:r.id,athleteId:r.athlete_id,selfReport:r.self_report||{},selfReportUpdatedAt:r.self_report_updated_at,clinicalNotes:r.clinical_notes||'',clinicalNotesUpdatedAt:r.clinical_notes_updated_at,clinicalNotesUpdatedBy:r.clinical_notes_updated_by,fisioViewedAt:r.fisio_viewed_at}))]
+      ['athlete_anamnesis','anamnesis',(d)=>APP.anamnesis=d.map(r=>({id:r.id,athleteId:r.athlete_id,selfReport:r.self_report||{},selfReportUpdatedAt:r.self_report_updated_at,clinicalNotes:r.clinical_notes||'',clinicalNotesUpdatedAt:r.clinical_notes_updated_at,clinicalNotesUpdatedBy:r.clinical_notes_updated_by,fisioViewedAt:r.fisio_viewed_at}))],
+      // Treino Extra: registo autoiniciado pela atleta (ginásio, corrida, treino em casa...),
+      // sem ligação a schedule_events — tabela dedicada própria, mesmo padrão de pse_records/
+      // wellness_records (série temporal, não singleton). UA calculado mas propositadamente
+      // NÃO somado ao ACWR oficial (_acwrAt só lê APP.pse) — ver project_sps_treino_extra_atleta_plano.
+      ['extra_training_records','extraTrainings',(d)=>APP.extraTrainings=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at}))]
     ];
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
@@ -9221,7 +9355,9 @@ const _CLOUD_TABLE_SCHEMA={
   staff_users:{cols:['id','name','email','role','photo','password_hash','is_admin','active','created_at','must_change_pwd'],
     rename:{passwordHash:'password_hash',isAdmin:'is_admin',createdAt:'created_at',mustChangePwd:'must_change_pwd'}},
   athlete_anamnesis:{cols:['id','athlete_id','self_report','self_report_updated_at','clinical_notes','clinical_notes_updated_at','clinical_notes_updated_by','fisio_viewed_at'],
-    rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',clinicalNotes:'clinical_notes',clinicalNotesUpdatedAt:'clinical_notes_updated_at',clinicalNotesUpdatedBy:'clinical_notes_updated_by',fisioViewedAt:'fisio_viewed_at'}}
+    rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',clinicalNotes:'clinical_notes',clinicalNotesUpdatedAt:'clinical_notes_updated_at',clinicalNotesUpdatedBy:'clinical_notes_updated_by',fisioViewedAt:'fisio_viewed_at'}},
+  extra_training_records:{cols:['id','athlete_id','date','type','duration','pse','ua','summary','guidance','submitted_at'],
+    rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}}
 };
 async function cloudUpsert(table,row){
   if(!_supa||!_cid)return;
