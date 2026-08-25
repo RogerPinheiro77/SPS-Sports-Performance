@@ -3759,7 +3759,7 @@ function _initPitchEvents(gid){
 function _jogoPosHtml(g){
   const ats=[...g.lineup,...g.subs].map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
   const sRows=ats.map(a=>{
-    const st=(g.playerStats||[]).find(s=>s.aid===a.id)||{mins:0,goals:0,yellow:0,red:0,subIn:'',subOut:''};
+    const st=(g.playerStats||[]).find(s=>s.aid===a.id)||{mins:0,goals:0,assists:0,yellow:0,red:0,subIn:'',subOut:''};
     const isS=g.lineup.includes(a.id);
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:6px">
@@ -3767,6 +3767,7 @@ function _jogoPosHtml(g){
         <span style="font-size:11px">${escHtml(a.name)}</span></div></td>
       <td><input class="fc" type="number" min="0" max="120" style="width:50px;padding:2px 5px;font-size:11px" value="${st.mins||0}" data-aid="${a.id}" data-field="mins"></td>
       <td><input class="fc" type="number" min="0" max="20" style="width:42px;padding:2px 5px;font-size:11px" value="${st.goals||0}" data-aid="${a.id}" data-field="goals"></td>
+      <td><input class="fc" type="number" min="0" max="20" style="width:42px;padding:2px 5px;font-size:11px" value="${st.assists||0}" data-aid="${a.id}" data-field="assists"></td>
       <td><input class="fc" type="number" min="0" max="2" style="width:42px;padding:2px 5px;font-size:11px" value="${st.yellow||0}" data-aid="${a.id}" data-field="yellow"></td>
       <td><input class="fc" type="number" min="0" max="1" style="width:42px;padding:2px 5px;font-size:11px" value="${st.red||0}" data-aid="${a.id}" data-field="red"></td>
       <td><input class="fc" type="number" min="0" max="120" style="width:50px;padding:2px 5px;font-size:11px" value="${st.subIn||''}" placeholder="—" data-aid="${a.id}" data-field="subIn"></td>
@@ -3787,9 +3788,10 @@ function _jogoPosHtml(g){
       <div class="sh-t" style="font-size:15px">📊 Estatísticas Individuais</div>
       ${ats.length?`<button class="btn btn-g btn-sm" onclick="savePostStats('${g.id}')">💾 Guardar</button>`:''}
     </div>
-    ${ats.length?`<div class="tw"><table><thead><tr><th>Atleta</th><th>Min.</th><th>⚽</th><th>🟨</th><th>🟥</th><th>Sub↑</th><th>Sub↓</th></tr></thead><tbody>${sRows}</tbody></table></div>
+    ${ats.length?`<div class="tw"><table><thead><tr><th>Atleta</th><th>Min.</th><th>⚽</th><th>🅰️</th><th>🟨</th><th>🟥</th><th>Sub↑</th><th>Sub↓</th></tr></thead><tbody>${sRows}</tbody></table></div>
     <button class="btn btn-g" style="margin-top:10px" onclick="savePostStats('${g.id}')">💾 Guardar Estatísticas</button>`:`<p style="color:var(--t2);font-size:12px">Define convocatória e onze no separador Pré-Jogo.</p>`}
   </div>
+  ${_jogoTimelineHtml(g)}
   <div class="ipanel" style="margin-bottom:12px">
     <div class="sh-t" style="font-size:15px;margin-bottom:6px">📋 Registar PSE Manualmente</div>
     <div style="font-size:11px;color:var(--t2);margin-bottom:8px;line-height:1.5">Usa quando uma atleta reportou o PSE por fora da app (ex: WhatsApp). A duração vem pré-preenchida com os minutos jogados de "Estatísticas Individuais" acima — ajusta se for diferente. Atletas já com PSE registado nesse dia aparecem bloqueadas, para não sobrepores por engano.</div>
@@ -3801,6 +3803,30 @@ function _jogoPosHtml(g){
     <textarea class="fc" id="pos-notes" rows="6" placeholder="Reflexão sobre o desempenho da equipa, aspetos positivos e a melhorar...">${escHtml(g.postGameNotes||'')}</textarea>
     <button class="btn btn-g" style="margin-top:8px" onclick="savePosNotes('${g.id}')">💾 Guardar Análise</button>
   </div>
+  </div>`;
+}
+
+// Mostra a linha do tempo (golos/cartões/substituições) já importada da FPF —
+// o dado (g.fpfTimeline) existe desde a importação mas nunca era exibido em
+// lado nenhum depois de aplicado; isto só lê o que já está guardado.
+const _TL_EVLBL={golo:'⚽ Golo',amarelo:'🟨 Cartão amarelo',vermelho:'🟥 Cartão vermelho',substituicao:'🔄 Substituição'};
+function _jogoTimelineHtml(g){
+  const evs=(g.fpfTimeline||[]).filter(e=>e.type!=='inicio'&&e.type!=='fim');
+  if(!evs.length)return `<div class="ipanel" style="margin-bottom:12px">
+    <div class="sh-t" style="font-size:15px;margin-bottom:6px">🕐 Linha do Tempo do Jogo</div>
+    <p style="color:var(--t2);font-size:12px">Aparece aqui automaticamente depois de importares o jogo da FPF (separador acima).</p>
+  </div>`;
+  const rows=evs.map(e=>{
+    const detail=e.type==='substituicao'?`Sai ${escHtml(e.playerOut||'?')}, entra ${escHtml(e.playerIn||'?')}`:`${escHtml(e.player||'')}${e.scoreAfter?' ('+escHtml(e.scoreAfter)+')':''}`;
+    return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--brd)">
+      <div style="font-size:11px;color:var(--t2);min-width:30px;font-weight:700">${escHtml(e.minRaw||'')}</div>
+      <div style="font-size:12px">${_TL_EVLBL[e.type]||e.type} — ${detail}</div>
+    </div>`;
+  }).join('');
+  return `<div class="ipanel" style="margin-bottom:12px">
+    <div class="sh-t" style="font-size:15px;margin-bottom:2px">🕐 Linha do Tempo do Jogo</div>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Importada da FPF.</p>
+    <div>${rows}</div>
   </div>`;
 }
 
@@ -3978,7 +4004,7 @@ function applyFpfImport(){
   const endMin=Math.max(90,...parsed.events.filter(e=>e.type==='fim').map(e=>e.minute||0),90);
   const starters=parsed.starters[ourSide]||[];
   const statMap={};
-  const getStat=aid=>{if(!statMap[aid])statMap[aid]={aid,mins:0,goals:0,yellow:0,red:0,subIn:null,subOut:null};return statMap[aid];};
+  const getStat=aid=>{if(!statMap[aid])statMap[aid]={aid,mins:0,goals:0,assists:0,yellow:0,red:0,subIn:null,subOut:null};return statMap[aid];};
   starters.forEach(p=>{const aid=nameToAid[p.name];if(aid)getStat(aid).mins=endMin;});
   parsed.events.forEach(ev=>{
     if(ev.type==='substituicao'){
@@ -3992,7 +4018,7 @@ function applyFpfImport(){
   if(!g.playerStats)g.playerStats=[];
   Object.values(statMap).forEach(st=>{
     const i=g.playerStats.findIndex(x=>x.aid===st.aid);
-    if(i>=0)g.playerStats[i]={...g.playerStats[i],...st};else g.playerStats.push(st);
+    if(i>=0)g.playerStats[i]={...g.playerStats[i],...st,assists:g.playerStats[i].assists||0};else g.playerStats.push(st);
   });
   if(ourScore!=null)g.g1=ourScore;
   if(oppScore!=null)g.g2=oppScore;
@@ -4010,10 +4036,11 @@ function savePostStats(gid){
   const map={};
   inputs.forEach(inp=>{
     const aid=inp.dataset.aid,field=inp.dataset.field;
-    if(!map[aid])map[aid]={aid,mins:0,goals:0,yellow:0,red:0,subIn:null,subOut:null};
+    if(!map[aid])map[aid]={aid,mins:0,goals:0,assists:0,yellow:0,red:0,subIn:null,subOut:null};
     const v=inp.value!==''?+inp.value:null;
     if(field==='mins')map[aid].mins=v||0;
     else if(field==='goals')map[aid].goals=v||0;
+    else if(field==='assists')map[aid].assists=v||0;
     else if(field==='yellow')map[aid].yellow=v||0;
     else if(field==='red')map[aid].red=v||0;
     else map[aid][field]=v;
@@ -4142,13 +4169,16 @@ function exportJogoPDF(gid,type){
   if(type==='posjogo'||type==='full'){
     const stats=g.playerStats||[];
     const ats=[...g.lineup,...g.subs].map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
-    const sR=ats.map(a=>{const st=stats.find(s=>s.aid===a.id)||{mins:0,goals:0,yellow:0,red:0};const isS=g.lineup.includes(a.id);return `<tr><td>${a.number||'?'}</td><td>${a.name}${isS?'':' (S)'}</td><td>${a.pos||''}</td><td>${st.mins||0}'</td><td>${st.goals||0}</td><td>${st.yellow||0}</td><td>${st.red||0}</td></tr>`;}).join('');
+    const sR=ats.map(a=>{const st=stats.find(s=>s.aid===a.id)||{mins:0,goals:0,assists:0,yellow:0,red:0};const isS=g.lineup.includes(a.id);return `<tr><td>${a.number||'?'}</td><td>${a.name}${isS?'':' (S)'}</td><td>${a.pos||''}</td><td>${st.mins||0}'</td><td>${st.goals||0}</td><td>${st.assists||0}</td><td>${st.yellow||0}</td><td>${st.red||0}</td></tr>`;}).join('');
     const res=g.g1!=null&&g.g2!=null?`${g.g1}–${g.g2}`:'—';
+    const tlEvs=(g.fpfTimeline||[]).filter(e=>e.type!=='inicio'&&e.type!=='fim');
+    const tlRows=tlEvs.map(e=>{const detail=e.type==='substituicao'?`Sai ${e.playerOut||'?'}, entra ${e.playerIn||'?'}`:`${e.player||''}${e.scoreAfter?' ('+e.scoreAfter+')':''}`;return `<tr><td>${e.minRaw||''}</td><td>${_TL_EVLBL[e.type]||e.type}</td><td>${detail}</td></tr>`;}).join('');
     body+=`<div style="${type==='full'?'page-break-before:always':''}">
       <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📊 Relatório Pós-Jogo</h2>
       <p><b>Resultado:</b> ${club} ${res} ${g.opp}</p>
       ${g.oppStrengths?`<p><b>Análise adversário:</b> ${g.oppStrengths}</p>`:''}
-      ${ats.length?`<h3>Estatísticas Individuais</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Pos.</th><th>Min.</th><th>⚽</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${sR}</tbody></table>`:''}
+      ${ats.length?`<h3>Estatísticas Individuais</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Pos.</th><th>Min.</th><th>⚽</th><th>🅰️</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${sR}</tbody></table>`:''}
+      ${tlEvs.length?`<h3>Linha do Tempo</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>Min.</th><th>Evento</th><th>Detalhe</th></tr></thead><tbody>${tlRows}</tbody></table>`:''}
       ${g.postGameNotes?`<h3>Análise do Treinador</h3><p style="white-space:pre-line">${g.postGameNotes}</p>`:''}
     </div>`;
   }
@@ -7567,15 +7597,15 @@ function printAthleteReport(){
     return `<tr><td>${fmtDate(c.date)}</td><td>${escHtml(opp)}</td><td>${papel||'—'}</td><td>${viu?'✅':'—'}</td></tr>`;
   }).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem convocatórias no período</p>';
 
-  const gamesTable=gamesP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Resultado</th><th>Min.</th><th>⚽</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${gamesP.sort((a,b)=>a.date.localeCompare(b.date)).map(g=>{
+  const gamesTable=gamesP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Resultado</th><th>Min.</th><th>⚽</th><th>🅰️</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${gamesP.sort((a,b)=>a.date.localeCompare(b.date)).map(g=>{
     const noShow=g.noShow&&g.noShow[id]!==undefined;
     if(noShow){
       const motivo=ATT_REASONS[g.noShow[id]]||'Sem motivo indicado';
-      return `<tr><td>${fmtDate(g.date)}</td><td>${escHtml(g.opp)}</td><td colspan="5" style="color:#c0392b">❌ Convocada mas não compareceu — ${motivo}</td></tr>`;
+      return `<tr><td>${fmtDate(g.date)}</td><td>${escHtml(g.opp)}</td><td colspan="6" style="color:#c0392b">❌ Convocada mas não compareceu — ${motivo}</td></tr>`;
     }
     const st=(g.playerStats||[]).find(s=>s.aid===id);
     const res=g.g1!=null&&g.g2!=null?g.g1+'–'+g.g2:'—';
-    return `<tr><td>${fmtDate(g.date)}</td><td>${escHtml(g.opp)}</td><td>${res}</td><td>${st?st.mins||0:'sem dados'}</td><td>${st?st.goals||0:'—'}</td><td>${st?st.yellow||0:'—'}</td><td>${st?st.red||0:'—'}</td></tr>`;
+    return `<tr><td>${fmtDate(g.date)}</td><td>${escHtml(g.opp)}</td><td>${res}</td><td>${st?st.mins||0:'sem dados'}</td><td>${st?st.goals||0:'—'}</td><td>${st?st.assists||0:'—'}</td><td>${st?st.yellow||0:'—'}</td><td>${st?st.red||0:'—'}</td></tr>`;
   }).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem jogos no período</p>';
 
   const injTable=injuriesP.length?`<table><thead><tr><th>Data</th><th>Diagnóstico</th><th>Zona</th><th>Estado</th><th>Retorno previsto</th></tr></thead><tbody>${injuriesP.map(i=>`<tr><td>${fmtDate(i.date)}</td><td>${escHtml(i.diagnosis||i.type||'—')}</td><td>${escHtml(i.bodyPart||'—')}</td><td>${i.status||'—'}</td><td>${i.returnDate?fmtDate(i.returnDate):'—'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem lesões relevantes no período</p>';
