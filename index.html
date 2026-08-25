@@ -1085,10 +1085,16 @@ function renderDashboard(){
   // (ver [[project_sps_condicao_plantel]]/[[project_sps_treino_extra_atleta_plano]]):
   // 3+ sessões ou 150+ min nos últimos 7 dias = atenção, 5+/300+ = risco.
   const extraLvlMap={};
+  // Registos de treino extra de HOJE, por atleta — usado para o sinal imediato na
+  // coluna EXTRA (ver [[project_sps_treino_extra_atleta_plano]]): o ícone só aparece
+  // no dia em que a atleta efetivamente submeteu, colorido como semáforo com a carga
+  // acumulada dos últimos 7 dias (incluindo hoje) nesse momento.
+  const extraTodayMap={};
   mainAts.forEach(at=>{
     const recs7=(APP.extraTrainings||[]).filter(e=>e.athleteId===at.id&&dys7.includes(e.date));
     const cnt=recs7.length,min=recs7.reduce((s,e)=>s+(+e.duration||0),0);
     extraLvlMap[at.id]=(cnt>=5||min>=300)?'r':(cnt>=3||min>=150)?'y':'g';
+    extraTodayMap[at.id]=recs7.filter(e=>e.date===td);
   });
   const extraHighCount=Object.values(extraLvlMap).filter(l=>l==='r').length;
 
@@ -1157,9 +1163,14 @@ function renderDashboard(){
     const cargaBar=`<div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:5px;background:rgba(255,255,255,.1);border-radius:3px"><div style="width:${bw}%;height:100%;background:${bc};border-radius:3px"></div></div><span style="font-size:10px;color:var(--t2);white-space:nowrap;min-width:50px">${u} u.a.</span></div>`;
     // Obs
     const obs=inj?'🩺':acd&&acd.r>1.5?'⚠️':acd&&acd.r<0.8&&acd.r>0?'⚡':'—';
-    // Treino extra (coluna própria, separada do OBS.)
+    // Treino extra (coluna própria, separada do OBS.) — sinal do dia: o ícone só
+    // aparece quando a atleta tem um registo de HOJE, colorido como semáforo com a
+    // carga acumulada dos últimos 7 dias (incluindo hoje) nesse momento.
     const exLvl=extraLvlMap[at.id];
-    const extraCell=exLvl==='r'?'<span title="Sobrecarga de treino extra (7 dias)">🏃</span>':exLvl==='y'?'<span style="opacity:.55" title="Treino extra a monitorizar (7 dias)">🏃</span>':'<span style="color:var(--t3)">—</span>';
+    const exToday=extraTodayMap[at.id]||[];
+    const exColor=exLvl==='r'?'#f87171':exLvl==='y'?'#fbbf24':'#4ade80';
+    const exTip=exToday.length?exToday.map(e=>`${e.type||'—'} · ${e.duration}min · PSE ${e.pse}`).join(' | '):'';
+    const extraCell=exToday.length?`<span title="${escHtml(exTip)}" style="color:${exColor}">🏃</span>`:'<span style="color:var(--t3)">—</span>';
     const lp=APP.pse.filter(p=>p.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
     const wkMinsAt=acd?acd.wkU:0;
     let vistoCell='';
@@ -1290,7 +1301,7 @@ function renderDashboard(){
             <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700">CARGA SEMANAL</th>
             <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">MINS</th>
             <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center">OBS.</th>
-            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center" title="Treino extra autorreportado nos últimos 7 dias">EXTRA</th>
+            <th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center" title="Treino extra autorreportado hoje — cor = carga acumulada dos últimos 7 dias">EXTRA</th>
             ${activeConv?`<th style="position:sticky;top:0;background:var(--bg2);padding:7px 8px;font-size:9px;color:var(--t2);font-weight:700;text-align:center" title="Convocatória de ${fmtDate(activeConv.date)}">CONVOCATÓRIA</th>`:''}
           </tr></thead>
           <tbody>${plantelRows||`<tr><td colspan="${activeConv?9:8}" style="text-align:center;padding:20px;color:var(--t2);font-size:12px">Sem atletas nesta equipa</td></tr>`}</tbody>
