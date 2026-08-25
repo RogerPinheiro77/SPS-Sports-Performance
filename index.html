@@ -2955,6 +2955,7 @@ function _purgeAthleteRefs(id){
     if(c.athletes&&c.athletes.includes(id))c.athletes=c.athletes.filter(x=>x!==id);
     if(c.seenBy&&c.seenBy.some(s=>s.athleteId===id))c.seenBy=c.seenBy.filter(s=>s.athleteId!==id);
     if(c.rsvp&&c.rsvp[id])delete c.rsvp[id];
+    if(c.djChecks&&c.djChecks[id])delete c.djChecks[id];
   });
   // Convocatórias manuais (sem jogo) que ficaram vazias são removidas — as ligadas a
   // jogo já foram tratadas acima pelo _syncConvocatoriaFromGame (remove se vazio).
@@ -8439,12 +8440,19 @@ function _diaJogoTimeline(g){
   return items;
 }
 const _DJ_DOM_COLOR={nutri:'#fb923c',mental:'#a78bfa',fisico:'#4ade80',log:'#38bdf8',jogo:'#f87171',reg:'#94a3b8'};
-function _djChecklistKey(gid){return `sps_diajogo_${gid}_${AID}`;}
-function _djGetChecks(gid){try{return JSON.parse(localStorage.getItem(_djChecklistKey(gid))||'{}');}catch{return{};}}
+// Checklist do Dia de Jogo — vivia só em localStorage (sps_diajogo_{gid}_{AID}), por isso
+// não sincronizava entre dispositivos nem ficava visível ao staff. Passa a viver dentro do
+// registo unificado de APP.convocatorias (c.djChecks[AID]), mesmo padrão de c.rsvp/c.seenBy
+// — só existe checklist para jogos onde há sempre uma convocatória (_atGameHoje já garante
+// isso antes de abrir este ecrã).
+function _djConvFor(gid){return (APP.convocatorias||[]).find(c=>c.gameId===gid);}
+function _djGetChecks(gid){const c=_djConvFor(gid);return (c&&c.djChecks&&c.djChecks[AID])||{};}
 function _djToggle(gid,idx){
-  const checks=_djGetChecks(gid);
-  checks[idx]=!checks[idx];
-  localStorage.setItem(_djChecklistKey(gid),JSON.stringify(checks));
+  const c=_djConvFor(gid);if(!c)return;
+  if(!c.djChecks)c.djChecks={};
+  if(!c.djChecks[AID])c.djChecks[AID]={};
+  c.djChecks[AID][idx]=!c.djChecks[AID][idx];
+  saveData();
   _atOpenDiaJogo(gid);
 }
 function _atOpenDiaJogo(gid){
