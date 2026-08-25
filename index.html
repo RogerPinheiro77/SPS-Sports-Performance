@@ -2954,6 +2954,7 @@ function _purgeAthleteRefs(id){
   (APP.convocatorias||[]).forEach(c=>{
     if(c.athletes&&c.athletes.includes(id))c.athletes=c.athletes.filter(x=>x!==id);
     if(c.seenBy&&c.seenBy.some(s=>s.athleteId===id))c.seenBy=c.seenBy.filter(s=>s.athleteId!==id);
+    if(c.rsvp&&c.rsvp[id])delete c.rsvp[id];
   });
   // Convocatórias manuais (sem jogo) que ficaram vazias são removidas — as ligadas a
   // jogo já foram tratadas acima pelo _syncConvocatoriaFromGame (remove se vazio).
@@ -3332,12 +3333,17 @@ function _jogoPreHtml(g){
   // informar quem convoca; nunca esconde ninguém da lista (decisão do Roger).
   const condByAid={};
   _condicaoJogoCompute({date:g.date}).rows.forEach(r=>condByAid[r.at.id]=r);
+  // Confirmação de presença (RSVP) — a atleta responde na app (separador Convocatórias);
+  // a resposta vive no registo unificado de APP.convocatorias (c.rsvp), não no Jogo.
+  const _convForRsvp=APP.convocatorias.find(c=>c.gameId===g.id);
   const convRows=athletes.map(a=>{
     const isC=convSet.has(a.id),isS=lineSet.has(a.id),isSu=subSet.has(a.id);
     const isCap=g.captain===a.id,isVc=g.viceCaptain===a.id;
     const isNoShow=g.noShow&&g.noShow[a.id]!==undefined;
     const cr=condByAid[a.id];
     const condBadge=cr?(cr.gate?`<span class="bdg bg-r" style="font-size:9px" title="Estado nesta data">${escHtml(cr.gateTxt)}</span>`:`<span class="bdg bg-${cr.overallLvl}" style="font-size:9px" title="Estado nesta data">${cr.overallLabel}</span>`):'';
+    const rsvp=(isC&&!isNoShow&&_convForRsvp&&_convForRsvp.rsvp)?_convForRsvp.rsvp[a.id]:null;
+    const rsvpBadge=!isC||isNoShow?'':(rsvp?(rsvp.status==='yes'?`<span class="bdg bg-g" style="font-size:9px">✅ Vai</span>`:`<span class="bdg bg-r" style="font-size:9px" title="Motivo: ${escHtml(ATT_REASONS[rsvp.reason]||rsvp.reason||'—')}">❌ Não vai</span>`):`<span class="bdg" style="font-size:9px;background:var(--bg4);color:var(--t2)">⏳ Por confirmar</span>`);
     return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isNoShow?'#fdecea':(isC?'var(--bg2)':'var(--bg3)')};border:1px solid var(--brd);border-radius:6px;margin-bottom:4px;flex-wrap:wrap">
       <input type="checkbox" ${isC?'checked':''} onchange="toggleConvocado('${g.id}','${a.id}',this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
       <div style="width:22px;height:22px;background:var(--pri);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.num||'?'}</div>
@@ -3346,6 +3352,7 @@ function _jogoPreHtml(g){
         <div style="font-size:10px;color:var(--t2)">${a.pos||'—'}</div>
       </div>
       ${condBadge}
+      ${rsvpBadge}
       ${isCap?'<span style="background:#ffd700;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">CAP</span>':''}
       ${isVc?'<span style="background:#c0c0c0;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">VCap</span>':''}
       ${isS?'<span class="bdg bg-g" style="font-size:9px">Titular</span>':isSu?'<span class="bdg bg-y" style="font-size:9px">Suplente</span>':''}
@@ -9098,6 +9105,66 @@ function markTreinoDone(id){
   if(_sync)cloudUpsert('training_plans',{...APP.trainingPlans[idx],club_id:_cid,athlete_id:APP.trainingPlans[idx].athleteId,done_at:APP.trainingPlans[idx].doneAt});
   saveData();toast('Treino concluído ✅ — regista já o teu PSE!');_atNavTo('pse');
 }
+// Confirmação de presença (RSVP) — a atleta responde Vou/Não vou por cada convocatória
+// publicada; guardado em c.rsvp[AID] ({status,reason,respondedAt}), dentro do próprio
+// registo de APP.convocatorias (mesmo local que já guarda c.seenBy). _rsvpDeclining
+// controla, só em memória, se o card está a mostrar o seletor de motivo (fluxo "Não vou").
+let _rsvpDeclining=new Set();
+function _rsvpOf(c){return (c.rsvp&&c.rsvp[AID])||null;}
+function atRsvpYes(convId){
+  const c=APP.convocatorias.find(x=>x.id===convId);if(!c)return;
+  if(!c.rsvp)c.rsvp={};
+  c.rsvp[AID]={status:'yes',reason:'',respondedAt:new Date().toISOString()};
+  _rsvpDeclining.delete(convId);
+  saveData();renderAtConvoc();toast('Confirmaste presença ✓');
+}
+function atRsvpDeclineStart(convId){_rsvpDeclining.add(convId);renderAtConvoc();}
+function atRsvpDeclineCancel(convId){_rsvpDeclining.delete(convId);renderAtConvoc();}
+function atRsvpDeclineConfirm(convId){
+  const c=APP.convocatorias.find(x=>x.id===convId);if(!c)return;
+  const sel=document.getElementById('rsvp-reason-'+convId);
+  const reason=sel?sel.value:'';
+  if(!reason)return toast('Escolhe um motivo','err');
+  if(!c.rsvp)c.rsvp={};
+  c.rsvp[AID]={status:'no',reason,respondedAt:new Date().toISOString()};
+  _rsvpDeclining.delete(convId);
+  saveData();renderAtConvoc();toast('Resposta registada');
+}
+function atRsvpReset(convId){
+  const c=APP.convocatorias.find(x=>x.id===convId);if(!c)return;
+  if(c.rsvp)delete c.rsvp[AID];
+  _rsvpDeclining.delete(convId);
+  saveData();renderAtConvoc();
+}
+function _rsvpBlockHtml(c){
+  const r=_rsvpOf(c);
+  if(_rsvpDeclining.has(c.id)){
+    return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:6px">Motivo:</div>
+      <select class="fc" id="rsvp-reason-${c.id}" style="margin-bottom:8px">
+        <option value="">Escolhe...</option>
+        ${Object.entries(ATT_REASONS).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-r btn-sm" style="flex:1" onclick="atRsvpDeclineConfirm('${c.id}')">Confirmar</button>
+        <button class="btn btn-gh btn-sm" style="flex:1" onclick="atRsvpDeclineCancel('${c.id}')">Cancelar</button>
+      </div>
+    </div>`;
+  }
+  if(!r){
+    return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Confirmas presença?</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="atRsvpYes('${c.id}')">✅ Vou</button>
+        <button class="btn btn-gh btn-sm" style="flex:1" onclick="atRsvpDeclineStart('${c.id}')">❌ Não vou</button>
+      </div>
+    </div>`;
+  }
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd);font-size:11px;color:var(--t2)">
+    ${r.status==='yes'?'✅ Confirmaste presença':'❌ Avisaste que não vais'+(r.reason?' — '+escHtml(ATT_REASONS[r.reason]||r.reason):'')}
+    <a href="#" onclick="event.preventDefault();atRsvpReset('${c.id}')" style="color:var(--pri);margin-left:6px">mudar resposta</a>
+  </div>`;
+}
 function renderAtConvoc(){
   const td=today();
   const convs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td&&_convIsPublished(c)).sort((a,b)=>a.date.localeCompare(b.date));
@@ -9117,8 +9184,10 @@ function renderAtConvoc(){
     const isSub=g&&g.subs&&g.subs.includes(AID);
     const isCap=g&&g.captain===AID,isVc=g&&g.viceCaptain===AID;
     const logistica=[c.concentracaoLocal||c.concentracaoHora?['Concentração',`${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim()]:null,c.transporte?['Transporte',c.transporte]:null,c.refeicaoAntes?['Refeição antes',c.refeicaoAntes]:null,c.refeicaoApos?['Refeição após',c.refeicaoApos]:null].filter(Boolean);
+    const _r=_rsvpOf(c);
+    const _rBadge=_r?(_r.status==='yes'?'<span class="bdg bg-g">✅ Vou</span>':'<span class="bdg bg-r">❌ Não vou</span>'):'<span class="bdg bg-gr">⏳ Por confirmar</span>';
     return`<div class="card" style="margin-bottom:10px">
-      <div class="ch"><span class="ct"><i class="ti ti-clipboard-list" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Convocada</span><span class="bdg bg-g">Confirmada</span></div>
+      <div class="ch"><span class="ct"><i class="ti ti-clipboard-list" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Convocada</span>${_rBadge}</div>
       <div class="cb" style="padding:12px 14px">
         ${g?`<div style="font-size:14px;font-weight:800;margin-bottom:4px">vs ${escHtml(g.opp)}</div>
         <div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${g.time?' · '+g.time:''}${g.loc?' · '+escHtml(g.loc):''}</div>`:`<div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}</div>`}
@@ -9128,6 +9197,7 @@ function renderAtConvoc(){
         </div>`:''}
         ${logistica.length?`<div style="margin-top:10px;font-size:11px;color:var(--t2)">${logistica.map(([l,v])=>`<div><strong>${l}:</strong> ${escHtml(v)}</div>`).join('')}</div>`:''}
         ${(c.notes&&!(g&&c.notes==='vs '+g.opp))?`<div class="al al-b" style="margin-top:8px;font-size:11px">${escHtml(c.notes)}</div>`:''}
+        ${_rsvpBlockHtml(c)}
       </div>
     </div>`;
   }).join(''):`<div class="al al-b">Sem convocatórias próximas</div>`}
