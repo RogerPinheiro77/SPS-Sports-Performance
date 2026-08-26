@@ -3217,13 +3217,14 @@ function _renderJogoDetailFull(){
   _initG(g);
   const ha={casa:'🏠 Casa',fora:'✈️ Fora',neutro:'⚖️ Neutro'}[g.ha]||'';
   const res=g.g1!=null&&g.g2!=null?`${g.g1}–${g.g2}`:'vs';
-  const tDefs={info:'📋 Info',adversario:'🔍 Adversário',prejogo:'📋 Pré-Jogo',campo:'🏟️ Campo',posjogo:'📊 Pós-Jogo',exportar:'📥 Exportar'};
+  const tDefs={info:'📋 Info',adversario:'🔍 Adversário',prejogo:'📋 Pré-Jogo',campo:'🏟️ Campo',aovivo:'🔴 Ao Vivo',posjogo:'📊 Pós-Jogo',exportar:'📥 Exportar'};
   const tabBtns=Object.keys(tDefs).map(t=>`<button class="tab-btn ${_jogoDetailTab===t?'on':''}" onclick="_jogoDetailTab='${t}';_renderJogoDetailFull()">${tDefs[t]}</button>`).join('');
   let tc='';
   if(_jogoDetailTab==='info')tc=_jogoInfoHtml(g);
   else if(_jogoDetailTab==='adversario')tc=_jogoAdvHtml(g);
   else if(_jogoDetailTab==='prejogo')tc=_jogoPreHtml(g);
   else if(_jogoDetailTab==='campo')tc=_jogoCampoHtml(g);
+  else if(_jogoDetailTab==='aovivo')tc=_jogoAoVivoHtml(g);
   else if(_jogoDetailTab==='posjogo')tc=_jogoPosHtml(g);
   else if(_jogoDetailTab==='exportar')tc=_jogoExpHtml(g);
   document.getElementById('pg-jogos').innerHTML=`
@@ -3244,6 +3245,7 @@ function _renderJogoDetailFull(){
   <div class="tabs" style="flex-wrap:wrap;margin-bottom:16px">${tabBtns}</div>
   <div id="jogo-tab-content">${tc}</div>`;
   if(_jogoDetailTab==='campo')setTimeout(()=>_initPitchEvents(g.id),80);
+  if(_jogoDetailTab==='aovivo')setTimeout(()=>_gdStartClockInterval(g.id),80);
 }
 
 function _jogoInfoHtml(g){
@@ -3951,15 +3953,18 @@ function _jogoPosHtml(g){
 // Mostra a linha do tempo (golos/cartões/substituições) já importada da FPF —
 // o dado (g.fpfTimeline) existe desde a importação mas nunca era exibido em
 // lado nenhum depois de aplicado; isto só lê o que já está guardado.
-const _TL_EVLBL={golo:'⚽ Golo',amarelo:'🟨 Cartão amarelo',vermelho:'🟥 Cartão vermelho',substituicao:'🔄 Substituição'};
+const _TL_EVLBL={golo:'⚽ Golo',golo_sofrido:'🥅 Golo sofrido',amarelo:'🟨 Cartão amarelo',vermelho:'🟥 Cartão vermelho',substituicao:'🔄 Substituição',remate:'🎯 Remate',canto_of:'🚩 Canto Ofensivo',canto_def:'🚩 Canto Defensivo',livre_of:'🎯 Livre Ofensivo',livre_def:'🎯 Livre Defensivo',penaltis:'🥅 Grandes Penalidades'};
 function _jogoTimelineHtml(g){
   const evs=(g.fpfTimeline||[]).filter(e=>e.type!=='inicio'&&e.type!=='fim');
   if(!evs.length)return `<div class="ipanel" style="margin-bottom:12px">
     <div class="sh-t" style="font-size:15px;margin-bottom:6px">🕐 Linha do Tempo do Jogo</div>
-    <p style="color:var(--t2);font-size:12px">Aparece aqui automaticamente depois de importares o jogo da FPF (separador acima).</p>
+    <p style="color:var(--t2);font-size:12px">Aparece aqui automaticamente depois de importares o jogo da FPF (separador acima) ou de lançares o registo do SPS-Gameday (separador 🔴 Ao Vivo).</p>
   </div>`;
   const rows=evs.map(e=>{
-    const detail=e.type==='substituicao'?`Sai ${escHtml(e.playerOut||'?')}, entra ${escHtml(e.playerIn||'?')}`:`${escHtml(e.player||'')}${e.scoreAfter?' ('+escHtml(e.scoreAfter)+')':''}`;
+    const isSetPiece=e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def';
+    const detail=e.type==='substituicao'?`Sai ${escHtml(e.playerOut||'?')}, entra ${escHtml(e.playerIn||'?')}`
+      :isSetPiece?(e.side==='esq'?'lado esquerdo':e.side==='dir'?'lado direito':'')
+      :`${escHtml(e.player||'')}${e.assistName?' (assist. '+escHtml(e.assistName)+')':''}${e.scoreAfter?' ('+escHtml(e.scoreAfter)+')':''}`;
     return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--brd)">
       <div style="font-size:11px;color:var(--t2);min-width:30px;font-weight:700">${escHtml(e.minRaw||'')}</div>
       <div style="font-size:12px">${_TL_EVLBL[e.type]||e.type} — ${detail}</div>
@@ -3967,8 +3972,435 @@ function _jogoTimelineHtml(g){
   }).join('');
   return `<div class="ipanel" style="margin-bottom:12px">
     <div class="sh-t" style="font-size:15px;margin-bottom:2px">🕐 Linha do Tempo do Jogo</div>
-    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Importada da FPF.</p>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Importada da FPF ou lançada do SPS-Gameday.</p>
     <div>${rows}</div>
+  </div>`;
+}
+
+// ============================================================
+// SPS-GAMEDAY — registo ao vivo do jogo (item 7 da evolução da aba Jogo, 26/08/2026).
+// Toque no campo grava minuto + zona aproximada automaticamente e abre a lista de
+// ações; cantos/livres inferem o lado (esquerdo/direito) pelo x do toque, sem
+// perguntar outra vez. Tudo fica num rascunho (g.liveSession) que só escreve nos
+// dados oficiais (playerStats/fpfTimeline/resultado/estado) quando se clica em
+// "Lançar" — um erro a meio do jogo nunca estraga os dados até essa confirmação
+// final, e cada evento tem "desfazer" imediato. saveData() já grava em localStorage
+// a cada toque (funciona sem rede no campo) e sincroniza sozinho quando há ligação.
+// Mapa de calor (onde a equipa ataca/remata mais) fica para uma fase 2, depois de
+// haver jogos reais com dados — combinado com o Roger, 26/08/2026.
+// ============================================================
+const _GD_TYPES=[
+  ['golo','⚽','Golo'],
+  ['golo_sofrido','🥅','Golo Sofrido'],
+  ['remate','🎯','Remate'],
+  ['canto_of','🚩','Canto Ofensivo'],
+  ['canto_def','🚩','Canto Defensivo'],
+  ['livre_of','🎯','Livre Ofensivo'],
+  ['livre_def','🎯','Livre Defensivo'],
+  ['substituicao','🔄','Substituição'],
+  ['amarelo','🟨','Amarelo'],
+  ['vermelho','🟥','Vermelho']
+];
+const _GD_TYPE_LBL={};_GD_TYPES.forEach(t=>{_GD_TYPE_LBL[t[0]]=t[2];});
+const _GD_PHASE_LBL={pre:'Antes do jogo','1':'1ª Parte',intervalo1:'Intervalo','2':'2ª Parte',fimReg:'Fim do tempo regulamentar',ET1:'1º Tempo Prolong.',intervaloET:'Intervalo Prolong.',ET2:'2º Tempo Prolong.',penaltis:'Grandes Penalidades',fim:'Jogo Terminado'};
+
+function _gdInit(g){
+  if(!g.liveSession)g.liveSession={
+    phase:'pre',runningSince:null,accumSec:0,regEndSec:null,etEndSec:null,
+    events:[],onPitch:[...g.lineup],bench:[...g.subs],score:{casa:0,fora:0},
+    penEvents:[],launched:false
+  };
+  return g.liveSession;
+}
+function _gdRunning(ls){return !!ls.runningSince;}
+function _gdElapsedSec(ls){return ls.accumSec+(ls.runningSince?(Date.now()-ls.runningSince)/1000:0);}
+function _gdFmtClock(sec){sec=Math.max(0,Math.round(sec));const m=Math.floor(sec/60),s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
+function _gdMinLabel(sec){return Math.floor(Math.max(0,sec)/60)+"'";}
+
+function _gdRecompute(g){
+  const ls=g.liveSession;
+  let onPitch=[...g.lineup],bench=[...g.subs],casa=0,fora=0;
+  [...ls.events].sort((a,b)=>a.sec-b.sec).forEach(e=>{
+    if(e.type==='golo')casa++;
+    else if(e.type==='golo_sofrido')fora++;
+    else if(e.type==='substituicao'&&e.playerOut&&e.playerIn){
+      onPitch=onPitch.filter(x=>x!==e.playerOut);
+      if(!onPitch.includes(e.playerIn))onPitch.push(e.playerIn);
+      bench=bench.filter(x=>x!==e.playerIn);
+    }
+  });
+  ls.onPitch=onPitch;ls.bench=bench;ls.score={casa,fora};
+}
+
+// --- Controlo do cronómetro (corre sozinho, nunca escreve a hora à mão) ---
+function _gdStartGame(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const ls=_gdInit(g);
+  ls.phase='1';ls.runningSince=Date.now();ls.accumSec=0;
+  saveData();toast('Jogo iniciado — 1ª Parte ⏱️');_renderJogoDetailFull();
+}
+function _gdPause(gid,nextPhase){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  ls.phase=nextPhase;
+  saveData();_renderJogoDetailFull();
+}
+function _gdResume(gid,phase,resetSec){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  if(resetSec!=null)ls.accumSec=resetSec;
+  ls.phase=phase;ls.runningSince=Date.now();
+  saveData();toast((_GD_PHASE_LBL[phase]||phase)+' iniciada ⏱️');_renderJogoDetailFull();
+}
+function _gdEndReg(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  ls.regEndSec=ls.accumSec;ls.phase='fimReg';
+  saveData();_renderJogoDetailFull();
+}
+function _gdEndET(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  ls.etEndSec=ls.accumSec;
+  ls.phase=(ls.score.casa===ls.score.fora)?'penaltis':'fim';
+  saveData();_renderJogoDetailFull();
+}
+
+// --- Toque no campo: grava minuto+zona automaticamente, abre lista de ações ---
+let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null;
+function _gdPitchTap(e,gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession||!_gdRunning(g.liveSession))return;
+  const svg=document.getElementById('gd-pitch-'+gid);if(!svg)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const vb=svg.viewBox.baseVal;
+  const xPct=Math.max(0,Math.min(100,(svgP.x-vb.x)/vb.width*100));
+  const yPct=Math.max(0,Math.min(100,(svgP.y-vb.y)/vb.height*100));
+  _gdMenuXY={x:xPct,y:yPct,sec:_gdElapsedSec(g.liveSession)};
+  _gdPendingType=null;
+  _renderJogoDetailFull();
+}
+function _gdCancelMenu(){_gdMenuXY=null;_gdPendingType=null;_renderJogoDetailFull();}
+function _gdPickType(gid,type){
+  const simple=['golo_sofrido','remate','canto_of','canto_def','livre_of','livre_def'];
+  if(simple.includes(type)){_gdCommitEvent(gid,type,{});return;}
+  _gdPendingType=type;_renderJogoDetailFull();
+}
+function _gdCommitEvent(gid,type,extra){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession||!_gdMenuXY)return;
+  const ls=g.liveSession;
+  const sec=_gdMenuXY.sec;
+  const side=_gdMenuXY.x<50?'esq':'dir';
+  const ev={id:uid(),sec,min:_gdMinLabel(sec),phase:ls.phase,type,x:_gdMenuXY.x,y:_gdMenuXY.y,side};
+  Object.keys(extra||{}).forEach(k=>{ev[k]=extra[k];});
+  ls.events.push(ev);
+  if(type==='substituicao'&&extra.playerOut&&extra.playerIn){
+    ['tatico','cornerDef','cornerOf','freeKick'].forEach(mode=>{
+      const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
+      if(posMap[extra.playerOut]){posMap[extra.playerIn]=posMap[extra.playerOut];delete posMap[extra.playerOut];}
+      if(taskMap[extra.playerOut]!==undefined){taskMap[extra.playerIn]=taskMap[extra.playerOut];delete taskMap[extra.playerOut];}
+    });
+  }
+  _gdRecompute(g);
+  saveData();
+  _gdMenuXY=null;_gdPendingType=null;
+  const lbl=_GD_TYPE_LBL[type]||type;
+  toast(type==='golo'||type==='golo_sofrido'?`${lbl} — ${ls.score.casa}-${ls.score.fora} ✓`:`${lbl} registado ✓`);
+  _renderJogoDetailFull();
+}
+function _gdUndoEvent(gid,eid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  if(!confirm('Desfazer este evento?'))return;
+  g.liveSession.events=g.liveSession.events.filter(e=>e.id!==eid);
+  _gdRecompute(g);
+  saveData();toast('Evento removido');_renderJogoDetailFull();
+}
+function _gdSubmitGolo(gid){
+  const scorer=document.getElementById('gd-scorer').value;
+  const assist=document.getElementById('gd-assist').value;
+  if(!scorer)return toast('Escolhe a marcadora','err');
+  _gdCommitEvent(gid,'golo',{scorer,assist:assist||null});
+}
+function _gdSubmitSub(gid){
+  const playerOut=document.getElementById('gd-out').value;
+  const playerIn=document.getElementById('gd-in').value;
+  if(!playerIn)return toast('Não há suplentes disponíveis','err');
+  _gdCommitEvent(gid,'substituicao',{playerOut,playerIn});
+}
+function _gdSubmitCard(gid,type){
+  const player=document.getElementById('gd-card-player').value;
+  if(!player)return toast('Escolhe a jogadora','err');
+  _gdCommitEvent(gid,type,{player});
+}
+
+// --- Grandes Penalidades: lista simples alternada, sem cronómetro ---
+function _gdPenScore(ls){
+  return {casa:ls.penEvents.filter(p=>p.team==='casa'&&p.ok).length,fora:ls.penEvents.filter(p=>p.team==='fora'&&p.ok).length};
+}
+function _gdPenKick(gid,ok){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  const casaCount=ls.penEvents.filter(p=>p.team==='casa').length,foraCount=ls.penEvents.filter(p=>p.team==='fora').length;
+  const team=casaCount<=foraCount?'casa':'fora';
+  ls.penEvents.push({team,ok});
+  saveData();_renderJogoDetailFull();
+}
+function _gdPenUndo(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  g.liveSession.penEvents.pop();
+  saveData();_renderJogoDetailFull();
+}
+function _gdPenaltisHtml(g){
+  const ls=g.liveSession;
+  const ps=_gdPenScore(ls);
+  const casaTeam=(APP.teams.find(t=>t.id===g.teamId)||{}).name||'Nós';
+  const dots=ls.penEvents.map(p=>`<span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${p.ok?'var(--c1l)':'var(--brd)'};color:#fff;font-size:10px;text-align:center;line-height:20px;margin:2px">${p.ok?'✓':'✗'}</span>`).join('');
+  const casaCount=ls.penEvents.filter(p=>p.team==='casa').length,foraCount=ls.penEvents.filter(p=>p.team==='fora').length;
+  const nextTeam=casaCount<=foraCount?casaTeam:g.opp;
+  return `<div class="ipanel" style="margin-bottom:0">
+    <div style="font-size:13px;font-weight:800;text-align:center;margin-bottom:6px">🥅 Grandes Penalidades — ${ps.casa}-${ps.fora}</div>
+    <div style="font-size:11px;color:var(--t2);text-align:center;margin-bottom:8px">Próxima a marcar: <strong>${escHtml(nextTeam)}</strong></div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px">
+      <button class="btn btn-g btn-sm" onclick="_gdPenKick('${g.id}',true)">✓ Marcou</button>
+      <button class="btn btn-r btn-sm" onclick="_gdPenKick('${g.id}',false)">✗ Falhou</button>
+      <button class="btn btn-gh btn-sm" onclick="_gdPenUndo('${g.id}')">↩️ Desfazer</button>
+    </div>
+    <div style="text-align:center;margin-bottom:10px">${dots||'<span style="font-size:11px;color:var(--t2)">Sem remates ainda</span>'}</div>
+    <button class="btn btn-g" style="width:100%;padding:12px" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar na Plataforma</button>
+  </div>`;
+}
+
+// --- Lançar: só aqui os dados saem do rascunho e entram nos campos oficiais ---
+function _gdEndMinute(ls){
+  const sec=ls.etEndSec!=null?ls.etEndSec:(ls.regEndSec!=null?ls.regEndSec:_gdElapsedSec(ls));
+  return Math.max(1,Math.round(sec/60));
+}
+function _gdBuildPlayerStats(g){
+  const ls=g.liveSession;
+  const endMin=_gdEndMinute(ls);
+  const allIds=[];[...g.lineup,...g.subs].forEach(id=>{if(allIds.indexOf(id)<0)allIds.push(id);});
+  const statMap={};
+  const getStat=aid=>{if(!statMap[aid])statMap[aid]={aid,mins:0,goals:0,assists:0,yellow:0,red:0,subIn:null,subOut:null};return statMap[aid];};
+  const onSince={};
+  g.lineup.forEach(aid=>{onSince[aid]=0;});
+  const sorted=[...ls.events].sort((a,b)=>a.sec-b.sec);
+  sorted.forEach(e=>{
+    const evMin=Math.round(e.sec/60);
+    if(e.type==='golo'&&e.scorer)getStat(e.scorer).goals+=1;
+    if(e.type==='golo'&&e.assist)getStat(e.assist).assists+=1;
+    if(e.type==='amarelo'&&e.player)getStat(e.player).yellow+=1;
+    if(e.type==='vermelho'&&e.player)getStat(e.player).red+=1;
+    if(e.type==='substituicao'&&e.playerOut&&e.playerIn){
+      if(onSince[e.playerOut]!=null){getStat(e.playerOut).mins+=Math.max(0,evMin-onSince[e.playerOut]);delete onSince[e.playerOut];}
+      getStat(e.playerOut).subOut=evMin;
+      onSince[e.playerIn]=evMin;
+      getStat(e.playerIn).subIn=evMin;
+    }
+  });
+  allIds.forEach(aid=>{if(onSince[aid]!=null)getStat(aid).mins+=Math.max(0,endMin-onSince[aid]);});
+  return statMap;
+}
+function _gdBuildTimeline(g){
+  const nameOf=aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?a.name:'';};
+  let running={casa:0,fora:0};
+  const sorted=[...g.liveSession.events].sort((a,b)=>a.sec-b.sec);
+  const tl=sorted.map(e=>{
+    if(e.type==='golo')running.casa++;
+    else if(e.type==='golo_sofrido')running.fora++;
+    return {
+      minRaw:e.min,type:e.type,
+      player:e.type==='golo'?nameOf(e.scorer):e.type==='golo_sofrido'?(g.opp||'Adversário'):(e.type==='amarelo'||e.type==='vermelho')?nameOf(e.player):undefined,
+      assistName:e.type==='golo'&&e.assist?nameOf(e.assist):undefined,
+      playerIn:e.type==='substituicao'?nameOf(e.playerIn):undefined,
+      playerOut:e.type==='substituicao'?nameOf(e.playerOut):undefined,
+      side:e.side,
+      scoreAfter:(e.type==='golo'||e.type==='golo_sofrido')?`${running.casa}-${running.fora}`:undefined
+    };
+  });
+  const ls=g.liveSession;
+  if(ls.penEvents&&ls.penEvents.length){
+    const ps=_gdPenScore(ls);
+    tl.push({minRaw:'Pen.',type:'penaltis',player:`${ps.casa}-${ps.fora}`});
+  }
+  return tl;
+}
+function _gdLaunch(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  const msg=ls.launched?'Este jogo já foi lançado antes. Lançar outra vez substitui as estatísticas/linha do tempo atuais pelos dados desta sessão. Confirmas?':'Terminar o jogo e lançar os dados para a plataforma (Estatísticas, Linha do Tempo, Resultado)? Esta ação atualiza o Pós-Jogo.';
+  if(!confirm(msg))return;
+  const statMap=_gdBuildPlayerStats(g);
+  if(!g.playerStats)g.playerStats=[];
+  Object.values(statMap).forEach(st=>{
+    const i=g.playerStats.findIndex(x=>x.aid===st.aid);
+    if(i>=0)g.playerStats[i]={...g.playerStats[i],...st};else g.playerStats.push(st);
+  });
+  g.fpfTimeline=_gdBuildTimeline(g);
+  g.g1=ls.score.casa;g.g2=ls.score.fora;
+  if(ls.penEvents&&ls.penEvents.length){
+    const ps=_gdPenScore(ls);
+    const penNote=`Decidido nas grandes penalidades: ${ps.casa}-${ps.fora}.`;
+    g.postGameNotes=g.postGameNotes?g.postGameNotes+'\n'+penNote:penNote;
+  }
+  g.status='realizado';
+  ls.phase='fim';ls.launched=true;
+  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  saveData();
+  toast('Jogo lançado na plataforma ✓');
+  _jogoDetailTab='posjogo';
+  _renderJogoDetailFull();
+}
+
+// --- Ecrã principal ---
+function _gdStartClockInterval(gid){
+  if(_gdClockInterval)clearInterval(_gdClockInterval);
+  _gdClockInterval=setInterval(()=>{
+    const g=APP.games.find(x=>x.id===gid);
+    const el=document.getElementById('gd-clock-txt');
+    if(!g||!g.liveSession||!el){clearInterval(_gdClockInterval);_gdClockInterval=null;return;}
+    if(_gdRunning(g.liveSession))el.textContent=(_gdRunning(g.liveSession)?'▶ ':'⏸ ')+_gdFmtClock(_gdElapsedSec(g.liveSession));
+  },1000);
+}
+function _gdSubformHtml(g,type,onPitchAts,benchAts){
+  const gid=g.id;
+  const opts=list=>list.map(a=>`<option value="${a.id}">${a.number||'?'} ${escHtml(_shortName(a))}</option>`).join('');
+  if(type==='golo'){
+    return `<div style="font-size:11px;color:var(--c1l);font-weight:800;margin-bottom:6px">⚽ Golo</div>
+      <label class="fl" style="font-size:10px">Marcadora</label>
+      <select class="fc" id="gd-scorer" style="margin-bottom:6px;width:100%">${opts(onPitchAts)}</select>
+      <label class="fl" style="font-size:10px">Assistência (opcional)</label>
+      <select class="fc" id="gd-assist" style="margin-bottom:8px;width:100%"><option value="">—</option>${opts(onPitchAts)}</select>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="_gdSubmitGolo('${gid}')">✓ Confirmar</button>
+        <button class="btn btn-gh btn-sm" onclick="_gdCancelMenu()">Cancelar</button>
+      </div>`;
+  }
+  if(type==='substituicao'){
+    return `<div style="font-size:11px;color:var(--c1l);font-weight:800;margin-bottom:6px">🔄 Substituição</div>
+      <label class="fl" style="font-size:10px">Sai</label>
+      <select class="fc" id="gd-out" style="margin-bottom:6px;width:100%">${opts(onPitchAts)}</select>
+      <label class="fl" style="font-size:10px">Entra</label>
+      <select class="fc" id="gd-in" style="margin-bottom:8px;width:100%">${benchAts.length?opts(benchAts):'<option value="">Sem suplentes</option>'}</select>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="_gdSubmitSub('${gid}')">✓ Confirmar</button>
+        <button class="btn btn-gh btn-sm" onclick="_gdCancelMenu()">Cancelar</button>
+      </div>`;
+  }
+  if(type==='amarelo'||type==='vermelho'){
+    return `<div style="font-size:11px;color:var(--c1l);font-weight:800;margin-bottom:6px">${type==='amarelo'?'🟨 Amarelo':'🟥 Vermelho'}</div>
+      <label class="fl" style="font-size:10px">Jogadora</label>
+      <select class="fc" id="gd-card-player" style="margin-bottom:8px;width:100%">${opts(onPitchAts)}</select>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="_gdSubmitCard('${gid}','${type}')">✓ Confirmar</button>
+        <button class="btn btn-gh btn-sm" onclick="_gdCancelMenu()">Cancelar</button>
+      </div>`;
+  }
+  return '';
+}
+function _jogoAoVivoHtml(g){
+  const ls=_gdInit(g);
+  const running=_gdRunning(ls);
+  const elapsed=_gdElapsedSec(ls);
+  const onPitchAts=ls.onPitch.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+  const benchAts=ls.bench.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+  const teamName=(APP.teams.find(t=>t.id===g.teamId)||{}).name||'Nós';
+
+  const header=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY</div>
+      <div style="font-size:16px;font-weight:900">${escHtml(teamName)} <span style="color:var(--c1l)">${ls.score.casa}</span> – <span style="color:var(--t2)">${ls.score.fora}</span> ${escHtml(g.opp)}</div>
+    </div>
+    <div style="text-align:right">
+      <div id="gd-clock-txt" style="font-size:24px;font-weight:900;color:${running?'var(--c1l)':'var(--t2)'};font-variant-numeric:tabular-nums">${running?'▶ ':'⏸ '}${_gdFmtClock(elapsed)}</div>
+      <div style="font-size:10px;color:var(--t2)">${_GD_PHASE_LBL[ls.phase]||ls.phase}</div>
+    </div>
+  </div>`;
+
+  let controls='';
+  if(ls.phase==='pre'){
+    controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdStartGame('${g.id}')">▶️ Iniciar Jogo</button>`;
+  }else if(ls.phase==='1'){
+    controls=`<button class="btn btn-gh" style="width:100%;padding:12px" onclick="_gdPause('${g.id}','intervalo1')">⏸ Intervalo</button>`;
+  }else if(ls.phase==='intervalo1'){
+    controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdResume('${g.id}','2',2700)">▶️ Iniciar 2ª Parte</button>`;
+  }else if(ls.phase==='2'){
+    controls=`<button class="btn btn-gh" style="width:100%;padding:12px" onclick="_gdEndReg('${g.id}')">⏹ Terminar Tempo Regulamentar</button>`;
+  }else if(ls.phase==='fimReg'){
+    const tied=ls.score.casa===ls.score.fora;
+    controls=`<div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${tied?`<button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdResume('${g.id}','ET1',5400)">⏱️ Iniciar Prolongamento</button>`:''}
+      <button class="btn btn-g" style="flex:1;padding:12px" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar na Plataforma</button>
+    </div>`;
+  }else if(ls.phase==='ET1'){
+    controls=`<button class="btn btn-gh" style="width:100%;padding:12px" onclick="_gdPause('${g.id}','intervaloET')">⏸ Intervalo do Prolongamento</button>`;
+  }else if(ls.phase==='intervaloET'){
+    controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdResume('${g.id}','ET2',6300)">▶️ Iniciar 2º Tempo do Prolongamento</button>`;
+  }else if(ls.phase==='ET2'){
+    controls=`<button class="btn btn-gh" style="width:100%;padding:12px" onclick="_gdEndET('${g.id}')">⏹ Terminar Prolongamento</button>`;
+  }else if(ls.phase==='penaltis'){
+    controls=_gdPenaltisHtml(g);
+  }else if(ls.phase==='fim'){
+    controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdLaunch('${g.id}')">🚀 ${ls.launched?'Relançar':'Lançar'} na Plataforma</button>`;
+  }
+
+  const canTap=running;
+  const markerIcon={golo:'⚽',golo_sofrido:'🥅',remate:'🎯',canto_of:'🚩',canto_def:'🚩',livre_of:'🎯',livre_def:'🎯',substituicao:'🔄',amarelo:'🟨',vermelho:'🟥'};
+  const markers=ls.events.map(e=>`<text x="${(e.x*3).toFixed(1)}" y="${(e.y*4.2).toFixed(1)}" font-size="11" text-anchor="middle">${markerIcon[e.type]||'•'}</text>`).join('');
+  let popup='';
+  if(_gdMenuXY&&!_gdPendingType){
+    popup=`<div style="position:absolute;left:${Math.min(_gdMenuXY.x,68)}%;top:${Math.min(_gdMenuXY.y,72)}%;background:var(--bg1);border:2px solid var(--c1l);border-radius:10px;padding:8px;width:170px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5">
+      <div style="font-size:10px;color:var(--c1l);font-weight:800;margin-bottom:6px">📍 ${_gdMinLabel(_gdMenuXY.sec)}</div>
+      <div style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto">
+        ${_GD_TYPES.map(([type,icon,label])=>`<button class="btn btn-xs btn-gh" style="justify-content:flex-start;text-align:left" onclick="_gdPickType('${g.id}','${type}')">${icon} ${label}</button>`).join('')}
+      </div>
+      <button class="btn btn-xs btn-r" style="width:100%;margin-top:6px" onclick="_gdCancelMenu()">Cancelar</button>
+    </div>`;
+  }else if(_gdMenuXY&&_gdPendingType){
+    popup=`<div style="position:absolute;left:${Math.min(_gdMenuXY.x,55)}%;top:${Math.min(_gdMenuXY.y,65)}%;background:var(--bg1);border:2px solid var(--c1l);border-radius:10px;padding:10px;width:210px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5">
+      ${_gdSubformHtml(g,_gdPendingType,onPitchAts,benchAts)}
+    </div>`;
+  }
+  const pitchSvg=`<div style="position:relative;max-width:300px;margin:0 auto">
+    <svg id="gd-pitch-${g.id}" viewBox="0 0 300 420" style="width:100%;display:block;border-radius:10px;touch-action:none;cursor:${canTap?'crosshair':'default'}" onclick="${canTap?`_gdPitchTap(event,'${g.id}')`:''}">
+      <rect width="300" height="420" fill="#0f3d24" rx="8"/>
+      <rect x="6" y="6" width="288" height="408" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"/>
+      <line x1="6" y1="210" x2="294" y2="210" stroke="rgba(255,255,255,.3)" stroke-width="1.2"/>
+      <circle cx="150" cy="210" r="35" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.2"/>
+      <rect x="70" y="6" width="160" height="55" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.2"/>
+      <rect x="105" y="6" width="90" height="20" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.2"/>
+      <rect x="70" y="359" width="160" height="55" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.2"/>
+      <rect x="105" y="394" width="90" height="20" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.2"/>
+      ${markers}
+    </svg>
+    ${popup}
+    ${!canTap?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(12,15,20,.55);border-radius:10px;font-size:12px;color:var(--t2);text-align:center;padding:10px">${ls.phase==='pre'?'Toca em "Iniciar Jogo" para começar a registar':ls.phase==='penaltis'||ls.phase==='fim'?'':'Relógio parado — retoma para continuar a registar'}</div>`:''}
+  </div>`;
+
+  const evRows=[...ls.events].sort((a,b)=>b.sec-a.sec).map(e=>{
+    const nm=aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?_shortName(a):'?';};
+    let detail='';
+    if(e.type==='golo')detail=`${nm(e.scorer)}${e.assist?' (assist. '+nm(e.assist)+')':''}`;
+    else if(e.type==='substituicao')detail=`Sai ${nm(e.playerOut)} → Entra ${nm(e.playerIn)}`;
+    else if(e.type==='amarelo'||e.type==='vermelho')detail=nm(e.player);
+    else if(e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def')detail=e.side==='esq'?'lado esquerdo':'lado direito';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid var(--brd);font-size:12px">
+      <span>${e.min} ${_GD_TYPE_LBL[e.type]||e.type}${detail?' — '+escHtml(detail):''}</span>
+      <button class="btn btn-xs btn-gh" onclick="_gdUndoEvent('${g.id}','${e.id}')" title="Desfazer">↩️</button>
+    </div>`;
+  }).join('')||`<p style="padding:10px;font-size:12px;color:var(--t2)">Ainda sem eventos registados.</p>`;
+
+  return `<div class="ipanel" style="background:var(--bg0)">
+    ${header}
+    ${pitchSvg}
+    <div style="margin-top:12px">${controls}</div>
+    <div style="margin-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">CRONOLOGIA</div>
+      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;max-height:260px;overflow-y:auto">${evRows}</div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:10px">💾 Grava sozinho a cada toque — funciona sem internet no campo.</div>
   </div>`;
 }
 
