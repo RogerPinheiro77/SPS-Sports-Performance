@@ -4149,7 +4149,7 @@ function _jogoTimelineHtml(g){
     const isSetPiece=e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def';
     const detail=e.type==='substituicao'?`Sai ${escHtml(e.playerOut||'?')}, entra ${escHtml(e.playerIn||'?')}`
       :isSetPiece?(e.side==='esq'?'lado esquerdo':e.side==='dir'?'lado direito':'')
-      :`${escHtml(e.player||'')}${e.assistName?' (assist. '+escHtml(e.assistName)+')':''}${e.scoreAfter?' ('+escHtml(e.scoreAfter)+')':''}`;
+      :`${escHtml(e.player||'')}${e.assistName?' (assist. '+escHtml(e.assistName)+')':''}${e.goalZoneLbl?' — '+escHtml(e.goalZoneLbl):''}${e.scoreAfter?' ('+escHtml(e.scoreAfter)+')':''}`;
     return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--brd)">
       <div style="font-size:11px;color:var(--t2);min-width:30px;font-weight:700">${escHtml(e.minRaw||'')}</div>
       <div style="font-size:12px">${_TL_EVLBL[e.type]||e.type} — ${detail}</div>
@@ -4188,6 +4188,12 @@ const _GD_TYPES=[
 ];
 const _GD_TYPE_LBL={};_GD_TYPES.forEach(t=>{_GD_TYPE_LBL[t[0]]=t[2];});
 const _GD_PHASE_LBL={pre:'Antes do jogo','1':'1ª Parte',intervalo1:'Intervalo','2':'2ª Parte',fimReg:'Fim do tempo regulamentar',ET1:'1º Tempo Prolong.',intervaloET:'Intervalo Prolong.',ET2:'2º Tempo Prolong.',penaltis:'Grandes Penalidades',fim:'Jogo Terminado'};
+const _GD_GOAL_ZONES=[
+  ['TL','Superior Esquerdo'],['TC','Superior Centro'],['TR','Superior Direito'],
+  ['ML','Meio Esquerdo'],['MC','Meio Centro'],['MR','Meio Direito'],
+  ['BL','Inferior Esquerdo'],['BC','Inferior Centro'],['BR','Inferior Direito']
+];
+const _GD_GOAL_ZONE_LBL={};_GD_GOAL_ZONES.forEach(z=>{_GD_GOAL_ZONE_LBL[z[0]]=z[1];});
 
 function _gdInit(g){
   if(!g.liveSession)g.liveSession={
@@ -4255,7 +4261,7 @@ function _gdEndET(gid){
 }
 
 // --- Toque no campo: grava minuto+zona automaticamente, abre lista de ações ---
-let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null;
+let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null;
 function _gdPitchTap(e,gid){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession||!_gdRunning(g.liveSession))return;
   const svg=document.getElementById('gd-pitch-'+gid);if(!svg)return;
@@ -4268,12 +4274,13 @@ function _gdPitchTap(e,gid){
   _gdPendingType=null;
   _renderJogoDetailFull();
 }
-function _gdCancelMenu(){_gdMenuXY=null;_gdPendingType=null;_renderJogoDetailFull();}
+function _gdCancelMenu(){_gdMenuXY=null;_gdPendingType=null;_gdGoalZone=null;_renderJogoDetailFull();}
 function _gdPickType(gid,type){
   const simple=['golo_sofrido','remate','canto_of','canto_def','livre_of','livre_def'];
   if(simple.includes(type)){_gdCommitEvent(gid,type,{});return;}
-  _gdPendingType=type;_renderJogoDetailFull();
+  _gdPendingType=type;_gdGoalZone=null;_renderJogoDetailFull();
 }
+function _gdPickGoalZone(zone){_gdGoalZone=(_gdGoalZone===zone)?null:zone;_renderJogoDetailFull();}
 function _gdCommitEvent(gid,type,extra){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession||!_gdMenuXY)return;
   const ls=g.liveSession;
@@ -4307,7 +4314,8 @@ function _gdSubmitGolo(gid){
   const scorer=document.getElementById('gd-scorer').value;
   const assist=document.getElementById('gd-assist').value;
   if(!scorer)return toast('Escolhe a marcadora','err');
-  _gdCommitEvent(gid,'golo',{scorer,assist:assist||null});
+  _gdCommitEvent(gid,'golo',{scorer,assist:assist||null,goalZone:_gdGoalZone||null});
+  _gdGoalZone=null;
 }
 function _gdSubmitSub(gid){
   const playerOut=document.getElementById('gd-out').value;
@@ -4399,6 +4407,7 @@ function _gdBuildTimeline(g){
       minRaw:e.min,type:e.type,
       player:e.type==='golo'?nameOf(e.scorer):e.type==='golo_sofrido'?(g.opp||'Adversário'):(e.type==='amarelo'||e.type==='vermelho')?nameOf(e.player):undefined,
       assistName:e.type==='golo'&&e.assist?nameOf(e.assist):undefined,
+      goalZoneLbl:e.type==='golo'&&e.goalZone?_GD_GOAL_ZONE_LBL[e.goalZone]:undefined,
       playerIn:e.type==='substituicao'?nameOf(e.playerIn):undefined,
       playerOut:e.type==='substituicao'?nameOf(e.playerOut):undefined,
       side:e.side,
@@ -4453,11 +4462,23 @@ function _gdSubformHtml(g,type,onPitchAts,benchAts){
   const gid=g.id;
   const opts=list=>list.map(a=>`<option value="${a.id}">${a.number||'?'} ${escHtml(_shortName(a))}</option>`).join('');
   if(type==='golo'){
+    const zoneCell=(zone)=>{
+      const sel=_gdGoalZone===zone;
+      const col=Math.floor(_GD_GOAL_ZONES.findIndex(z=>z[0]===zone)%3);
+      const row=Math.floor(_GD_GOAL_ZONES.findIndex(z=>z[0]===zone)/3);
+      return `<rect x="${col*40}" y="${row*24}" width="40" height="24" fill="${sel?'#2ecc71':'rgba(255,255,255,.08)'}" stroke="rgba(255,255,255,.5)" stroke-width="1" onclick="event.stopPropagation();_gdPickGoalZone('${zone}')" style="cursor:pointer"/>`;
+    };
+    const goalDiagram=`<label class="fl" style="font-size:10px">Zona de entrada na baliza (opcional)</label>
+      <svg viewBox="0 0 120 72" style="width:120px;display:block;margin:0 auto 8px;border:2px solid rgba(255,255,255,.6);border-radius:2px" onclick="event.stopPropagation()">
+        ${_GD_GOAL_ZONES.map(z=>zoneCell(z[0])).join('')}
+      </svg>
+      ${_gdGoalZone?`<div style="font-size:10px;color:var(--c1l);text-align:center;margin:-4px 0 8px">${_GD_GOAL_ZONE_LBL[_gdGoalZone]} <span onclick="_gdPickGoalZone('${_gdGoalZone}')" style="cursor:pointer;color:var(--t2)">✕ limpar</span></div>`:''}`;
     return `<div style="font-size:11px;color:var(--c1l);font-weight:800;margin-bottom:6px">⚽ Golo</div>
       <label class="fl" style="font-size:10px">Marcadora</label>
       <select class="fc" id="gd-scorer" style="margin-bottom:6px;width:100%">${opts(onPitchAts)}</select>
       <label class="fl" style="font-size:10px">Assistência (opcional)</label>
       <select class="fc" id="gd-assist" style="margin-bottom:8px;width:100%"><option value="">—</option>${opts(onPitchAts)}</select>
+      ${goalDiagram}
       <div style="display:flex;gap:6px">
         <button class="btn btn-g btn-sm" style="flex:1" onclick="_gdSubmitGolo('${gid}')">✓ Confirmar</button>
         <button class="btn btn-gh btn-sm" onclick="_gdCancelMenu()">Cancelar</button>
@@ -4567,7 +4588,7 @@ function _jogoAoVivoHtml(g){
   const evRows=[...ls.events].sort((a,b)=>b.sec-a.sec).map(e=>{
     const nm=aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?_shortName(a):'?';};
     let detail='';
-    if(e.type==='golo')detail=`${nm(e.scorer)}${e.assist?' (assist. '+nm(e.assist)+')':''}`;
+    if(e.type==='golo')detail=`${nm(e.scorer)}${e.assist?' (assist. '+nm(e.assist)+')':''}${e.goalZone?' — '+_GD_GOAL_ZONE_LBL[e.goalZone]:''}`;
     else if(e.type==='substituicao')detail=`Sai ${nm(e.playerOut)} → Entra ${nm(e.playerIn)}`;
     else if(e.type==='amarelo'||e.type==='vermelho')detail=nm(e.player);
     else if(e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def')detail=e.side==='esq'?'lado esquerdo':'lado direito';
