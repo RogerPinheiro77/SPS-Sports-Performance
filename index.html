@@ -10771,6 +10771,11 @@ async function cloudUpsert(table,row){
 var _ATLETA_ICON_192='assets/icon_atleta_192.png';
 var _ATLETA_ICON_512='assets/icon_atleta_512.png';
 var _ATLETA_ICON_APPLE='assets/icon_atleta_apple.png';
+// Logo próprio do SPS-Gameday (fornecido pelo Roger, 26/08/2026) — substitui o ícone "GD"
+// gerado em SVG usado inicialmente no sps-v78.
+var _GAMEDAY_ICON_192='assets/icon_gameday_192.png';
+var _GAMEDAY_ICON_512='assets/icon_gameday_512.png';
+var _GAMEDAY_ICON_APPLE='assets/icon_gameday_apple.png';
 function applyPWAManifest(opts){
   try{
     var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, icon192=opts.icon192||iconSrc, icon512=opts.icon512||iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
@@ -10819,11 +10824,13 @@ loadData();
     if(typeof _forceAtletaMode!=='undefined'&&_forceAtletaMode){
       applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE,startUrl:location.pathname+'?atleta=1'});
     } else if(typeof _forceGamedayMode!=='undefined'&&_forceGamedayMode){
-      // SPS-Gameday standalone (sps-v78) — ícone/nome próprios, independentes do papel de
+      // SPS-Gameday standalone (sps-v78/v79) — ícone/nome próprios, independentes do papel de
       // login (ao contrário do Fisio/Nutri em showStaffApp, isto depende só da URL, não do
       // cargo), para o "Adicionar ao Ecrã Principal" já apanhar o manifest certo mesmo antes
       // do login terminar (mesmo motivo do fix histórico documentado para o ?atleta=1).
-      applyPWAManifest({name:'SPS Gameday',shortName:'SPS Gameday',iconSrc:_roleIconSVG('GD','#e74c3c'),iconType:'image/svg+xml',themeColor:'#e74c3c',startUrl:location.pathname+'?gameday=1'});
+      // Logo próprio fornecido pelo Roger (assets/icon_gameday_*), mesmo padrão dos ícones da
+      // app da atleta — não o SVG "GD" gerado usado inicialmente no sps-v78.
+      applyPWAManifest({name:'SPS Gameday',shortName:'SPS Gameday',icon192:_GAMEDAY_ICON_192,icon512:_GAMEDAY_ICON_512,iconType:'image/png',themeColor:'#e74c3c',appleIcon:_GAMEDAY_ICON_APPLE,startUrl:location.pathname+'?gameday=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     }
