@@ -3357,8 +3357,46 @@ function selectClubDetail(name,logo){
   const dd=document.getElementById('ji-club-dropdown');if(dd)dd.style.display='none';
 }
 
+// Histórico de confrontos (H2H) — junta jogos anteriores contra o mesmo adversário
+// (por nome normalizado, tolera acentos/maiúsculas) com resultado já registado, mais
+// as notas que já existiam no separador Adversário desses jogos. Zero trabalho extra
+// para o treinador: só lê o que já está guardado.
+function _h2hGames(g){
+  const opp=_normName(g.opp);
+  if(!opp)return [];
+  return APP.games.filter(x=>x.id!==g.id&&_normName(x.opp)===opp&&x.g1!=null&&x.g2!=null)
+    .sort((a,b)=>b.date.localeCompare(a.date));
+}
+function _h2hHtml(g){
+  const games=_h2hGames(g);
+  if(!games.length)return '';
+  const v=games.filter(x=>x.g1>x.g2).length,e=games.filter(x=>x.g1===x.g2).length,d=games.filter(x=>x.g1<x.g2).length;
+  const rows=games.map(x=>{
+    const res=`${x.g1}–${x.g2}`;
+    const won=x.g1>x.g2,drew=x.g1===x.g2;
+    const rb=won?`<span class="bdg bg-g">V</span>`:drew?`<span class="bdg bg-y">E</span>`:`<span class="bdg bg-r">D</span>`;
+    const notes=[];
+    if(x.oppStrengths)notes.push(`<strong style="color:#4ade80">Pontos fortes:</strong> ${escHtml(x.oppStrengths)}`);
+    if(x.oppWeaknesses)notes.push(`<strong style="color:#fbbf24">Pontos a explorar:</strong> ${escHtml(x.oppWeaknesses)}`);
+    if(x.oppSetPieces)notes.push(`<strong style="color:#38bdf8">Bolas paradas:</strong> ${escHtml(x.oppSetPieces)}`);
+    return `<div style="padding:9px 0;border-bottom:1px solid var(--brd)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:12px">${fmtDate(x.date)}${x.comp?' · '+escHtml(x.comp):''}</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;font-weight:700">${res}</span>${rb}</div>
+      </div>
+      ${notes.length?`<div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.5">${notes.join('<br>')}</div>`:'<div style="font-size:11px;color:var(--t2);margin-top:4px">Sem notas guardadas nesse jogo.</div>'}
+    </div>`;
+  }).join('');
+  return `<div class="ipanel" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="sh-t" style="font-size:15px">🔁 Últimos Confrontos — ${escHtml(g.opp)}</div>
+      <span class="bdg" style="background:rgba(29,111,59,.18);color:var(--c1l)">${v}V · ${e}E · ${d}D</span>
+    </div>
+    ${rows}
+  </div>`;
+}
 function _jogoAdvHtml(g){
-  return `<div class="ipanel">
+  return `${_h2hHtml(g)}<div class="ipanel">
     <div class="fr3" style="margin-bottom:0">
       <div class="form-g"><label class="fl">Sistema Habitual</label><input class="fc" id="ja-form" value="${escHtml(g.oppFormation||'')}" placeholder="4-3-3"></div>
       <div class="form-g" style="grid-column:span 2"><label class="fl">Link Scout / Vídeo</label>
