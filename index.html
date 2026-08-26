@@ -3552,9 +3552,74 @@ function _oppGalleryHtml(g,board){
       <button class="btn btn-xs btn-r" style="margin-top:4px;padding:1px 4px;font-size:9px" onclick="_oppDeleteSnapshot('${g.id}','${board}','${s.id}')">🗑️</button>
     </div>`).join('')}</div>`;
 }
+// SVG grande (não-interativo) de um snapshot guardado — para o PDF. Usa o mesmo
+// fundo/proporção do quadro ao vivo e o mesmo rácio dimensional dos marcadores
+// (rad/numFs/sw) já usado em _oppMarkersHtml, para nunca divergir visualmente.
+function _oppSnapshotSvg(board,positions,w){
+  w=w||190;
+  const isTatico=board==='tatico';
+  const vbH=isTatico?420:200;
+  const h=Math.round(w*(vbH/300));
+  const rad=7,numFs=7,sw=1.5;
+  const bg=isTatico?`<rect width="300" height="420" fill="#0f3d24" rx="8"/>
+      <rect x="6" y="6" width="288" height="408" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"/>
+      <line x1="6" y1="210" x2="294" y2="210" stroke="rgba(255,255,255,.3)" stroke-width="1.2"/>`
+    :`<rect width="300" height="420" fill="#0f3d24" rx="8"/>
+      <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+      <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+      <rect x="122" y="15" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>`;
+  let dots='';
+  for(let i=1;i<=11;i++){
+    const def=_oppDefaultPos(board,i-1);
+    const p=positions[i]||{x:def[0],y:def[1]};
+    dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="#e74c3c" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="white">${i}</text>`;
+  }
+  return `<svg viewBox="0 0 300 ${vbH}" style="width:${w}px;height:${h}px;display:block;border-radius:6px">${bg}${dots}</svg>`;
+}
+// Exporta os quadros do Adversário — pedido do Roger, 26/08/2026: em vez de imprimir só
+// a última posição, imprime a GALERIA inteira em ordem cronológica (cada "print" que o
+// adjunto tirou, com minuto+nota) — é essa evolução ao longo do jogo que dá valor real
+// como preparação para o próximo confronto com o mesmo adversário.
+function _OPP_PDF_SECTIONS(g){
+  return [
+    ['tatico','🧩 Esquema Tático do Adversário',g.oppTactical],
+    ['cornerOf','🚩 Canto Ofensivo Observado',g.oppSPBoards&&g.oppSPBoards.cornerOf],
+    ['cornerDef','🚩 Canto Defensivo Observado',g.oppSPBoards&&g.oppSPBoards.cornerDef],
+    ['freeKick','🎯 Livre Observado',g.oppSPBoards&&g.oppSPBoards.freeKick]
+  ];
+}
+function exportOppPDF(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
+  const sections=_OPP_PDF_SECTIONS(g);
+  const anySnapshots=sections.some(([,,store])=>store&&store.snapshots&&store.snapshots.length);
+  if(!anySnapshots)return toast('Ainda não há nenhum registo guardado nos quadros do Adversário','err');
+  const club=APP.config.clubName||'Clube';
+  const dateStr=fmtDate(g.date)+(g.time?' '+g.time.slice(0,5):'');
+  const comp=g.comp?' — '+g.comp:'';
+  const body=sections.map(([board,label,store])=>{
+    if(!store||!store.snapshots||!store.snapshots.length)return '';
+    const snapsHtml=store.snapshots.map((s,i)=>`<div style="display:inline-block;width:200px;margin:0 14px 18px 0;vertical-align:top;text-align:center">
+      ${_oppSnapshotSvg(board,s.positions,190)}
+      <div style="font-size:9pt;font-weight:700;margin-top:4px">${s.minRaw?escHtml(s.minRaw):'Registo '+(i+1)}</div>
+      ${s.note?`<div style="font-size:8pt;color:#555;margin-top:2px">${escHtml(s.note)}</div>`:''}
+    </div>`).join('');
+    return `<div style="margin-top:20px"><h3 style="border-bottom:1px solid #ccc;padding-bottom:4px">${label}</h3>
+      <div>${snapsHtml}</div></div>`;
+  }).join('');
+  _printWin(`Análise do Adversário — ${g.opp} ${dateStr}`,
+    `<div style="font-family:Arial,sans-serif;padding:20px">
+      <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:10px">
+        <h1 style="font-size:20px;margin:0">${escHtml(club)}</h1>
+        <p style="margin:6px 0 0;font-size:14px;color:#555">${escHtml(g.opp)} • ${dateStr}${comp}</p>
+        <p style="margin:4px 0 0;font-size:10px;color:#888">Registo cronológico do esquema tático e das bolas paradas observadas — preparação para o próximo confronto</p>
+      </div>${body}</div>`);
+}
 function _oppTaticoHtml(g){
   return `<div class="ipanel" style="margin-bottom:12px">
-    <div class="sh-t" style="font-size:15px;margin-bottom:2px">🧩 Esquema Tático do Adversário</div>
+    <div class="sh" style="margin-bottom:2px">
+      <div class="sh-t" style="font-size:15px">🧩 Esquema Tático do Adversário</div>
+      <button class="btn btn-gh btn-sm" onclick="exportOppPDF('${g.id}')">📄 Exportar PDF (Tático + Bolas Paradas)</button>
+    </div>
     <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Arrasta as jogadoras (números genéricos) para a posição que observas. Regista sempre que mudarem — fica uma galeria cronológica.</p>
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
       <div>
