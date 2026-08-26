@@ -3075,6 +3075,14 @@ function _scopedStats(r,scope){
 }
 let _rankingScope='total';
 function setRankingScope(key){_rankingScope=key;renderJogos();}
+// Mapa de golos acumulado na época — todos os jogos já realizados (mesmo critério
+// de _seasonGames), independente da competição escolhida no Ranking (dados ainda
+// escassos, não vale a pena complicar com separadores por agora).
+function _seasonGoalZoneCounts(){
+  const all=[];
+  _seasonGames().forEach(g=>{(g.fpfTimeline||[]).forEach(e=>{if(e.type==='golo'&&e.goalZone)all.push(e);});});
+  return _gdZoneCounts(all);
+}
 function _rankingPlantelHtml(){
   const rows=_seasonStatsAll();
   if(!rows.length)return `<div class="empty"><div class="ei">🏆</div><p>Sem atletas no plantel</p></div>`;
@@ -3091,10 +3099,18 @@ function _rankingPlantelHtml(){
     <td style="text-align:center">${r.yellow}</td>
     <td style="text-align:center">${r.red}</td>
   </tr>`).join('');
+  const zc=_seasonGoalZoneCounts();
+  const hasZoneData=Object.values(zc).some(n=>n>0);
+  const zoneMapHtml=hasZoneData?`<div class="ipanel" style="margin-top:14px">
+    <div class="sh-t" style="font-size:14px;margin-bottom:6px">🎯 Mapa de Golos da Época</div>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Zona de entrada na baliza, golos de todos os jogos já realizados registados via SPS-Gameday.</p>
+    ${_gdGoalZoneMapSvg(zc,160)}
+  </div>`:'';
   return `${tabsHtml}
   <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn btn-gh btn-sm" onclick="exportRankingPDF()">📄 Exportar PDF</button></div>
   <div class="tw"><table><thead><tr><th>#</th><th>Atleta</th><th>J</th><th>Min.</th><th>⚽</th><th>🅰️</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${trs}</tbody></table></div>
-  <p style="font-size:11px;color:var(--t2);margin-top:8px">Só jogos Oficiais/Particulares já realizados. Ordenado por golos, depois assistências, depois minutos.</p>`;
+  <p style="font-size:11px;color:var(--t2);margin-top:8px">Só jogos Oficiais/Particulares já realizados. Ordenado por golos, depois assistências, depois minutos.</p>
+  ${zoneMapHtml}`;
 }
 // PDF com uma tabela por separador (Total + cada competição/Amigáveis) — evita ter de
 // exportar um de cada vez; secções sem nenhum jogo do plantel ficam de fora.
@@ -3110,12 +3126,15 @@ function exportRankingPDF(){
     <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>#Cam.</th><th>Nome</th><th>J</th><th>Min.</th><th>⚽</th><th>🅰️</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${trs}</tbody></table>`;
   };
   const body=scopes.map(s=>sectionHtml(s.key,s.label,s.icon)).join('');
+  const zc=_seasonGoalZoneCounts();
+  const hasZoneData=Object.values(zc).some(n=>n>0);
+  const zoneMapHtml=hasZoneData?`<h3 style="margin-top:22px">🎯 Mapa de Golos da Época</h3>${_gdGoalZoneMapSvg(zc,170,true)}`:'';
   _printWin(`Ranking do Plantel — ${APP.config.season||'Época'}`,
     `<div style="font-family:Arial,sans-serif;padding:20px">
       <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:10px">
         <h1 style="font-size:20px;margin:0">${escHtml(APP.config.clubName||'Clube')}</h1>
         <p style="margin:6px 0 0;font-size:14px;color:#555">🏆 Ranking do Plantel · ${escHtml(APP.config.season||'Época')}</p>
-      </div>${body}</div>`);
+      </div>${body}${zoneMapHtml}</div>`);
 }
 
 function openJogo(id,tab='info'){
@@ -4148,16 +4167,25 @@ function _jogoTimelineHtml(g){
   const rows=evs.map(e=>{
     const isSetPiece=e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def';
     const detail=e.type==='substituicao'?`Sai ${escHtml(e.playerOut||'?')}, entra ${escHtml(e.playerIn||'?')}`
-      :isSetPiece?(e.side==='esq'?'lado esquerdo':e.side==='dir'?'lado direito':'')
+      :isSetPiece?`${e.side==='esq'?'lado esquerdo':e.side==='dir'?'lado direito':''}${e.player?' — '+escHtml(e.player):''}`
       :`${escHtml(e.player||'')}${e.assistName?' (assist. '+escHtml(e.assistName)+')':''}${e.goalZoneLbl?' — '+escHtml(e.goalZoneLbl):''}${e.scoreAfter?' ('+escHtml(e.scoreAfter)+')':''}`;
     return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--brd)">
       <div style="font-size:11px;color:var(--t2);min-width:30px;font-weight:700">${escHtml(e.minRaw||'')}</div>
       <div style="font-size:12px">${_TL_EVLBL[e.type]||e.type} — ${detail}</div>
     </div>`;
   }).join('');
+  const countsHtml=_gdCountsSummaryHtml(evs);
+  const zc=_gdZoneCounts(evs.filter(e=>e.type==='golo'));
+  const hasZoneData=Object.values(zc).some(n=>n>0);
+  const zoneMapHtml=hasZoneData?`<div style="margin:4px 0 14px">
+    <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">🎯 Mapa de Golos (zona de entrada)</div>
+    ${_gdGoalZoneMapSvg(zc,140)}
+  </div>`:'';
   return `<div class="ipanel" style="margin-bottom:12px">
     <div class="sh-t" style="font-size:15px;margin-bottom:2px">🕐 Linha do Tempo do Jogo</div>
     <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Importada da FPF ou lançada do SPS-Gameday.</p>
+    ${countsHtml}
+    ${zoneMapHtml}
     <div>${rows}</div>
   </div>`;
 }
@@ -4194,6 +4222,61 @@ const _GD_GOAL_ZONES=[
   ['BL','Inferior Esquerdo'],['BC','Inferior Centro'],['BR','Inferior Direito']
 ];
 const _GD_GOAL_ZONE_LBL={};_GD_GOAL_ZONES.forEach(z=>{_GD_GOAL_ZONE_LBL[z[0]]=z[1];});
+// Tipos "soltos" (sem atleta obrigatória ao registar) que agora podem, opcionalmente,
+// ser ligados a uma jogadora depois — via botão "+ identificar jogadora" na cronologia.
+const _GD_ATTRIBUTABLE=['remate','canto_of','canto_def','livre_of','livre_def'];
+// Contagem agregada por jogo: os tipos que nunca aparecem no playerStats oficial
+// (golos/assist./cartões já são contados noutro lado) — pedido do Roger, 26/08/2026,
+// para os dados do SPS-Gameday ficarem quantificados e não só como lista solta.
+const _GD_COUNTABLE=[
+  ['remate','🎯','Remates'],
+  ['canto_of','🚩','Cantos Of.'],
+  ['canto_def','🚩','Cantos Def.'],
+  ['livre_of','🎯','Livres Of.'],
+  ['livre_def','🎯','Livres Def.'],
+  ['golo_sofrido','🥅','Golos Sofridos']
+];
+function _gdCountByType(events){
+  const c={};_GD_COUNTABLE.forEach(t=>{c[t[0]]=0;});
+  (events||[]).forEach(e=>{if(c[e.type]!==undefined)c[e.type]++;});
+  return c;
+}
+function _gdCountsSummaryHtml(events){
+  const c=_gdCountByType(events);
+  const total=_GD_COUNTABLE.reduce((s,t)=>s+c[t[0]],0);
+  if(!total)return '';
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px">${_GD_COUNTABLE.map(([k,icon,lbl])=>`<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:5px 9px;font-size:11px"><b>${c[k]}</b> ${icon} ${escHtml(lbl)}</div>`).join('')}</div>`;
+}
+// Mapa de zonas de golo: mini-baliza 3×3 com a contagem por zona, reaproveita
+// _GD_GOAL_ZONES para nunca divergir da grelha usada no registo ao vivo.
+function _gdZoneCounts(entries){
+  const c={};_GD_GOAL_ZONES.forEach(z=>{c[z[0]]=0;});
+  (entries||[]).forEach(e=>{if(e.goalZone&&c[e.goalZone]!==undefined)c[e.goalZone]++;});
+  return c;
+}
+function _gdGoalZoneMapSvg(counts,w,light){
+  w=w||140;const h=w*0.6;
+  const max=Math.max(1,..._GD_GOAL_ZONES.map(z=>counts[z[0]]||0));
+  const stroke=light?'#999':'rgba(255,255,255,.4)';
+  const textFill=light?'#1d6f3b':'#fff';
+  const borderCol=light?'#999':'rgba(255,255,255,.5)';
+  const cells=_GD_GOAL_ZONES.map((z,i)=>{
+    const col=i%3,row=Math.floor(i/3);
+    const n=counts[z[0]]||0;
+    const alpha=n?0.25+0.55*(n/max):(light?0.03:0.06);
+    return `<rect x="${col*(w/3)}" y="${row*(h/3)}" width="${w/3}" height="${h/3}" fill="rgba(46,204,113,${alpha.toFixed(2)})" stroke="${stroke}" stroke-width="1"/>
+      <text x="${col*(w/3)+w/6}" y="${row*(h/3)+h/6+4}" font-size="12" font-weight="700" text-anchor="middle" fill="${textFill}">${n||''}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:${w}px;display:block;border:2px solid ${borderCol};border-radius:2px">${cells}</svg>`;
+}
+// Variante da contagem agregada para dentro dos PDFs (_printWin usa página branca,
+// sem as variáveis CSS --bg2/--t2/--brd do tema da app).
+function _gdCountsSummaryHtmlPrint(events){
+  const c=_gdCountByType(events);
+  const total=_GD_COUNTABLE.reduce((s,t)=>s+c[t[0]],0);
+  if(!total)return '';
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px">${_GD_COUNTABLE.map(([k,icon,lbl])=>`<div style="background:#f2f2f2;border:1px solid #ccc;border-radius:6px;padding:5px 10px;font-size:10pt"><b>${c[k]}</b> ${icon} ${escHtml(lbl)}</div>`).join('')}</div>`;
+}
 
 function _gdInit(g){
   if(!g.liveSession)g.liveSession={
@@ -4261,7 +4344,22 @@ function _gdEndET(gid){
 }
 
 // --- Toque no campo: grava minuto+zona automaticamente, abre lista de ações ---
-let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null;
+let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null,_gdAssignEventId=null;
+// Atribuição opcional de jogadora a remate/canto/livre — pedido do Roger, 26/08/2026:
+// estes tipos continuam a confirmar-se de imediato ao tocar (sem abrandar o registo
+// no calor do jogo), mas ficam com um botão "+ identificar jogadora" na cronologia
+// para quem quiser ligar o evento a uma atleta depois, sem obrigar nem bloquear.
+function _gdOpenAssign(eid){_gdAssignEventId=eid;_renderJogoDetailFull();}
+function _gdCancelAssign(){_gdAssignEventId=null;_renderJogoDetailFull();}
+function _gdAssignPlayer(gid,eid,aid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ev=g.liveSession.events.find(e=>e.id===eid);if(!ev)return;
+  ev.player=aid||null;
+  saveData();
+  _gdAssignEventId=null;
+  toast('Jogadora identificada ✓');
+  _renderJogoDetailFull();
+}
 function _gdPitchTap(e,gid){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession||!_gdRunning(g.liveSession))return;
   const svg=document.getElementById('gd-pitch-'+gid);if(!svg)return;
@@ -4405,8 +4503,9 @@ function _gdBuildTimeline(g){
     else if(e.type==='golo_sofrido')running.fora++;
     return {
       minRaw:e.min,type:e.type,
-      player:e.type==='golo'?nameOf(e.scorer):e.type==='golo_sofrido'?(g.opp||'Adversário'):(e.type==='amarelo'||e.type==='vermelho')?nameOf(e.player):undefined,
+      player:e.type==='golo'?nameOf(e.scorer):e.type==='golo_sofrido'?(g.opp||'Adversário'):(e.type==='amarelo'||e.type==='vermelho'||_GD_ATTRIBUTABLE.includes(e.type))?nameOf(e.player):undefined,
       assistName:e.type==='golo'&&e.assist?nameOf(e.assist):undefined,
+      goalZone:e.type==='golo'&&e.goalZone?e.goalZone:undefined,
       goalZoneLbl:e.type==='golo'&&e.goalZone?_GD_GOAL_ZONE_LBL[e.goalZone]:undefined,
       playerIn:e.type==='substituicao'?nameOf(e.playerIn):undefined,
       playerOut:e.type==='substituicao'?nameOf(e.playerOut):undefined,
@@ -4591,17 +4690,41 @@ function _jogoAoVivoHtml(g){
     if(e.type==='golo')detail=`${nm(e.scorer)}${e.assist?' (assist. '+nm(e.assist)+')':''}${e.goalZone?' — '+_GD_GOAL_ZONE_LBL[e.goalZone]:''}`;
     else if(e.type==='substituicao')detail=`Sai ${nm(e.playerOut)} → Entra ${nm(e.playerIn)}`;
     else if(e.type==='amarelo'||e.type==='vermelho')detail=nm(e.player);
-    else if(e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def')detail=e.side==='esq'?'lado esquerdo':'lado direito';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid var(--brd);font-size:12px">
-      <span>${e.min} ${_GD_TYPE_LBL[e.type]||e.type}${detail?' — '+escHtml(detail):''}</span>
-      <button class="btn btn-xs btn-gh" onclick="_gdUndoEvent('${g.id}','${e.id}')" title="Desfazer">↩️</button>
+    else if(e.type==='remate')detail=e.player?nm(e.player):'';
+    else if(e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def')detail=(e.side==='esq'?'lado esquerdo':'lado direito')+(e.player?' — '+nm(e.player):'');
+    const assignable=_GD_ATTRIBUTABLE.includes(e.type);
+    const isAssigning=_gdAssignEventId===e.id;
+    let inlineSpan='',pickerBlock='';
+    if(assignable){
+      if(isAssigning){
+        pickerBlock=`<div style="display:flex;gap:4px;padding:0 10px 8px">
+          <select id="gd-assign-sel-${e.id}" class="fc" style="flex:1;font-size:11px;padding:3px 6px">
+            <option value="">— sem jogadora —</option>
+            ${onPitchAts.map(a=>`<option value="${a.id}" ${e.player===a.id?'selected':''}>${a.number||'?'} ${escHtml(_shortName(a))}</option>`).join('')}
+          </select>
+          <button class="btn btn-xs btn-g" onclick="_gdAssignPlayer('${g.id}','${e.id}',document.getElementById('gd-assign-sel-${e.id}').value)">✓</button>
+          <button class="btn btn-xs btn-gh" onclick="_gdCancelAssign()">✕</button>
+        </div>`;
+      }else if(!e.player){
+        inlineSpan=` <span onclick="_gdOpenAssign('${e.id}')" style="font-size:10px;color:var(--c1l);cursor:pointer;text-decoration:underline">+ identificar jogadora</span>`;
+      }
+    }
+    return `<div style="border-bottom:1px solid var(--brd)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;font-size:12px">
+        <span>${e.min} ${_GD_TYPE_LBL[e.type]||e.type}${detail?' — '+escHtml(detail):''}${inlineSpan}</span>
+        <button class="btn btn-xs btn-gh" onclick="_gdUndoEvent('${g.id}','${e.id}')" title="Desfazer">↩️</button>
+      </div>
+      ${pickerBlock}
     </div>`;
   }).join('')||`<p style="padding:10px;font-size:12px;color:var(--t2)">Ainda sem eventos registados.</p>`;
+
+  const countsHtml=_gdCountsSummaryHtml(ls.events);
 
   return `<div class="ipanel" style="background:var(--bg0)">
     ${header}
     ${pitchSvg}
     <div style="margin-top:12px">${controls}</div>
+    ${countsHtml?`<div style="margin-top:14px">${countsHtml}</div>`:''}
     <div style="margin-top:14px">
       <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">CRONOLOGIA</div>
       <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;max-height:260px;overflow-y:auto">${evRows}</div>
@@ -4952,13 +5075,24 @@ function exportJogoPDF(gid,type){
     const sR=ats.map(a=>{const st=stats.find(s=>s.aid===a.id)||{mins:0,goals:0,assists:0,yellow:0,red:0};const isS=g.lineup.includes(a.id);return `<tr><td>${a.number||'?'}</td><td>${a.name}${isS?'':' (S)'}</td><td>${a.pos||''}</td><td>${st.mins||0}'</td><td>${st.goals||0}</td><td>${st.assists||0}</td><td>${st.yellow||0}</td><td>${st.red||0}</td></tr>`;}).join('');
     const res=g.g1!=null&&g.g2!=null?`${g.g1}–${g.g2}`:'—';
     const tlEvs=(g.fpfTimeline||[]).filter(e=>e.type!=='inicio'&&e.type!=='fim');
-    const tlRows=tlEvs.map(e=>{const detail=e.type==='substituicao'?`Sai ${e.playerOut||'?'}, entra ${e.playerIn||'?'}`:`${e.player||''}${e.scoreAfter?' ('+e.scoreAfter+')':''}`;return `<tr><td>${e.minRaw||''}</td><td>${_TL_EVLBL[e.type]||e.type}</td><td>${detail}</td></tr>`;}).join('');
+    const tlRows=tlEvs.map(e=>{
+      const isSetPiece=e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def';
+      const detail=e.type==='substituicao'?`Sai ${e.playerOut||'?'}, entra ${e.playerIn||'?'}`
+        :isSetPiece?`${e.side==='esq'?'lado esquerdo':e.side==='dir'?'lado direito':''}${e.player?' — '+e.player:''}`
+        :`${e.player||''}${e.assistName?' (assist. '+e.assistName+')':''}${e.goalZoneLbl?' — '+e.goalZoneLbl:''}${e.scoreAfter?' ('+e.scoreAfter+')':''}`;
+      return `<tr><td>${e.minRaw||''}</td><td>${_TL_EVLBL[e.type]||e.type}</td><td>${detail}</td></tr>`;
+    }).join('');
+    const countsHtmlPdf=_gdCountsSummaryHtmlPrint(tlEvs);
+    const zcPdf=_gdZoneCounts(tlEvs.filter(e=>e.type==='golo'));
+    const hasZoneDataPdf=Object.values(zcPdf).some(n=>n>0);
     body+=`<div style="${type==='full'?'page-break-before:always':''}">
       <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📊 Relatório Pós-Jogo</h2>
       <p><b>Resultado:</b> ${club} ${res} ${g.opp}</p>
       ${g.oppStrengths?`<p><b>Análise adversário:</b> ${g.oppStrengths}</p>`:''}
       ${ats.length?`<h3>Estatísticas Individuais</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Pos.</th><th>Min.</th><th>⚽</th><th>🅰️</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${sR}</tbody></table>`:''}
-      ${tlEvs.length?`<h3>Linha do Tempo</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>Min.</th><th>Evento</th><th>Detalhe</th></tr></thead><tbody>${tlRows}</tbody></table>`:''}
+      ${countsHtmlPdf?`<h3 style="margin-top:14px">Contagens do Jogo</h3>${countsHtmlPdf}`:''}
+      ${hasZoneDataPdf?`<h3 style="margin-top:4px">Mapa de Golos (zona de entrada)</h3>${_gdGoalZoneMapSvg(zcPdf,150,true)}`:''}
+      ${tlEvs.length?`<h3 style="margin-top:14px">Linha do Tempo</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>Min.</th><th>Evento</th><th>Detalhe</th></tr></thead><tbody>${tlRows}</tbody></table>`:''}
       ${g.postGameNotes?`<h3>Análise do Treinador</h3><p style="white-space:pre-line">${g.postGameNotes}</p>`:''}
     </div>`;
   }
