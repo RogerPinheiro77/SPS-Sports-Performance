@@ -106,6 +106,13 @@ ul{list-style:none}
 .tb-btn:hover{color:var(--t1);border-color:var(--c1)}
 .pg-content{padding:20px;flex:1;min-width:0}
 .pg{display:none}.pg.on{display:block}
+/* SPS-Gameday standalone (?gameday=1, sps-v78) — entra direto na lista de Jogos, sem
+   o resto da plataforma à volta; sidebar escondida, topbar reduzida a título+Sair. */
+.gd-mode #sidebar{display:none}
+.gd-mode #main{margin-left:0}
+.gd-mode #tb-cfg-btn,.gd-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.gd-only{display:none}
+.gd-mode .gd-only{display:flex}
 
 /* CARDS */
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
@@ -359,6 +366,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <span class="topbar-title" id="pg-title">Dashboard</span>
       <button class="tb-btn" onclick="openCloud()" title="Cloud">☁️</button>
       <button class="tb-btn" id="tb-cfg-btn" onclick="navTo('config')" title="Config">⚙️</button>
+      <button class="tb-btn gd-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
       <div class="pg on" id="pg-dashboard"></div>
@@ -540,6 +548,11 @@ function _defaultStaffPwd(){ return 'MFC@26'; }
 // de atleta, sem mostrar o ecrã de staff — evita a confusão de terem de encontrar
 // o botão "Entrar como Atleta" (ver memória feedback_sps_athlete_only_entry_url).
 const _forceAtletaMode=new URLSearchParams(location.search).get('atleta')==='1';
+// SPS-Gameday standalone (?gameday=1, sps-v78) — mesmo padrão do ?atleta=1: URL/PWA
+// dedicado, mas aqui continua a ser login normal de staff (o Gameday já exige o cargo
+// de treinador/adjunto/team manager, ver _gamedayEligibleRole) — só muda o que acontece
+// DEPOIS do login (ver _maybeEnterGamedayMode), nunca o próprio ecrã de login.
+const _forceGamedayMode=new URLSearchParams(location.search).get('gameday')==='1';
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -616,6 +629,7 @@ async function createFirstAdmin(){
   if(_sync)cloudUpsert('staff_users',{...user,club_id:_cid});
   setSession({userId:user.id,role:'treinador',isAdmin:true,name:user.name});
   ROLE='treinador';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
+  _maybeEnterGamedayMode();
 }
 async function handleLogin(){
   const username=(document.getElementById('login-user')?.value||'').trim();
@@ -636,6 +650,7 @@ async function handleLogin(){
   }
   setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
   ROLE=user.role;showStaffApp();
+  _maybeEnterGamedayMode();
 }
 // ── 1º acesso staff: obrigar a definir password própria (troca a password fixa inicial) ──
 function _showStaffPwdSetup(user){
@@ -667,6 +682,7 @@ async function _saveStaffPwdSetup(userId){
   setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
   ROLE=user.role;showStaffApp();
   toast('Password definida ✓ Bem-vindo, '+user.name+'!');
+  _maybeEnterGamedayMode();
 }
 async function handleAthleteLogin(){
   const username=(document.getElementById('at-login-user')?.value||'').trim();
@@ -810,6 +826,27 @@ const ROLE_DEFS={
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos'],readOnly:true,manageUsers:false}
 };
+// SPS-Gameday standalone (?gameday=1, sps-v78) — só faz sentido entrar direto no Gameday
+// para cargos que têm acesso a Jogos E podem registar eventos (não os só-consulta, ex.
+// Diretor) — senão cai-se num ecrã "Ao Vivo" onde não se consegue fazer nada.
+function _gamedayEligibleRole(role){
+  const def=ROLE_DEFS[role];
+  return !!def&&def.pages.includes('jogos')&&!def.readOnly;
+}
+// Chamada depois de qualquer showStaffApp() bem sucedido (login normal, 1º acesso,
+// criação do 1º admin, ou restauro de sessão) quando a URL tem ?gameday=1 — substitui
+// a navegação por defeito (Dashboard) por ir direto à lista de Jogos, sem sidebar/resto
+// da plataforma à volta (ver .gd-mode no CSS). Cargo sem acesso a Jogos cai no
+// comportamento normal (Dashboard completo), com aviso a explicar porquê.
+function _maybeEnterGamedayMode(){
+  if(typeof _forceGamedayMode==='undefined'||!_forceGamedayMode)return;
+  if(!_gamedayEligibleRole(ROLE)){
+    toast('Este acesso é para o SPS-Gameday — o teu cargo não tem acesso a Jogos','err');
+    return;
+  }
+  document.body.classList.add('gd-mode');
+  navTo('jogos');
+}
 // Títulos qualificados por página — partilhado entre navTo() (cabeçalho da página) e
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
@@ -3141,6 +3178,10 @@ function openJogo(id,tab='info'){
   const g=APP.games.find(x=>x.id===id);
   if(!g)return;
   _initG(g);saveData();
+  // Em modo SPS-Gameday standalone (sps-v78), "Abrir" salta logo para o Ao Vivo em vez do
+  // separador Info — é o único motivo de estar nesta app dedicada. Só quando o chamador
+  // não pediu já um separador específico (ex. o botão "Convocatória" continua a abrir Pré-Jogo).
+  if(tab==='info'&&typeof _forceGamedayMode!=='undefined'&&_forceGamedayMode)tab='aovivo';
   _jogoDetailId=id;_jogoView='detail';_jogoDetailTab=tab;
   renderJogos();
 }
@@ -10777,6 +10818,12 @@ loadData();
     // o parâmetro — o ícone instalado voltava a abrir sempre no ecrã de staff.
     if(typeof _forceAtletaMode!=='undefined'&&_forceAtletaMode){
       applyPWAManifest({name:'SPS Atleta',shortName:'SPS Atleta',icon192:_ATLETA_ICON_192,icon512:_ATLETA_ICON_512,iconType:'image/png',themeColor:'#0c0f14',appleIcon:_ATLETA_ICON_APPLE,startUrl:location.pathname+'?atleta=1'});
+    } else if(typeof _forceGamedayMode!=='undefined'&&_forceGamedayMode){
+      // SPS-Gameday standalone (sps-v78) — ícone/nome próprios, independentes do papel de
+      // login (ao contrário do Fisio/Nutri em showStaffApp, isto depende só da URL, não do
+      // cargo), para o "Adicionar ao Ecrã Principal" já apanhar o manifest certo mesmo antes
+      // do login terminar (mesmo motivo do fix histórico documentado para o ?atleta=1).
+      applyPWAManifest({name:'SPS Gameday',shortName:'SPS Gameday',iconSrc:_roleIconSVG('GD','#e74c3c'),iconType:'image/svg+xml',themeColor:'#e74c3c',startUrl:location.pathname+'?gameday=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     }
@@ -10801,7 +10848,7 @@ loadData();
     // quando o evento dispara, fica "pendente" e só é mostrado se/quando showAtletaApp()
     // ou showStaffApp() correr com um papel válido (ver window._flushPwaBar).
     var _pwaBarPending=false;
-    function _pwaBarRole(){return typeof ROLE!=='undefined'&&(ROLE==='atleta'||ROLE==='fisio'||ROLE==='nutri');}
+    function _pwaBarRole(){return typeof ROLE!=='undefined'&&(ROLE==='atleta'||ROLE==='fisio'||ROLE==='nutri'||(typeof _forceGamedayMode!=='undefined'&&_forceGamedayMode&&typeof _gamedayEligibleRole==='function'&&_gamedayEligibleRole(ROLE)));}
     function _maybeShowPwaBar(){
       if(_pwaBarRole()) _showPwaBar();
       else _pwaBarPending=true;
@@ -10873,7 +10920,7 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
       AID=sess.userId;
       const at=APP.athletes.find(a=>a.id===AID);
       if(at){showAtletaApp(at);return;}
-    } else {showStaffApp();return;}
+    } else {showStaffApp();_maybeEnterGamedayMode();return;}
   }
   if(_checkAtletaToken()) return;
   // Sessão persistente da atleta (localStorage)
