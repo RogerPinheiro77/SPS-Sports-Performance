@@ -3588,15 +3588,11 @@ function _OPP_PDF_SECTIONS(g){
     ['freeKick','🎯 Livre Observado',g.oppSPBoards&&g.oppSPBoards.freeKick]
   ];
 }
-function exportOppPDF(gid){
-  const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
+// Corpo HTML partilhado (extraído do exportOppPDF original) — usado pelo PDF dedicado
+// ao Adversário e também pelo Relatório Completo (exportJogoPDF, type='full').
+function _oppPdfBodyHtml(g){
   const sections=_OPP_PDF_SECTIONS(g);
-  const anySnapshots=sections.some(([,,store])=>store&&store.snapshots&&store.snapshots.length);
-  if(!anySnapshots)return toast('Ainda não há nenhum registo guardado nos quadros do Adversário','err');
-  const club=APP.config.clubName||'Clube';
-  const dateStr=fmtDate(g.date)+(g.time?' '+g.time.slice(0,5):'');
-  const comp=g.comp?' — '+g.comp:'';
-  const body=sections.map(([board,label,store])=>{
+  return sections.map(([board,label,store])=>{
     if(!store||!store.snapshots||!store.snapshots.length)return '';
     const snapsHtml=store.snapshots.map((s,i)=>`<div style="display:inline-block;width:200px;margin:0 14px 18px 0;vertical-align:top;text-align:center">
       ${_oppSnapshotSvg(board,s.positions,190)}
@@ -3606,6 +3602,37 @@ function exportOppPDF(gid){
     return `<div style="margin-top:20px"><h3 style="border-bottom:1px solid #ccc;padding-bottom:4px">${label}</h3>
       <div>${snapsHtml}</div></div>`;
   }).join('');
+}
+// Mesma ideia para os 4 quadros da própria equipa (sps-v76) — reaproveita
+// _pitchSnapshotSvg em vez de _oppSnapshotSvg (posições por ID de atleta real).
+function _PITCH_PDF_SECTIONS(g){
+  return [
+    ['tatico','🏟️ Esquema Tático — Nossa Equipa',_pitchSnapshotsFor(g,'tatico')],
+    ['cornerOf','🚩 Canto Ofensivo — Nossa Equipa',_pitchSnapshotsFor(g,'cornerOf')],
+    ['cornerDef','🚩 Canto Defensivo — Nossa Equipa',_pitchSnapshotsFor(g,'cornerDef')],
+    ['freeKick','🎯 Livre — Nossa Equipa',_pitchSnapshotsFor(g,'freeKick')]
+  ];
+}
+function _pitchPdfBodyHtml(g){
+  const sections=_PITCH_PDF_SECTIONS(g);
+  return sections.map(([mode,label,snaps])=>{
+    if(!snaps||!snaps.length)return '';
+    const snapsHtml=snaps.map((s,i)=>`<div style="display:inline-block;width:200px;margin:0 14px 18px 0;vertical-align:top;text-align:center">
+      ${_pitchSnapshotSvg(mode,s,190)}
+      <div style="font-size:9pt;font-weight:700;margin-top:4px">${s.minRaw?escHtml(s.minRaw):'Registo '+(i+1)}</div>
+      ${s.note?`<div style="font-size:8pt;color:#555;margin-top:2px">${escHtml(s.note)}</div>`:''}
+    </div>`).join('');
+    return `<div style="margin-top:20px"><h3 style="border-bottom:1px solid #ccc;padding-bottom:4px">${label}</h3>
+      <div>${snapsHtml}</div></div>`;
+  }).join('');
+}
+function exportOppPDF(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
+  const body=_oppPdfBodyHtml(g);
+  if(!body)return toast('Ainda não há nenhum registo guardado nos quadros do Adversário','err');
+  const club=APP.config.clubName||'Clube';
+  const dateStr=fmtDate(g.date)+(g.time?' '+g.time.slice(0,5):'');
+  const comp=g.comp?' — '+g.comp:'';
   _printWin(`Análise do Adversário — ${g.opp} ${dateStr}`,
     `<div style="font-family:Arial,sans-serif;padding:20px">
       <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:10px">
@@ -3924,6 +3951,100 @@ function _pitchDefaultPos(mode,i,formation){
 // Altura máxima de arrasto (eixo Y) — os 4 quadros mostram só meio campo (área+baliza),
 // por isso o limite é sempre o mesmo, curto.
 function _pitchMaxY(mode){return 190;}
+// Galeria cronológica também na própria equipa (não só no Adversário) — pedido do Roger,
+// 26/08/2026: começa com o que está definido na plataforma, mas durante o jogo dá para
+// ir ajustando a estrutura (incl. bolas paradas) e gerar "prints", tal como já acontece
+// com o Adversário. Mesma mecânica, dados diferentes: aqui guarda-se por ID de atleta
+// real (não número genérico 1-11), porque os 4 quadros da equipa já usam esse modelo.
+function _pitchSnapshotsFor(g,mode){
+  if(mode==='tatico'){if(!g.tacticoSnapshots)g.tacticoSnapshots=[];return g.tacticoSnapshots;}
+  if(!g.setpieceSnapshots)g.setpieceSnapshots={cornerDef:[],cornerOf:[],freeKick:[]};
+  if(!g.setpieceSnapshots[mode])g.setpieceSnapshots[mode]=[];
+  return g.setpieceSnapshots[mode];
+}
+function _pitchSnapshot(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!g.lineup||!g.lineup.length)return toast('Define o onze no Pré-Jogo primeiro','err');
+  const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
+  const maxY=_pitchMaxY(mode);
+  const noteEl=document.getElementById('pitch-note-'+mode+'-'+gid);
+  const note=noteEl?noteEl.value:'';
+  let minRaw=null;
+  if(g.liveSession&&_gdRunning(g.liveSession))minRaw=_gdMinLabel(_gdElapsedSec(g.liveSession));
+  const sortedLineup=g.lineup.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
+    .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+  const positions={},tasks={};
+  sortedLineup.forEach(({aid},i)=>{
+    const def=_pitchDefaultPos(mode,i,g.formation);
+    const raw=posMap[aid]||{x:def[0],y:def[1]};
+    positions[aid]={x:raw.x,y:Math.min(raw.y,maxY)};
+    if(taskMap[aid])tasks[aid]=taskMap[aid];
+  });
+  _pitchSnapshotsFor(g,mode).push({id:uid(),minRaw,note,positions,tasks,lineup:sortedLineup.map(x=>x.aid)});
+  saveData();toast('Posicionamento registado ✓');
+  _renderJogoDetailFull();
+}
+function _pitchLoadSnapshot(gid,mode,snapId){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const snap=_pitchSnapshotsFor(g,mode).find(s=>s.id===snapId);if(!snap)return;
+  const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
+  Object.keys(snap.positions).forEach(aid=>{posMap[aid]={...snap.positions[aid]};});
+  Object.keys(snap.tasks||{}).forEach(aid=>{taskMap[aid]=snap.tasks[aid];});
+  saveData();toast('Posicionamento carregado — ajusta e regista de novo');
+  _renderJogoDetailFull();
+}
+function _pitchDeleteSnapshot(gid,mode,snapId){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!confirm('Apagar este registo da galeria?'))return;
+  const snaps=_pitchSnapshotsFor(g,mode);
+  const idx=snaps.findIndex(s=>s.id===snapId);
+  if(idx>=0)snaps.splice(idx,1);
+  saveData();_renderJogoDetailFull();
+}
+// SVG de um snapshot guardado (fundo/campo idêntico ao quadro ao vivo — ver
+// _jogoCampoHtml — e mesmo esquema de cor GR/jogadora de linha). w controla o tamanho;
+// usado tanto nas miniaturas da galeria como no PDF (tamanho maior).
+function _pitchSnapshotSvg(mode,snap,w){
+  w=w||190;
+  const isTatico=mode==='tatico';
+  const h=Math.round(w*(200/300));
+  const rad=7,numFs=7,sw=1.5;
+  const bg=`<rect width="300" height="420" fill="#2d7a2d" rx="8"/>
+    <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <circle cx="150" cy="210" r="38" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <circle cx="150" cy="210" r="3" fill="rgba(255,255,255,.45)"/>
+    <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="122" y="15" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="122" y="359" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="132" y="8" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
+    <rect x="132" y="403" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
+    <circle cx="150" cy="58" r="2.5" fill="rgba(255,255,255,.45)"/>
+    <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>`;
+  const lineup=snap.lineup||Object.keys(snap.positions);
+  let dots='';
+  lineup.forEach(aid=>{
+    const a=APP.athletes.find(x=>x.id===aid);const p=snap.positions[aid];
+    if(!a||!p)return;
+    const isGK=a.pos==='GR';
+    const fill=isGK?'#27ae60':'#ffd700';
+    const tf=isGK?'#fff':'#1a1a2e';
+    dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||'?'}</text>`;
+    if(isTatico)dots+=`<text x="${p.x}" y="${(p.y+16).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
+  });
+  return `<svg viewBox="0 0 300 200" style="width:${w}px;height:${h}px;display:block;border-radius:6px">${bg}${dots}</svg>`;
+}
+function _pitchGalleryHtml(g,mode){
+  const snaps=_pitchSnapshotsFor(g,mode);
+  if(!snaps.length)return '<p style="font-size:11px;color:var(--t2)">Ainda sem registos.</p>';
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap">${snaps.map(s=>`<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:6px;width:92px;text-align:center;flex-shrink:0">
+      <div onclick="_pitchLoadSnapshot('${g.id}','${mode}','${s.id}')" style="cursor:pointer" title="Toca para continuar a partir daqui">${_pitchSnapshotSvg(mode,s,80)}</div>
+      <div style="font-size:9px;font-weight:700;margin-top:4px">${s.minRaw?escHtml(s.minRaw):'—'}</div>
+      ${s.note?`<div style="font-size:8px;color:var(--t2);margin-top:2px;line-height:1.3">${escHtml(s.note)}</div>`:''}
+      <button class="btn btn-xs btn-r" style="margin-top:4px;padding:1px 4px;font-size:9px" onclick="_pitchDeleteSnapshot('${g.id}','${mode}','${s.id}')">🗑️</button>
+    </div>`).join('')}</div>`;
+}
 function _jogoCampoHtml(g){
   const PW=300,PH=420;
   const mode=_jogoCampoTab;
@@ -4006,6 +4127,15 @@ function _jogoCampoHtml(g){
         <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px;letter-spacing:.5px">TAREFAS INDIVIDUAIS</div>
         ${g.lineup.length?taskRows:`<p style="font-size:12px;color:var(--t2)">Adiciona titulares no Pré-Jogo.</p>`}
       </div>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">GALERIA — ${escHtml(modeLabel)} (cronológica)</div>
+      <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Ajusta a estrutura acima (incl. durante o jogo) e regista sempre que mudar — fica um histórico para o Relatório Completo.</p>
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px">
+        <textarea class="fc" id="pitch-note-${mode}-${g.id}" rows="1" style="flex:1;min-width:160px;font-size:11px" placeholder="Nota (opcional)..."></textarea>
+        <button class="btn btn-g btn-sm" onclick="_pitchSnapshot('${g.id}','${mode}')">📸 Registar Posicionamento</button>
+      </div>
+      ${_pitchGalleryHtml(g,mode)}
     </div>
     <div style="margin-top:12px">
       <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">NOTAS — ${escHtml(modeLabel)} (aparece no PDF deste quadro)</div>
@@ -5160,6 +5290,19 @@ function exportJogoPDF(gid,type){
       ${tlEvs.length?`<h3 style="margin-top:14px">Linha do Tempo</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>Min.</th><th>Evento</th><th>Detalhe</th></tr></thead><tbody>${tlRows}</tbody></table>`:''}
       ${g.postGameNotes?`<h3>Análise do Treinador</h3><p style="white-space:pre-line">${g.postGameNotes}</p>`:''}
     </div>`;
+  }
+  // Relatório Completo (sps-v76): junta também as galerias cronológicas dos quadros da
+  // própria equipa e do Adversário, quando existirem — pedido do Roger, 26/08/2026, para
+  // ficar com "uma compilação riquíssima" de fim de jogo num único documento, em vez de
+  // espalhada por vários PDFs. Secções sem nenhum registo ficam de fora automaticamente
+  // (mesmo comportamento já usado no PDF dedicado ao Adversário, sps-v75).
+  if(type==='full'){
+    const pitchBody=_pitchPdfBodyHtml(g);
+    const oppBody=_oppPdfBodyHtml(g);
+    if(pitchBody)body+=`<div style="page-break-before:always">
+      <h2 style="border-bottom:2px solid #333;padding-bottom:8px">🏟️ Quadros Táticos — Nossa Equipa (galeria cronológica)</h2>${pitchBody}</div>`;
+    if(oppBody)body+=`<div style="page-break-before:always">
+      <h2 style="border-bottom:2px solid #333;padding-bottom:8px">🧩 Adversário (galeria cronológica)</h2>${oppBody}</div>`;
   }
   _printWin(`${type==='full'?'Relatório Completo':type==='prejogo'?'Ficha Pré-Jogo':type==='campo'?'Folha Tática':'Relatório Pós-Jogo'} — ${g.opp} ${dateStr}`,
     `<div style="font-family:Arial,sans-serif;padding:20px">
