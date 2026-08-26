@@ -4473,6 +4473,67 @@ function _gdCountsSummaryHtmlPrint(events){
   return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px">${_GD_COUNTABLE.map(([k,icon,lbl])=>`<div style="background:#f2f2f2;border:1px solid #ccc;border-radius:6px;padding:5px 10px;font-size:10pt"><b>${c[k]}</b> ${icon} ${escHtml(lbl)}</div>`).join('')}</div>`;
 }
 
+// Análise automática do jogo (sps-v77) — resumo gerado por regras a partir dos dados
+// já registados neste jogo (resultado, contagens do SPS-Gameday, mapa de zonas de golo,
+// notas dos quadros táticos próprios e do Adversário) — pedido do Roger, 26/08/2026, para
+// o Relatório Completo abrir já com uma leitura rápida do jogo. Não interpreta nem infere
+// causalidade entre eventos (ex.: nunca liga um golo sofrido a uma bola parada anterior) —
+// só descreve, em frases, o que já está guardado. Deliberadamente scoped a UM jogo (não é
+// análise de tendências da época, que fica deferida por falta de amostra real ainda).
+function _gdAutoAnalysisHtml(g){
+  const club=APP.config.clubName||'A equipa';
+  const tlEvs=(g.fpfTimeline||[]).filter(e=>e.type!=='inicio'&&e.type!=='fim');
+  const hasResult=g.g1!=null&&g.g2!=null;
+  const counts=_gdCountByType(tlEvs);
+  const countsTotal=_GD_COUNTABLE.reduce((s,t)=>s+counts[t[0]],0);
+  const oppSnaps=(g.oppTactical&&g.oppTactical.snapshots)||[];
+  const ownSnaps=g.tacticoSnapshots||[];
+  const oppSPCount=['cornerOf','cornerDef','freeKick'].reduce((s,k)=>s+((g.oppSPBoards&&g.oppSPBoards[k]&&g.oppSPBoards[k].snapshots)?g.oppSPBoards[k].snapshots.length:0),0);
+  if(!hasResult&&!countsTotal&&!oppSnaps.length&&!ownSnaps.length&&!oppSPCount)return '';
+
+  const paras=[];
+
+  // 1) Resultado + golos + zona dominante
+  if(hasResult){
+    const outcome=g.g1>g.g2?'venceu':g.g1===g.g2?'empatou':'perdeu';
+    let s=`${escHtml(club)} ${outcome} por ${g.g1}-${g.g2} ${g.g1===g.g2?'com':'contra'} ${escHtml(g.opp||'o adversário')}.`;
+    // Nota: g.fpfTimeline guarda goalZoneLbl (etiqueta já traduzida por _gdBuildTimeline),
+    // não o código goalZone — por isso a contagem aqui é por etiqueta, não via _gdZoneCounts
+    // (que espera o código e serve o mapa 3×3, não este resumo em texto).
+    const zoneLbls=tlEvs.filter(e=>e.type==='golo'&&e.goalZoneLbl).map(e=>e.goalZoneLbl);
+    if(zoneLbls.length){
+      const freq={};zoneLbls.forEach(l=>{freq[l]=(freq[l]||0)+1;});
+      const top=Object.entries(freq).sort((a,b)=>b[1]-a[1])[0];
+      const zTotal=zoneLbls.length;
+      s+=` ${zTotal>1?'Os golos entraram sobretudo':'O golo entrou'} pela zona ${top[0]}${zTotal>1?` (${top[1]} de ${zTotal} com zona registada)`:''}.`;
+    }
+    if(counts.golo_sofrido>0)s+=` A equipa sofreu ${counts.golo_sofrido} golo${counts.golo_sofrido!==1?'s':''}.`;
+    paras.push(s);
+  }
+
+  // 2) Contagens do SPS-Gameday (remates/cantos/livres)
+  if(countsTotal){
+    const parts=_GD_COUNTABLE.filter(([k])=>k!=='golo_sofrido'&&counts[k]>0).map(([k,icon,lbl])=>`${counts[k]} ${lbl.toLowerCase()}`);
+    if(parts.length)paras.push(`Foram registados ${parts.join(', ')}.`);
+  }
+
+  // 3) Alterações táticas observadas — só as notas escritas nos quadros, por ordem cronológica
+  const noteLine=snaps=>snaps.filter(s=>s.note).map(s=>`${s.minRaw?s.minRaw+' — ':''}${escHtml(s.note)}`).join('; ');
+  const oppNotes=noteLine(oppSnaps);
+  if(oppNotes)paras.push(`Esquema tático do adversário (registos ao longo do jogo): ${oppNotes}.`);
+  const ownNotes=noteLine(ownSnaps);
+  if(ownNotes)paras.push(`Ajustes próprios registados no quadro tático: ${ownNotes}.`);
+
+  // 4) Bolas paradas do adversário observadas (contagem de registos, sem detalhe)
+  if(oppSPCount)paras.push(`Foram registadas ${oppSPCount} rotina${oppSPCount!==1?'s':''} de bolas paradas do adversário nos quadros de observação.`);
+
+  if(!paras.length)return '';
+  return `<div style="margin-bottom:18px">
+    <h2 style="border-bottom:2px solid #1d6f3b;padding-bottom:8px;color:#1d6f3b">Análise Automática do Jogo</h2>
+    ${paras.map(p=>`<p style="font-size:10pt;line-height:1.5;margin:0 0 8px">${p}</p>`).join('')}
+    <p style="font-size:8pt;color:#666;font-style:italic;margin:0">Resumo gerado a partir dos dados registados neste jogo (contagens, zonas de golo, notas dos quadros táticos). Não substitui a análise do treinador.</p>
+  </div>`;
+}
 function _gdInit(g){
   if(!g.liveSession)g.liveSession={
     phase:'pre',runningSince:null,accumSec:0,regEndSec:null,etEndSec:null,
@@ -5235,6 +5296,10 @@ function exportJogoPDF(gid,type){
   const haStr={casa:'Casa',fora:'Fora',neutro:'Neutro'}[g.ha]||'';
   const comp=g.comp?' — '+g.comp:'';
   let body='';
+  if(type==='full'){
+    const autoHtml=_gdAutoAnalysisHtml(g);
+    if(autoHtml)body+=autoHtml;
+  }
   if(type==='prejogo'||type==='full'){
     const ats=_sortGKFirst(g.lineup.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean));
     const sus=_sortGKFirst(g.subs.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean));
