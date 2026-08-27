@@ -116,8 +116,29 @@ ul{list-style:none}
 #sb-backdrop{display:none}
 /* Campo tocável do Ao Vivo — maior em tablet/desktop (mais espaço, toque mais preciso),
    compacto em telemóvel. A escala é feita pelo viewBox do SVG, não pelas coordenadas. */
-.gd-pitch-wrap{max-width:300px}
-@media(min-width:600px){.gd-pitch-wrap{max-width:420px}}
+/* Campo tocável do Ao Vivo (27/08/2026) — em vez de um limite fixo em px,
+   a largura acompanha o ecrã: o menor entre 94% da largura visível, a altura
+   disponível convertida pelo rácio do campo (300:420), ou 480px como teto de
+   conforto. Cresce sozinho com o ecrã em qualquer orientação, sem saltos entre
+   tamanhos fixos. */
+.gd-pitch-wrap{width:min(94vw,62vh*0.7143,480px);transition:transform .2s ease}
+.gd-pitch-wrap.rotated{transform:rotate(180deg)}
+.gd-live-wrap{display:flex;flex-direction:column;gap:4px}
+.gd-pitch-col{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.gd-pitch-col>.gd-pitch-rot-row{text-align:center}
+.gd-info-col{min-width:0}
+/* Em paisagem (ecrã mais largo que alto, com largura suficiente para 2 colunas),
+   o campo passa para uma coluna à esquerda a aproveitar quase toda a altura
+   disponível, e a informação (relógio/controlos/contagens/cronologia) passa
+   para uma coluna à direita com scroll próprio — em vez de tudo empilhado por
+   baixo como em retrato. Só telemóveis pequenos em paisagem (<680px) continuam
+   empilhados, para não espremer as duas colunas a um tamanho inútil. */
+@media(orientation:landscape) and (min-width:680px){
+  .gd-pitch-wrap{width:min(48vw,84vh*0.7143,480px)}
+  .gd-live-wrap{flex-direction:row;align-items:flex-start;gap:16px}
+  .gd-pitch-col{flex:0 0 auto}
+  .gd-info-col{flex:1;min-width:0;max-height:92vh;overflow-y:auto;padding-right:2px}
+}
 /* Em modo Gameday, botão de saída maior — usado de pé, no banco, muitas vezes com pressa. */
 .gd-mode .tb-btn{width:38px;height:38px}
 
@@ -4685,7 +4706,8 @@ function _gdEndET(gid){
 }
 
 // --- Toque no campo: grava minuto+zona automaticamente, abre lista de ações ---
-let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null,_gdAssignEventId=null,_gdOppAssignEventId=null,_gdCardTeam='nos',_gdOppRosterOpen=false;
+let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null,_gdAssignEventId=null,_gdOppAssignEventId=null,_gdCardTeam='nos',_gdOppRosterOpen=false,_gdPitchRotated=false;
+function _gdTogglePitchRotate(){_gdPitchRotated=!_gdPitchRotated;_renderJogoDetailFull();}
 // Atribuição opcional de jogadora a remate/canto/livre — pedido do Roger, 26/08/2026:
 // estes tipos continuam a confirmar-se de imediato ao tocar (sem abrandar o registo
 // no calor do jogo), mas ficam com um botão "+ identificar jogadora" na cronologia
@@ -5047,16 +5069,28 @@ function _jogoAoVivoHtml(g){
 
   const canTap=running;
   const markerIcon={golo:'⚽',golo_sofrido:'🥅',remate:'🎯',remate_adv:'🎯',canto_of:'🚩',canto_def:'🚩',livre_of:'🎯',livre_def:'🎯',substituicao:'🔄',amarelo:'🟨',vermelho:'🟥'};
-  const markers=ls.events.map(e=>`<text x="${(e.x*3).toFixed(1)}" y="${(e.y*4.2).toFixed(1)}" font-size="11" text-anchor="middle">${markerIcon[e.type]||'•'}</text>`).join('');
+  const markers=ls.events.map(e=>{
+    const cx=(e.x*3).toFixed(1),cy=(e.y*4.2).toFixed(1);
+    // Com o campo rodado 180° (_gdPitchRotated), o texto do marcador ganha uma
+    // contra-rotação própria em torno do seu ponto — fica sempre direito e
+    // legível, mesmo que a posição em si acompanhe a rotação do campo todo.
+    const rot=_gdPitchRotated?` transform="rotate(180 ${cx} ${cy})"`:'';
+    return `<text x="${cx}" y="${cy}" font-size="11" text-anchor="middle"${rot}>${markerIcon[e.type]||'•'}</text>`;
+  }).join('');
   // Popups ancorados ao toque no campo: em telemóvel o campo tem só ~300px de largura,
   // por isso a âncora percentual antiga (left:X%) empurrava o popup para fora do ecrã
   // quando se tocava no lado direito — os botões ficavam por baixo do overflow-x:hidden
   // e impossíveis de tocar. Agora ancora à esquerda OU à direita consoante o toque, e a
   // largura do popup acompanha o ecrã (min(...,vw)) em vez de ser sempre fixa em px.
   const _gdAnchor=(xPct,capPct)=>xPct<=50?`left:${Math.min(xPct,capPct)}%`:`right:${Math.min(100-xPct,capPct)}%`;
+  // Com o campo rodado 180° (_gdPitchRotated), a posição (left/top/right) já
+  // fica correta sozinha — é calculada antes do transform ser aplicado — mas
+  // o conteúdo em si (texto/botões) ficaria de pernas para o ar sem uma
+  // contra-rotação própria no próprio popup, por isso soma-se aqui.
+  const _gdCounterRot=_gdPitchRotated?';transform:rotate(180deg)':'';
   let popup='';
   if(_gdMenuXY&&!_gdPendingType){
-    popup=`<div style="position:absolute;${_gdAnchor(_gdMenuXY.x,26)};top:${Math.min(_gdMenuXY.y,72)}%;background:var(--bg1);border:2px solid var(--c1l);border-radius:10px;padding:8px;width:min(170px,72vw);box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5">
+    popup=`<div style="position:absolute;${_gdAnchor(_gdMenuXY.x,26)};top:${Math.min(_gdMenuXY.y,72)}%;background:var(--bg1);border:2px solid var(--c1l);border-radius:10px;padding:8px;width:min(170px,72vw);box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5${_gdCounterRot}">
       <div style="font-size:10px;color:var(--c1l);font-weight:800;margin-bottom:6px">📍 ${_gdMinLabel(_gdMenuXY.sec)}</div>
       <div style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto">
         ${_GD_TYPES.map(([type,icon,label])=>`<button class="btn btn-sm btn-gh" style="justify-content:flex-start;text-align:left;padding:9px 10px" onclick="_gdPickType('${g.id}','${type}')">${icon} ${label}</button>`).join('')}
@@ -5064,11 +5098,11 @@ function _jogoAoVivoHtml(g){
       <button class="btn btn-sm btn-r" style="width:100%;margin-top:6px;padding:9px" onclick="_gdCancelMenu()">Cancelar</button>
     </div>`;
   }else if(_gdMenuXY&&_gdPendingType){
-    popup=`<div style="position:absolute;${_gdAnchor(_gdMenuXY.x,20)};top:${Math.min(_gdMenuXY.y,65)}%;background:var(--bg1);border:2px solid var(--c1l);border-radius:10px;padding:10px;width:min(210px,82vw);box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5">
+    popup=`<div style="position:absolute;${_gdAnchor(_gdMenuXY.x,20)};top:${Math.min(_gdMenuXY.y,65)}%;background:var(--bg1);border:2px solid var(--c1l);border-radius:10px;padding:10px;width:min(210px,82vw);box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5${_gdCounterRot}">
       ${_gdSubformHtml(g,_gdPendingType,onPitchAts,benchAts)}
     </div>`;
   }
-  const pitchSvg=`<div class="gd-pitch-wrap" style="position:relative;margin:0 auto">
+  const pitchSvg=`<div class="gd-pitch-wrap${_gdPitchRotated?' rotated':''}" style="position:relative;margin:0 auto">
     <svg id="gd-pitch-${g.id}" viewBox="0 0 300 420" style="width:100%;display:block;border-radius:10px;touch-action:none;cursor:${canTap?'crosshair':'default'}" onclick="${canTap?`_gdPitchTap(event,'${g.id}')`:''}">
       <rect width="300" height="420" fill="#0f3d24" rx="8"/>
       <rect x="6" y="6" width="288" height="408" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"/>
@@ -5081,8 +5115,9 @@ function _jogoAoVivoHtml(g){
       ${markers}
     </svg>
     ${popup}
-    ${!canTap?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(12,15,20,.55);border-radius:10px;font-size:12px;color:var(--t2);text-align:center;padding:10px">${ls.phase==='pre'?'Toca em "Iniciar Jogo" para começar a registar':ls.phase==='penaltis'||ls.phase==='fim'?'':'Relógio parado — retoma para continuar a registar'}</div>`:''}
-  </div>`;
+    ${!canTap?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(12,15,20,.55);border-radius:10px;font-size:12px;color:var(--t2);text-align:center;padding:10px${_gdCounterRot}">${ls.phase==='pre'?'Toca em "Iniciar Jogo" para começar a registar':ls.phase==='penaltis'||ls.phase==='fim'?'':'Relógio parado — retoma para continuar a registar'}</div>`:''}
+  </div>
+  <div class="gd-pitch-rot-row"><button class="btn btn-xs btn-gh" onclick="_gdTogglePitchRotate()" title="Roda o campo 180° — ajusta a como seguras o ecrã, ou à troca de baliza ao intervalo">🔄 Rodar Campo</button></div>`;
 
   const oppLbl=e=>e.oppNum?`Adversário nº${e.oppNum}`:'Adversário';
   const evRows=[...ls.events].sort((a,b)=>b.sec-a.sec).map(e=>{
@@ -5140,16 +5175,22 @@ function _jogoAoVivoHtml(g){
   const oppRosterLink=`<div style="margin-top:8px;text-align:right"><span onclick="_gdToggleOppRosterEditor()" style="font-size:10px;color:var(--c1l);cursor:pointer;text-decoration:underline">✏️ Plantel do adversário (nºs)</span></div>${_gdOppRosterOpen?_gdOppRosterHtml(g):''}`;
 
   return `<div class="ipanel" style="background:var(--bg0)">
-    ${header}
-    ${pitchSvg}
-    <div style="margin-top:12px">${controls}</div>
-    ${countsHtml?`<div style="margin-top:14px">${countsHtml}</div>`:''}
-    ${oppRosterLink}
-    <div style="margin-top:14px">
-      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">CRONOLOGIA</div>
-      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;max-height:260px;overflow-y:auto">${evRows}</div>
+    <div class="gd-live-wrap">
+      <div class="gd-pitch-col">
+        ${header}
+        ${pitchSvg}
+      </div>
+      <div class="gd-info-col">
+        <div style="margin-top:12px">${controls}</div>
+        ${countsHtml?`<div style="margin-top:14px">${countsHtml}</div>`:''}
+        ${oppRosterLink}
+        <div style="margin-top:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">CRONOLOGIA</div>
+          <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;max-height:260px;overflow-y:auto">${evRows}</div>
+        </div>
+        <div style="font-size:10px;color:var(--t3);margin-top:10px">💾 Grava sozinho a cada toque — funciona sem internet no campo.</div>
+      </div>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:10px">💾 Grava sozinho a cada toque — funciona sem internet no campo.</div>
   </div>`;
 }
 
