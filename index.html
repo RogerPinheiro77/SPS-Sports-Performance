@@ -9594,7 +9594,7 @@ function renderConfig(){
       <button class="btn btn-g btn-sm" onclick="saveActivations()">💾 Guardar Ativações</button>
     </div></div>
     <div class="card"><div class="ch"><span class="ct">🌱 Equipas</span></div><div class="cb">
-      ${APP.teams.map(t=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${t.name} <span class="bdg bg-gr">${t.cat||t.type}</span></span>${t.id!=='T1'?`<button class="btn btn-xs btn-r" onclick="deleteTeam('${t.id}')">🗑️</button>`:''}</div>`).join('')}
+      ${APP.teams.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--brd);font-size:12px"><span>${escHtml(t.name)} <span class="bdg bg-gr">${t.cat||t.type}</span></span><span style="display:flex;gap:4px"><button class="btn btn-xs btn-gh" onclick="renameTeam('${t.id}')" title="Editar nome">✏️</button>${t.id!=='T1'?`<button class="btn btn-xs btn-r" onclick="deleteTeam('${t.id}')">🗑️</button>`:''}</span></div>`).join('')}
       <div style="display:flex;gap:6px;margin-top:10px"><input class="fc" id="new-team-name" placeholder="Nova equipa..." style="flex:1"><button class="btn btn-g btn-sm" onclick="addTeamQuick()">+</button></div>
     </div></div>
   </div>`;
@@ -9668,6 +9668,15 @@ function addTeamQuick(){
   saveData();toast('Equipa adicionada');renderConfig();
 }
 function deleteTeam(id){if(!confirm('Apagar equipa?'))return;APP.teams=APP.teams.filter(t=>t.id!==id);APP.athletes.forEach(a=>{if(a.teamId===id)a.teamId='T1';});saveData();toast('Equipa apagada');renderConfig();}
+// Editar o nome de uma equipa já criada — antes só era possível apagar e recriar
+// (perdendo a associação das atletas a essa equipa). saveData() já trata da
+// sincronização com a cloud (chama pushAppMeta() internamente quando ligado).
+function renameTeam(id){
+  const t=APP.teams.find(x=>x.id===id);if(!t)return;
+  const name=(prompt('Novo nome da equipa:',t.name)||'').trim();
+  if(!name||name===t.name)return;
+  t.name=name;saveData();toast('Nome da equipa atualizado ✓');renderConfig();
+}
 function exportData(){
   // Download JSON file
   const blob=new Blob([JSON.stringify(APP,null,2)],{type:'application/json'});
