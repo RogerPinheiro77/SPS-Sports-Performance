@@ -3504,6 +3504,18 @@ function _oppPosFor(g,board){
   if(!g.oppSPBoards[board])g.oppSPBoards[board]={positions:{},snapshots:[]};
   return g.oppSPBoards[board];
 }
+// Plantel do adversário por número (27/08/2026) — para além dos quadros de posição
+// acima (arrastar marcadores num campo), o registo ao vivo (SPS-Gameday) precisa de
+// uma forma rápida de dizer "isto foi da nº9 deles" sem termos o plantel real. Lista
+// fixa de 11 números com uma posição por defeito (editável no ecrã Ao Vivo) — nunca é
+// obrigatório preencher, só ajuda a identificar depois se houver tempo.
+const _OPP_ROSTER_DEFAULT=[[1,'GR'],[2,'LT Dir'],[3,'DC Dir'],[4,'DC Esq'],[5,'LT Esq'],[6,'MDF'],[7,'Ext Dir'],[8,'MC'],[9,'PL'],[10,'MOF'],[11,'Ext Esq']];
+function _oppRosterFor(g){
+  if(!g.oppRoster||!Array.isArray(g.oppRoster)||g.oppRoster.length!==11){
+    g.oppRoster=_OPP_ROSTER_DEFAULT.map(([num,pos])=>({num,pos}));
+  }
+  return g.oppRoster;
+}
 function _oppMarkersHtml(g,board){
   const store=_oppPosFor(g,board);
   const rad=7,numFs=7,sw=1.5;
@@ -4411,7 +4423,7 @@ function _jogoPosHtml(g){
 // Mostra a linha do tempo (golos/cartões/substituições) já importada da FPF —
 // o dado (g.fpfTimeline) existe desde a importação mas nunca era exibido em
 // lado nenhum depois de aplicado; isto só lê o que já está guardado.
-const _TL_EVLBL={golo:'⚽ Golo',golo_sofrido:'🥅 Golo sofrido',amarelo:'🟨 Cartão amarelo',vermelho:'🟥 Cartão vermelho',substituicao:'🔄 Substituição',remate:'🎯 Remate',canto_of:'🚩 Canto Ofensivo',canto_def:'🚩 Canto Defensivo',livre_of:'🎯 Livre Ofensivo',livre_def:'🎯 Livre Defensivo',penaltis:'🥅 Grandes Penalidades'};
+const _TL_EVLBL={golo:'⚽ Golo',golo_sofrido:'🥅 Golo sofrido',amarelo:'🟨 Cartão amarelo',vermelho:'🟥 Cartão vermelho',substituicao:'🔄 Substituição',remate:'🎯 Remate',remate_adv:'🎯 Remate (Adversário)',canto_of:'🚩 Canto Ofensivo',canto_def:'🚩 Canto Defensivo',livre_of:'🎯 Livre Ofensivo',livre_def:'🎯 Livre Defensivo',penaltis:'🥅 Grandes Penalidades'};
 function _jogoTimelineHtml(g){
   const evs=(g.fpfTimeline||[]).filter(e=>e.type!=='inicio'&&e.type!=='fim');
   if(!evs.length)return `<div class="ipanel" style="margin-bottom:12px">
@@ -4460,6 +4472,7 @@ const _GD_TYPES=[
   ['golo','⚽','Golo'],
   ['golo_sofrido','🥅','Golo Sofrido'],
   ['remate','🎯','Remate'],
+  ['remate_adv','🎯','Remate (Adversário)'],
   ['canto_of','🚩','Canto Ofensivo'],
   ['canto_def','🚩','Canto Defensivo'],
   ['livre_of','🎯','Livre Ofensivo'],
@@ -4479,20 +4492,33 @@ const _GD_GOAL_ZONE_LBL={};_GD_GOAL_ZONES.forEach(z=>{_GD_GOAL_ZONE_LBL[z[0]]=z[
 // Tipos "soltos" (sem atleta obrigatória ao registar) que agora podem, opcionalmente,
 // ser ligados a uma jogadora depois — via botão "+ identificar jogadora" na cronologia.
 const _GD_ATTRIBUTABLE=['remate','canto_of','canto_def','livre_of','livre_def'];
+// Tipos "soltos" cuja identificação diferida aponta para o Nº do ADVERSÁRIO (g.oppRoster)
+// em vez de uma das nossas atletas — via botão "+ nº adversário" na cronologia. Pedido do
+// Roger, 27/08/2026, para estatística mais completa incluindo ações do adversário.
+const _GD_OPP_ATTRIBUTABLE=['remate_adv','canto_def','livre_def'];
 // Contagem agregada por jogo: os tipos que nunca aparecem no playerStats oficial
 // (golos/assist./cartões já são contados noutro lado) — pedido do Roger, 26/08/2026,
 // para os dados do SPS-Gameday ficarem quantificados e não só como lista solta.
+// remate_adv/opp_amarelo/opp_vermelho acrescentados 27/08/2026 (ações do adversário).
 const _GD_COUNTABLE=[
   ['remate','🎯','Remates'],
+  ['remate_adv','🎯','Remates Advers.'],
   ['canto_of','🚩','Cantos Of.'],
   ['canto_def','🚩','Cantos Def.'],
   ['livre_of','🎯','Livres Of.'],
   ['livre_def','🎯','Livres Def.'],
-  ['golo_sofrido','🥅','Golos Sofridos']
+  ['golo_sofrido','🥅','Golos Sofridos'],
+  ['opp_amarelo','🟨','Amarelos Advers.'],
+  ['opp_vermelho','🟥','Vermelhos Advers.']
 ];
 function _gdCountByType(events){
   const c={};_GD_COUNTABLE.forEach(t=>{c[t[0]]=0;});
-  (events||[]).forEach(e=>{if(c[e.type]!==undefined)c[e.type]++;});
+  (events||[]).forEach(e=>{
+    if(c[e.type]!==undefined)c[e.type]++;
+    if((e.type==='amarelo'||e.type==='vermelho')&&e.team==='adv'){
+      const k='opp_'+e.type;c[k]=(c[k]||0)+1;
+    }
+  });
   return c;
 }
 function _gdCountsSummaryHtml(events){
@@ -4659,13 +4685,43 @@ function _gdEndET(gid){
 }
 
 // --- Toque no campo: grava minuto+zona automaticamente, abre lista de ações ---
-let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null,_gdAssignEventId=null;
+let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null,_gdAssignEventId=null,_gdOppAssignEventId=null,_gdCardTeam='nos',_gdOppRosterOpen=false;
 // Atribuição opcional de jogadora a remate/canto/livre — pedido do Roger, 26/08/2026:
 // estes tipos continuam a confirmar-se de imediato ao tocar (sem abrandar o registo
 // no calor do jogo), mas ficam com um botão "+ identificar jogadora" na cronologia
 // para quem quiser ligar o evento a uma atleta depois, sem obrigar nem bloquear.
 function _gdOpenAssign(eid){_gdAssignEventId=eid;_renderJogoDetailFull();}
 function _gdCancelAssign(){_gdAssignEventId=null;_renderJogoDetailFull();}
+function _gdOpenOppAssign(eid){_gdOppAssignEventId=eid;_renderJogoDetailFull();}
+function _gdCancelOppAssign(){_gdOppAssignEventId=null;_renderJogoDetailFull();}
+function _gdAssignOppNum(gid,eid,num){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ev=g.liveSession.events.find(e=>e.id===eid);if(!ev)return;
+  ev.oppNum=num||null;
+  saveData();
+  _gdOppAssignEventId=null;
+  toast('Nº do adversário identificado ✓');
+  _renderJogoDetailFull();
+}
+function _gdSetCardTeam(team){_gdCardTeam=team;_renderJogoDetailFull();}
+function _gdToggleOppRosterEditor(){_gdOppRosterOpen=!_gdOppRosterOpen;_renderJogoDetailFull();}
+function _gdSetOppPos(gid,num,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const r=_oppRosterFor(g).find(x=>x.num===num);if(!r)return;
+  r.pos=val;saveData();
+}
+function _gdOppRosterHtml(g){
+  const roster=_oppRosterFor(g);
+  return `<div style="margin-top:6px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:8px">
+    <div style="font-size:10px;color:var(--t2);margin-bottom:6px">Números do adversário — edita a posição se souberes o esquema real (não é obrigatório).</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      ${roster.map(r=>`<div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:11px;font-weight:800;width:18px;text-align:right">${r.num}</span>
+        <input class="fc" value="${escHtml(r.pos)}" style="flex:1;font-size:11px;padding:3px 6px" onchange="_gdSetOppPos('${g.id}',${r.num},this.value)">
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
 function _gdAssignPlayer(gid,eid,aid){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
   const ev=g.liveSession.events.find(e=>e.id===eid);if(!ev)return;
@@ -4687,11 +4743,11 @@ function _gdPitchTap(e,gid){
   _gdPendingType=null;
   _renderJogoDetailFull();
 }
-function _gdCancelMenu(){_gdMenuXY=null;_gdPendingType=null;_gdGoalZone=null;_renderJogoDetailFull();}
+function _gdCancelMenu(){_gdMenuXY=null;_gdPendingType=null;_gdGoalZone=null;_gdCardTeam='nos';_renderJogoDetailFull();}
 function _gdPickType(gid,type){
-  const simple=['golo_sofrido','remate','canto_of','canto_def','livre_of','livre_def'];
+  const simple=['golo_sofrido','remate','remate_adv','canto_of','canto_def','livre_of','livre_def'];
   if(simple.includes(type)){_gdCommitEvent(gid,type,{});return;}
-  _gdPendingType=type;_gdGoalZone=null;_renderJogoDetailFull();
+  _gdPendingType=type;_gdGoalZone=null;_gdCardTeam='nos';_renderJogoDetailFull();
 }
 function _gdPickGoalZone(zone){_gdGoalZone=(_gdGoalZone===zone)?null:zone;_renderJogoDetailFull();}
 function _gdCommitEvent(gid,type,extra){
@@ -4737,6 +4793,12 @@ function _gdSubmitSub(gid){
   _gdCommitEvent(gid,'substituicao',{playerOut,playerIn});
 }
 function _gdSubmitCard(gid,type){
+  if(_gdCardTeam==='adv'){
+    const oppNum=document.getElementById('gd-card-oppnum').value;
+    _gdCommitEvent(gid,type,{team:'adv',oppNum:oppNum||null});
+    _gdCardTeam='nos';
+    return;
+  }
   const player=document.getElementById('gd-card-player').value;
   if(!player)return toast('Escolhe a jogadora','err');
   _gdCommitEvent(gid,type,{player});
@@ -4811,14 +4873,23 @@ function _gdBuildPlayerStats(g){
 }
 function _gdBuildTimeline(g){
   const nameOf=aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?a.name:'';};
+  const oppLbl=e=>e.oppNum?('Adversário nº'+e.oppNum):'Adversário';
   let running={casa:0,fora:0};
   const sorted=[...g.liveSession.events].sort((a,b)=>a.sec-b.sec);
   const tl=sorted.map(e=>{
     if(e.type==='golo')running.casa++;
     else if(e.type==='golo_sofrido')running.fora++;
+    let playerLbl;
+    if(e.type==='golo')playerLbl=nameOf(e.scorer);
+    else if(e.type==='golo_sofrido')playerLbl=(g.opp||'Adversário');
+    else if(e.type==='remate_adv')playerLbl=e.oppNum?oppLbl(e):'Adversário';
+    else if((e.type==='amarelo'||e.type==='vermelho')&&e.team==='adv')playerLbl=oppLbl(e);
+    else if(e.type==='amarelo'||e.type==='vermelho')playerLbl=nameOf(e.player);
+    else if(_GD_ATTRIBUTABLE.includes(e.type))playerLbl=[nameOf(e.player),e.oppNum?('Advers. nº'+e.oppNum):''].filter(Boolean).join(' · ');
+    else playerLbl=undefined;
     return {
       minRaw:e.min,type:e.type,
-      player:e.type==='golo'?nameOf(e.scorer):e.type==='golo_sofrido'?(g.opp||'Adversário'):(e.type==='amarelo'||e.type==='vermelho'||_GD_ATTRIBUTABLE.includes(e.type))?nameOf(e.player):undefined,
+      player:playerLbl,
       assistName:e.type==='golo'&&e.assist?nameOf(e.assist):undefined,
       goalZone:e.type==='golo'&&e.goalZone?e.goalZone:undefined,
       goalZoneLbl:e.type==='golo'&&e.goalZone?_GD_GOAL_ZONE_LBL[e.goalZone]:undefined,
@@ -4910,9 +4981,17 @@ function _gdSubformHtml(g,type,onPitchAts,benchAts){
       </div>`;
   }
   if(type==='amarelo'||type==='vermelho'){
+    const oppOpts=_oppRosterFor(g).map(r=>`<option value="${r.num}">${r.num} ${escHtml(r.pos)}</option>`).join('');
     return `<div style="font-size:11px;color:var(--c1l);font-weight:800;margin-bottom:6px">${type==='amarelo'?'🟨 Amarelo':'🟥 Vermelho'}</div>
+      <div style="display:flex;gap:4px;margin-bottom:8px">
+        <button class="btn btn-xs ${_gdCardTeam==='nos'?'btn-g':'btn-gh'}" style="flex:1" onclick="_gdSetCardTeam('nos')">Nós</button>
+        <button class="btn btn-xs ${_gdCardTeam==='adv'?'btn-g':'btn-gh'}" style="flex:1" onclick="_gdSetCardTeam('adv')">Adversário</button>
+      </div>
+      ${_gdCardTeam==='adv'?`
+      <label class="fl" style="font-size:10px">Nº do adversário (opcional)</label>
+      <select class="fc" id="gd-card-oppnum" style="margin-bottom:8px;width:100%"><option value="">— sem identificar —</option>${oppOpts}</select>`:`
       <label class="fl" style="font-size:10px">Jogadora</label>
-      <select class="fc" id="gd-card-player" style="margin-bottom:8px;width:100%">${opts(onPitchAts)}</select>
+      <select class="fc" id="gd-card-player" style="margin-bottom:8px;width:100%">${opts(onPitchAts)}</select>`}
       <div style="display:flex;gap:6px">
         <button class="btn btn-g btn-sm" style="flex:1" onclick="_gdSubmitCard('${gid}','${type}')">✓ Confirmar</button>
         <button class="btn btn-gh btn-sm" onclick="_gdCancelMenu()">Cancelar</button>
@@ -4967,7 +5046,7 @@ function _jogoAoVivoHtml(g){
   }
 
   const canTap=running;
-  const markerIcon={golo:'⚽',golo_sofrido:'🥅',remate:'🎯',canto_of:'🚩',canto_def:'🚩',livre_of:'🎯',livre_def:'🎯',substituicao:'🔄',amarelo:'🟨',vermelho:'🟥'};
+  const markerIcon={golo:'⚽',golo_sofrido:'🥅',remate:'🎯',remate_adv:'🎯',canto_of:'🚩',canto_def:'🚩',livre_of:'🎯',livre_def:'🎯',substituicao:'🔄',amarelo:'🟨',vermelho:'🟥'};
   const markers=ls.events.map(e=>`<text x="${(e.x*3).toFixed(1)}" y="${(e.y*4.2).toFixed(1)}" font-size="11" text-anchor="middle">${markerIcon[e.type]||'•'}</text>`).join('');
   // Popups ancorados ao toque no campo: em telemóvel o campo tem só ~300px de largura,
   // por isso a âncora percentual antiga (left:X%) empurrava o popup para fora do ecrã
@@ -5005,20 +5084,24 @@ function _jogoAoVivoHtml(g){
     ${!canTap?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(12,15,20,.55);border-radius:10px;font-size:12px;color:var(--t2);text-align:center;padding:10px">${ls.phase==='pre'?'Toca em "Iniciar Jogo" para começar a registar':ls.phase==='penaltis'||ls.phase==='fim'?'':'Relógio parado — retoma para continuar a registar'}</div>`:''}
   </div>`;
 
+  const oppLbl=e=>e.oppNum?`Adversário nº${e.oppNum}`:'Adversário';
   const evRows=[...ls.events].sort((a,b)=>b.sec-a.sec).map(e=>{
     const nm=aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?_shortName(a):'?';};
     let detail='';
     if(e.type==='golo')detail=`${nm(e.scorer)}${e.assist?' (assist. '+nm(e.assist)+')':''}${e.goalZone?' — '+_GD_GOAL_ZONE_LBL[e.goalZone]:''}`;
     else if(e.type==='substituicao')detail=`Sai ${nm(e.playerOut)} → Entra ${nm(e.playerIn)}`;
-    else if(e.type==='amarelo'||e.type==='vermelho')detail=nm(e.player);
+    else if(e.type==='amarelo'||e.type==='vermelho')detail=e.team==='adv'?oppLbl(e):nm(e.player);
     else if(e.type==='remate')detail=e.player?nm(e.player):'';
-    else if(e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def')detail=(e.side==='esq'?'lado esquerdo':'lado direito')+(e.player?' — '+nm(e.player):'');
+    else if(e.type==='remate_adv')detail=e.oppNum?oppLbl(e):'';
+    else if(e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def')detail=(e.side==='esq'?'lado esquerdo':'lado direito')+(e.player?' — '+nm(e.player):'')+(e.oppNum?' · '+oppLbl(e):'');
     const assignable=_GD_ATTRIBUTABLE.includes(e.type);
+    const oppAssignable=_GD_OPP_ATTRIBUTABLE.includes(e.type);
     const isAssigning=_gdAssignEventId===e.id;
+    const isOppAssigning=_gdOppAssignEventId===e.id;
     let inlineSpan='',pickerBlock='';
     if(assignable){
       if(isAssigning){
-        pickerBlock=`<div style="display:flex;gap:4px;padding:0 10px 8px">
+        pickerBlock+=`<div style="display:flex;gap:4px;padding:0 10px 8px">
           <select id="gd-assign-sel-${e.id}" class="fc" style="flex:1;font-size:11px;padding:3px 6px">
             <option value="">— sem jogadora —</option>
             ${onPitchAts.map(a=>`<option value="${a.id}" ${e.player===a.id?'selected':''}>${a.number||'?'} ${escHtml(_shortName(a))}</option>`).join('')}
@@ -5027,7 +5110,21 @@ function _jogoAoVivoHtml(g){
           <button class="btn btn-xs btn-gh" onclick="_gdCancelAssign()">✕</button>
         </div>`;
       }else if(!e.player){
-        inlineSpan=` <span onclick="_gdOpenAssign('${e.id}')" style="font-size:10px;color:var(--c1l);cursor:pointer;text-decoration:underline">+ identificar jogadora</span>`;
+        inlineSpan+=` <span onclick="_gdOpenAssign('${e.id}')" style="font-size:10px;color:var(--c1l);cursor:pointer;text-decoration:underline">+ identificar jogadora</span>`;
+      }
+    }
+    if(oppAssignable){
+      if(isOppAssigning){
+        pickerBlock+=`<div style="display:flex;gap:4px;padding:0 10px 8px">
+          <select id="gd-oppassign-sel-${e.id}" class="fc" style="flex:1;font-size:11px;padding:3px 6px">
+            <option value="">— sem nº —</option>
+            ${_oppRosterFor(g).map(r=>`<option value="${r.num}" ${String(e.oppNum)===String(r.num)?'selected':''}>${r.num} ${escHtml(r.pos)}</option>`).join('')}
+          </select>
+          <button class="btn btn-xs btn-g" onclick="_gdAssignOppNum('${g.id}','${e.id}',document.getElementById('gd-oppassign-sel-${e.id}').value)">✓</button>
+          <button class="btn btn-xs btn-gh" onclick="_gdCancelOppAssign()">✕</button>
+        </div>`;
+      }else if(!e.oppNum){
+        inlineSpan+=` <span onclick="_gdOpenOppAssign('${e.id}')" style="font-size:10px;color:var(--c1l);cursor:pointer;text-decoration:underline">+ nº adversário</span>`;
       }
     }
     return `<div style="border-bottom:1px solid var(--brd)">
@@ -5040,12 +5137,14 @@ function _jogoAoVivoHtml(g){
   }).join('')||`<p style="padding:10px;font-size:12px;color:var(--t2)">Ainda sem eventos registados.</p>`;
 
   const countsHtml=_gdCountsSummaryHtml(ls.events);
+  const oppRosterLink=`<div style="margin-top:8px;text-align:right"><span onclick="_gdToggleOppRosterEditor()" style="font-size:10px;color:var(--c1l);cursor:pointer;text-decoration:underline">✏️ Plantel do adversário (nºs)</span></div>${_gdOppRosterOpen?_gdOppRosterHtml(g):''}`;
 
   return `<div class="ipanel" style="background:var(--bg0)">
     ${header}
     ${pitchSvg}
     <div style="margin-top:12px">${controls}</div>
     ${countsHtml?`<div style="margin-top:14px">${countsHtml}</div>`:''}
+    ${oppRosterLink}
     <div style="margin-top:14px">
       <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">CRONOLOGIA</div>
       <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;max-height:260px;overflow-y:auto">${evRows}</div>
