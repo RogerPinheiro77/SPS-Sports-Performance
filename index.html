@@ -1613,6 +1613,8 @@ function renderPlantel(teamId){
     const wLast=APP.wellness.filter(w=>w.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
     const dots=wLast.map(w=>`<div class="wd ${wellnessColor(w.score)}"></div>`).join('')+'<div class="wd wd0"></div>'.repeat(Math.max(0,5-wLast.length));
     const av=at.photo?`<img src="${at.photo}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`:'';
+    const guestCall=_upcomingGuestCall(at.id);
+    const guestBadge=guestCall?`<div class="bdg bg-y" style="margin:4px auto 0;font-size:9px" title="Convocada avulso para ${escHtml(APP.teams.find(t=>t.id===guestCall.teamId)?.name||'outra equipa')} — continua no plantel desta equipa">📅 ${guestCall.date===today()?'Hoje':fmtDateShort(guestCall.date)} · ${escHtml(APP.teams.find(t=>t.id===guestCall.teamId)?.name||'')}</div>`:'';
     return `<div class="at-card ${inj?'inj':''}" onclick="openAthleteModal('${at.id}')">
         <div class="at-av">${av}<span ${at.photo?'style="display:none"':''}>${initials(at.name)}</span></div>
         <div class="at-name">${at.name}</div>
@@ -1620,6 +1622,7 @@ function renderPlantel(teamId){
         <div class="at-pos">${at.pos||'—'} ${at.nat||''}</div>
         <div class="at-num">${at.num?'#'+at.num:''} ${at.age||ageYears(at.dob)?'· '+(at.age||ageYears(at.dob))+'a':''}</div>
         ${inj?`<div class="bdg bg-r" style="margin:4px auto 0;font-size:9px">🩺 ${inj.type||'Lesão'}</div>`:''}
+        ${guestBadge}
         <div class="wdots" title="Wellness (últimas submissões)">${dots}</div>
       </div>`;
   }
@@ -1642,6 +1645,14 @@ function renderPlantel(teamId){
     });
   }
 
+  // Convocadas avulsas de outras equipas para esta equipa (próximos treinos/jogos) —
+  // ficam só neste mini-resumo, não entram nos cartões/contagem acima (que são sempre
+  // o plantel real de a.teamId). Ver _upcomingGuestCall.
+  const guestsForThisTeam=APP.athletes.filter(a=>a.teamId!==team.id).map(a=>({a,gc:_upcomingGuestCall(a.id)})).filter(x=>x.gc&&x.gc.teamId===team.id).sort((x,y)=>x.gc.date.localeCompare(y.gc.date));
+  const guestsSectionHtml=guestsForThisTeam.length?`<div class="ipanel" style="margin:14px 0;border-left:3px solid #8e44ad">
+    <div class="sh-t" style="font-size:13px;margin-bottom:8px">👤 Convocadas de outras equipas</div>
+    ${guestsForThisTeam.map(({a,gc})=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px"><span>${escHtml(_displayName(a))}</span><span class="bdg" style="font-size:9px;background:var(--bg3);color:var(--t2)">${escHtml(APP.teams.find(t=>t.id===a.teamId)?.name||'—')}</span><span style="color:var(--t2);font-size:11px">· ${gc.kind==='jogo'?'🏆':'🎽'} ${gc.date===today()?'Hoje':fmtDateShort(gc.date)}${gc.title?' — '+escHtml(gc.title):''}</span></div>`).join('')}
+  </div>`:'';
   document.getElementById('pg-plantel').innerHTML=`
   <div class="sh">
     <div class="sh-t">👥 Plantel — ${team.name}</div>
@@ -1652,6 +1663,7 @@ function renderPlantel(teamId){
   </div>
   <div class="tabs">${teamTabs}</div>
   ${formHtml}
+  ${guestsSectionHtml}
   ${cardsHtml}`;
 
   if(_editAtId&&_showAtForm){
@@ -2213,7 +2225,7 @@ function openAthleteModal(id){
     +'</div>';
   // Attendance
   if(!APP.attendance)APP.attendance=[];
-  const attRecs=APP.attendance.filter(a=>a.athleteId===id&&a.status!=='tratamento'&&!(a.status==='ausente'&&a.reason==='ferias')); // tratamento e férias não contam para a % de presenças
+  const attRecs=APP.attendance.filter(a=>a.athleteId===id&&a.status!=='tratamento'&&!(a.status==='ausente'&&(a.reason==='ferias'||a.reason==='convocada'))); // tratamento, férias e convocatória avulsa não contam para a % de presenças
   const attTotal=attRecs.length;
   const attPres=attRecs.filter(a=>a.present).length;
   const attRate=attTotal?Math.round(attPres/attTotal*100):null;
@@ -2457,10 +2469,10 @@ function openAthleteModal(id){
 // ─── PLANEAMENTO (CALENDÁRIO) ─────────────────────────────
 let _calYear=new Date().getFullYear(), _calMonth=new Date().getMonth();
 let _planView='mes', _planWeekStart=getMonday(today());
-const ATT_REASONS={justificada:'Justificada',nao_justificada:'Não Justificada',lesao:'Lesão',doenca:'Doença',ferias:'Férias',outro:'Outro'};
+const ATT_REASONS={justificada:'Justificada',nao_justificada:'Não Justificada',lesao:'Lesão',doenca:'Doença',ferias:'Férias',convocada:'Convocada a outra equipa',outro:'Outro'};
 function openAttendanceModal(eventId,onlyAthleteId){
   const ev=APP.schedule.find(e=>e.id===eventId);if(!ev)return;
-  let athletes=APP.athletes.filter(a=>a.teamId===ev.teamId||!ev.teamId).sort((a,b)=>a.name.localeCompare(b.name));
+  let athletes=APP.athletes.filter(a=>a.teamId===ev.teamId||!ev.teamId||(ev.guestIds||[]).includes(a.id)).sort((a,b)=>a.name.localeCompare(b.name));
   // Marcação manual de uma só atleta (clique numa célula vazia da grelha de Presenças) —
   // reaproveita o mesmo modal, só que filtrado a uma atleta, para não mexer nas outras.
   if(onlyAthleteId)athletes=athletes.filter(a=>a.id===onlyAthleteId);
@@ -2544,6 +2556,20 @@ let _showEvForm=false, _editEvId=null, _selDate=null;
 const EV_TYPES=['Treino','Jogo','Reunião','Consulta Nutri','Fisio','Ativação','Recuperação','Folga'];
 const EV_COLORS={Treino:'#27a34a',Jogo:'#c0392b',Reunião:'#935116','Consulta Nutri':'#0e6251',Fisio:'#1a237e',Ativação:'#b7770d',Recuperação:'#2e86c1',Folga:'#5a6582'};
 const _isTrainingType=t=>t==='Treino'||t==='Ativação'||t==='Recuperação'||t==='Ginásio';
+// Convocatória avulsa (hoje ou futura) mais próxima de uma atleta a um Treino/Jogo de
+// outra equipa — usado para o badge "📅 Convocada" no Plantel. Não altera a.teamId,
+// só olha para ev.guestIds (Treinos) e g.convocatoria de jogos de outra equipa (Jogos).
+// Ver project_sps_convocatoria_avulsa_equipas.
+function _upcomingGuestCall(athleteId){
+  const td=today();
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return null;
+  const evs=(APP.schedule||[]).filter(e=>e.date>=td&&(e.guestIds||[]).includes(athleteId)&&_isTrainingType(e.type))
+    .map(e=>({date:e.date,title:e.title,teamId:e.teamId,kind:'treino'}));
+  const gms=(APP.games||[]).filter(g=>g.date>=td&&g.teamId&&g.teamId!==at.teamId&&(g.convocatoria||[]).includes(athleteId))
+    .map(g=>({date:g.date,title:'vs '+(g.opp||'?'),teamId:g.teamId,kind:'jogo'}));
+  const items=[...evs,...gms].sort((a,b)=>a.date.localeCompare(b.date));
+  return items[0]||null;
+}
 // ─── PRESENÇAS AUTOMÁTICAS ──────────────────────────────────────────────
 // Marca (ou atualiza) a presença da atleta num evento de treino, a partir de
 // um sinal automático (PSE submetido = esteve em treino; tratamento
@@ -2555,7 +2581,7 @@ const _isTrainingType=t=>t==='Treino'||t==='Ativação'||t==='Recuperação'||t=
 function _autoMarkAttendance(athleteId,date,status){
   const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
   if(!APP.attendance)APP.attendance=[];
-  const evs=APP.schedule.filter(e=>e.date===date&&(e.teamId===at.teamId||!e.teamId)&&_isTrainingType(e.type));
+  const evs=APP.schedule.filter(e=>e.date===date&&(e.teamId===at.teamId||!e.teamId||(e.guestIds||[]).includes(athleteId))&&_isTrainingType(e.type));
   evs.forEach(ev=>{
     const existing=APP.attendance.find(a=>a.eventId===ev.id&&a.athleteId===athleteId);
     if(status==='tratamento'&&existing&&existing.status==='treino')return; // não faz downgrade de treino confirmado
@@ -2596,7 +2622,7 @@ function renderPresencas(){
     return`<td style="text-align:center;cursor:pointer" onclick="openAttendanceModal('${ev.id}','${at.id}')" title="${escHtml(at.name)} — ${label}"><span style="font-size:14px">${icon}</span></td>`;
   };
   const rows=athletes.map(at=>{
-    const recs=APP.attendance.filter(a=>a.athleteId===at.id&&a.status!=='tratamento'&&!(a.status==='ausente'&&a.reason==='ferias')&&evs.some(e=>e.id===a.eventId));
+    const recs=APP.attendance.filter(a=>a.athleteId===at.id&&a.status!=='tratamento'&&!(a.status==='ausente'&&(a.reason==='ferias'||a.reason==='convocada'))&&evs.some(e=>e.id===a.eventId));
     const pres=recs.filter(a=>a.present).length;
     const pct=recs.length?Math.round(pres/recs.length*100):null;
     return`<tr>
@@ -2666,10 +2692,15 @@ function _planSemanaGridHtml(){
 // a "mesma" informação divergiam silenciosamente (ver feedback_sps_evento_treino_dados_divergentes).
 // Esconde estes campos aqui e aponta para a página certa, evitando reincidência.
 function _toggleEfTreinoFields(){
-  const isTr=document.getElementById('ef-type')?.value==='Treino';
+  const type=document.getElementById('ef-type')?.value;
+  const isTr=type==='Treino';
   const wrap=document.getElementById('ef-extra-wrap'),note=document.getElementById('ef-treino-note');
   if(wrap)wrap.style.display=isTr?'none':'';
   if(note)note.style.display=isTr?'':'none';
+  // Convocatória avulsa só faz sentido em sessões de treino (Jogos gerem a
+  // convocatória deles próprios na página do Jogo — ver _jogoPreHtml).
+  const guestWrap=document.getElementById('ef-guest-wrap');
+  if(guestWrap)guestWrap.style.display=_isTrainingType(type)?'':'none';
 }
 function renderPlaneamento(){
   const td=today();
@@ -2691,6 +2722,11 @@ function renderPlaneamento(){
     <div class="form-g"><label class="fl">Local concentração</label><input class="fc" id="ef-locconc" placeholder="Igual ao local, se vazio"></div></div>
     <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="ef-notes" rows="2"></textarea></div>
     </div>
+    <div id="ef-guest-wrap" style="display:none">
+    <div class="form-g"><label class="fl">Convocar avulso de outra equipa <span style="color:var(--t2);font-weight:400">(ex: Sub/17 a reforçar este treino — continuam no plantel delas)</span></label>
+    <select class="fc" id="ef-guests" multiple size="4" style="height:auto">${APP.athletes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}">${escHtml(_displayName(a))} (${APP.teams.find(t=>t.id===a.teamId)?.name||'—'})</option>`).join('')}</select>
+    <div style="font-size:10px;color:var(--t2);margin-top:2px">Ctrl/Cmd+clique para escolher várias</div>
+    </div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="saveEvent()">💾 Guardar</button>
     <button class="btn btn-gh" onclick="_showEvForm=false;_editEvId=null;renderPlaneamento()">Cancelar</button>
     ${_editEvId?`<button class="btn btn-r" onclick="deleteEvent('${_editEvId}')">🗑️ Apagar</button>`:''}</div>
@@ -2727,7 +2763,8 @@ function renderPlaneamento(){
     const ev=APP.schedule.find(e=>e.id===_editEvId);
     // Mapa [sufixo-do-id, propriedade] — 'loc' e 'location' já não coincidiam
     // (bug antigo: o Local nunca pré-preenchia ao editar); hconc/locconc são novos.
-    if(ev){[['type','type'],['title','title'],['date','date'],['time','time'],['dur','dur'],['loc','location'],['notes','notes'],['hconc','horaConcentracao'],['locconc','localConcentracao']].forEach(([f,p])=>{const el=document.getElementById('ef-'+f);if(el)el.value=ev[p]||'';}); document.getElementById('ef-team').value=ev.teamId||'T1';}
+    if(ev){[['type','type'],['title','title'],['date','date'],['time','time'],['dur','dur'],['loc','location'],['notes','notes'],['hconc','horaConcentracao'],['locconc','localConcentracao']].forEach(([f,p])=>{const el=document.getElementById('ef-'+f);if(el)el.value=ev[p]||'';}); document.getElementById('ef-team').value=ev.teamId||'T1';
+      const gsel=document.getElementById('ef-guests');if(gsel&&ev.guestIds&&ev.guestIds.length)Array.from(gsel.options).forEach(o=>{o.selected=ev.guestIds.includes(o.value);});}
   }
   if(_showEvForm)_toggleEfTreinoFields();
 }
@@ -2779,7 +2816,9 @@ async function saveEvent(){
   const title=document.getElementById('ef-title').value.trim();
   const date=document.getElementById('ef-date').value;
   if(!type||!title||!date)return toast('Tipo, título e data obrigatórios','err');
-  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim()};
+  const guestSel=document.getElementById('ef-guests');
+  const guestIds=guestSel?Array.from(guestSel.selectedOptions).map(o=>o.value):[];
+  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim(),guestIds};
   if(_editEvId){const i=APP.schedule.findIndex(e=>e.id===_editEvId);if(i>=0)APP.schedule[i]=ev;}
   else{APP.schedule.push(ev);}
   // Antes só o ramo de evento novo chamava cloudUpsert — editar um evento existente
@@ -3812,8 +3851,14 @@ function saveJogoAdv(){
 
 function _jogoPreHtml(g){
   const team=APP.teams.find(t=>t.id===g.teamId);
-  const athletes=APP.athletes.filter(a=>a.teamId===g.teamId).sort((a,b)=>a.name.localeCompare(b.name));
   const convSet=new Set(g.convocatoria),lineSet=new Set(g.lineup),subSet=new Set(g.subs);
+  // Convocatória avulsa: atletas de outras equipas (ex. Sub/17) chamadas só para
+  // este jogo específico — identificadas por já estarem em g.convocatoria mas
+  // pertencerem a outra equipa; continuam no plantel de origem (a.teamId intacto).
+  // Ver project_sps_convocatoria_avulsa_equipas.
+  const ownAthletes=APP.athletes.filter(a=>a.teamId===g.teamId);
+  const guestAthletes=APP.athletes.filter(a=>a.teamId!==g.teamId&&convSet.has(a.id));
+  const athletes=[...ownAthletes,...guestAthletes].sort((a,b)=>a.name.localeCompare(b.name));
   const validConvCount=athletes.filter(a=>convSet.has(a.id)).length;
   // Estado de cada atleta nesta data (ACWR/wellness/ciclo/faltas/minutos + gate de
   // lesão/tratamento) — mesmo cálculo já usado no PDF Condição p/ Jogo, só para
@@ -3827,8 +3872,10 @@ function _jogoPreHtml(g){
     const isC=convSet.has(a.id),isS=lineSet.has(a.id),isSu=subSet.has(a.id);
     const isCap=g.captain===a.id,isVc=g.viceCaptain===a.id;
     const isNoShow=g.noShow&&g.noShow[a.id]!==undefined;
+    const isGuest=a.teamId!==g.teamId;
     const cr=condByAid[a.id];
     const condBadge=cr?(cr.gate?`<span class="bdg bg-r" style="font-size:9px" title="Estado nesta data">${escHtml(cr.gateTxt)}</span>`:`<span class="bdg bg-${cr.overallLvl}" style="font-size:9px" title="Estado nesta data">${cr.overallLabel}</span>`):'';
+    const guestBadge=isGuest?`<span class="bdg" style="font-size:9px;background:#8e44ad22;color:#8e44ad" title="Convocada avulso — continua no plantel de origem">👤 ${escHtml(APP.teams.find(t=>t.id===a.teamId)?.name||'Outra equipa')}</span>`:'';
     const rsvp=(isC&&!isNoShow&&_convForRsvp&&_convForRsvp.rsvp)?_convForRsvp.rsvp[a.id]:null;
     const rsvpBadge=!isC||isNoShow?'':(rsvp?(rsvp.status==='yes'?`<span class="bdg bg-g" style="font-size:9px">✅ Vai</span>`:`<span class="bdg bg-r" style="font-size:9px" title="Motivo: ${escHtml(ATT_REASONS[rsvp.reason]||rsvp.reason||'—')}">❌ Não vai</span>`):`<span class="bdg" style="font-size:9px;background:var(--bg4);color:var(--t2)">⏳ Por confirmar</span>`);
     return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isNoShow?'#fdecea':(isC?'var(--bg2)':'var(--bg3)')};border:1px solid var(--brd);border-radius:6px;margin-bottom:4px;flex-wrap:wrap">
@@ -3838,6 +3885,7 @@ function _jogoPreHtml(g){
         <div style="font-size:13px;font-weight:600">${escHtml(_displayName(a))}</div>
         <div style="font-size:10px;color:var(--t2)">${a.pos||'—'}</div>
       </div>
+      ${guestBadge}
       ${condBadge}
       ${rsvpBadge}
       ${isCap?'<span style="background:#ffd700;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">CAP</span>':''}
@@ -3910,10 +3958,21 @@ function _jogoPreHtml(g){
     <div class="form-g"><label class="fl">Nota para a atleta (aparece no ecrã Dia de Jogo)</label><textarea class="fc" id="jp-dj-nota" rows="2" placeholder="Ex: Traz o equipamento de treino também" onblur="saveJogoField('${g.id}','djNota',this.value)">${escHtml(g.djNota||'')}</textarea></div>
   </div>
   <div class="ipanel">
-    <div class="sh-t" style="font-size:15px;margin-bottom:12px">👥 Atletas da Equipa (ordem alfabética)</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <div class="sh-t" style="font-size:15px">👥 Atletas da Equipa (ordem alfabética)</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select class="fc" id="jp-guest-at" style="width:auto;font-size:11px;max-width:220px"><option value="">+ Convocar de outra equipa...</option>${APP.athletes.filter(a=>a.teamId!==g.teamId&&!convSet.has(a.id)).sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}">${escHtml(_displayName(a))} (${escHtml(APP.teams.find(t=>t.id===a.teamId)?.name||'—')})</option>`).join('')}</select>
+        <button class="btn btn-xs btn-g" onclick="addGuestConvocado('${g.id}')">Adicionar</button>
+      </div>
+    </div>
     ${athletes.length?convRows:`<div class="empty"><p>Sem atletas registados nesta equipa</p></div>`}
   </div>
   </div>`;
+}
+function addGuestConvocado(gid){
+  const sel=document.getElementById('jp-guest-at');if(!sel)return;
+  const aid=sel.value;if(!aid)return;
+  toggleConvocado(gid,aid,true);
 }
 
 function toggleConvocado(gid,aid,checked){
@@ -3925,7 +3984,10 @@ function toggleConvocado(gid,aid,checked){
 
 function convocarTodasAtletas(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
-  g.convocatoria=APP.athletes.filter(a=>a.teamId===g.teamId).map(a=>a.id);
+  // Preserva convocadas avulsas de outras equipas já adicionadas — "Convocar Todas"
+  // só deve completar a equipa própria, nunca apagar convidadas (ver addGuestConvocado).
+  const guests=g.convocatoria.filter(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a&&a.teamId!==g.teamId;});
+  g.convocatoria=[...APP.athletes.filter(a=>a.teamId===g.teamId).map(a=>a.id),...guests];
   _syncConvocatoriaFromGame(g);saveData();toast('Todas as atletas convocadas ✓');_renderJogoDetailFull();
 }
 function desconvocarTodasAtletas(gid){
@@ -6579,11 +6641,17 @@ function exportTreinoPDF(trId){
     ${phasesHtml}
     <div style="margin-top:24px;border-top:1px solid #e0e0e0;padding-top:10px;font-size:10px;color:#aaa;text-align:center">${clubName} · Unidade de Treino · ${new Date().toLocaleDateString('pt-PT')}</div>
   </div>`;
-  _printWin('Unidade de Treino — '+(tr.title||fmtDate(tr.date)),bodyHtml,_trAtChecklistHtml(),true);
+  _printWin('Unidade de Treino — '+(tr.title||fmtDate(tr.date)),bodyHtml,_trAtChecklistHtml(tr),true);
 }
 
-function _trAtChecklistHtml(){
-  const ats=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId)
+function _trAtChecklistHtml(tr){
+  // teamId real da UT (via evento ligado) — antes assumia sempre T1, o que já era
+  // impreciso para UTs de outras equipas; agora aproveita-se também para incluir
+  // convocadas avulsas (ev.guestIds) deste treino específico.
+  const ev=tr?.eventId?(APP.schedule||[]).find(e=>e.id===tr.eventId):null;
+  const teamId=ev?.teamId||'T1';
+  const guestIds=ev?.guestIds||[];
+  const ats=(APP.athletes||[]).filter(a=>a.teamId===teamId||(!teamId&&!a.teamId)||guestIds.includes(a.id))
     .slice().sort((a,b)=>(+(a.number||a.num)||999)-(+(b.number||b.num)||999));
   const slots=27;
   const cells=[];
@@ -8823,14 +8891,14 @@ function printAthleteReport(){
   const avgWell=wellRecs.length?Math.round(wellRecs.reduce((s,w)=>s+(+w.score||0),0)/wellRecs.length):null;
 
   if(!APP.attendance)APP.attendance=[];
-  const evsPeriodo=APP.schedule.filter(e=>inRange(e.date)&&(!e.teamId||e.teamId===at.teamId)&&_isTrainingType(e.type));
+  const evsPeriodo=APP.schedule.filter(e=>inRange(e.date)&&((!e.teamId||e.teamId===at.teamId)||(e.guestIds||[]).includes(id))&&_isTrainingType(e.type));
   const evIdsP=new Set(evsPeriodo.map(e=>e.id));
   const attRecsP=APP.attendance.filter(a=>a.athleteId===id&&evIdsP.has(a.eventId));
   const attPresente=attRecsP.filter(a=>a.status==='treino').length;
   const attTratamento=attRecsP.filter(a=>a.status==='tratamento').length;
   const attAusentesAll=attRecsP.filter(a=>a.status==='ausente');
   const attFerias=attAusentesAll.filter(a=>a.reason==='ferias');
-  const attAusentes=attAusentesAll.filter(a=>a.reason!=='ferias'); // férias não conta como falta (como o tratamento)
+  const attAusentes=attAusentesAll.filter(a=>a.reason!=='ferias'&&a.reason!=='convocada'); // férias e convocatória avulsa não contam como falta (como o tratamento)
   const attDenom=attPresente+attAusentes.length;
   const attPct=attDenom?Math.round(attPresente/attDenom*100):null;
 
@@ -8884,11 +8952,11 @@ function printAthleteReport(){
   const prevPseRecs=APP.pse.filter(p=>p.athleteId===id&&p.date>=prevStart&&p.date<=prevEnd);
   const avgPsePrev=prevPseRecs.length?Math.round(prevPseRecs.reduce((s,p)=>s+(+p.pse||0),0)/prevPseRecs.length*10)/10:null;
   const acwrPrev=_acwrAt(id,prevEnd);
-  const evsPeriodoPrev=APP.schedule.filter(e=>e.date>=prevStart&&e.date<=prevEnd&&(!e.teamId||e.teamId===at.teamId)&&_isTrainingType(e.type));
+  const evsPeriodoPrev=APP.schedule.filter(e=>e.date>=prevStart&&e.date<=prevEnd&&((!e.teamId||e.teamId===at.teamId)||(e.guestIds||[]).includes(id))&&_isTrainingType(e.type));
   const evIdsPrev=new Set(evsPeriodoPrev.map(e=>e.id));
   const attRecsPrev=APP.attendance.filter(a=>a.athleteId===id&&evIdsPrev.has(a.eventId));
   const attPresentePrev=attRecsPrev.filter(a=>a.status==='treino').length;
-  const attAusentesPrev=attRecsPrev.filter(a=>a.status==='ausente'&&a.reason!=='ferias');
+  const attAusentesPrev=attRecsPrev.filter(a=>a.status==='ausente'&&a.reason!=='ferias'&&a.reason!=='convocada');
   const attDenomPrev=attPresentePrev+attAusentesPrev.length;
   const attPctPrev=attDenomPrev?Math.round(attPresentePrev/attDenomPrev*100):null;
   const gamesPrev=APP.games.filter(g=>g.date>=prevStart&&g.date<=prevEnd&&((g.lineup&&g.lineup.includes(id))||(g.subs&&g.subs.includes(id))||(g.playerStats||[]).some(s=>s.aid===id)||(g.noShow&&g.noShow[id]!==undefined)));
@@ -9213,12 +9281,13 @@ function _getAttReportData(){
     const presente=recs.filter(a=>a.status==='treino').length;
     const tratamento=recs.filter(a=>a.status==='tratamento').length;
     const feriasRecs=recs.filter(a=>a.status==='ausente'&&a.reason==='ferias');
-    const ausentes=recs.filter(a=>a.status==='ausente'&&a.reason!=='ferias'); // férias não conta como falta (como o tratamento)
+    const convocadaRecs=recs.filter(a=>a.status==='ausente'&&a.reason==='convocada');
+    const ausentes=recs.filter(a=>a.status==='ausente'&&a.reason!=='ferias'&&a.reason!=='convocada'); // férias e convocatória avulsa não contam como falta (como o tratamento)
     const byReason={justificada:0,nao_justificada:0,lesao:0,doenca:0,outro:0,sem_motivo:0};
     ausentes.forEach(a=>{if(a.reason&&byReason[a.reason]!==undefined)byReason[a.reason]++;else byReason.sem_motivo++;});
     const denom=presente+ausentes.length;
     const pct=denom?Math.round(presente/denom*100):null;
-    return {at,presente,tratamento,ferias:feriasRecs.length,ausenteTotal:ausentes.length,...byReason,pct};
+    return {at,presente,tratamento,ferias:feriasRecs.length,convocada:convocadaRecs.length,ausenteTotal:ausentes.length,...byReason,pct};
   });
   const team=APP.teams.find(t=>t.id===teamId);
   return {teamId,team,ym,evsCount:evs.length,rows};
@@ -9226,8 +9295,8 @@ function _getAttReportData(){
 function exportAttendanceCSV(){
   const d=_getAttReportData();
   if(!d.rows.length)return toast('Sem atletas para exportar','err');
-  const headers=['Atleta','Treinos no mês','Presenças','Tratamento','Férias','Faltas (total)','Justificada','Não Justificada','Lesão','Doença','Outro','Sem motivo','% Assiduidade'];
-  const rows=[headers,...d.rows.map(r=>[_shortName(r.at),d.evsCount,r.presente,r.tratamento,r.ferias,r.ausenteTotal,r.justificada,r.nao_justificada,r.lesao,r.doenca,r.outro,r.sem_motivo,r.pct!==null?r.pct+'%':'—'])];
+  const headers=['Atleta','Treinos no mês','Presenças','Tratamento','Férias','Convocada a outra equipa','Faltas (total)','Justificada','Não Justificada','Lesão','Doença','Outro','Sem motivo','% Assiduidade'];
+  const rows=[headers,...d.rows.map(r=>[_shortName(r.at),d.evsCount,r.presente,r.tratamento,r.ferias,r.convocada,r.ausenteTotal,r.justificada,r.nao_justificada,r.lesao,r.doenca,r.outro,r.sem_motivo,r.pct!==null?r.pct+'%':'—'])];
   _dlCSV(rows,`presencas_${(d.team?.name||'equipa')}_${d.ym}.csv`);
   toast('CSV exportado ✓');
 }
@@ -9237,10 +9306,10 @@ function printAttendance(){
   const title=`Presenças Mensal — ${d.team?.name||'Todas as Equipas'} — ${d.ym}`;
   const body=`
     <div class="pr-title">${title}</div>
-    <table><thead><tr><th>Atleta</th><th>Treinos</th><th>Presente</th><th>Tratamento</th><th>Férias</th><th>Faltas</th><th>Motivos</th><th>%</th></tr></thead>
+    <table><thead><tr><th>Atleta</th><th>Treinos</th><th>Presente</th><th>Tratamento</th><th>Férias</th><th>Convocada</th><th>Faltas</th><th>Motivos</th><th>%</th></tr></thead>
     <tbody>${d.rows.map(r=>{
       const motivos=[r.justificada?'Just.: '+r.justificada:'',r.nao_justificada?'Não Just.: '+r.nao_justificada:'',r.lesao?'Lesão: '+r.lesao:'',r.doenca?'Doença: '+r.doenca:'',r.outro?'Outro: '+r.outro:'',r.sem_motivo?'S/ motivo: '+r.sem_motivo:''].filter(Boolean).join(', ')||'—';
-      return`<tr><td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td><td>${d.evsCount}</td><td>${r.presente}</td><td>${r.tratamento}</td><td>${r.ferias}</td><td>${r.ausenteTotal}</td><td style="font-size:9pt">${motivos}</td><td><strong>${r.pct!==null?r.pct+'%':'—'}</strong></td></tr>`;
+      return`<tr><td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td><td>${d.evsCount}</td><td>${r.presente}</td><td>${r.tratamento}</td><td>${r.ferias}</td><td>${r.convocada}</td><td>${r.ausenteTotal}</td><td style="font-size:9pt">${motivos}</td><td><strong>${r.pct!==null?r.pct+'%':'—'}</strong></td></tr>`;
     }).join('')}</tbody></table>
   `;
   _printWin(title,body);
@@ -10041,7 +10110,15 @@ function renderAtPSE(){
   const _pEvs=APP.schedule.filter(e=>{
     if(e.date!==td||!e.time||!e.dur)return false;
     if(!_pTrainTypes.includes(e.type))return false;
-    return !e.teamId||e.teamId===_pAt?.teamId;
+    if(!e.teamId||e.teamId===_pAt?.teamId)return true;
+    // Convocatória avulsa a Treino de outra equipa (guestIds no evento)
+    if((e.guestIds||[]).includes(AID))return true;
+    // Convocatória avulsa a Jogo de outra equipa (vive em g.convocatoria, não no evento)
+    if(e.type==='Jogo'){
+      const mg=APP.games.find(g=>g.date===e.date&&g.teamId===e.teamId);
+      if(mg&&(mg.convocatoria||[]).includes(AID))return true;
+    }
+    return false;
   });
   // Treinos individuais prescritos e marcados como concluídos hoje também abrem o PSE,
   // sem o intervalo de segurança (_pDelay) usado nos treinos de equipa — aqui a própria
@@ -10726,7 +10803,7 @@ async function pullCloud(){
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professionalName:r.professional_name,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
-      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao}))],
+      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[]}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
       ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
@@ -10885,8 +10962,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at'],
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at'}},
-  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao'],
-    rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao'}},
+  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids'],
+    rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao',guestIds:'guest_ids'}},
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
     rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at',doneTime:'done_time'}},
   attendance_records:{cols:['id','event_id','athlete_id','date','present','status','reason','created_at'],
