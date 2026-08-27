@@ -2570,6 +2570,58 @@ function _upcomingGuestCall(athleteId){
   const items=[...evs,...gms].sort((a,b)=>a.date.localeCompare(b.date));
   return items[0]||null;
 }
+// ── Picker de convocatória avulsa em 2 passos (equipa → plantel dessa equipa) ──
+// Reutilizado no formulário de evento do Planeamento (prefix 'ef') e na Unidade de
+// Treino (prefix 'trg'). Substituiu o dropdown único com todas as atletas
+// misturadas — o Roger achou confuso e pediu para escolher primeiro a equipa de
+// origem. Ver project_sps_convocatoria_avulsa_equipas_v2.
+let _efGuestIds=[];
+function _guestIdsFor(prefix){
+  if(prefix==='ef')return _efGuestIds;
+  if(prefix==='trg'){const tr=_getTr();if(!tr)return[];if(!tr.guestIds)tr.guestIds=[];return tr.guestIds;}
+  return [];
+}
+function _guestPickerHtml(prefix,guestIds,ownTeamId){
+  const otherTeams=APP.teams.filter(t=>t.id!==ownTeamId);
+  const selTeam=otherTeams[0]?.id||'';
+  const teamOpts=otherTeams.map(t=>`<option value="${t.id}">${escHtml(t.name)}</option>`).join('');
+  const roster=APP.athletes.filter(a=>a.teamId===selTeam&&!guestIds.includes(a.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  const atOpts=`<option value="">— Atleta —</option>`+roster.map(a=>`<option value="${a.id}">${escHtml(_displayName(a))}</option>`).join('');
+  const chips=guestIds.map(id=>{
+    const a=APP.athletes.find(x=>x.id===id);if(!a)return'';
+    return `<span class="bdg" style="background:#8e44ad22;color:#8e44ad;display:inline-flex;align-items:center;gap:5px;margin:2px 4px 2px 0;padding:3px 8px">${escHtml(_displayName(a))} <span style="color:var(--t2);font-size:9px">(${escHtml(APP.teams.find(t=>t.id===a.teamId)?.name||'—')})</span> <span style="cursor:pointer;font-weight:700" onclick="_guestRemove('${prefix}','${id}')" title="Remover">✕</span></span>`;
+  }).join('');
+  return `<div class="form-g"><label class="fl">Convocar avulso de outra equipa <span style="color:var(--t2);font-weight:400">(continuam no plantel de origem)</span></label>
+    ${otherTeams.length?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <select class="fc" id="${prefix}-guest-team" style="width:auto;font-size:11px" onchange="_guestTeamChanged('${prefix}')">${teamOpts}</select>
+      <select class="fc" id="${prefix}-guest-at" style="width:auto;font-size:11px;min-width:170px">${atOpts}</select>
+      <button class="btn btn-xs btn-g" type="button" onclick="_guestAdd('${prefix}')">+ Adicionar</button>
+    </div>`:`<div style="font-size:11px;color:var(--t2)">Sem outras equipas criadas ainda.</div>`}
+    <div style="margin-top:6px">${chips||'<span style="font-size:11px;color:var(--t2)">Nenhuma convocada de outra equipa</span>'}</div>
+  </div>`;
+}
+function _guestTeamChanged(prefix){
+  const teamSel=document.getElementById(prefix+'-guest-team'),atSel=document.getElementById(prefix+'-guest-at');
+  if(!teamSel||!atSel)return;
+  const guestIds=_guestIdsFor(prefix);
+  const roster=APP.athletes.filter(a=>a.teamId===teamSel.value&&!guestIds.includes(a.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  atSel.innerHTML=`<option value="">— Atleta —</option>`+roster.map(a=>`<option value="${a.id}">${escHtml(_displayName(a))}</option>`).join('');
+}
+function _guestAdd(prefix){
+  const atSel=document.getElementById(prefix+'-guest-at');if(!atSel||!atSel.value)return;
+  const ids=_guestIdsFor(prefix);
+  if(!ids.includes(atSel.value))ids.push(atSel.value);
+  _guestRerender(prefix);
+}
+function _guestRemove(prefix,id){
+  const ids=_guestIdsFor(prefix);
+  const i=ids.indexOf(id);if(i>=0)ids.splice(i,1);
+  _guestRerender(prefix);
+}
+function _guestRerender(prefix){
+  if(prefix==='ef')renderPlaneamento();
+  else if(prefix==='trg')_renderTrDetail();
+}
 // ─── PRESENÇAS AUTOMÁTICAS ──────────────────────────────────────────────
 // Marca (ou atualiza) a presença da atleta num evento de treino, a partir de
 // um sinal automático (PSE submetido = esteve em treino; tratamento
@@ -2722,11 +2774,7 @@ function renderPlaneamento(){
     <div class="form-g"><label class="fl">Local concentração</label><input class="fc" id="ef-locconc" placeholder="Igual ao local, se vazio"></div></div>
     <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="ef-notes" rows="2"></textarea></div>
     </div>
-    <div id="ef-guest-wrap" style="display:none">
-    <div class="form-g"><label class="fl">Convocar avulso de outra equipa <span style="color:var(--t2);font-weight:400">(ex: Sub/17 a reforçar este treino — continuam no plantel delas)</span></label>
-    <select class="fc" id="ef-guests" multiple size="4" style="height:auto">${APP.athletes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}">${escHtml(_displayName(a))} (${APP.teams.find(t=>t.id===a.teamId)?.name||'—'})</option>`).join('')}</select>
-    <div style="font-size:10px;color:var(--t2);margin-top:2px">Ctrl/Cmd+clique para escolher várias</div>
-    </div></div>
+    <div id="ef-guest-wrap" style="display:none">${_guestPickerHtml('ef',_efGuestIds,(_editEvId&&APP.schedule.find(e=>e.id===_editEvId)?.teamId)||'T1')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="saveEvent()">💾 Guardar</button>
     <button class="btn btn-gh" onclick="_showEvForm=false;_editEvId=null;renderPlaneamento()">Cancelar</button>
     ${_editEvId?`<button class="btn btn-r" onclick="deleteEvent('${_editEvId}')">🗑️ Apagar</button>`:''}</div>
@@ -2753,7 +2801,7 @@ function renderPlaneamento(){
     </div>
     <div class="sh-a">
       <button class="btn btn-gh" onclick="exportPlaneamentoPDF()">🖨️ Exportar PDF</button>
-      <button class="btn btn-g" onclick="_showEvForm=true;_editEvId=null;_selDate=today();renderPlaneamento()">+ Novo Evento</button>
+      <button class="btn btn-g" onclick="_showEvForm=true;_editEvId=null;_selDate=today();_efGuestIds=[];renderPlaneamento()">+ Novo Evento</button>
     </div>
   </div>
   ${formHtml}
@@ -2763,8 +2811,7 @@ function renderPlaneamento(){
     const ev=APP.schedule.find(e=>e.id===_editEvId);
     // Mapa [sufixo-do-id, propriedade] — 'loc' e 'location' já não coincidiam
     // (bug antigo: o Local nunca pré-preenchia ao editar); hconc/locconc são novos.
-    if(ev){[['type','type'],['title','title'],['date','date'],['time','time'],['dur','dur'],['loc','location'],['notes','notes'],['hconc','horaConcentracao'],['locconc','localConcentracao']].forEach(([f,p])=>{const el=document.getElementById('ef-'+f);if(el)el.value=ev[p]||'';}); document.getElementById('ef-team').value=ev.teamId||'T1';
-      const gsel=document.getElementById('ef-guests');if(gsel&&ev.guestIds&&ev.guestIds.length)Array.from(gsel.options).forEach(o=>{o.selected=ev.guestIds.includes(o.value);});}
+    if(ev){[['type','type'],['title','title'],['date','date'],['time','time'],['dur','dur'],['loc','location'],['notes','notes'],['hconc','horaConcentracao'],['locconc','localConcentracao']].forEach(([f,p])=>{const el=document.getElementById('ef-'+f);if(el)el.value=ev[p]||'';}); document.getElementById('ef-team').value=ev.teamId||'T1';}
   }
   if(_showEvForm)_toggleEfTreinoFields();
 }
@@ -2809,16 +2856,14 @@ function exportPlaneamentoPDF(){
   const title=isWeek?`Planeamento — Semana ${fmtDateShort(_planWeekStart)} a ${fmtDateShort(addDaysStr(_planWeekStart,6))}`:`Planeamento — ${PLAN_MONTHS[_calMonth]} ${_calYear}`;
   _printWin(title,_planPrintGridHtml(),null,false,true);
 }
-function clickDay(dt){_selDate=dt;_showEvForm=true;_editEvId=null;renderPlaneamento();}
-function editEvent(id){_editEvId=id;_showEvForm=true;const ev=APP.schedule.find(e=>e.id===id);_selDate=ev?.date;renderPlaneamento();}
+function clickDay(dt){_selDate=dt;_showEvForm=true;_editEvId=null;_efGuestIds=[];renderPlaneamento();}
+function editEvent(id){_editEvId=id;_showEvForm=true;const ev=APP.schedule.find(e=>e.id===id);_selDate=ev?.date;_efGuestIds=[...(ev?.guestIds||[])];renderPlaneamento();}
 async function saveEvent(){
   const type=document.getElementById('ef-type').value;
   const title=document.getElementById('ef-title').value.trim();
   const date=document.getElementById('ef-date').value;
   if(!type||!title||!date)return toast('Tipo, título e data obrigatórios','err');
-  const guestSel=document.getElementById('ef-guests');
-  const guestIds=guestSel?Array.from(guestSel.selectedOptions).map(o=>o.value):[];
-  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim(),guestIds};
+  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim(),guestIds:[..._efGuestIds]};
   if(_editEvId){const i=APP.schedule.findIndex(e=>e.id===_editEvId);if(i>=0)APP.schedule[i]=ev;}
   else{APP.schedule.push(ev);}
   // Antes só o ramo de evento novo chamava cloudUpsert — editar um evento existente
@@ -5756,8 +5801,10 @@ function openTrainingUnit(eventId,eventDate){
   if(!APP.trainings)APP.trainings=[];
   let tr=APP.trainings.find(t=>t.eventId===eventId);
   if(!tr){
+    const ev=APP.schedule.find(e=>e.id===eventId);
     tr={id:_TUID(),eventId,date:eventDate||today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,
-        horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
+        horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]},
+        teamId:ev?.teamId||'T1',guestIds:[...(ev?.guestIds||[])]};
     APP.trainings.push(tr);saveData();
   }
   _trId=tr.id;_trView='detail';_trExTab='aquecimento';
@@ -5815,7 +5862,7 @@ function renderTreinos(){
 
 function _createNewUT(){
   if(!APP.trainings)APP.trainings=[];
-  const tr={id:_TUID(),eventId:null,date:today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]}};
+  const tr={id:_TUID(),eventId:null,date:today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]},teamId:'T1',guestIds:[]};
   APP.trainings.push(tr);saveData();
   _trId=tr.id;_trView='detail';_trExTab='aquecimento';renderTreinos();
 }
@@ -5844,6 +5891,11 @@ function _getTr(){return APP.trainings.find(t=>t.id===_trId);}
 
 function _renderTrDetail(){
   const tr=_getTr();if(!tr){_trView='list';renderTreinos();return;}
+  // UTs criadas antes deste campo existir (ou sem evento ligado) não tinham
+  // noção de equipa nenhuma — inferir do evento ligado, com T1 só como último
+  // recurso, e persistir para não repetir esta inferência a cada render.
+  if(!tr.teamId)tr.teamId=(tr.eventId?APP.schedule.find(e=>e.id===tr.eventId)?.teamId:null)||'T1';
+  if(!tr.guestIds)tr.guestIds=(tr.eventId?APP.schedule.find(e=>e.id===tr.eventId)?.guestIds:null)||[];
   const isAnalise=_trExTab==='analise';
   const tabsHtml=_PHASES.map(ph=>{
     const cnt=(tr.exercises[ph.id]||[]).length;
@@ -5881,7 +5933,9 @@ function _renderTrDetail(){
     <div class="fr" style="gap:10px;flex-wrap:wrap">
       <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Título da Unidade</label><input class="fc" id="tr-title" value="${escHtml(tr.title||'')}" placeholder="Ex: Bloco Defensivo — Treino #14"></div>
       <div class="form-g" style="flex:2;min-width:200px"><label class="fl">Objetivo Principal</label><input class="fc" id="tr-obj" value="${escHtml(tr.objetivo||'')}" placeholder="Ex: Organização defensiva 1-4-3-3"></div>
+      <div class="form-g" style="min-width:160px"><label class="fl">Equipa</label><select class="fc" id="tr-team" onchange="_getTr().teamId=this.value;_renderTrDetail()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===tr.teamId?'selected':''}>${escHtml(t.name)}</option>`).join('')}</select></div>
     </div>
+    ${_guestPickerHtml('trg',tr.guestIds,tr.teamId||'T1')}
     <div class="fr3" style="gap:10px;flex-wrap:wrap;margin-top:8px">
       <div class="form-g"><label class="fl">Data</label><input class="fc" id="tr-date" type="date" value="${tr.date||today()}"></div>
       <div class="form-g"><label class="fl">Hora concentração</label><input class="fc" id="tr-hconc" type="time" value="${tr.horaConcentracao||''}" placeholder="09:45"></div>
@@ -6545,13 +6599,18 @@ async function saveTreinoPatch(trId){
   if(g('tr-dur'))tr.duracao=+g('tr-dur').value||tr.duracao;
   if(g('tr-jog'))tr.jogadoras=+g('tr-jog').value||tr.jogadoras;
   if(g('tr-notes'))tr.notes=g('tr-notes').value;
+  if(g('tr-team'))tr.teamId=g('tr-team').value||tr.teamId||'T1';
+  if(!tr.guestIds)tr.guestIds=[];
   // Sincronizar com evento no Planeamento
   if(tr.date){
     if(!tr.eventId){
-      // Criar evento no schedule automaticamente
+      // Criar evento no schedule automaticamente — antes usava sempre
+      // APP.config.teams?.[0]?.id (referência partida, resolvia sempre para vazio →
+      // caía na Principal em todo o lado que lê o evento); agora usa a equipa
+      // escolhida no formulário da própria UT. Ver project_sps_convocatoria_avulsa_equipas_v2.
       const newEv={id:uid(),date:tr.date,title:tr.title||'Treino',type:'Treino',
         time:tr.horaInicio||'',location:tr.local||'',dur:tr.duracao||90,
-        notes:tr.notes||'',teamId:APP.config.teams?.[0]?.id||null};
+        notes:tr.notes||'',teamId:tr.teamId||'T1',guestIds:[...tr.guestIds]};
       if(!APP.schedule)APP.schedule=[];
       APP.schedule.push(newEv);
       tr.eventId=newEv.id;
@@ -6564,6 +6623,8 @@ async function saveTreinoPatch(trId){
         ev.date=tr.date;
         ev.time=tr.horaInicio||ev.time;
         ev.location=tr.local||ev.location;
+        ev.teamId=tr.teamId||ev.teamId||'T1';
+        ev.guestIds=[...tr.guestIds];
         // Defesa: garante sempre um dur válido (a duração da Unidade), mesmo que as horas
         // não estejam preenchidas — o desbloqueio automático do PSE ignora por completo
         // qualquer evento com dur vazio/nulo (ver renderAtPSE), por isso um dur em falta
@@ -6645,12 +6706,13 @@ function exportTreinoPDF(trId){
 }
 
 function _trAtChecklistHtml(tr){
-  // teamId real da UT (via evento ligado) — antes assumia sempre T1, o que já era
-  // impreciso para UTs de outras equipas; agora aproveita-se também para incluir
-  // convocadas avulsas (ev.guestIds) deste treino específico.
+  // teamId real da UT — agora vive no próprio tr.teamId (campo "Equipa" no
+  // formulário da UT); antes assumia sempre T1, o que era impreciso para UTs de
+  // outras equipas. Evento ligado fica como fallback para UTs antigas ainda sem
+  // o campo. guestIds inclui convocadas avulsas deste treino específico.
   const ev=tr?.eventId?(APP.schedule||[]).find(e=>e.id===tr.eventId):null;
-  const teamId=ev?.teamId||'T1';
-  const guestIds=ev?.guestIds||[];
+  const teamId=tr?.teamId||ev?.teamId||'T1';
+  const guestIds=tr?.guestIds||ev?.guestIds||[];
   const ats=(APP.athletes||[]).filter(a=>a.teamId===teamId||(!teamId&&!a.teamId)||guestIds.includes(a.id))
     .slice().sort((a,b)=>(+(a.number||a.num)||999)-(+(b.number||b.num)||999));
   const slots=27;

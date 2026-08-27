@@ -1,7 +1,7 @@
 // SPS Sports Performance — Service Worker
 // Cache estratégico: app shell + CDN assets
 
-const CACHE = 'sps-v85';
+const CACHE = 'sps-v86';
 const ASSETS = [
   './',
   './index.html',
