@@ -6951,6 +6951,42 @@ function _pwToggle(key){
   if(_pwExpand.has(key))_pwExpand.delete(key);else _pwExpand.add(key);
   renderPSEWellness();
 }
+// Edição/eliminação manual de registos de PSE e Wellness — pedido do Roger (28/08/2026)
+// para poder corrigir erros de preenchimento diretamente no histórico expandido de
+// "PSE & Wellness", sem depender da atleta voltar a submeter. Não mexe em eventId/ligação
+// à sessão (PSE) nem à data — só nos valores reportados. Ver memória
+// project_sps_pse_wellness_edicao_manual.
+function _pwSavePse(id){
+  const p=APP.pse.find(x=>x.id===id);if(!p)return;
+  const pse=+document.getElementById('pweS-'+id).value;
+  const dur=+document.getElementById('pweD-'+id).value;
+  const type=document.getElementById('pweT-'+id).value;
+  if(!dur)return toast('Duração obrigatória','err');
+  p.pse=pse;p.duration=dur;p.sessionType=type;p.ua=Math.round(pse*dur);
+  if(_sync)cloudUpsert('pse_records',{...p,athlete_id:p.athleteId,session_type:p.sessionType,club_id:_cid});
+  saveData();toast('PSE atualizado ✓');renderPSEWellness();
+}
+function _pwDeletePse(id){
+  if(!confirm('Apagar este registo de PSE? Se estiver ligado a uma sessão (Ginásio/Treino), essa sessão volta a ficar por responder.'))return;
+  APP.pse=APP.pse.filter(p=>p.id!==id);
+  if(_sync&&_supa){_supa.from('pse_records').delete().eq('id',id).catch(err=>_warnSyncFailure('pse_records (apagar)',err));}
+  saveData();toast('Registo de PSE apagado');renderPSEWellness();
+}
+function _pwSaveWellness(id){
+  const w=APP.wellness.find(x=>x.id===id);if(!w)return;
+  const g=(f)=>document.getElementById(f+'-'+id).value;
+  const sleep=+g('pwwSl'),fatigue=+g('pwwFa'),stress=+g('pwwSt'),pain=+g('pwwPa'),mood=+g('pwwMo'),cycle=g('pwwCy'),cycleImpact=+g('pwwCi');
+  w.sleep=sleep;w.fatigue=fatigue;w.stress=stress;w.pain=pain;w.mood=mood;w.cycle=cycle;w.cycleImpact=cycleImpact;
+  w.score=calcWellnessScore(w);
+  if(_sync)cloudUpsert('wellness_records',{...w,athlete_id:w.athleteId,club_id:_cid});
+  saveData();toast('Wellness atualizado ✓');renderPSEWellness();
+}
+function _pwDeleteWellness(id){
+  if(!confirm('Apagar este registo de wellness?'))return;
+  APP.wellness=APP.wellness.filter(w=>w.id!==id);
+  if(_sync&&_supa){_supa.from('wellness_records').delete().eq('id',id).catch(err=>_warnSyncFailure('wellness_records (apagar)',err));}
+  saveData();toast('Registo de wellness apagado');renderPSEWellness();
+}
 // Junta, por atleta, o PSE reportado no dia do treino + o Wellness reportado no
 // dia seguinte (não há ligação por ID entre treino/PSE/Wellness — só por data,
 // que é como o resto da app já os relaciona, ex: desbloqueio automático do PSE).
@@ -7006,7 +7042,14 @@ function renderPSEWellness(){
       const expKey='pse_'+at.id;
       const isExp=_pwExpand.has(expKey);
       const hist=atPSE.slice(0,10);
-      const histRow=isExp?`<tr><td colspan="9" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)}</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead><tbody>${hist.length?hist.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${p.pse}/10</td><td>${p.duration} min</td><td>${p.ua}</td><td>${escHtml(p.sessionType||'—')}</td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table></div></td></tr>`:'';
+      const histRow=isExp?`<tr><td colspan="9" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)} — edita para corrigir um erro</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th><th>Ações</th></tr></thead><tbody>${hist.length?hist.map(p=>`<tr>
+        <td>${fmtDate(p.date)}</td>
+        <td><select id="pweS-${p.id}" class="fc" style="padding:2px 4px;font-size:11px;width:52px">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${p.pse==n?'selected':''}>${n}</option>`).join('')}</select></td>
+        <td><input id="pweD-${p.id}" class="fc" type="number" min="1" max="300" value="${p.duration}" style="width:58px;padding:2px 4px;font-size:11px"></td>
+        <td>${p.ua}</td>
+        <td><select id="pweT-${p.id}" class="fc" style="padding:2px 4px;font-size:11px;width:auto">${['Treino','Jogo','Ginásio','Reabilitação','Ativação'].map(o=>`<option ${o===(p.sessionType||'Treino')?'selected':''}>${o}</option>`).join('')}</select></td>
+        <td style="white-space:nowrap"><button class="btn btn-xs btn-g" title="Guardar" onclick="_pwSavePse('${p.id}')">💾</button> <button class="btn btn-xs btn-gh" title="Apagar" onclick="_pwDeletePse('${p.id}')">🗑️</button></td>
+      </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table></div></td></tr>`:'';
       return`<tr><td><div style="display:flex;align-items:center;gap:7px" title="${escHtml(at.name)}"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:2px 6px">${isExp?'▴':'▾'}</button>${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_shortName(at))}</strong></div></td><td>${at.pos||'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.pse:'—'}</td>
       <td style="text-align:center">${lastSub?lastSub.duration+'min':'—'}</td>
@@ -7073,7 +7116,19 @@ function renderPSEWellness(){
       hmHtml+=`<td style="text-align:center;padding:4px;font-size:10px;color:var(--t2)">${lastW?.cycle||'—'}</td></tr>`;
       if(isExp){
         const hist=APP.wellness.filter(w=>w.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
-        hmHtml+=`<tr><td colspan="10" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 26px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)}</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th></tr></thead><tbody>${hist.length?hist.map(w=>`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td>${w.score}</td><td>${escHtml(w.cycle||'—')}</td></tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table></div></td></tr>`;
+        const wSel=(id,field,min,max,val)=>`<select id="${id}" class="fc" style="padding:2px 3px;font-size:11px;width:40px">${Array.from({length:max-min+1},(_,i)=>min+i).map(n=>`<option value="${n}" ${val==n?'selected':''}>${n}</option>`).join('')}</select>`;
+        hmHtml+=`<tr><td colspan="10" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 26px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)} — edita para corrigir um erro</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Ciclo</th><th>Impacto</th><th>Score</th><th>Ações</th></tr></thead><tbody>${hist.length?hist.map(w=>`<tr>
+        <td>${fmtDate(w.date)}</td>
+        <td>${wSel('pwwSl-'+w.id,'sleep',1,5,w.sleep)}</td>
+        <td>${wSel('pwwFa-'+w.id,'fatigue',1,10,w.fatigue)}</td>
+        <td>${wSel('pwwSt-'+w.id,'stress',1,10,w.stress)}</td>
+        <td>${wSel('pwwPa-'+w.id,'pain',0,10,w.pain)}</td>
+        <td>${wSel('pwwMo-'+w.id,'mood',1,5,w.mood)}</td>
+        <td><select id="pwwCy-${w.id}" class="fc" style="padding:2px 3px;font-size:11px;width:auto">${['N/A','Menstruação','Folicular','Ovulação','Lútea'].map(o=>`<option ${o===(w.cycle||'N/A')?'selected':''}>${o}</option>`).join('')}</select></td>
+        <td>${wSel('pwwCi-'+w.id,'impact',0,3,w.cycleImpact||0)}</td>
+        <td>${w.score}</td>
+        <td style="white-space:nowrap"><button class="btn btn-xs btn-g" title="Guardar" onclick="_pwSaveWellness('${w.id}')">💾</button> <button class="btn btn-xs btn-gh" title="Apagar" onclick="_pwDeleteWellness('${w.id}')">🗑️</button></td>
+      </tr>`).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table></div></td></tr>`;
       }
     });
     hmHtml+=`</tbody></table></div>`;
