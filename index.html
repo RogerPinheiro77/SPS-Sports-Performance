@@ -113,6 +113,13 @@ ul{list-style:none}
 .gd-mode #tb-cfg-btn,.gd-mode .tb-btn[onclick="toggleSb()"]{display:none}
 .gd-only{display:none}
 .gd-mode .gd-only{display:flex}
+/* SPS-Ginásio standalone (?ginasio=1) — mesmo padrão do gd-mode acima: sidebar
+   escondida, topbar reduzida a título + atalhos Registo/Biblioteca/Sair. */
+.gy-mode #sidebar{display:none}
+.gy-mode #main{margin-left:0}
+.gy-mode #tb-cfg-btn,.gy-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.gy-only{display:none}
+.gy-mode .gy-only{display:flex}
 #sb-backdrop{display:none}
 /* Campo tocável do Ao Vivo — maior em tablet/desktop (mais espaço, toque mais preciso),
    compacto em telemóvel. A escala é feita pelo viewBox do SVG, não pelas coordenadas. */
@@ -141,6 +148,8 @@ ul{list-style:none}
 }
 /* Em modo Gameday, botão de saída maior — usado de pé, no banco, muitas vezes com pressa. */
 .gd-mode .tb-btn{width:38px;height:38px}
+/* Em modo Ginásio, mesmo motivo — usado de pé, no ginásio, com o telemóvel na mão. */
+.gy-mode .tb-btn{width:38px;height:38px}
 
 /* CARDS */
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
@@ -402,6 +411,9 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn" onclick="openCloud()" title="Cloud">☁️</button>
       <button class="tb-btn" id="tb-cfg-btn" onclick="navTo('config')" title="Config">⚙️</button>
       <button class="tb-btn gd-only" onclick="logout()" title="Sair">🚪</button>
+      <button class="tb-btn gy-only" onclick="_gsTab='registos';navTo('fichas-ginasio')" title="Registo">🏋️</button>
+      <button class="tb-btn gy-only" onclick="navTo('biblioteca')" title="Biblioteca">📚</button>
+      <button class="tb-btn gy-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
       <div class="pg on" id="pg-dashboard"></div>
@@ -590,6 +602,10 @@ const _forceAtletaMode=new URLSearchParams(location.search).get('atleta')==='1';
 // de treinador/adjunto/team manager, ver _gamedayEligibleRole) — só muda o que acontece
 // DEPOIS do login (ver _maybeEnterGamedayMode), nunca o próprio ecrã de login.
 const _forceGamedayMode=new URLSearchParams(location.search).get('gameday')==='1';
+// SPS-Ginásio standalone (?ginasio=1) — mesmo padrão do ?gameday=1 acima: login normal de
+// staff, exige acesso a Fichas de Ginásio (ver _ginasioEligibleRole), só muda o que acontece
+// DEPOIS do login (ver _maybeEnterGinasioMode).
+const _forceGinasioMode=new URLSearchParams(location.search).get('ginasio')==='1';
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -667,6 +683,7 @@ async function createFirstAdmin(){
   setSession({userId:user.id,role:'treinador',isAdmin:true,name:user.name});
   ROLE='treinador';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
   _maybeEnterGamedayMode();
+  _maybeEnterGinasioMode();
 }
 async function handleLogin(){
   const username=(document.getElementById('login-user')?.value||'').trim();
@@ -688,6 +705,7 @@ async function handleLogin(){
   setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
   ROLE=user.role;showStaffApp();
   _maybeEnterGamedayMode();
+  _maybeEnterGinasioMode();
 }
 // ── 1º acesso staff: obrigar a definir password própria (troca a password fixa inicial) ──
 function _showStaffPwdSetup(user){
@@ -720,6 +738,7 @@ async function _saveStaffPwdSetup(userId){
   ROLE=user.role;showStaffApp();
   toast('Password definida ✓ Bem-vindo, '+user.name+'!');
   _maybeEnterGamedayMode();
+  _maybeEnterGinasioMode();
 }
 async function handleAthleteLogin(){
   const username=(document.getElementById('at-login-user')?.value||'').trim();
@@ -858,7 +877,7 @@ const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 const ROLE_DEFS={
   treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
-  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat','fisio-anamnese'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos'],readOnly:false,manageUsers:false},
@@ -885,6 +904,34 @@ function _maybeEnterGamedayMode(){
   }
   document.body.classList.add('gd-mode');
   navTo('jogos');
+}
+// SPS-Ginásio standalone (?ginasio=1) — mesmo espírito do SPS-Gameday acima: cargo sem
+// acesso a Fichas de Ginásio cai no comportamento normal (Dashboard completo), com aviso.
+function _ginasioEligibleRole(role){
+  const def=ROLE_DEFS[role];
+  return !!def&&def.pages.includes('fichas-ginasio')&&!def.readOnly;
+}
+// Chamada a par de _maybeEnterGamedayMode() depois de qualquer showStaffApp() bem sucedido
+// — entra direto na aba Registos de Fichas de Ginásio, sem sidebar/resto da plataforma
+// (ver .gy-mode no CSS), e já abre a grelha da sessão de hoje se houver só uma (o pedido do
+// Roger era "abrir logo a folha de registos" ao chegar ao ginásio — ver
+// project_sps_ginasio_app_standalone). Com mais que uma sessão hoje fica na lista, para não
+// arriscar abrir a errada.
+function _maybeEnterGinasioMode(){
+  if(typeof _forceGinasioMode==='undefined'||!_forceGinasioMode)return;
+  if(!_ginasioEligibleRole(ROLE)){
+    toast('Este acesso é para o SPS-Ginásio — o teu cargo não tem acesso a Fichas de Ginásio','err');
+    return;
+  }
+  document.body.classList.add('gy-mode');
+  _gsTab='registos';
+  navTo('fichas-ginasio');
+  _ginasioAutoOpenToday();
+}
+function _ginasioAutoOpenToday(){
+  const td=today();
+  const evs=(APP.schedule||[]).filter(e=>e.type==='Ginásio'&&e.gymSheet&&e.date===td);
+  if(evs.length===1)openGymSessionGrid(evs[0].id);
 }
 // Títulos qualificados por página — partilhado entre navTo() (cabeçalho da página) e
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
@@ -8409,7 +8456,8 @@ function renderFichasGinasio(){
   </div>`).join(''):`<div class="empty"><div class="ei">🏋️‍♀️</div><p>Sem fichas de ginásio criadas</p></div>`;
   document.getElementById('pg-fichas-ginasio').innerHTML=`
   <div class="sh"><div class="sh-t">🏋️‍♀️ Fichas de Ginásio (${list.length})</div>
-  <button class="btn btn-g" onclick="newGymSheet()">+ Nova Ficha</button></div>
+  <div class="sh-a"><button class="btn btn-gh" onclick="_ginasioQuickScheduleModal()">🗓️ Agendar Sessão</button>
+  <button class="btn btn-g" onclick="newGymSheet()">+ Nova Ficha</button></div></div>
   ${_gsTabsHtml()}
   <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Modelos de sessão de ginásio (exercícios + séries/reps/RIR) para importar depois numa sessão de Ginásio no Planeamento.</div>
   ${cardsHtml}`;
@@ -8431,7 +8479,8 @@ function renderGymRecordsList(){
   </div>`;
   }).join(''):`<div class="empty"><div class="ei">📋</div><p>Ainda não há sessões de Ginásio com ficha importada.</p></div>`;
   document.getElementById('pg-fichas-ginasio').innerHTML=`
-  <div class="sh"><div class="sh-t">🏋️‍♀️ Fichas de Ginásio</div></div>
+  <div class="sh"><div class="sh-t">🏋️‍♀️ Fichas de Ginásio</div>
+  <div class="sh-a"><button class="btn btn-gh" onclick="_ginasioQuickScheduleModal()">🗓️ Agendar Sessão</button></div></div>
   ${_gsTabsHtml()}
   <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Sessões de Ginásio já agendadas com ficha importada — abre para registar ou consultar carga/reps/RIR/observações por atleta.</div>
   ${rowsHtml}`;
@@ -8550,6 +8599,40 @@ function saveGymSheet(){
   saveData();toast('Ficha guardada ✓');_gsView='list';_gsDraft=null;renderFichasGinasio();
 }
 
+// Agendar Sessão de Ginásio — atalho rápido (Data/Hora/Local/Equipa/Ficha) a partir de
+// Fichas de Ginásio, para não obrigar a passar pelo formulário completo do Planeamento
+// (SPS-Ginásio, pedido do Roger "agendar, data, hora, local" — ver
+// project_sps_ginasio_app_standalone). Cria o mesmo formato de evento que saveEvent()
+// (ver Planeamento), só que com um formulário mais curto focado no essencial.
+function _ginasioQuickScheduleModal(){
+  const teamSel=APP.teams.map(t=>`<option value="${t.id}">${escHtml(t.name)}</option>`).join('');
+  const sheets=(APP.gymSheets||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const sheetSel=`<option value="">— Sem ficha (definir depois) —</option>`+sheets.map(f=>`<option value="${f.id}">${escHtml(f.title||'Ficha sem título')}</option>`).join('');
+  openMod('🗓️ Agendar Sessão de Ginásio',`
+  <div class="fr3"><div class="form-g"><label class="fl">Data *</label><input class="fc" id="gq-date" type="date" value="${today()}"></div>
+  <div class="form-g"><label class="fl">Hora</label><input class="fc" id="gq-time" type="time" value="18:00"></div>
+  <div class="form-g"><label class="fl">Local</label><input class="fc" id="gq-loc" placeholder="Ginásio..."></div></div>
+  <div class="fr"><div class="form-g"><label class="fl">Equipa</label><select class="fc" id="gq-team">${teamSel}</select></div>
+  <div class="form-g"><label class="fl">Ficha de Ginásio</label><select class="fc" id="gq-sheet">${sheetSel}</select></div></div>
+  <div style="display:flex;gap:8px;margin-top:6px">
+    <button class="btn btn-g" onclick="_saveGinasioQuickSchedule()">💾 Agendar</button>
+    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+  </div>`,'lg');
+}
+async function _saveGinasioQuickSchedule(){
+  const date=document.getElementById('gq-date').value;
+  if(!date)return toast('Data obrigatória','err');
+  const sheetId=document.getElementById('gq-sheet').value;
+  const sheet=sheetId?(APP.gymSheets||[]).find(f=>f.id===sheetId):null;
+  const ev={id:uid(),teamId:document.getElementById('gq-team').value,type:'Ginásio',title:'Ginásio',date,time:document.getElementById('gq-time').value,dur:null,location:document.getElementById('gq-loc').value.trim(),notes:'',horaConcentracao:'',localConcentracao:'',guestIds:[],gymSheet:sheet?JSON.parse(JSON.stringify(sheet)):null};
+  if(!APP.schedule)APP.schedule=[];
+  APP.schedule.push(ev);
+  if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
+  saveData();
+  closeMod();
+  toast('Sessão de Ginásio agendada ✓');
+  renderFichasGinasio();
+}
 // ─── REGISTOS DE GINÁSIO (Fase 2) ──────────────────────────
 // Grelha de registo de uma sessão de Ginásio concreta: uma linha por atleta
 // da equipa do evento (+ convocadas avulso, mesmo padrão de guestIds já usado
@@ -8562,7 +8645,7 @@ function saveGymSheet(){
 // _gymGridData é um rascunho em memória (não grava a cada tecla); só grava
 // tudo de uma vez ao clicar "Guardar Registos", mesmo espírito do _gsDraft
 // nas Fichas. Ver project_sps_fichas_ginasio_fase2.
-let _gymGridEventId=null, _gymGridData={};
+let _gymGridEventId=null, _gymGridData={}, _gymAccOpen=null;
 function _gymGridAthletes(ev){
   return APP.athletes.filter(a=>a.teamId===ev.teamId||(ev.guestIds||[]).includes(a.id)).sort((a,b)=>_shortName(a).localeCompare(_shortName(b)));
 }
@@ -8571,17 +8654,34 @@ function openGymSessionGrid(eventId){
   if(!ev||!ev.gymSheet){toast('Esta sessão não tem ficha importada','err');return;}
   _gymGridEventId=eventId;
   _gymGridData={};
+  _gymAccOpen=null;
   _gymGridAthletes(ev).forEach(a=>{
     const rec=(APP.gymRecords||[]).find(r=>r.eventId===eventId&&r.athleteId===a.id);
     _gymGridData[a.id]={vals:rec&&rec.vals?[...rec.vals]:[],rirGeral:(rec&&rec.rirGeral)||'',obs:(rec&&rec.obs)||''};
   });
   renderGymSessionGrid();
 }
+// Registo responsivo (SPS-Ginásio, pedido do Roger — "abre no telemóvel/tablet a folha de
+// registos"): tabela larga (como no papel) em tablet/desktop, onde cabe bem; acordeão por
+// atleta em telemóvel, onde uma tabela com N colunas de exercícios fica ilegível/minúscula.
+// Mesmo _gymGridData/_gymCellInput/saveGymRecords por trás dos dois — só muda o HTML gerado.
+// Ver project_sps_ginasio_app_standalone.
 function renderGymSessionGrid(){
   const ev=APP.schedule.find(e=>e.id===_gymGridEventId);
   if(!ev||!ev.gymSheet){closeMod();return;}
   const gs=ev.gymSheet;
   const athletes=_gymGridAthletes(ev);
+  const isMobile=window.innerWidth<640;
+  const bodyHtml=isMobile?_gymGridAccordionHtml(gs,athletes):_gymGridTableHtml(gs,athletes);
+  openMod(`📋 Registar Sessão — ${escHtml(gs.title||'Ficha')} (${fmtDate(ev.date)})`,`
+  ${bodyHtml}
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-g" onclick="saveGymRecords()">💾 Guardar Registos</button>
+    <button class="btn btn-gh" onclick="exportGymSessionPDFFromGrid()">🖨️ Exportar PDF</button>
+    <button class="btn btn-gh" onclick="closeMod()">Fechar</button>
+  </div>`,'xl');
+}
+function _gymGridTableHtml(gs,athletes){
   const headHtml=gs.exercises.map(ex=>`<th style="padding:6px 8px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--brd)">${escHtml(ex.name)}<div style="font-weight:400;font-size:9.5px;color:var(--t2)">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div></th>`).join('');
   const rowsHtml=athletes.length?athletes.map(a=>{
     const d=_gymGridData[a.id]||{vals:[],rirGeral:'',obs:''};
@@ -8593,8 +8693,7 @@ function renderGymSessionGrid(){
       <td style="padding:3px 6px"><input class="fc" style="width:160px;font-size:11px;padding:5px 7px" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></td>
     </tr>`;
   }).join(''):`<tr><td colspan="99" style="padding:16px;text-align:center;color:var(--t2)">Sem atletas nesta equipa.</td></tr>`;
-  openMod(`📋 Registar Sessão — ${escHtml(gs.title||'Ficha')} (${fmtDate(ev.date)})`,`
-  <div style="overflow-x:auto;max-height:60vh">
+  return `<div style="overflow-x:auto;max-height:60vh">
   <table style="border-collapse:collapse;width:100%">
     <thead><tr>
       <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd)">Atleta</th>
@@ -8604,12 +8703,36 @@ function renderGymSessionGrid(){
     </tr></thead>
     <tbody>${rowsHtml}</tbody>
   </table>
-  </div>
-  <div style="display:flex;gap:8px;margin-top:12px">
-    <button class="btn btn-g" onclick="saveGymRecords()">💾 Guardar Registos</button>
-    <button class="btn btn-gh" onclick="exportGymSessionPDFFromGrid()">🖨️ Exportar PDF</button>
-    <button class="btn btn-gh" onclick="closeMod()">Fechar</button>
-  </div>`,'xl');
+  </div>`;
+}
+function _gymToggleAcc(athId){
+  _gymAccOpen=_gymAccOpen===athId?null:athId;
+  renderGymSessionGrid();
+}
+function _gymGridAccordionHtml(gs,athletes){
+  if(!athletes.length)return `<div class="empty"><div class="ei">🏋️‍♀️</div><p>Sem atletas nesta equipa.</p></div>`;
+  return `<div style="max-height:65vh;overflow-y:auto">`+athletes.map(a=>{
+    const d=_gymGridData[a.id]||{vals:[],rirGeral:'',obs:''};
+    const filled=d.vals.filter(v=>v&&String(v).trim()).length;
+    const open=_gymAccOpen===a.id;
+    const exRows=gs.exercises.map((ex,i)=>`
+      <div class="form-g" style="margin-bottom:8px">
+        <label class="fl">${escHtml(ex.name)}${ex.reps?` <span style="font-weight:400;color:var(--t2)">(${escHtml(ex.reps)}${ex.rir?' · RIR '+escHtml(ex.rir):''})</span>`:''}</label>
+        <input class="fc" value="${escHtml(d.vals[i]||'')}" placeholder="kg × reps" data-ath="${a.id}" data-ex="${i}" oninput="_gymCellInput(this)">
+      </div>`).join('');
+    return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
+      <div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="_gymToggleAcc('${a.id}')">
+        <div><div style="font-weight:700;font-size:13px">${escHtml(_shortName(a))}</div>
+        <div style="font-size:11px;color:var(--t2)">${filled}/${gs.exercises.length} preenchido${filled!==1?'s':''}</div></div>
+        <span style="font-size:16px;color:var(--t2)">${open?'▲':'▼'}</span>
+      </div>
+      ${open?`<div style="border-top:1px solid var(--brd);padding:12px 14px">
+        ${exRows}
+        <div class="form-g" style="margin-bottom:8px"><label class="fl">RIR geral</label><input class="fc" value="${escHtml(d.rirGeral||'')}" placeholder="RIR" data-ath="${a.id}" data-f="rirGeral" oninput="_gymCellInput(this)"></div>
+        <div class="form-g"><label class="fl">Observações</label><input class="fc" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></div>
+      </div>`:''}
+    </div>`;
+  }).join('')+`</div>`;
 }
 function _gymCellInput(el){
   const ath=el.getAttribute('data-ath');
@@ -11805,6 +11928,11 @@ loadData();
       // Logo próprio fornecido pelo Roger (assets/icon_gameday_*), mesmo padrão dos ícones da
       // app da atleta — não o SVG "GD" gerado usado inicialmente no sps-v78.
       applyPWAManifest({name:'SPS Gameday',shortName:'SPS Gameday',icon192:_GAMEDAY_ICON_192,icon512:_GAMEDAY_ICON_512,iconType:'image/png',themeColor:'#e74c3c',appleIcon:_GAMEDAY_ICON_APPLE,startUrl:location.pathname+'?gameday=1'});
+    } else if(typeof _forceGinasioMode!=='undefined'&&_forceGinasioMode){
+      // SPS-Ginásio standalone — mesmo motivo do SPS-Gameday acima (ícone certo já antes do
+      // login terminar), mas ícone SVG gerado (mesmo padrão do Fisio/Nutri) em vez de PNG
+      // dedicado — não bloqueia o lançamento a criar assets novos.
+      applyPWAManifest({name:'SPS Ginásio',shortName:'SPS Ginásio',iconSrc:_roleIconSVG('GYM','#8e44ad'),iconType:'image/svg+xml',themeColor:'#8e44ad',startUrl:location.pathname+'?ginasio=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     }
@@ -11829,7 +11957,7 @@ loadData();
     // quando o evento dispara, fica "pendente" e só é mostrado se/quando showAtletaApp()
     // ou showStaffApp() correr com um papel válido (ver window._flushPwaBar).
     var _pwaBarPending=false;
-    function _pwaBarRole(){return typeof ROLE!=='undefined'&&(ROLE==='atleta'||ROLE==='fisio'||ROLE==='nutri'||(typeof _forceGamedayMode!=='undefined'&&_forceGamedayMode&&typeof _gamedayEligibleRole==='function'&&_gamedayEligibleRole(ROLE)));}
+    function _pwaBarRole(){return typeof ROLE!=='undefined'&&(ROLE==='atleta'||ROLE==='fisio'||ROLE==='nutri'||(typeof _forceGamedayMode!=='undefined'&&_forceGamedayMode&&typeof _gamedayEligibleRole==='function'&&_gamedayEligibleRole(ROLE))||(typeof _forceGinasioMode!=='undefined'&&_forceGinasioMode&&typeof _ginasioEligibleRole==='function'&&_ginasioEligibleRole(ROLE)));}
     function _maybeShowPwaBar(){
       if(_pwaBarRole()) _showPwaBar();
       else _pwaBarPending=true;
@@ -11901,7 +12029,7 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
       AID=sess.userId;
       const at=APP.athletes.find(a=>a.id===AID);
       if(at){showAtletaApp(at);return;}
-    } else {showStaffApp();_maybeEnterGamedayMode();return;}
+    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();return;}
   }
   if(_checkAtletaToken()) return;
   // Sessão persistente da atleta (localStorage)
