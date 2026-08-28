@@ -7300,7 +7300,7 @@ function renderTreinosExtra(){
     <select class="fc" style="width:auto;font-size:11px" onchange="_teTeam=this.value;renderTreinosExtra()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_teTeam?'selected':''}>${t.name}</option>`).join('')}</select>
   </div></div>
   <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Junta Ginásio (pré-treino), Treino Extra (autorreportado) e Treino Individual concluído — tudo o que não é Unidade de Treino. Só mostra o que já tem PSE registado; expande cada atleta para editar ou apagar.</div>
-  <div class="card"><div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Ginásio</th><th>Extra</th><th>Individual</th><th>UA Total</th><th>Registos</th></tr></thead>
+  <div class="card"><div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Ginásio</th><th>Extra</th><th>Individual</th><th title="Só a carga desta página — Ginásio+Extra+Individual. Não inclui Unidades de Treino.">UA Extra ⓘ</th><th>Registos</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:20px">Sem atletas nesta equipa</td></tr>'}</tbody></table></div></div></div>`;
 }
 
