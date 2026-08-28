@@ -515,7 +515,7 @@ function defApp(){
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],
-    anamnesis:[],extraTrainings:[],gymSheets:[],
+    anamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     users:[]
   };
 }
@@ -2252,6 +2252,24 @@ function openAthleteModal(id){
   const extraMin7=extraList7.reduce((s,e)=>s+(+e.duration||0),0);
   // Convocatórias
   const convocs=(APP.convocatorias||[]).filter(c=>c.athletes&&c.athletes.includes(id)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
+  // Progressão de Ginásio (Fase 2): agrupa os registos desta atleta por nome de
+  // exercício (não por índice — cada sessão pode ter uma ficha/ordem diferente),
+  // cruzando gymRecords com a data do evento correspondente. Ver
+  // project_sps_fichas_ginasio_fase2.
+  const gymTimeline={};
+  (APP.gymRecords||[]).filter(r=>r.athleteId===id).forEach(r=>{
+    const gev=APP.schedule.find(e=>e.id===r.eventId);
+    if(!gev||!gev.gymSheet)return;
+    (gev.gymSheet.exercises||[]).forEach((ex,i)=>{
+      const v=(r.vals||[])[i];
+      if(v&&v.trim()){
+        if(!gymTimeline[ex.name])gymTimeline[ex.name]=[];
+        gymTimeline[ex.name].push({date:gev.date,val:v});
+      }
+    });
+  });
+  Object.keys(gymTimeline).forEach(k=>gymTimeline[k].sort((a,b)=>b.date.localeCompare(a.date)));
+  const gymExNames=Object.keys(gymTimeline).sort();
   // Club history
   const clubHistory=at.clubHistory||[];
   // ── Estado da Atleta — alertas compostos (carga, wellness, ciclo, fisio, nutrição, presenças) ──
@@ -2411,6 +2429,11 @@ function openAthleteModal(id){
         +(extraList7.length?'<div style="font-size:11px;margin-bottom:8px;padding:5px 8px;background:var(--bg3);border-radius:6px">'+extraList7.length+' sessão'+(extraList7.length>1?'ões':'')+' · '+extraMin7+' min nos últimos 7 dias</div>':'<div style="color:var(--t2);font-size:11px;margin-bottom:8px">Sem treino extra nos últimos 7 dias</div>')
         +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos registos</div>'
         +(extraList.length?extraList.slice(0,3).map(e=>'<div style="padding:4px 0;border-bottom:1px solid var(--brd)"><div style="display:flex;justify-content:space-between;font-size:11px"><span>'+(e.type||'—')+' · '+e.duration+'min · PSE '+e.pse+'</span><span style="color:var(--t2)">'+fmtDate(e.date)+'</span></div>'+(e.summary?'<div style="font-size:10px;color:var(--t2);margin-top:2px;font-style:italic">"'+escHtml(e.summary)+'"</div>':'')+'</div>').join(''):'<div style="color:var(--t2);font-size:12px">Sem registos</div>')
+      +'</div>'
+      // Progressão de Ginásio (Fase 2)
+      +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+        +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏋️‍♀️ Progressão de Ginásio</div>'
+        +(gymExNames.length?gymExNames.map(name=>'<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:700">'+escHtml(name)+'</div><div style="font-size:10.5px;color:var(--t2)">'+gymTimeline[name].slice(0,4).map(h=>escHtml(h.val)+' <span style="color:var(--t3)">('+fmtDateShort(h.date)+')</span>').join(' · ')+'</div></div>').join(''):'<div style="color:var(--t2);font-size:11px">Sem registos de ginásio ainda</div>')
       +'</div>'
     +'</div>'
     // ── Club history ──
@@ -2782,10 +2805,12 @@ function _renderEfGymBox(){
       <div style="font-size:10.5px;color:var(--t2)">${(_efGymSheet.exercises||[]).length} exercício${(_efGymSheet.exercises||[]).length!==1?'s':''}</div>
     </div>
     <div style="display:flex;gap:6px">
+      ${_editEvId?`<button class="btn btn-xs btn-g" onclick="openGymSessionGrid('${_editEvId}')">📋 Registar Sessão</button>`:''}
       <button class="btn btn-xs btn-gh" onclick="pickGymSheetForEvent()">Trocar</button>
       <button class="btn btn-xs btn-r" onclick="_efGymSheet=null;_renderEfGymBox()">Remover</button>
     </div>
-  </div>`:`<button class="btn btn-sm btn-gh" onclick="pickGymSheetForEvent()">+ Importar Ficha da Biblioteca</button>`;
+  </div>
+  ${!_editEvId?`<div style="font-size:10.5px;color:var(--t2);margin-top:4px">Guarda o evento primeiro para poderes registar a sessão.</div>`:''}`:`<button class="btn btn-sm btn-gh" onclick="pickGymSheetForEvent()">+ Importar Ficha da Biblioteca</button>`;
 }
 function pickGymSheetForEvent(){
   const list=(APP.gymSheets||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
@@ -8328,11 +8353,22 @@ function deleteExercise(id){if(!confirm('Apagar?'))return;_markDeleted('exercise
 // exercício da Biblioteca). Fase 1 só cria/gere as fichas; importar para um
 // evento de Ginásio concreto e a grelha de registo por atleta ficam para a
 // Fase 2. Pedido do Roger 28/08/2026, ver project_sps_fichas_ginasio_fase1.
-let _gsView='list', _gsDraft=null;
+let _gsView='list', _gsDraft=null, _gsTab='fichas';
 const GS_PHASES=['Pré-época','Época — Manutenção','Época — Pico','Recuperação','Pós-época'];
+// Aba "Registos" (Fase 2): acesso squad-wide/histórico à mesma grelha de
+// openGymSessionGrid() usada também a partir do botão "Registar Sessão" no
+// evento (Planeamento) — dois pontos de entrada, um único motor. Ver
+// project_sps_fichas_ginasio_fase2.
+function _gsTabsHtml(){
+  return `<div class="tabs" style="max-width:260px;margin-bottom:12px">
+    <button class="tab-btn ${_gsTab==='fichas'?'on':''}" onclick="_gsTab='fichas';renderFichasGinasio()">Fichas</button>
+    <button class="tab-btn ${_gsTab==='registos'?'on':''}" onclick="_gsTab='registos';renderFichasGinasio()">Registos</button>
+  </div>`;
+}
 function renderFichasGinasio(){
   if(_gsView==='detail'&&_gsDraft){_renderGsDetail();return;}
   _gsView='list';_gsDraft=null;
+  if(_gsTab==='registos'){renderGymRecordsList();return;}
   const list=(APP.gymSheets||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const cardsHtml=list.length?list.map(f=>`
   <div class="card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
@@ -8349,8 +8385,31 @@ function renderFichasGinasio(){
   document.getElementById('pg-fichas-ginasio').innerHTML=`
   <div class="sh"><div class="sh-t">🏋️‍♀️ Fichas de Ginásio (${list.length})</div>
   <button class="btn btn-g" onclick="newGymSheet()">+ Nova Ficha</button></div>
+  ${_gsTabsHtml()}
   <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Modelos de sessão de ginásio (exercícios + séries/reps/RIR) para importar depois numa sessão de Ginásio no Planeamento.</div>
   ${cardsHtml}`;
+}
+function renderGymRecordsList(){
+  const evs=(APP.schedule||[]).filter(e=>e.type==='Ginásio'&&e.gymSheet).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.time||'').localeCompare(a.time||''));
+  const rowsHtml=evs.length?evs.map(ev=>{
+    const n=(APP.gymRecords||[]).filter(r=>r.eventId===ev.id).length;
+    const team=APP.teams.find(t=>t.id===ev.teamId);
+    return `<div class="card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <div>
+      <div style="font-size:13px;font-weight:700">${escHtml(ev.gymSheet.title||ev.title)}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:2px">${fmtDate(ev.date)}${ev.time?' · '+ev.time.slice(0,5):''} · ${escHtml(team?team.name:'')} · ${n} registo${n!==1?'s':''}</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm btn-g" onclick="openGymSessionGrid('${ev.id}')">📋 Ver/Editar Registos</button>
+      <button class="btn btn-sm btn-gh" onclick="exportGymSessionPDF('${ev.id}')">🖨️ PDF</button>
+    </div>
+  </div>`;
+  }).join(''):`<div class="empty"><div class="ei">📋</div><p>Ainda não há sessões de Ginásio com ficha importada.</p></div>`;
+  document.getElementById('pg-fichas-ginasio').innerHTML=`
+  <div class="sh"><div class="sh-t">🏋️‍♀️ Fichas de Ginásio</div></div>
+  ${_gsTabsHtml()}
+  <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Sessões de Ginásio já agendadas com ficha importada — abre para registar ou consultar carga/reps/RIR/observações por atleta.</div>
+  ${rowsHtml}`;
 }
 function newGymSheet(){
   _gsDraft={id:uid(),title:'',phase:GS_PHASES[0],notes:'',exercises:[],createdAt:new Date().toISOString()};
@@ -8464,6 +8523,168 @@ function saveGymSheet(){
   const idx=APP.gymSheets.findIndex(f=>f.id===_gsDraft.id);
   if(idx>=0)APP.gymSheets[idx]=_gsDraft;else APP.gymSheets.push(_gsDraft);
   saveData();toast('Ficha guardada ✓');_gsView='list';_gsDraft=null;renderFichasGinasio();
+}
+
+// ─── REGISTOS DE GINÁSIO (Fase 2) ──────────────────────────
+// Grelha de registo de uma sessão de Ginásio concreta: uma linha por atleta
+// da equipa do evento (+ convocadas avulso, mesmo padrão de guestIds já usado
+// no resto do Planeamento), colunas = cada exercício da ficha importada
+// (carga×reps em texto livre, como no papel) + RIR geral + Observações
+// (partilhados pela sessão toda, não por exercício — replica a "Tabela geral
+// de registo" do documento original do Roger). Aberta a partir de 2 sítios:
+// botão "Registar Sessão" no editor do evento (Planeamento) e a partir da
+// aba "Registos" em Fichas de Ginásio — ambos chamam openGymSessionGrid(id).
+// _gymGridData é um rascunho em memória (não grava a cada tecla); só grava
+// tudo de uma vez ao clicar "Guardar Registos", mesmo espírito do _gsDraft
+// nas Fichas. Ver project_sps_fichas_ginasio_fase2.
+let _gymGridEventId=null, _gymGridData={};
+function _gymGridAthletes(ev){
+  return APP.athletes.filter(a=>a.teamId===ev.teamId||(ev.guestIds||[]).includes(a.id)).sort((a,b)=>_shortName(a).localeCompare(_shortName(b)));
+}
+function openGymSessionGrid(eventId){
+  const ev=APP.schedule.find(e=>e.id===eventId);
+  if(!ev||!ev.gymSheet){toast('Esta sessão não tem ficha importada','err');return;}
+  _gymGridEventId=eventId;
+  _gymGridData={};
+  _gymGridAthletes(ev).forEach(a=>{
+    const rec=(APP.gymRecords||[]).find(r=>r.eventId===eventId&&r.athleteId===a.id);
+    _gymGridData[a.id]={vals:rec&&rec.vals?[...rec.vals]:[],rirGeral:(rec&&rec.rirGeral)||'',obs:(rec&&rec.obs)||''};
+  });
+  renderGymSessionGrid();
+}
+function renderGymSessionGrid(){
+  const ev=APP.schedule.find(e=>e.id===_gymGridEventId);
+  if(!ev||!ev.gymSheet){closeMod();return;}
+  const gs=ev.gymSheet;
+  const athletes=_gymGridAthletes(ev);
+  const headHtml=gs.exercises.map(ex=>`<th style="padding:6px 8px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--brd)">${escHtml(ex.name)}<div style="font-weight:400;font-size:9.5px;color:var(--t2)">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div></th>`).join('');
+  const rowsHtml=athletes.length?athletes.map(a=>{
+    const d=_gymGridData[a.id]||{vals:[],rirGeral:'',obs:''};
+    const exCells=gs.exercises.map((ex,i)=>`<td style="padding:3px 6px"><input class="fc" style="width:100px;font-size:11px;padding:5px 7px" value="${escHtml(d.vals[i]||'')}" placeholder="kg × reps" data-ath="${a.id}" data-ex="${i}" oninput="_gymCellInput(this)"></td>`).join('');
+    return `<tr>
+      <td style="padding:6px 8px;font-weight:700;white-space:nowrap;border-bottom:1px solid var(--brd)">${escHtml(_shortName(a))}</td>
+      ${exCells}
+      <td style="padding:3px 6px"><input class="fc" style="width:50px;font-size:11px;padding:5px 7px" value="${escHtml(d.rirGeral||'')}" placeholder="RIR" data-ath="${a.id}" data-f="rirGeral" oninput="_gymCellInput(this)"></td>
+      <td style="padding:3px 6px"><input class="fc" style="width:160px;font-size:11px;padding:5px 7px" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="99" style="padding:16px;text-align:center;color:var(--t2)">Sem atletas nesta equipa.</td></tr>`;
+  openMod(`📋 Registar Sessão — ${escHtml(gs.title||'Ficha')} (${fmtDate(ev.date)})`,`
+  <div style="overflow-x:auto;max-height:60vh">
+  <table style="border-collapse:collapse;width:100%">
+    <thead><tr>
+      <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd)">Atleta</th>
+      ${headHtml}
+      <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd);white-space:nowrap">RIR geral</th>
+      <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd)">Observações</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-g" onclick="saveGymRecords()">💾 Guardar Registos</button>
+    <button class="btn btn-gh" onclick="exportGymSessionPDFFromGrid()">🖨️ Exportar PDF</button>
+    <button class="btn btn-gh" onclick="closeMod()">Fechar</button>
+  </div>`,'xl');
+}
+function _gymCellInput(el){
+  const ath=el.getAttribute('data-ath');
+  if(!_gymGridData[ath])_gymGridData[ath]={vals:[],rirGeral:'',obs:''};
+  const exIdx=el.getAttribute('data-ex');
+  const f=el.getAttribute('data-f');
+  if(exIdx!==null){_gymGridData[ath].vals[+exIdx]=el.value;}
+  else if(f==='rirGeral'){_gymGridData[ath].rirGeral=el.value;}
+  else if(f==='obs'){_gymGridData[ath].obs=el.value;}
+}
+async function saveGymRecords(){
+  const ev=APP.schedule.find(e=>e.id===_gymGridEventId);
+  if(!ev)return;
+  if(!APP.gymRecords)APP.gymRecords=[];
+  for(const athleteId in _gymGridData){
+    const d=_gymGridData[athleteId];
+    const hasData=(d.vals||[]).some(v=>v&&v.trim())||(d.rirGeral&&d.rirGeral.trim())||(d.obs&&d.obs.trim());
+    let rec=APP.gymRecords.find(r=>r.eventId===ev.id&&r.athleteId===athleteId);
+    if(!hasData){
+      if(rec){
+        _markDeleted('gymRecords',rec.id);
+        APP.gymRecords=APP.gymRecords.filter(r=>r.id!==rec.id);
+        if(_sync&&_supa){try{await _supa.from('gym_records').delete().eq('id',rec.id);}catch(err){_warnSyncFailure('gym_records (apagar)',err);}}
+      }
+      continue;
+    }
+    if(rec){rec.vals=d.vals;rec.rirGeral=d.rirGeral;rec.obs=d.obs;rec.updatedAt=new Date().toISOString();}
+    else{rec={id:uid(),eventId:ev.id,athleteId,vals:d.vals,rirGeral:d.rirGeral,obs:d.obs,updatedAt:new Date().toISOString()};APP.gymRecords.push(rec);}
+    if(_sync)await cloudUpsert('gym_records',{...rec,club_id:_cid});
+  }
+  saveData();
+  toast('Registos guardados ✓');
+  closeMod();
+  const gsPage=document.getElementById('pg-fichas-ginasio');
+  if(gsPage&&gsPage.classList.contains('on')&&_gsTab==='registos')renderGymRecordsList();
+}
+
+// PDF de uma sessão de Ginásio: A4 paisagem, 3 blocos de exercício por página
+// (imagem+identificação+prescrição à esquerda, atletas em grelha compacta à
+// direita) + página final com RIR geral/Observações. Uma única função de
+// render (_gymSessionPdfHtml) recebe um dataMap {athleteId:{vals,rirGeral,obs}}
+// — chamada com dados vazios produz um modelo em branco (para imprimir e
+// preencher à mão no ginásio); chamada com APP.gymRecords ou o rascunho ao
+// vivo da grelha (_gymGridData) produz o registo preenchido. Dois pontos de
+// entrada: exportGymSessionPDF(eventId) (fora da grelha, lê o guardado) e
+// exportGymSessionPDFFromGrid() (dentro da grelha aberta, lê o rascunho não
+// guardado). Ver project_sps_fichas_ginasio_fase2.
+function _gymSessionPdfHtml(ev,dataMap){
+  const gs=ev.gymSheet;
+  const athletes=_gymGridAthletes(ev);
+  const cols=athletes.length>18?6:(athletes.length>10?5:4);
+  const exercises=gs.exercises||[];
+  const blocksHtml=exercises.length?exercises.map((ex,idx)=>{
+    const athCells=athletes.map(a=>{
+      const d=dataMap[a.id]||{};
+      const v=(d.vals||[])[idx]||'';
+      return `<div style="display:flex;justify-content:space-between;gap:4px;border-bottom:1px dotted #ccc;padding:1.5px 0;font-size:7pt;overflow:hidden">
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:58%">${escHtml(_shortName(a))}</span>
+        <span style="color:#1d6f3b;font-weight:700;white-space:nowrap">${v?escHtml(v):'&nbsp;'}</span>
+      </div>`;
+    }).join('');
+    const imgPart=ex.img?`<img src="${ex.img}" style="width:26mm;height:26mm;object-fit:cover;border-radius:4px;flex-shrink:0">`
+      :`<div style="width:26mm;height:26mm;border-radius:4px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏋️</div>`;
+    return `<div style="${idx>0&&idx%3===0?'page-break-before:always;':''}display:flex;gap:10px;border:1px solid #ddd;border-radius:8px;padding:8px;margin-bottom:6mm;height:52mm;page-break-inside:avoid">
+      <div style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;width:70mm;overflow:hidden">
+        ${imgPart}
+        <div style="font-size:9.5pt;font-weight:700;color:#1d6f3b">${escHtml(ex.name)}</div>
+        <div style="font-size:7.5pt;color:#666">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}${ex.equip?' · '+escHtml(ex.equip):''}</div>
+        <div style="font-size:7pt;color:#555;line-height:1.3;overflow:hidden">${escHtml(ex.desc||'')}</div>
+      </div>
+      <div style="flex:1;display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px 8px;align-content:start;overflow:hidden">${athCells||'<div style="color:#bbb;font-size:8pt">Sem atletas nesta equipa.</div>'}</div>
+    </div>`;
+  }).join(''):'<div style="color:#999;text-align:center;padding:30px">Esta ficha não tem exercícios.</div>';
+  const summaryRows=athletes.length?athletes.map(a=>{
+    const d=dataMap[a.id]||{};
+    return `<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;font-weight:700">${escHtml(_shortName(a))}</td><td style="padding:5px 8px;border-bottom:1px solid #eee">${escHtml(d.rirGeral||'')||'&nbsp;'}</td><td style="padding:5px 8px;border-bottom:1px solid #eee">${escHtml(d.obs||'')||'&nbsp;'}</td></tr>`;
+  }).join(''):`<tr><td colspan="3" style="padding:8px;color:#999">Sem atletas nesta equipa.</td></tr>`;
+  const summaryHtml=`<div style="page-break-before:always">
+    <div style="font-size:11pt;font-weight:700;color:#1d6f3b;margin-bottom:8px">RIR Geral &amp; Observações</div>
+    <table style="width:100%;border-collapse:collapse;font-size:9pt">
+      <thead><tr><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">Atleta</th><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">RIR geral</th><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">Observações</th></tr></thead>
+      <tbody>${summaryRows}</tbody>
+    </table>
+  </div>`;
+  return `<div>${blocksHtml}${summaryHtml}</div>`;
+}
+function exportGymSessionPDF(eventId){
+  const ev=APP.schedule.find(e=>e.id===eventId);
+  if(!ev||!ev.gymSheet){toast('Esta sessão não tem ficha importada','err');return;}
+  const dataMap={};
+  _gymGridAthletes(ev).forEach(a=>{
+    const rec=(APP.gymRecords||[]).find(r=>r.eventId===eventId&&r.athleteId===a.id);
+    dataMap[a.id]=rec?{vals:rec.vals||[],rirGeral:rec.rirGeral||'',obs:rec.obs||''}:{vals:[],rirGeral:'',obs:''};
+  });
+  _printWin('Registo de Ginásio — '+(ev.gymSheet.title||'Ficha')+' ('+fmtDate(ev.date)+')',_gymSessionPdfHtml(ev,dataMap),null,false,true);
+}
+function exportGymSessionPDFFromGrid(){
+  const ev=APP.schedule.find(e=>e.id===_gymGridEventId);
+  if(!ev||!ev.gymSheet)return;
+  _printWin('Registo de Ginásio — '+(ev.gymSheet.title||'Ficha')+' ('+fmtDate(ev.date)+')',_gymSessionPdfHtml(ev,_gymGridData),null,false,true);
 }
 
 // ─── TREINOS INDIVIDUALIZADOS ─────────────────────────────
@@ -11272,7 +11493,12 @@ async function pullCloud(){
       // sem ligação a schedule_events — tabela dedicada própria, mesmo padrão de pse_records/
       // wellness_records (série temporal, não singleton). UA calculado mas propositadamente
       // NÃO somado ao ACWR oficial (_acwrAt só lê APP.pse) — ver project_sps_treino_extra_atleta_plano.
-      ['extra_training_records','extraTrainings',(d)=>APP.extraTrainings=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at}))]
+      ['extra_training_records','extraTrainings',(d)=>APP.extraTrainings=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at}))],
+      // Registos de Ginásio (Fase 2): um registo por atleta por sessão, vals[] paralelo a
+      // event.gymSheet.exercises (mesmo índice = mesmo exercício). Tabela dedicada própria
+      // (mesmo padrão de pse_records/attendance_records) em vez de meta blob — pode crescer
+      // muito (1 linha por atleta por sessão de Ginásio). Ver project_sps_fichas_ginasio_fase2.
+      ['gym_records','gymRecords',(d)=>APP.gymRecords=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,rirGeral:r.rir_geral,updatedAt:r.updated_at,vals:r.vals||[]}))]
     ];
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
@@ -11444,7 +11670,9 @@ const _CLOUD_TABLE_SCHEMA={
   athlete_anamnesis:{cols:['id','athlete_id','self_report','self_report_updated_at','clinical_notes','clinical_notes_updated_at','clinical_notes_updated_by','fisio_viewed_at'],
     rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',clinicalNotes:'clinical_notes',clinicalNotesUpdatedAt:'clinical_notes_updated_at',clinicalNotesUpdatedBy:'clinical_notes_updated_by',fisioViewedAt:'fisio_viewed_at'}},
   extra_training_records:{cols:['id','athlete_id','date','type','duration','pse','ua','summary','guidance','submitted_at'],
-    rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}}
+    rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
+  gym_records:{cols:['id','event_id','athlete_id','vals','rir_geral','obs','updated_at'],
+    rename:{eventId:'event_id',athleteId:'athlete_id',rirGeral:'rir_geral',updatedAt:'updated_at'}}
 };
 // Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
 // console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud
