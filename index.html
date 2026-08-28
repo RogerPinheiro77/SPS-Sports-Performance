@@ -413,6 +413,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-treinos"></div>
       <div class="pg" id="pg-condicao-plantel"></div>
       <div class="pg" id="pg-pse-wellness"></div>
+      <div class="pg" id="pg-treinos-extra"></div>
       <div class="pg" id="pg-scouting"></div>
       <div class="pg" id="pg-avaliacoes"></div>
       <div class="pg" id="pg-convocatorias"></div>
@@ -828,6 +829,7 @@ const ALL_PAGES=[
   {sec:'Análise'},
   {id:'condicao-plantel',icon:'🚦',label:'Condição do Plantel'},
   {id:'pse-wellness',icon:'📊',label:'PSE & Wellness'},
+  {id:'treinos-extra',icon:'🏃',label:'Treinos Extra'},
   {id:'avaliacoes',icon:'⭐',label:'Avaliações'},
   {id:'convocatorias',icon:'📋',label:'Convocatórias'},
   {sec:'Recursos'},
@@ -854,7 +856,7 @@ const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 const ROLE_DEFS={
   treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
-  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos','treinos-ind','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat','fisio-anamnese'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos'],readOnly:false,manageUsers:false},
@@ -886,7 +888,7 @@ function _maybeEnterGamedayMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -962,7 +964,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -7192,6 +7194,114 @@ function renderPSEWellness(){
     <select class="fc" style="width:auto;font-size:11px" onchange="_pwTeam=this.value;renderPSEWellness()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_pwTeam?'selected':''}>${t.name}</option>`).join('')}</select>
   </div></div>
   ${mainTabs}${html}`;
+}
+
+// ─── TREINOS EXTRA (consolidado) ───────────────────────────
+// Página de consulta que junta, por atleta, tudo o que é carga de treino FORA das
+// Unidades de Treino: Ginásio do pré-treino (PSE com sessionType='Ginásio'), Treino
+// Extra autorreportado (APP.extraTrainings) e Treino Individual prescrito e concluído
+// (APP.trainingPlans com done=true, avaliado via PSE com eventId='plan_'+id). Só
+// entra no log o que já tem PSE submetido — sem "pendentes" — pedido do Roger
+// 28/08/2026, que também pediu edição direta aqui (mesmo padrão do PSE & Wellness,
+// ver [[project_sps_pse_wellness_edicao_manual]]). A ficha/título do Treino Individual
+// continua a gerir-se em "Treinos Individualizados" (renderTreinosInd) — aqui só se
+// edita a avaliação (PSE/duração) de cada sessão já registada.
+let _teTeam='T1', _teExpand=new Set();
+function _teToggle(aid){
+  if(_teExpand.has(aid))_teExpand.delete(aid);else _teExpand.add(aid);
+  renderTreinosExtra();
+}
+const _TE_ORIGEM_COLOR={Ginásio:'#7d3c98',Extra:'#fb923c',Individual:'#0e6251'};
+function _teRows(aid){
+  const out=[];
+  APP.pse.filter(p=>p.athleteId===aid&&p.sessionType==='Ginásio').forEach(p=>{
+    out.push({date:p.date,hora:fmtHora(p.submittedAt),origem:'Ginásio',tipo:'Ginásio',duracao:p.duration,pse:p.pse,ua:p.ua,pseId:p.id});
+  });
+  (APP.extraTrainings||[]).forEach(e=>{
+    if(e.athleteId!==aid)return;
+    out.push({date:e.date,hora:fmtHora(e.submittedAt),origem:'Extra',tipo:e.type||'—',duracao:e.duration,pse:e.pse,ua:e.ua,extraId:e.id});
+  });
+  (APP.trainingPlans||[]).forEach(p=>{
+    if(p.athleteId!==aid||!p.done)return;
+    const rec=APP.pse.find(x=>x.eventId==='plan_'+p.id);
+    if(!rec)return; // só entra depois de avaliada (PSE submetido)
+    out.push({date:rec.date,hora:fmtHora(rec.submittedAt),origem:'Individual',tipo:p.title||'Treino Individual',duracao:rec.duration,pse:rec.pse,ua:rec.ua,pseId:rec.id});
+  });
+  out.sort((a,b)=>(b.date+'T'+(b.hora==='—'?'00:00':b.hora)).localeCompare(a.date+'T'+(a.hora==='—'?'00:00':a.hora)));
+  return out;
+}
+function _teSavePse(id){
+  const p=APP.pse.find(x=>x.id===id);if(!p)return;
+  const pse=+document.getElementById('tepS-'+id).value;
+  const dur=+document.getElementById('tepD-'+id).value;
+  if(!dur)return toast('Duração obrigatória','err');
+  p.pse=pse;p.duration=dur;p.ua=Math.round(pse*dur);
+  if(_sync)cloudUpsert('pse_records',{...p,athlete_id:p.athleteId,session_type:p.sessionType,club_id:_cid});
+  saveData();toast('Registo atualizado ✓');renderTreinosExtra();
+}
+function _teDeletePse(id){
+  if(!confirm('Apagar esta avaliação? A sessão/ficha associada fica sem PSE registado (a atleta pode voltar a submeter, se ainda estiver dentro da janela).'))return;
+  APP.pse=APP.pse.filter(p=>p.id!==id);
+  if(_sync&&_supa){_supa.from('pse_records').delete().eq('id',id).catch(err=>_warnSyncFailure('pse_records (apagar)',err));}
+  saveData();toast('Registo apagado');renderTreinosExtra();
+}
+function _teSaveExtra(id){
+  const e=(APP.extraTrainings||[]).find(x=>x.id===id);if(!e)return;
+  const pse=+document.getElementById('teeS-'+id).value;
+  const dur=+document.getElementById('teeD-'+id).value;
+  const type=document.getElementById('teeT-'+id).value;
+  if(!dur)return toast('Duração obrigatória','err');
+  e.pse=pse;e.duration=dur;e.type=type;e.ua=Math.round(pse*dur);
+  if(_sync)cloudUpsert('extra_training_records',{...e,athlete_id:e.athleteId,club_id:_cid});
+  saveData();toast('Registo atualizado ✓');renderTreinosExtra();
+}
+function _teDeleteExtra(id){
+  if(!confirm('Apagar este registo de Treino Extra?'))return;
+  APP.extraTrainings=(APP.extraTrainings||[]).filter(e=>e.id!==id);
+  if(_sync&&_supa){_supa.from('extra_training_records').delete().eq('id',id).catch(err=>_warnSyncFailure('extra_training_records (apagar)',err));}
+  saveData();toast('Registo apagado');renderTreinosExtra();
+}
+function renderTreinosExtra(){
+  const athletes=APP.athletes.filter(a=>a.teamId===_teTeam).sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=athletes.map(at=>{
+    const recs=_teRows(at.id);
+    const totalUA=recs.reduce((s,r)=>s+(r.ua||0),0);
+    const cG=recs.filter(r=>r.origem==='Ginásio').length, cE=recs.filter(r=>r.origem==='Extra').length, cI=recs.filter(r=>r.origem==='Individual').length;
+    const isExp=_teExpand.has(at.id);
+    const histRow=isExp?`<tr><td colspan="7" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">${recs.length} registo${recs.length!==1?'s':''} de ${escHtml(at.name)} — edita para corrigir um erro</div>
+      <table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>Hora</th><th>Origem</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th><th>Ações</th></tr></thead>
+      <tbody>${recs.length?recs.map(r=>{
+        const badge=`<span class="bdg" style="background:${_TE_ORIGEM_COLOR[r.origem]}22;color:${_TE_ORIGEM_COLOR[r.origem]}">${r.origem}</span>`;
+        let tipoCell,durCell,pseCell,actions;
+        if(r.origem==='Extra'){
+          tipoCell=`<select id="teeT-${r.extraId}" class="fc" style="padding:2px 4px;font-size:11px;width:auto">${_EXTRA_TYPES.map(o=>`<option ${o===r.tipo?'selected':''}>${o}</option>`).join('')}</select>`;
+          durCell=`<input id="teeD-${r.extraId}" class="fc" type="number" min="1" max="300" value="${r.duracao}" style="width:58px;padding:2px 4px;font-size:11px">`;
+          pseCell=`<select id="teeS-${r.extraId}" class="fc" style="padding:2px 4px;font-size:11px;width:52px">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${r.pse==n?'selected':''}>${n}</option>`).join('')}</select>`;
+          actions=`<button class="btn btn-xs btn-g" title="Guardar" onclick="_teSaveExtra('${r.extraId}')">💾</button> <button class="btn btn-xs btn-gh" title="Apagar" onclick="_teDeleteExtra('${r.extraId}')">🗑️</button>`;
+        } else {
+          tipoCell=escHtml(r.tipo);
+          durCell=`<input id="tepD-${r.pseId}" class="fc" type="number" min="1" max="300" value="${r.duracao}" style="width:58px;padding:2px 4px;font-size:11px">`;
+          pseCell=`<select id="tepS-${r.pseId}" class="fc" style="padding:2px 4px;font-size:11px;width:52px">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${r.pse==n?'selected':''}>${n}</option>`).join('')}</select>`;
+          actions=`<button class="btn btn-xs btn-g" title="Guardar" onclick="_teSavePse('${r.pseId}')">💾</button> <button class="btn btn-xs btn-gh" title="Apagar" onclick="_teDeletePse('${r.pseId}')">🗑️</button>`;
+        }
+        return `<tr><td>${fmtDate(r.date)}</td><td>${r.hora}</td><td>${badge}</td><td>${tipoCell}</td><td>${durCell}</td><td>${pseCell}</td><td>${r.ua}</td><td style="white-space:nowrap">${actions}</td></tr>`;
+      }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table>
+    </div></td></tr>`:'';
+    return `<tr><td><div style="display:flex;align-items:center;gap:7px" title="${escHtml(at.name)}"><button class="btn btn-xs btn-gh" onclick="_teToggle('${at.id}')" title="Ver registos" style="padding:2px 6px">${isExp?'▴':'▾'}</button>${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_shortName(at))}</strong></div></td><td>${at.pos||'—'}</td>
+    <td style="text-align:center">${cG}</td><td style="text-align:center">${cE}</td><td style="text-align:center">${cI}</td>
+    <td style="text-align:center"><strong>${totalUA}</strong></td>
+    <td style="text-align:center">${recs.length}</td></tr>${histRow}`;
+  }).join('');
+
+  document.getElementById('pg-treinos-extra').innerHTML=`
+  <div class="sh"><div class="sh-t">🏃 Treinos Extra</div>
+  <div class="sh-a">
+    <select class="fc" style="width:auto;font-size:11px" onchange="_teTeam=this.value;renderTreinosExtra()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_teTeam?'selected':''}>${t.name}</option>`).join('')}</select>
+  </div></div>
+  <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Junta Ginásio (pré-treino), Treino Extra (autorreportado) e Treino Individual concluído — tudo o que não é Unidade de Treino. Só mostra o que já tem PSE registado; expande cada atleta para editar ou apagar.</div>
+  <div class="card"><div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Ginásio</th><th>Extra</th><th>Individual</th><th>UA Total</th><th>Registos</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:20px">Sem atletas nesta equipa</td></tr>'}</tbody></table></div></div></div>`;
 }
 
 // ─── SCOUTING ─────────────────────────────────────────────
