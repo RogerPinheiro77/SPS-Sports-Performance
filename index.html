@@ -418,6 +418,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-avaliacoes"></div>
       <div class="pg" id="pg-convocatorias"></div>
       <div class="pg" id="pg-biblioteca"></div>
+      <div class="pg" id="pg-fichas-ginasio"></div>
       <div class="pg" id="pg-treinos-ind"></div>
       <div class="pg" id="pg-formacao"></div>
       <div class="pg" id="pg-fisio-dash"></div>
@@ -514,7 +515,7 @@ function defApp(){
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],
-    anamnesis:[],extraTrainings:[],
+    anamnesis:[],extraTrainings:[],gymSheets:[],
     users:[]
   };
 }
@@ -835,6 +836,7 @@ const ALL_PAGES=[
   {sec:'Recursos'},
   {id:'scouting',icon:'🔍',label:'Scouting'},
   {id:'biblioteca',icon:'📚',label:'Biblioteca de Exercícios'},
+  {id:'fichas-ginasio',icon:'🏋️‍♀️',label:'Fichas de Ginásio'},
   {id:'treinos-ind',icon:'🏋️',label:'Treinos Individuais'},
   {sec:'Exportações'},
   {id:'relatorios',icon:'📥',label:'Relatórios'},
@@ -856,7 +858,7 @@ const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 const ROLE_DEFS={
   treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
-  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat','fisio-anamnese'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos'],readOnly:false,manageUsers:false},
@@ -888,7 +890,7 @@ function _maybeEnterGamedayMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -964,7 +966,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -2582,6 +2584,12 @@ function _upcomingGuestCall(athleteId){
 // misturadas — o Roger achou confuso e pediu para escolher primeiro a equipa de
 // origem. Ver project_sps_convocatoria_avulsa_equipas_v2.
 let _efGuestIds=[];
+// Ficha de Ginásio anexada ao evento em edição — cópia congelada no momento da
+// importação (mesmo padrão de snapshot da Biblioteca de Exercícios, ver
+// _pickGsEx), não referência viva à ficha original. Assim editar/apagar a ficha
+// depois na Biblioteca de Fichas não altera sessões já importadas. Ver
+// project_sps_fichas_ginasio_fase1.
+let _efGymSheet=null;
 function _guestIdsFor(prefix){
   if(prefix==='ef')return _efGuestIds;
   if(prefix==='trg'){const tr=_getTr();if(!tr)return[];if(!tr.guestIds)tr.guestIds=[];return tr.guestIds;}
@@ -2759,6 +2767,42 @@ function _toggleEfTreinoFields(){
   // convocatória deles próprios na página do Jogo — ver _jogoPreHtml).
   const guestWrap=document.getElementById('ef-guest-wrap');
   if(guestWrap)guestWrap.style.display=_isTrainingType(type)?'':'none';
+  // Ficha de Ginásio só faz sentido no tipo 'Ginásio' específico.
+  const gymWrap=document.getElementById('ef-gym-wrap');
+  if(gymWrap)gymWrap.style.display=type==='Ginásio'?'':'none';
+  if(type==='Ginásio')_renderEfGymBox();
+}
+function _renderEfGymBox(){
+  const box=document.getElementById('ef-gym-box');
+  if(!box)return;
+  box.innerHTML=_efGymSheet?`
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border-radius:8px;padding:8px 10px">
+    <div>
+      <div style="font-size:12px;font-weight:700">🏋️‍♀️ ${escHtml(_efGymSheet.title||'Ficha')}</div>
+      <div style="font-size:10.5px;color:var(--t2)">${(_efGymSheet.exercises||[]).length} exercício${(_efGymSheet.exercises||[]).length!==1?'s':''}</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-xs btn-gh" onclick="pickGymSheetForEvent()">Trocar</button>
+      <button class="btn btn-xs btn-r" onclick="_efGymSheet=null;_renderEfGymBox()">Remover</button>
+    </div>
+  </div>`:`<button class="btn btn-sm btn-gh" onclick="pickGymSheetForEvent()">+ Importar Ficha da Biblioteca</button>`;
+}
+function pickGymSheetForEvent(){
+  const list=(APP.gymSheets||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const html=list.length?list.map(f=>`
+  <div class="card" style="padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;margin-bottom:6px" onclick="_applyGymSheetToEvent('${f.id}')">
+    <div>
+      <div style="font-weight:700;font-size:12.5px">${escHtml(f.title||'Ficha sem título')}</div>
+      <div style="font-size:10.5px;color:var(--t2)">${escHtml(f.phase||'—')} · ${(f.exercises||[]).length} exercícios</div>
+    </div>
+    <span style="font-size:16px">→</span>
+  </div>`).join(''):`<div class="empty"><div class="ei">🏋️‍♀️</div><p>Sem fichas na Biblioteca de Ginásio ainda.</p></div>`;
+  openMod('Importar Ficha de Ginásio',html,'lg');
+}
+function _applyGymSheetToEvent(fId){
+  const f=(APP.gymSheets||[]).find(x=>x.id===fId);if(!f)return;
+  _efGymSheet=JSON.parse(JSON.stringify(f));
+  closeMod();_renderEfGymBox();
 }
 function renderPlaneamento(){
   const td=today();
@@ -2781,6 +2825,10 @@ function renderPlaneamento(){
     <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="ef-notes" rows="2"></textarea></div>
     </div>
     <div id="ef-guest-wrap" style="display:none">${_guestPickerHtml('ef',_efGuestIds,(_editEvId&&APP.schedule.find(e=>e.id===_editEvId)?.teamId)||'T1')}</div>
+    <div id="ef-gym-wrap" style="display:none">
+      <label class="fl">Ficha de Ginásio</label>
+      <div id="ef-gym-box" style="margin-bottom:8px"></div>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-g" onclick="saveEvent()">💾 Guardar</button>
     <button class="btn btn-gh" onclick="_showEvForm=false;_editEvId=null;renderPlaneamento()">Cancelar</button>
     ${_editEvId?`<button class="btn btn-r" onclick="deleteEvent('${_editEvId}')">🗑️ Apagar</button>`:''}</div>
@@ -2807,7 +2855,7 @@ function renderPlaneamento(){
     </div>
     <div class="sh-a">
       <button class="btn btn-gh" onclick="exportPlaneamentoPDF()">🖨️ Exportar PDF</button>
-      <button class="btn btn-g" onclick="_showEvForm=true;_editEvId=null;_selDate=today();_efGuestIds=[];renderPlaneamento()">+ Novo Evento</button>
+      <button class="btn btn-g" onclick="_showEvForm=true;_editEvId=null;_selDate=today();_efGuestIds=[];_efGymSheet=null;renderPlaneamento()">+ Novo Evento</button>
     </div>
   </div>
   ${formHtml}
@@ -2862,14 +2910,14 @@ function exportPlaneamentoPDF(){
   const title=isWeek?`Planeamento — Semana ${fmtDateShort(_planWeekStart)} a ${fmtDateShort(addDaysStr(_planWeekStart,6))}`:`Planeamento — ${PLAN_MONTHS[_calMonth]} ${_calYear}`;
   _printWin(title,_planPrintGridHtml(),null,false,true);
 }
-function clickDay(dt){_selDate=dt;_showEvForm=true;_editEvId=null;_efGuestIds=[];renderPlaneamento();}
-function editEvent(id){_editEvId=id;_showEvForm=true;const ev=APP.schedule.find(e=>e.id===id);_selDate=ev?.date;_efGuestIds=[...(ev?.guestIds||[])];renderPlaneamento();}
+function clickDay(dt){_selDate=dt;_showEvForm=true;_editEvId=null;_efGuestIds=[];_efGymSheet=null;renderPlaneamento();}
+function editEvent(id){_editEvId=id;_showEvForm=true;const ev=APP.schedule.find(e=>e.id===id);_selDate=ev?.date;_efGuestIds=[...(ev?.guestIds||[])];_efGymSheet=ev?.gymSheet?JSON.parse(JSON.stringify(ev.gymSheet)):null;renderPlaneamento();}
 async function saveEvent(){
   const type=document.getElementById('ef-type').value;
   const title=document.getElementById('ef-title').value.trim();
   const date=document.getElementById('ef-date').value;
   if(!type||!title||!date)return toast('Tipo, título e data obrigatórios','err');
-  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim(),guestIds:[..._efGuestIds]};
+  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim(),guestIds:[..._efGuestIds],gymSheet:type==='Ginásio'?(_efGymSheet||null):null};
   if(_editEvId){const i=APP.schedule.findIndex(e=>e.id===_editEvId);if(i>=0)APP.schedule[i]=ev;}
   else{APP.schedule.push(ev);}
   // Antes só o ramo de evento novo chamava cloudUpsert — editar um evento existente
@@ -8145,7 +8193,7 @@ function _publishConvNow(id){
 
 // ─── BIBLIOTECA ───────────────────────────────────────────
 let _libCat='', _showLibForm=false, _editLibId=null;
-const EX_CATS=['Tático','Físico','Técnico','Velocidade','Força','Resistência','Recuperação','Ativação'];
+const EX_CATS=['Tático','Físico','Técnico','Velocidade','Força','Resistência','Recuperação','Ativação','Ginásio'];
 function renderBiblioteca(){
   const formHtml=_showLibForm?`
   <div class="ipanel">
@@ -8212,6 +8260,12 @@ function renderBiblioteca(){
     }
   }
 }
+// Upload de imagem da Biblioteca de Exercícios: passa a ir para o Supabase Storage
+// (bucket 'exercicios', público) em vez de ficar embutida em base64 no registo —
+// pedido do Roger (28/08/2026) para não sobrecarregar a app/BD à medida que a
+// Biblioteca cresce e passa a ser partilhada (Fichas de Ginásio, e mais tarde
+// Unidades de Treino). Sem sync (offline) cai de volta para base64 local, para a
+// Biblioteca continuar a funcionar mesmo sem cloud. Ver project_sps_fichas_ginasio_fase1.
 function handleLibImgUpload(input){
   const file=input.files[0];if(!file)return;
   if(file.size>4*1024*1024)return toast('Imagem demasiado grande. Máx 4MB.','err');
@@ -8223,9 +8277,31 @@ function handleLibImgUpload(input){
       if(w>maxDim||h>maxDim){if(w>h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}
       const cv=document.createElement('canvas');cv.width=w;cv.height=h;
       cv.getContext('2d').drawImage(img,0,0,w,h);
-      const b64=cv.toDataURL('image/jpeg',0.85);
       const box=document.getElementById('lf-img-box');
-      if(box){box.setAttribute('data-val',b64);box.innerHTML='<img src="'+b64+'" style="width:100%;height:100%;object-fit:cover">';}
+      const toLocalB64=()=>{
+        const b64=cv.toDataURL('image/jpeg',0.85);
+        if(box){box.setAttribute('data-val',b64);box.innerHTML='<img src="'+b64+'" style="width:100%;height:100%;object-fit:cover">';}
+      };
+      if(_sync&&_supa){
+        if(box)box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:11px;color:var(--t2)">A enviar...</div>';
+        cv.toBlob(async function(blob){
+          if(!blob)return toLocalB64();
+          try{
+            const path=uid()+'.jpg';
+            const{error}=await _supa.storage.from('exercicios').upload(path,blob,{contentType:'image/jpeg',upsert:true});
+            if(error)throw error;
+            const{data:pub}=_supa.storage.from('exercicios').getPublicUrl(path);
+            const url=pub.publicUrl;
+            if(box){box.setAttribute('data-val',url);box.innerHTML='<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">';}
+          }catch(err){
+            console.warn('[Storage] upload falhou, a guardar só neste dispositivo',err);
+            toLocalB64();
+            toast('Upload para a cloud falhou — imagem guardada só neste dispositivo','err');
+          }
+        },'image/jpeg',0.85);
+      } else {
+        toLocalB64();
+      }
     };
     img.src=e.target.result;
   };
@@ -8241,7 +8317,154 @@ function saveExercise(){
   saveData();_showLibForm=false;_editLibId=null;toast('Exercício guardado ✓');renderBiblioteca();
 }
 function editExercise(id){_editLibId=id;_showLibForm=true;renderBiblioteca();}
-function deleteExercise(id){if(!confirm('Apagar?'))return;APP.exercises=APP.exercises.filter(e=>e.id!==id);saveData();toast('Apagado');renderBiblioteca();}
+function deleteExercise(id){if(!confirm('Apagar?'))return;_markDeleted('exercises',id);APP.exercises=APP.exercises.filter(e=>e.id!==id);saveData();toast('Apagado');renderBiblioteca();}
+
+// ─── FICHAS DE GINÁSIO ─────────────────────────────────────
+// Biblioteca de modelos de sessão de ginásio (força/RIR): cada ficha agrupa
+// exercícios escolhidos "Da Biblioteca" — cópia/snapshot no momento da
+// escolha, mesmo padrão de pickFromBiblioteca() nas Unidades de Treino — com
+// a prescrição própria dessa ficha (séries×reps/RIR/nota podem variar de
+// ficha para ficha para o mesmo exercício, por isso ficam aqui, não no
+// exercício da Biblioteca). Fase 1 só cria/gere as fichas; importar para um
+// evento de Ginásio concreto e a grelha de registo por atleta ficam para a
+// Fase 2. Pedido do Roger 28/08/2026, ver project_sps_fichas_ginasio_fase1.
+let _gsView='list', _gsDraft=null;
+const GS_PHASES=['Pré-época','Época — Manutenção','Época — Pico','Recuperação','Pós-época'];
+function renderFichasGinasio(){
+  if(_gsView==='detail'&&_gsDraft){_renderGsDetail();return;}
+  _gsView='list';_gsDraft=null;
+  const list=(APP.gymSheets||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const cardsHtml=list.length?list.map(f=>`
+  <div class="card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <div>
+      <div style="font-size:13px;font-weight:700">${escHtml(f.title||'Ficha sem título')}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:2px">${escHtml(f.phase||'—')} · ${(f.exercises||[]).length} exercício${(f.exercises||[]).length!==1?'s':''}</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm btn-gh" onclick="editGymSheet('${f.id}')">✏️ Editar</button>
+      <button class="btn btn-sm btn-gh" onclick="duplicateGymSheet('${f.id}')">⧉ Duplicar</button>
+      <button class="btn btn-sm btn-r" onclick="deleteGymSheet('${f.id}')">🗑️</button>
+    </div>
+  </div>`).join(''):`<div class="empty"><div class="ei">🏋️‍♀️</div><p>Sem fichas de ginásio criadas</p></div>`;
+  document.getElementById('pg-fichas-ginasio').innerHTML=`
+  <div class="sh"><div class="sh-t">🏋️‍♀️ Fichas de Ginásio (${list.length})</div>
+  <button class="btn btn-g" onclick="newGymSheet()">+ Nova Ficha</button></div>
+  <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Modelos de sessão de ginásio (exercícios + séries/reps/RIR) para importar depois numa sessão de Ginásio no Planeamento.</div>
+  ${cardsHtml}`;
+}
+function newGymSheet(){
+  _gsDraft={id:uid(),title:'',phase:GS_PHASES[0],notes:'',exercises:[],createdAt:new Date().toISOString()};
+  _gsView='detail';renderFichasGinasio();
+}
+function editGymSheet(id){
+  const f=(APP.gymSheets||[]).find(x=>x.id===id);if(!f)return;
+  _gsDraft=JSON.parse(JSON.stringify(f));
+  _gsView='detail';renderFichasGinasio();
+}
+function duplicateGymSheet(id){
+  const f=(APP.gymSheets||[]).find(x=>x.id===id);if(!f)return;
+  const copy=JSON.parse(JSON.stringify(f));
+  copy.id=uid();copy.title=(copy.title||'Ficha')+' (cópia)';copy.createdAt=new Date().toISOString();
+  if(!APP.gymSheets)APP.gymSheets=[];
+  APP.gymSheets.push(copy);
+  saveData();toast('Ficha duplicada ✓');renderFichasGinasio();
+}
+function deleteGymSheet(id){
+  if(!confirm('Apagar esta ficha de ginásio?'))return;
+  _markDeleted('gymSheets',id);
+  APP.gymSheets=(APP.gymSheets||[]).filter(f=>f.id!==id);
+  saveData();toast('Ficha apagada');renderFichasGinasio();
+}
+function _renderGsDetail(){
+  const f=_gsDraft;
+  const exHtml=(f.exercises||[]).length?f.exercises.map((ex,i)=>`
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
+    <div style="display:grid;grid-template-columns:1fr 120px;min-height:100px">
+      <div style="padding:10px 12px;display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="background:var(--bg3);color:var(--t2);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${escHtml(ex.cat||'Ginásio')}</span>
+          <span style="font-size:11px;color:var(--t2)">#${i+1}</span>
+        </div>
+        <div style="font-weight:700;font-size:13px">${escHtml(ex.name||'—')}</div>
+        <div class="fr3">
+          <div class="form-g"><label class="fl">Séries×Reps</label><input class="fc" value="${escHtml(ex.reps||'')}" placeholder="2×12" oninput="_gsExField(${i},'reps',this.value)"></div>
+          <div class="form-g"><label class="fl">RIR</label><input class="fc" value="${escHtml(ex.rir||'')}" placeholder="2-3" oninput="_gsExField(${i},'rir',this.value)"></div>
+          <div class="form-g"><label class="fl">Nota</label><input class="fc" value="${escHtml(ex.note||'')}" placeholder="Opcional" oninput="_gsExField(${i},'note',this.value)"></div>
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-left:1px solid var(--brd);display:flex;align-items:center;justify-content:center;overflow:hidden">
+        ${ex.img?`<img src="${ex.img}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:22px;color:var(--t3)">📷</span>'}
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--brd);padding:6px 12px;display:flex;justify-content:flex-end">
+      <button class="btn btn-xs btn-r" onclick="_gsRemoveEx(${i})">🗑️ Remover</button>
+    </div>
+  </div>`).join(''):`<div style="border:1.5px dashed var(--brd);border-radius:10px;padding:20px;text-align:center;color:var(--t2);font-size:13px">Sem exercícios nesta ficha ainda.</div>`;
+
+  document.getElementById('pg-fichas-ginasio').innerHTML=`
+  <div class="sh" style="flex-wrap:wrap;gap:8px">
+    <button class="btn btn-gh btn-sm" onclick="_gsView='list';_gsDraft=null;renderFichasGinasio()">← Todas as fichas</button>
+    <button class="btn btn-g btn-sm" onclick="saveGymSheet()">💾 Guardar</button>
+  </div>
+  <div class="card" style="padding:14px 16px;margin-bottom:12px">
+    <div class="fr"><div class="form-g"><label class="fl">Título *</label><input class="fc" id="gs-title" value="${escHtml(f.title)}" placeholder="Ex: Familiarização e Registo — Sessão 1"></div>
+    <div class="form-g"><label class="fl">Fase</label><select class="fc" id="gs-phase">${GS_PHASES.map(p=>`<option ${p===f.phase?'selected':''}>${p}</option>`).join('')}</select></div></div>
+    <div class="form-g"><label class="fl">Regras / notas gerais da sessão</label><textarea class="fc" id="gs-notes" rows="3" placeholder="Ex: 2-3 RIR no final de cada série, sem falha muscular, prioridade à técnica...">${escHtml(f.notes||'')}</textarea></div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div style="font-size:12px;font-weight:700;color:var(--t2)">Exercícios (${(f.exercises||[]).length})</div>
+    <button class="btn btn-sm btn-gh" onclick="pickExForGymSheet()">+ Exercício da Biblioteca</button>
+  </div>
+  ${exHtml}`;
+}
+function _gsExField(i,field,val){if(_gsDraft&&_gsDraft.exercises[i])_gsDraft.exercises[i][field]=val;}
+function _gsRemoveEx(i){if(!_gsDraft)return;_gsDraft.exercises.splice(i,1);_renderGsDetail();}
+function pickExForGymSheet(){
+  const list=(APP.exercises||[]).slice().sort((a,b)=>(a.cat==='Ginásio'?-1:0)-(b.cat==='Ginásio'?-1:0));
+  if(!list.length){
+    openMod('Escolher da Biblioteca',`<div class="empty"><div class="ei">📚</div><p>A Biblioteca ainda não tem exercícios.</p></div>`,'lg');
+    return;
+  }
+  const catCounts={};list.forEach(e=>{catCounts[e.cat]=(catCounts[e.cat]||0)+1;});
+  const catBtns=[{k:'',v:'Todos'},...EX_CATS.filter(c=>catCounts[c]).map(c=>({k:c,v:c}))];
+  window._pickGsCat=catCounts['Ginásio']?'Ginásio':'';
+  window._renderPickGsList=function(){
+    const filtered=list.filter(e=>!window._pickGsCat||e.cat===window._pickGsCat);
+    const html=filtered.length?filtered.map(e=>`
+    <div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;cursor:pointer;margin-bottom:6px" onclick="_pickGsEx('${e.id}')">
+      <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg3);display:flex;align-items:center;justify-content:center">
+        ${e.img?`<img src="${e.img}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:20px">📚</span>'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:12px">${escHtml(e.name)}</div>
+        <div style="font-size:10px;color:var(--t2)">${e.cat}${e.equip?' · '+escHtml(e.equip):''}</div>
+      </div>
+    </div>`).join(''):`<div class="empty"><div class="ei">📚</div><p>Sem exercícios nesta categoria</p></div>`;
+    const el=document.getElementById('pick-gs-list');
+    if(el)el.innerHTML=html;
+  };
+  openMod('Escolher da Biblioteca',`
+  <div class="tabs" id="pick-gs-cats" style="margin-bottom:10px">${catBtns.map(c=>`<button class="tab-btn ${c.k===window._pickGsCat?'on':''}" onclick="window._pickGsCat='${c.k}';document.querySelectorAll('#pick-gs-cats .tab-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on');window._renderPickGsList()">${c.v}</button>`).join('')}</div>
+  <div id="pick-gs-list" style="max-height:55vh;overflow-y:auto"></div>`,'lg');
+  setTimeout(window._renderPickGsList,10);
+}
+function _pickGsEx(exId){
+  const e=(APP.exercises||[]).find(x=>x.id===exId);if(!e||!_gsDraft)return;
+  closeMod();
+  _gsDraft.exercises.push({name:e.name,desc:e.desc||'',img:e.img||'',cat:e.cat||'Ginásio',equip:e.equip||'',reps:'2×12',rir:'2-3',note:''});
+  _renderGsDetail();
+}
+function saveGymSheet(){
+  const title=document.getElementById('gs-title').value.trim();
+  if(!title)return toast('Título obrigatório','err');
+  _gsDraft.title=title;
+  _gsDraft.phase=document.getElementById('gs-phase').value;
+  _gsDraft.notes=document.getElementById('gs-notes').value;
+  if(!APP.gymSheets)APP.gymSheets=[];
+  const idx=APP.gymSheets.findIndex(f=>f.id===_gsDraft.id);
+  if(idx>=0)APP.gymSheets[idx]=_gsDraft;else APP.gymSheets.push(_gsDraft);
+  saveData();toast('Ficha guardada ✓');_gsView='list';_gsDraft=null;renderFichasGinasio();
+}
 
 // ─── TREINOS INDIVIDUALIZADOS ─────────────────────────────
 let _tiTeam='T1', _tiAtId=null, _showTiForm=false;
@@ -11040,7 +11263,7 @@ async function pullCloud(){
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professionalName:r.professional_name,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
-      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[]}))],
+      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
       ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
@@ -11087,6 +11310,8 @@ async function pullCloud(){
       if(m.scouting)APP.scouting=m.scouting;
       if(m.microcycles)APP.microcycles=m.microcycles;
       if(m.sessions)APP.sessions=m.sessions;
+      if(m.exercises&&m.exercises.length)APP.exercises=m.exercises;
+      if(m.gymSheets)APP.gymSheets=m.gymSheets;
       toast('Sincronizado ✓');
     } else {
       toast('Cloud: sem dados de meta (club_id='+_cid+')','err');
@@ -11121,7 +11346,8 @@ async function pushAppMeta(_pushRetry){
         const _localSnap={
           games:APP.games||[], evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
           evalResponses:APP.evalResponses||[], trainings:APP.trainings||[], convocatorias:APP.convocatorias||[],
-          scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[]
+          scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[],
+          exercises:APP.exercises||[], gymSheets:APP.gymSheets||[]
         };
         await pullCloud();
         Object.keys(_localSnap).forEach(key=>{
@@ -11170,7 +11396,15 @@ async function pushAppMeta(_pushRetry){
       schedule:APP.schedule||[],
       scouting:APP.scouting||[],
       microcycles:APP.microcycles||[],
-      sessions:APP.sessions||[]
+      sessions:APP.sessions||[],
+      // Biblioteca de Exercícios e Fichas de Ginásio: até aqui APP.exercises nunca
+      // tinha sido sincronizado (só existia por navegador/dispositivo) — passou a
+      // fazer sentido sincronizar quando se tornou uma biblioteca partilhada entre
+      // fichas de ginásio e (mais tarde) Unidades de Treino. Imagens não vão aqui —
+      // ficam no Supabase Storage, só a URL viaja neste blob. Ver
+      // project_sps_fichas_ginasio_fase1.
+      exercises:APP.exercises||[],
+      gymSheets:APP.gymSheets||[]
     };
     const _pushTs=new Date().toISOString();
     await _supa.from('clubs').update({meta:meta,updated_at:_pushTs}).eq('id',_cid);
@@ -11199,8 +11433,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at'],
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at'}},
-  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids'],
-    rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao',guestIds:'guest_ids'}},
+  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet'],
+    rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao',guestIds:'guest_ids',gymSheet:'gym_sheet'}},
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
     rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at',doneTime:'done_time'}},
   attendance_records:{cols:['id','event_id','athlete_id','date','present','status','reason','created_at'],
