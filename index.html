@@ -979,6 +979,10 @@ function openMod(title,bodyHtml,size=''){const b=document.getElementById('modal-
 function closeMod(e){if(e&&e.target!==document.getElementById('modal-ov'))return;document.getElementById('modal-ov').classList.remove('on');}
 function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fmtDateShort(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('pt-PT',{day:'2-digit',month:'short'});}
+// Hora local (HH:MM) a partir de um timestamp ISO completo (ex: submittedAt) — usado onde
+// interessa saber A QUE HORA algo foi submetido, não só em que dia (Treino Extra, pedido
+// do Roger 28/08/2026, ver project_sps_treino_extra_hora_submissao).
+function fmtHora(iso){if(!iso)return'—';const dt=new Date(iso);if(isNaN(dt))return'—';return dt.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});}
 function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/(86400000));}
 function ageYears(dob){if(!dob)return'';const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;}
 function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase():'?';}
@@ -1249,7 +1253,7 @@ function renderDashboard(){
     const exLvl=extraLvlMap[at.id];
     const exToday=extraTodayMap[at.id]||[];
     const exColor=exLvl==='r'?'#f87171':exLvl==='y'?'#fbbf24':'#4ade80';
-    const exTip=exToday.length?exToday.map(e=>`${e.type||'—'} · ${e.duration}min · PSE ${e.pse}`).join(' | '):'';
+    const exTip=exToday.length?exToday.map(e=>`${fmtHora(e.submittedAt)} · ${e.type||'—'} · ${e.duration}min · PSE ${e.pse}`).join(' | '):'';
     const extraCell=exToday.length?`<span title="${escHtml(exTip)}" style="color:${exColor}">🏃</span>`:'<span style="color:var(--t3)">—</span>';
     const lp=APP.pse.filter(p=>p.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
     const wkMinsAt=acd?acd.wkU:0;
@@ -9162,7 +9166,7 @@ function printAthleteReport(){
   // Treino Extra: mesma lógica de tabela simples do PSE/Wellness, sem gráfico (pedido
   // do Roger: "só mais uma linha" no relatório, não um gráfico novo).
   const extraTable=extraRecs.length
-    ?`<table><thead><tr><th>Data</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th><th>Resumo</th></tr></thead><tbody>${extraRecs.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${escHtml(e.type||'—')}</td><td>${e.duration} min</td><td>${e.pse}/10</td><td>${e.ua}</td><td style="font-size:8pt;color:#555">${escHtml(e.summary||'—')}</td></tr>`).join('')}</tbody></table><p class="an-note">${extraRecs.length} sessão${extraRecs.length>1?'ões':''} · ${extraTotalMin} min total · UA extra ${extraTotalUA} (carga autorreportada, fora do clube — não incluída no ACWR oficial).</p>`
+    ?`<table><thead><tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th><th>Resumo</th></tr></thead><tbody>${extraRecs.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${fmtHora(e.submittedAt)}</td><td>${escHtml(e.type||'—')}</td><td>${e.duration} min</td><td>${e.pse}/10</td><td>${e.ua}</td><td style="font-size:8pt;color:#555">${escHtml(e.summary||'—')}</td></tr>`).join('')}</tbody></table><p class="an-note">${extraRecs.length} sessão${extraRecs.length>1?'ões':''} · ${extraTotalMin} min total · UA extra ${extraTotalUA} (carga autorreportada, fora do clube — não incluída no ACWR oficial).</p>`
     :'<p style="color:#999;font-size:8pt">Sem treino extra registado no período</p>';
 
   const convocTable=convocsP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Papel</th><th>Viu</th></tr></thead><tbody>${convocsP.map(c=>{
@@ -10344,11 +10348,11 @@ function _atExtraHtml(){
   </div></div>
   <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitExtraTraining()"><i class="ti ti-send" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>${editing?'Guardar Alterações':'Registar Treino Extra'}</button>
   <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Últimos Registos</div>
-  <div class="tw"><table><thead><tr><th>Data</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th><th></th></tr></thead>
+  <div class="tw"><table><thead><tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Duração</th><th>PSE</th><th>UA</th><th></th></tr></thead>
   <tbody>${mine.slice(0,14).map(e=>{
     const canEdit=_extraEditable(e);
-    return `<tr><td>${fmtDate(e.date)}</td><td>${escHtml(e.type||'—')}</td><td>${e.duration} min</td><td>${e.pse}/10</td><td><strong>${e.ua}</strong></td><td style="white-space:nowrap">${canEdit?`<a href="#" onclick="editExtraTraining('${e.id}');return false" style="margin-right:8px" title="Editar"><i class="ti ti-edit" aria-hidden="true"></i></a><a href="#" onclick="deleteExtraTraining('${e.id}');return false" title="Apagar"><i class="ti ti-trash" aria-hidden="true"></i></a>`:''}</td></tr>`;
-  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>
+    return `<tr><td>${fmtDate(e.date)}</td><td>${fmtHora(e.submittedAt)}</td><td>${escHtml(e.type||'—')}</td><td>${e.duration} min</td><td>${e.pse}/10</td><td><strong>${e.ua}</strong></td><td style="white-space:nowrap">${canEdit?`<a href="#" onclick="editExtraTraining('${e.id}');return false" style="margin-right:8px" title="Editar"><i class="ti ti-edit" aria-hidden="true"></i></a><a href="#" onclick="deleteExtraTraining('${e.id}');return false" title="Apagar"><i class="ti ti-trash" aria-hidden="true"></i></a>`:''}</td></tr>`;
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>
   <div style="font-size:10px;color:var(--t2);margin-top:8px">Podes editar ou apagar um registo até ${_EXTRA_EDIT_WINDOW_H}h depois de o criares. A carga deste treino é contabilizada à parte da carga oficial do clube.</div>`;
 }
 function _resetExtraForm(){_exfVals={type:'Ginásio',pse:null,duration:'',summary:'',guidance:''};_exEditId=null;}
