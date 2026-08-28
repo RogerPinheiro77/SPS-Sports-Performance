@@ -3153,8 +3153,8 @@ function _convPublishBadgeHtml(publishAt){
   if(!publishAt)return '<span class="bdg bg-g" style="font-size:9px">Visível imediatamente</span>';
   const published=publishAt<=_nowLocalStr();
   return published
-    ?`<span class="bdg bg-g" style="font-size:9px">✓ Publicada</span>`
-    :`<span class="bdg bg-y" style="font-size:9px">🕓 Publica às ${escHtml(publishAt.replace('T',' '))}</span>`;
+    ?`<span class="bdg bg-g" style="font-size:9px">✓ Publicada (desde ${escHtml(publishAt.replace('T',' '))})</span>`
+    :`<span class="bdg bg-y" style="font-size:9px">🕓 Agendada — publica às ${escHtml(publishAt.replace('T',' '))}</span>`;
 }
 // Mantém APP.convocatorias sincronizada com a convocatória do Jogo — só há UM sítio
 // para preencher (separador Pré-Jogo do Jogo); a entrada que a atleta vê na aba
@@ -4045,11 +4045,11 @@ function _jogoPreHtml(g){
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px;background:var(--bg3);border-radius:6px">
-      <label class="fl" style="margin:0">🕓 Publicar na app das atletas em</label>
+      <label class="fl" style="margin:0">🕓 Publicar na app das atletas em (opcional)</label>
       <input class="fc" type="datetime-local" style="width:auto" value="${escHtml(g.convocatoriaPublishAt||'')}" onchange="_setConvocatoriaPublishAt('${g.id}',this.value)">
       ${pubBadge}
-      ${launched&&g.convocatoriaPublishAt?`<button class="btn btn-xs btn-gh" onclick="_setConvocatoriaPublishAt('${g.id}','')" title="Limpa a data — fica visível imediatamente">Publicar Agora</button>`:''}
-      <button class="btn btn-xs btn-g" onclick="_publishConvocatoriaJogo('${g.id}')" title="Torna a convocatória visível às atletas (imediatamente ou na data escolhida acima)">🚀 Publicar Convocatória</button>
+      <button class="btn btn-xs btn-g" onclick="_publishConvocatoriaJogoNow('${g.id}')" title="Fica visível às atletas AGORA, mesmo que haja uma data escolhida acima">🚀 Publicar Agora</button>
+      <button class="btn btn-xs btn-y" onclick="_publishConvocatoriaJogoScheduled('${g.id}')" title="Só fica visível às atletas na data/hora escolhida acima">🕓 Agendar Publicação</button>
     </div>
     ${g.lineup.length?`<div style="margin-bottom:8px"><strong style="font-size:10px;color:var(--t2)">ONZE INICIAL (${g.formation}):</strong><div style="margin-top:4px">${lSum}</div></div>`:''}
     ${g.subs.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">SUPLENTES:</strong><div style="margin-top:4px">${sSum}</div></div>`:''}
@@ -4124,12 +4124,28 @@ function desconvocarTodasAtletas(gid){
 // enquanto não for clicada, tudo o que for marcado (Convocar Todas, titulares,
 // logística, data de publicação) fica em rascunho, guardado mas invisível na app da
 // atleta (ver _convIsPublished). Pedido do Roger, 21/08/2026.
-function _publishConvocatoriaJogo(gid){
+// Dois botões distintos em vez de um só (pedido do Roger, 28/08/2026 — ficou com
+// dúvida se uma convocatória agendada já tinha disparado ou não, porque o botão
+// único "Publicar Convocatória" tinha o mesmo texto quer publicasse já quer só
+// agendasse). Publicar Agora ignora sempre a data escolhida acima (limpa-a);
+// Agendar Publicação exige que a data esteja preenchida. Ver
+// project_sps_convocatoria_dois_botoes_publicar.
+function _publishConvocatoriaJogoNow(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(!g.convocatoria||!g.convocatoria.length)return toast('Convoca pelo menos uma atleta antes de publicar','err');
+  g.convocatoriaPublishAt='';
   g.convocatoriaLaunched=true;
   _syncConvocatoriaFromGame(g);saveData();
-  toast(g.convocatoriaPublishAt?'Convocatória agendada ✓':'Convocatória publicada ✓');
+  toast('Convocatória publicada ✓');
+  _renderJogoDetailFull();
+}
+function _publishConvocatoriaJogoScheduled(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(!g.convocatoria||!g.convocatoria.length)return toast('Convoca pelo menos uma atleta antes de agendar','err');
+  if(!g.convocatoriaPublishAt)return toast('Escolhe primeiro a data/hora acima','err');
+  g.convocatoriaLaunched=true;
+  _syncConvocatoriaFromGame(g);saveData();
+  toast('Convocatória agendada para '+g.convocatoriaPublishAt.replace('T',' ')+' ✓');
   _renderJogoDetailFull();
 }
 
@@ -4189,15 +4205,24 @@ function saveJogoField(gid,field,val){
   saveData();
 }
 // Como saveJogoField() acima, mas com re-render — usado só para
-// convocatoriaPublishAt porque o badge/botão "Publicar Agora" no ecrã dependem
+// convocatoriaPublishAt porque o badge e os botões de publicar no ecrã dependem
 // diretamente deste valor (os outros campos de saveJogoField são inputs de texto
-// que não precisam de refrescar mais nada à volta).
+// que não precisam de refrescar mais nada à volta). Esta função só guarda a
+// DATA escolhida — não publica nem agenda nada por si só (isso só acontece ao
+// clicar em "Publicar Agora" ou "Agendar Publicação"); por isso o toast é
+// neutro. Corrigido 28/08/2026: antes dizia "Publicada"/"Agendada" mesmo com a
+// convocatória ainda em rascunho, o que induzia em erro. Ver
+// project_sps_convocatoria_dois_botoes_publicar.
 function _setConvocatoriaPublishAt(gid,val){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   g.convocatoriaPublishAt=val;
   _syncConvocatoriaFromGame(g);
   saveData();
-  toast(val?'Publicação agendada ✓':'Publicada imediatamente ✓');
+  if(g.convocatoriaLaunched){
+    toast(val?'Data de publicação atualizada — já está agendada ✓':'Data limpa — já está publicada ✓');
+  }else{
+    toast(val?'Data definida. Clica em "Agendar Publicação" para confirmar.':'Data limpa. Clica em "Publicar Agora" ou "Agendar Publicação".');
+  }
   _renderJogoDetailFull();
 }
 
@@ -8182,7 +8207,7 @@ function renderConvocatorias(){
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${c.time?' '+c.time:''} · ${selected.length} convocadas · 👁 vista por ${seen.length}/${selected.length}</span>
         ${game&&!game.convocatoriaLaunched?'<span class="bdg bg-gr" style="font-size:9px">📝 Rascunho — atletas não veem nada ainda</span>':_convPublishBadgeHtml(c.publishAt)}
-        ${!game&&c.publishAt&&!_convIsPublished(c)?`<button class="btn btn-xs btn-gh" onclick="_publishConvNow('${c.id}')" title="Fica visível imediatamente">Publicar Agora</button>`:''}
+        ${!game&&c.publishAt&&!_convIsPublished(c)?`<button class="btn btn-xs btn-gh" onclick="_publishConvNow('${c.id}')" title="Fica visível imediatamente, ignorando a data agendada">🚀 Publicar Agora</button>`:''}
         ${game?`<button class="btn btn-xs btn-gh" onclick="openJogo('${game.id}');navTo('jogos')" title="Gerida pelo Jogo — abrir">🔗 Jogo</button>`:`<button class="btn btn-xs btn-r" onclick="deleteConv('${c.id}')">🗑️</button>`}</div>
       </div>
       <div class="cb" style="padding:12px">
@@ -8213,7 +8238,7 @@ function saveConvocatoria(){
 function deleteConv(id){if(!confirm('Apagar?'))return;_markDeleted('convocatorias',id);APP.convocatorias=APP.convocatorias.filter(c=>c.id!==id);saveData();toast('Apagada');renderConvocatorias();}
 function _publishConvNow(id){
   const c=APP.convocatorias.find(x=>x.id===id);if(!c)return;
-  c.publishAt='';saveData();toast('Publicada imediatamente ✓');renderConvocatorias();
+  c.publishAt='';saveData();toast('Convocatória publicada ✓');renderConvocatorias();
 }
 
 // ─── BIBLIOTECA ───────────────────────────────────────────
