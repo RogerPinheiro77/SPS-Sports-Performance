@@ -8407,9 +8407,9 @@ function _renderGsDetail(){
     <button class="btn btn-g btn-sm" onclick="saveGymSheet()">💾 Guardar</button>
   </div>
   <div class="card" style="padding:14px 16px;margin-bottom:12px">
-    <div class="fr"><div class="form-g"><label class="fl">Título *</label><input class="fc" id="gs-title" value="${escHtml(f.title)}" placeholder="Ex: Familiarização e Registo — Sessão 1"></div>
-    <div class="form-g"><label class="fl">Fase</label><select class="fc" id="gs-phase">${GS_PHASES.map(p=>`<option ${p===f.phase?'selected':''}>${p}</option>`).join('')}</select></div></div>
-    <div class="form-g"><label class="fl">Regras / notas gerais da sessão</label><textarea class="fc" id="gs-notes" rows="3" placeholder="Ex: 2-3 RIR no final de cada série, sem falha muscular, prioridade à técnica...">${escHtml(f.notes||'')}</textarea></div>
+    <div class="fr"><div class="form-g"><label class="fl">Título *</label><input class="fc" id="gs-title" value="${escHtml(f.title)}" placeholder="Ex: Familiarização e Registo — Sessão 1" oninput="_gsDraft.title=this.value"></div>
+    <div class="form-g"><label class="fl">Fase</label><select class="fc" id="gs-phase" onchange="_gsDraft.phase=this.value">${GS_PHASES.map(p=>`<option ${p===f.phase?'selected':''}>${p}</option>`).join('')}</select></div></div>
+    <div class="form-g"><label class="fl">Regras / notas gerais da sessão</label><textarea class="fc" id="gs-notes" rows="3" placeholder="Ex: 2-3 RIR no final de cada série, sem falha muscular, prioridade à técnica..." oninput="_gsDraft.notes=this.value">${escHtml(f.notes||'')}</textarea></div>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
     <div style="font-size:12px;font-weight:700;color:var(--t2)">Exercícios (${(f.exercises||[]).length})</div>
