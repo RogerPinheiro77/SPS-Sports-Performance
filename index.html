@@ -5350,6 +5350,11 @@ function _gdBuildTimeline(g){
       playerIn:e.type==='substituicao'?nameOf(e.playerIn):undefined,
       playerOut:e.type==='substituicao'?nameOf(e.playerOut):undefined,
       side:e.side,
+      // team/oppNum preservados para o resumo de contagens (_gdCountByType) saber
+      // distinguir amarelo/vermelho da própria equipa vs do adversário — sem isto
+      // o resumo mostrava sempre 0 em "Amarelos/Vermelhos Advers." mesmo com o
+      // evento correto na cronologia (achado no teste exaustivo de 31/08/2026).
+      team:e.team,oppNum:e.oppNum,
       scoreAfter:(e.type==='golo'||e.type==='golo_sofrido')?`${running.casa}-${running.fora}`:undefined
     };
   });
