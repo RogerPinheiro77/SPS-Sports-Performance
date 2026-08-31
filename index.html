@@ -2717,7 +2717,14 @@ function _guestRerender(prefix){
 function _autoMarkAttendance(athleteId,date,status){
   const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
   if(!APP.attendance)APP.attendance=[];
-  const evs=APP.schedule.filter(e=>e.date===date&&(e.teamId===at.teamId||!e.teamId||(e.guestIds||[]).includes(athleteId))&&_isTrainingType(e.type));
+  // Ginásio fica de fora deste sinal automático (pedido do Roger, 31/08/2026): a
+  // presença no Ginásio passa a ser SÓ o treinador a marcar (na app SPS-Ginásio ou
+  // no modal de presenças), porque agora é isso que desbloqueia o PSE de Ginásio na
+  // app da atleta (renderAtPSE). Sem esta exclusão, submeter o PSE do Treino
+  // principal do mesmo dia marcaria "presente" no Ginásio também, mesmo que a
+  // atleta não tivesse ido — exatamente a confusão que isto veio resolver. Ver
+  // project_sps_ginasio_presenca_pse.
+  const evs=APP.schedule.filter(e=>e.date===date&&e.type!=='Ginásio'&&(e.teamId===at.teamId||!e.teamId||(e.guestIds||[]).includes(athleteId))&&_isTrainingType(e.type));
   evs.forEach(ev=>{
     const existing=APP.attendance.find(a=>a.eventId===ev.id&&a.athleteId===athleteId);
     if(status==='tratamento'&&existing&&existing.status==='treino')return; // não faz downgrade de treino confirmado
@@ -9123,6 +9130,21 @@ function renderGymSessionGrid(){
 // exercícios para facilitar a leitura numa tabela larga. Ver
 // project_sps_ginasio_registo_colunas.
 const _GYM_FIELDS=[['carga','Carga'],['series','Séries'],['reps','Reps'],['rir','RIR']];
+// Checkbox "Presente" ao lado do nome — pedido do Roger, 31/08/2026: nem todas as
+// atletas vão sempre ao ginásio, e o PSE desbloqueava automaticamente por hora para
+// a equipa toda, criando confusão. Presença passa a ser marcada pelo treinador (aqui
+// ou automaticamente ao preencher qualquer campo dessa atleta — ver
+// _gymAutoMarkPresent) e é isso que desbloqueia o PSE do Ginásio na app da atleta
+// (ver renderAtPSE). Grava logo em APP.attendance, não espera pelo "Guardar
+// Registos" — a atleta pode preencher o PSE antes de o treinador acabar a sessão.
+// Ver project_sps_ginasio_presenca_pse.
+function _gymIsPresent(athId){
+  return (APP.attendance||[]).some(a=>a.eventId===_gymGridEventId&&a.athleteId===athId&&a.status==='treino');
+}
+function _gymPresentCheckbox(athId){
+  const present=_gymIsPresent(athId);
+  return `<input type="checkbox" id="gym-present-${athId}" ${present?'checked':''} title="Presente" onclick="_gymTogglePresent(this,'${athId}')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">`;
+}
 function _gymGridTableHtml(gs,athletes){
   const groupHeadHtml=gs.exercises.map((ex,i)=>{
     const last=i===gs.exercises.length-1;
@@ -9140,7 +9162,7 @@ function _gymGridTableHtml(gs,athletes){
       return _GYM_FIELDS.map(([f],j)=>`<td style="padding:3px 2px;${j===3&&!last?'border-right:2px solid var(--brd);':''}"><input class="fc" style="width:${f==='carga'?'46px':'32px'};font-size:11px;padding:5px 4px;text-align:center" value="${escHtml(v[f]||'')}" ${f==='carga'?'placeholder="kg"':''} data-ath="${a.id}" data-ex="${i}" data-field="${f}" oninput="_gymCellInput(this)"></td>`).join('');
     }).join('');
     return `<tr>
-      <td style="padding:6px 8px;font-weight:700;white-space:nowrap;border-bottom:1px solid var(--brd)">${escHtml(_shortName(a))}</td>
+      <td style="padding:6px 8px;font-weight:700;white-space:nowrap;border-bottom:1px solid var(--brd)"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">${_gymPresentCheckbox(a.id)}${escHtml(_shortName(a))}</label></td>
       ${exCells}
       <td style="padding:3px 6px"><input class="fc" style="width:160px;font-size:11px;padding:5px 7px" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></td>
     </tr>`;
@@ -9180,10 +9202,15 @@ function _gymGridAccordionHtml(gs,athletes){
       </div>`;
     }).join('');
     return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
-      <div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="_gymToggleAcc('${a.id}')">
-        <div><div style="font-weight:700;font-size:13px">${escHtml(_shortName(a))}</div>
-        <div style="font-size:11px;color:var(--t2)">${filled}/${gs.exercises.length} preenchido${filled!==1?'s':''}</div></div>
-        <span style="font-size:16px;color:var(--t2)">${open?'▲':'▼'}</span>
+      <div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="event.stopPropagation()">
+          ${_gymPresentCheckbox(a.id)}
+          <span onclick="_gymToggleAcc('${a.id}')" style="cursor:pointer">
+            <div style="font-weight:700;font-size:13px">${escHtml(_shortName(a))}</div>
+            <div style="font-size:11px;color:var(--t2)">${filled}/${gs.exercises.length} preenchido${filled!==1?'s':''}</div>
+          </span>
+        </label>
+        <span style="font-size:16px;color:var(--t2);cursor:pointer" onclick="_gymToggleAcc('${a.id}')">${open?'▲':'▼'}</span>
       </div>
       ${open?`<div style="border-top:1px solid var(--brd);padding:12px 14px">
         ${exRows}
@@ -9203,6 +9230,53 @@ function _gymCellInput(el){
     _gymGridData[ath].vals[+exIdx][field]=el.value;
   }
   else if(f==='obs'){_gymGridData[ath].obs=el.value;}
+  // Preencher qualquer coluna (ou Observações) conta como sinal de presença — o
+  // treinador não precisa de marcar o "✓" à parte se já está a registar dados da
+  // atleta. Só marca (nunca desmarca) — apagar um valor não retira a presença.
+  if(el.value&&el.value.trim())_gymAutoMarkPresent(ath);
+}
+// Grava (ou atualiza) um registo de presença 'treino' para esta atleta neste evento
+// de Ginásio específico — ao contrário de _autoMarkAttendance (que marca todos os
+// eventos de treino do dia a partir de um sinal do lado da atleta), esta função é
+// scoped a um único eventId e só é chamada a partir da app SPS-Ginásio, do lado do
+// treinador. Ver project_sps_ginasio_presenca_pse.
+function _gymMarkPresent(eventId,athleteId){
+  if(!APP.attendance)APP.attendance=[];
+  const ev=APP.schedule.find(e=>e.id===eventId);if(!ev)return;
+  const existing=APP.attendance.find(a=>a.eventId===eventId&&a.athleteId===athleteId);
+  if(existing&&existing.status==='treino')return;
+  const rec={id:existing?.id||uid(),eventId,athleteId,date:ev.date,status:'treino',present:true,reason:null};
+  if(existing)Object.assign(existing,rec);else APP.attendance.push(rec);
+  saveData();
+  if(_sync)cloudUpsert('attendance_records',{...rec,club_id:_cid});
+}
+function _gymAutoMarkPresent(athId){
+  if(!_gymGridEventId)return;
+  const wasPresent=_gymIsPresent(athId);
+  _gymMarkPresent(_gymGridEventId,athId);
+  if(!wasPresent){
+    const cb=document.getElementById('gym-present-'+athId);
+    if(cb)cb.checked=true;
+  }
+}
+// Checkbox explícito — ao contrário de _gymAutoMarkPresent (só marca), este também
+// desmarca, para o treinador poder corrigir um toque errado sem ter de apagar dados
+// já preenchidos da atleta.
+function _gymTogglePresent(el,athId){
+  if(!_gymGridEventId)return;
+  if(el.checked){
+    _gymMarkPresent(_gymGridEventId,athId);
+    toast('Presença marcada ✓');
+  }else{
+    if(!APP.attendance)APP.attendance=[];
+    const ev=APP.schedule.find(e=>e.id===_gymGridEventId);if(!ev)return;
+    const existing=APP.attendance.find(a=>a.eventId===_gymGridEventId&&a.athleteId===athId);
+    const rec={id:existing?.id||uid(),eventId:_gymGridEventId,athleteId:athId,date:ev.date,status:'ausente',present:false,reason:null};
+    if(existing)Object.assign(existing,rec);else APP.attendance.push(rec);
+    saveData();
+    if(_sync)cloudUpsert('attendance_records',{...rec,club_id:_cid});
+    toast('Presença desmarcada');
+  }
 }
 async function saveGymRecords(){
   const ev=APP.schedule.find(e=>e.id===_gymGridEventId);
@@ -11782,6 +11856,14 @@ function calcWellnessScore(v){
   s+=(v.mood/5)*20;
   return Math.round(s);
 }
+// Badge roxo para distinguir o PSE de Ginásio do de Treino/Jogo no histórico — mesma
+// família de cor já usada para Ginásio no calendário do Planeamento (EV_COLORS),
+// Treinos Extra e no ícone da app SPS-Ginásio, para ficar consistente em toda a
+// plataforma. Pedido do Roger, 31/08/2026. Ver project_sps_ginasio_presenca_pse.
+function _pseTypeBadge(t){
+  if(t==='Ginásio')return `<span style="background:#7d3c9822;color:#8e44ad;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${t}</span>`;
+  return t||'—';
+}
 function renderAtPSE(){
   const td=today();
   const already=APP.pse.filter(p=>p.athleteId===AID&&p.date===td);
@@ -11815,11 +11897,18 @@ function renderAtPSE(){
   const _pDonePlans=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID&&p.done&&p.doneAt===td&&p.doneTime);
   _pDonePlans.forEach(p=>_pEvs.push({id:'plan_'+p.id,title:p.title||'Treino Individual',time:p.doneTime,dur:0,isDone:true}));
   // Uma linha por sessão do dia: hora de fim prevista + se já terminou + se já tem PSE.
+  // Ginásio é exceção: deixou de desbloquear por hora (nem todas as atletas vão sempre
+  // ao ginásio, e o desbloqueio automático por equipa causava confusão) — passa a
+  // depender só de o treinador ter marcado presença ('treino') nesse evento em
+  // APP.attendance, via a app SPS-Ginásio (checkbox/preenchimento de coluna) ou o
+  // modal de presenças normal. Sem tempo de segurança: assim que o treinador marca,
+  // desbloqueia logo. Ver project_sps_ginasio_presenca_pse.
   const _pRows=_pEvs.map(ev=>{
     const [eh,em]=(ev.time||'00:00').split(':').map(Number);
     const endMin=eh*60+em+(ev.isDone?0:parseInt(ev.dur||90))+(ev.isDone?0:_pDelay);
     const h2=Math.floor(endMin/60),m2=endMin%60;
-    return {ev,endMin,endStr:String(h2).padStart(2,'0')+':'+String(m2).padStart(2,'0'),answered:_answeredEvIds.has(ev.id),ended:_pNowMin>=endMin};
+    const ended=ev.type==='Ginásio'?(APP.attendance||[]).some(a=>a.eventId===ev.id&&a.athleteId===AID&&a.status==='treino'):_pNowMin>=endMin;
+    return {ev,endMin,endStr:String(h2).padStart(2,'0')+':'+String(m2).padStart(2,'0'),answered:_answeredEvIds.has(ev.id),ended};
   }).sort((a,b)=>a.endMin-b.endMin);
   const _pPending=_pRows.filter(r=>!r.answered&&r.ended);
   const _pWaiting=_pRows.filter(r=>!r.answered&&!r.ended);
@@ -11829,8 +11918,14 @@ function renderAtPSE(){
   if(!_pUnlocked){
     const noSession=!_pEvs.length;
     const allDone=_pEvs.length>0&&_pWaiting.length===0;
-    const lockBody=noSession?'Sem treino ou jogo agendado para hoje.':allDone?'Já registaste o PSE de todas as sessões de hoje.':_pWaiting.length?'O PSE fica disponível às <strong>'+_pWaiting[0].endStr+'</strong> (fim da sessão'+((_pDelay>0)?' + '+_pDelay+' min':'')+')':'A aguardar fim da sessão...';
-    const evCards=_pWaiting.map(r=>`<div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;margin-bottom:6px"><i class="ti ti-barbell" style="font-size:20px;color:var(--t2)" aria-hidden="true"></i><div><div style="font-size:12px;font-weight:700">${r.ev.title}</div><div style="font-size:10px;color:var(--t2)">PSE disponível: ${r.endStr}</div></div></div>`).join('');
+    // Ginásio não tem hora prevista de desbloqueio (depende só da presença marcada
+    // pelo treinador) — mensagem própria em vez de mostrar uma hora que não se aplica.
+    const firstWaiting=_pWaiting[0];
+    const lockBody=noSession?'Sem treino ou jogo agendado para hoje.':allDone?'Já registaste o PSE de todas as sessões de hoje.':firstWaiting?(firstWaiting.ev.type==='Ginásio'?'O PSE do Ginásio fica disponível assim que o treinador confirmar a tua presença na sessão.':'O PSE fica disponível às <strong>'+firstWaiting.endStr+'</strong> (fim da sessão'+((_pDelay>0)?' + '+_pDelay+' min':'')+')'):'A aguardar fim da sessão...';
+    const evCards=_pWaiting.map(r=>{
+      const isGym=r.ev.type==='Ginásio';
+      return `<div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;margin-bottom:6px${isGym?';border-left:3px solid #8e44ad':''}"><i class="ti ti-barbell" style="font-size:20px;color:${isGym?'#8e44ad':'var(--t2)'}" aria-hidden="true"></i><div><div style="font-size:12px;font-weight:700">${r.ev.title}</div><div style="font-size:10px;color:var(--t2)">${isGym?'PSE disponível após confirmação de presença':'PSE disponível: '+r.endStr}</div></div></div>`;
+    }).join('');
     const doneCards=already.length?`<div class="al al-g">${already.map(p=>`<div><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>PSE registado (${p.sessionType||'—'}): ${p.pse}/10 · ${p.duration} min · UA: ${p.ua}</div>`).join('')}</div>`:'';
     document.getElementById('atp-pse').innerHTML=`
     <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-chart-bar" style="margin-right:6px;vertical-align:-3px;color:#4ade80" aria-hidden="true"></i>PSE — Carga de Treino</div>
@@ -11844,7 +11939,7 @@ function renderAtPSE(){
     ${evCards}
     <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Últimos Registos</div>
     <div class="tw"><table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead>
-    <tbody>${APP.pse.filter(p=>p.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
+    <tbody>${APP.pse.filter(p=>p.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${_pseTypeBadge(p.sessionType)}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
     return;
   }
   // Pré-preenche a duração com a da sessão pendente atual, se a atleta ainda não tiver
@@ -11856,7 +11951,7 @@ function renderAtPSE(){
   document.getElementById('atp-pse').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-chart-bar" style="margin-right:6px;vertical-align:-3px;color:#4ade80" aria-hidden="true"></i>PSE — Carga de Treino</div>
   <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Escala de Borg CR10${_pPending.length>1?' · '+_pPending.length+' sessões por avaliar':''}</div>
-  <div style="font-size:12px;font-weight:700;color:var(--c1l);margin-bottom:10px"><i class="ti ti-barbell" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>A avaliar: ${_pCurrent.title||_pCurrent.type||'Sessão'}</div>
+  <div style="font-size:12px;font-weight:700;color:${_pCurrent.type==='Ginásio'?'#8e44ad':'var(--c1l)'};margin-bottom:10px"><i class="ti ti-barbell" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>A avaliar: ${_pCurrent.title||_pCurrent.type||'Sessão'}</div>
   ${already.length?`<div class="al al-g">${already.map(p=>`<div><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>PSE registado (${p.sessionType||'—'}): ${p.pse}/10 · ${p.duration} min · UA: ${p.ua}</div>`).join('')}</div>`:''}
   <div class="card" style="margin-bottom:14px"><div class="cb" style="padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:8px">Como foi o esforço percebido?</div>
@@ -11867,7 +11962,7 @@ function renderAtPSE(){
   <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitPSE()"><i class="ti ti-send" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>Registar PSE</button>
   <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Últimos Registos</div>
   <div class="tw"><table><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th></tr></thead>
-  <tbody>${APP.pse.filter(p=>p.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${p.sessionType||'—'}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
+  <tbody>${APP.pse.filter(p=>p.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(p=>`<tr><td>${fmtDate(p.date)}</td><td><strong>${p.pse}</strong>/10</td><td>${p.duration} min</td><td><strong>${p.ua}</strong></td><td>${_pseTypeBadge(p.sessionType)}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
 }
 function submitPSE(){
   if(!_psfVal&&_psfVal!==0)return toast('Seleciona o PSE','err');
