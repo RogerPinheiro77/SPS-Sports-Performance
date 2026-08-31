@@ -12772,8 +12772,25 @@ async function pushAppMeta(_pushRetry){
       exercises:APP.exercises||[],
       gymSheets:APP.gymSheets||[]
     };
+    // Escrever por cima do meta.exercises da Biblioteca de Ginásio, 31/08/2026: um
+    // separador com uma versão de código mais antiga (aberto há dias, sem recarregar)
+    // não conhece campos adicionados depois na sua cópia do JS — ex: 'exercises'/
+    // 'gymSheets' só passaram a existir neste objeto `meta` a partir do sps-v92. Até
+    // aqui, gravava-se `meta:meta` diretamente — um `.update()` substitui a coluna
+    // jsonb INTEIRA, por isso qualquer chave que essa versão antiga não soubesse
+    // construir desaparecia da cloud em silêncio, mesmo com a guarda de staleness
+    // acima (que só existe NO código novo — uma sessão com código antigo não a tem).
+    // Foi assim que os 6 exercícios de Ginásio desapareceram da Biblioteca. Correção:
+    // ler o meta atual da cloud mesmo antes de gravar e fazer merge raso — qualquer
+    // chave que este `meta` local não tenha (código desatualizado) mantém o valor que
+    // já estava na cloud, em vez de desaparecer. Uma chave que O código atual gere
+    // sempre substitui (mesmo vazia — array vazio é um estado válido e intencional).
+    // Ver project_sps_biblioteca_exercicios_wipe.
+    const {data:_curRow}=await _supa.from('clubs').select('meta').eq('id',_cid).maybeSingle();
+    const _cloudMeta=(_curRow&&_curRow.meta)||{};
+    const _mergedMeta={..._cloudMeta,...meta};
     const _pushTs=new Date().toISOString();
-    await _supa.from('clubs').update({meta:meta,updated_at:_pushTs}).eq('id',_cid);
+    await _supa.from('clubs').update({meta:_mergedMeta,updated_at:_pushTs}).eq('id',_cid);
     _metaSyncAt=_pushTs;
     // A partir daqui a cloud já reflete as eliminações desta sessão — não é preciso
     // continuar a protegê-las no próximo merge.
