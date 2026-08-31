@@ -4702,7 +4702,7 @@ function _jogoPosHtml(g){
 // Mostra a linha do tempo (golos/cartões/substituições) já importada da FPF —
 // o dado (g.fpfTimeline) existe desde a importação mas nunca era exibido em
 // lado nenhum depois de aplicado; isto só lê o que já está guardado.
-const _TL_EVLBL={golo:'⚽ Golo',golo_sofrido:'🥅 Golo sofrido',amarelo:'🟨 Cartão amarelo',vermelho:'🟥 Cartão vermelho',substituicao:'🔄 Substituição',remate:'🎯 Remate',remate_adv:'🎯 Remate (Adversário)',canto_of:'🚩 Canto Ofensivo',canto_def:'🚩 Canto Defensivo',livre_of:'🎯 Livre Ofensivo',livre_def:'🎯 Livre Defensivo',penaltis:'🥅 Grandes Penalidades'};
+const _TL_EVLBL={golo:'Golo',golo_sofrido:'Golo sofrido',amarelo:'Cartão amarelo',vermelho:'Cartão vermelho',substituicao:'Substituição',remate:'Remate',remate_adv:'Remate (Adversário)',canto_of:'Canto Ofensivo',canto_def:'Canto Defensivo',livre_of:'Livre Ofensivo',livre_def:'Livre Defensivo',penaltis:'Grandes Penalidades'};
 function _jogoTimelineHtml(g){
   const evs=(g.fpfTimeline||[]).filter(e=>e.type!=='inicio'&&e.type!=='fim');
   if(!evs.length)return `<div class="ipanel" style="margin-bottom:12px">
@@ -4714,8 +4714,9 @@ function _jogoTimelineHtml(g){
     const detail=e.type==='substituicao'?`Sai ${escHtml(e.playerOut||'?')}, entra ${escHtml(e.playerIn||'?')}`
       :isSetPiece?`${e.side==='esq'?'lado esquerdo':e.side==='dir'?'lado direito':''}${e.player?' — '+escHtml(e.player):''}`
       :`${escHtml(e.player||'')}${e.assistName?' (assist. '+escHtml(e.assistName)+')':''}${e.goalZoneLbl?' — '+escHtml(e.goalZoneLbl):''}${e.scoreAfter?' ('+escHtml(e.scoreAfter)+')':''}`;
-    return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--brd)">
+    return `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--brd);align-items:center">
       <div style="font-size:11px;color:var(--t2);min-width:30px;font-weight:700">${escHtml(e.minRaw||'')}</div>
+      ${_gdIco(e.type,14)}
       <div style="font-size:12px">${_TL_EVLBL[e.type]||e.type} — ${detail}</div>
     </div>`;
   }).join('');
@@ -4726,12 +4727,18 @@ function _jogoTimelineHtml(g){
     <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">🎯 Mapa de Golos (zona de entrada)</div>
     ${_gdGoalZoneMapSvg(zc,140)}
   </div>`:'';
+  // Mapas de calor (sps-v101): fpfTimeline não guarda x/y, por isso lê sempre do
+  // liveSession (que continua a existir depois de lançado) — pedido do Roger, 31/08/2026,
+  // para o heat map deixar de estar só no Ao Vivo e passar também a aparecer no Pós-Jogo.
+  const heatEvents=(g.liveSession&&g.liveSession.events)||[];
+  const heatmapsHtml=_gdHeatmapsHtml(heatEvents);
   return `<div class="ipanel" style="margin-bottom:12px">
     <div class="sh-t" style="font-size:15px;margin-bottom:2px">🕐 Linha do Tempo do Jogo</div>
     <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Importada da FPF ou lançada do SPS-Gameday.</p>
     ${countsHtml}
     ${zoneMapHtml}
     <div>${rows}</div>
+    ${heatmapsHtml}
   </div>`;
 }
 
@@ -4767,6 +4774,34 @@ const _GD_TYPES=[
 ];
 const _GD_TYPE_LBL={};_GD_TYPES.forEach(t=>{_GD_TYPE_LBL[t[0]]=t[2];});
 _GD_TYPE_LBL.pausa='Pausa';
+// Ícones Tabler coloridos por ação (sps-v101, pedido do Roger 31/08/2026): verde para
+// tudo o que é ataque nosso, vermelho para tudo o que é contra nós/defensivo, para dar
+// uma leitura visual imediata nos relatórios. Golo/golo sofrido e remate/remate adversário
+// usam o mesmo ícone (só muda a cor) — é a mesma ação vista dos dois lados. Cartões e
+// substituição ficam fora da regra ofensiva/defensiva (cartão já tem cor própria universal
+// no futebol). Só cobre HTML (contagens, cronologia, botões do popup) — os marcadores em
+// cima do campo (SVG) continuam a usar o emoji de _GD_TYPES, mais simples de desenhar em <text>.
+const _GD_ICON_COLOR={
+  golo:{i:'ball-football',c:'#16a34a'},
+  golo_sofrido:{i:'ball-football',c:'#dc2626'},
+  remate:{i:'target',c:'#16a34a'},
+  remate_adv:{i:'target',c:'#dc2626'},
+  canto_of:{i:'flag-2',c:'#16a34a'},
+  canto_def:{i:'flag-2',c:'#dc2626'},
+  livre_of:{i:'target-arrow',c:'#16a34a'},
+  livre_def:{i:'target-arrow',c:'#dc2626'},
+  recuperacao_bola:{i:'shield-check',c:'#16a34a'},
+  perda_bola:{i:'shield-x',c:'#dc2626'},
+  substituicao:{i:'arrows-exchange',c:'#6b7280'},
+  amarelo:{i:'square-rounded',c:'#d97706'},
+  vermelho:{i:'square-rounded',c:'#dc2626'},
+  opp_amarelo:{i:'square-rounded',c:'#d97706'},
+  opp_vermelho:{i:'square-rounded',c:'#dc2626'}
+};
+function _gdIco(type,px){
+  const d=_GD_ICON_COLOR[type];if(!d)return '';
+  return `<i class="ti ti-${d.i}" style="font-size:${px||14}px;color:${d.c};vertical-align:middle" aria-hidden="true"></i>`;
+}
 const _GD_PHASE_LBL={pre:'Antes do jogo','1':'1ª Parte',intervalo1:'Intervalo','2':'2ª Parte',fimReg:'Fim do tempo regulamentar',ET1:'1º Tempo Prolong.',intervaloET:'Intervalo Prolong.',ET2:'2º Tempo Prolong.',penaltis:'Grandes Penalidades',fim:'Jogo Terminado'};
 const _GD_GOAL_ZONES=[
   ['TL','Superior Esquerdo'],['TC','Superior Centro'],['TR','Superior Direito'],
@@ -4786,17 +4821,17 @@ const _GD_OPP_ATTRIBUTABLE=['remate_adv','canto_def','livre_def'];
 // para os dados do SPS-Gameday ficarem quantificados e não só como lista solta.
 // remate_adv/opp_amarelo/opp_vermelho acrescentados 27/08/2026 (ações do adversário).
 const _GD_COUNTABLE=[
-  ['remate','🎯','Remates'],
-  ['remate_adv','🛡️','Remates Advers.'],
-  ['canto_of','🚩','Cantos Of.'],
-  ['canto_def','🏳️','Cantos Def.'],
-  ['livre_of','🟢','Livres Of.'],
-  ['livre_def','🔴','Livres Def.'],
-  ['perda_bola','🔻','Perdas de Bola'],
-  ['recuperacao_bola','🔺','Recuperações de Bola'],
-  ['golo_sofrido','🥅','Golos Sofridos'],
-  ['opp_amarelo','🟨','Amarelos Advers.'],
-  ['opp_vermelho','🟥','Vermelhos Advers.']
+  ['remate','Remates'],
+  ['remate_adv','Remates Advers.'],
+  ['canto_of','Cantos Of.'],
+  ['canto_def','Cantos Def.'],
+  ['livre_of','Livres Of.'],
+  ['livre_def','Livres Def.'],
+  ['perda_bola','Perdas de Bola'],
+  ['recuperacao_bola','Recuperações de Bola'],
+  ['golo_sofrido','Golos Sofridos'],
+  ['opp_amarelo','Amarelos Advers.'],
+  ['opp_vermelho','Vermelhos Advers.']
 ];
 function _gdCountByType(events){
   const c={};_GD_COUNTABLE.forEach(t=>{c[t[0]]=0;});
@@ -4812,7 +4847,7 @@ function _gdCountsSummaryHtml(events){
   const c=_gdCountByType(events);
   const total=_GD_COUNTABLE.reduce((s,t)=>s+c[t[0]],0);
   if(!total)return '';
-  return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px">${_GD_COUNTABLE.map(([k,icon,lbl])=>`<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:5px 9px;font-size:11px"><b>${c[k]}</b> ${icon} ${escHtml(lbl)}</div>`).join('')}</div>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px">${_GD_COUNTABLE.map(([k,lbl])=>`<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:5px 9px;font-size:11px;display:flex;align-items:center;gap:4px"><b>${c[k]}</b> ${_gdIco(k,13)} ${escHtml(lbl)}</div>`).join('')}</div>`;
 }
 // Mapa de zonas de golo: mini-baliza 3×3 com a contagem por zona, reaproveita
 // _GD_GOAL_ZONES para nunca divergir da grelha usada no registo ao vivo.
@@ -4880,13 +4915,29 @@ function _gdHeatmapsHtml(events){
     <div style="font-size:9px;color:var(--t3);margin-top:4px">Densidade dos eventos registados nas coordenadas do toque — não é tracking posicional em tempo real.</div>
   </div>`;
 }
+// Variante para dentro dos PDFs (sps-v101, pedido do Roger 31/08/2026 — o heat map só
+// existia no separador Ao Vivo, passa também a sair no Relatório Completo/Pós-Jogo em PDF).
+function _gdHeatmapsHtmlPrint(events){
+  const hasData=(events||[]).some(e=>e.x!=null&&(_GD_HEATMAP_POSSE.includes(e.type)||_GD_HEATMAP_SEMBOLA.includes(e.type)));
+  if(!hasData)return '';
+  const heatPosse=_gdHeatGrid(events,_GD_HEATMAP_POSSE,6,8);
+  const heatSem=_gdHeatGrid(events,_GD_HEATMAP_SEMBOLA,6,8);
+  return `<div style="margin-top:14px">
+    <h3>Mapas de Eventos</h3>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;background:#f2f2f2;border:1px solid #ccc;border-radius:6px;padding:10px">
+      <div style="text-align:center"><div style="font-size:9pt;color:#666;margin-bottom:4px">Em Posse</div>${_gdHeatSvg(heatPosse,140)}</div>
+      <div style="text-align:center"><div style="font-size:9pt;color:#666;margin-bottom:4px">Sem Bola</div>${_gdHeatSvg(heatSem,140)}</div>
+    </div>
+    <div style="font-size:8pt;color:#999;margin-top:4px">Densidade dos eventos registados nas coordenadas do toque — não é tracking posicional em tempo real.</div>
+  </div>`;
+}
 // Variante da contagem agregada para dentro dos PDFs (_printWin usa página branca,
 // sem as variáveis CSS --bg2/--t2/--brd do tema da app).
 function _gdCountsSummaryHtmlPrint(events){
   const c=_gdCountByType(events);
   const total=_GD_COUNTABLE.reduce((s,t)=>s+c[t[0]],0);
   if(!total)return '';
-  return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px">${_GD_COUNTABLE.map(([k,icon,lbl])=>`<div style="background:#f2f2f2;border:1px solid #ccc;border-radius:6px;padding:5px 10px;font-size:10pt"><b>${c[k]}</b> ${icon} ${escHtml(lbl)}</div>`).join('')}</div>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px">${_GD_COUNTABLE.map(([k,lbl])=>`<div style="background:#f2f2f2;border:1px solid #ccc;border-radius:6px;padding:5px 10px;font-size:10pt"><b>${c[k]}</b> ${_gdIco(k,12)} ${escHtml(lbl)}</div>`).join('')}</div>`;
 }
 
 // Análise automática do jogo (sps-v77) — resumo gerado por regras a partir dos dados
@@ -5572,7 +5623,7 @@ function _jogoAoVivoHtml(g){
     popup=`<div style="position:absolute;${_gdAnchor(_gdMenuXY.x,26)};top:${Math.min(_gdMenuXY.y,72)}%;background:var(--bg1);border:2px solid var(--c1l);border-radius:10px;padding:8px;width:min(170px,72vw);box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5${_gdCounterRot}">
       <div style="font-size:10px;color:var(--c1l);font-weight:800;margin-bottom:6px">📍 ${_gdMinLabel(_gdMenuXY.sec)}</div>
       <div style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto">
-        ${_GD_TYPES.filter(([type])=>type!=='substituicao').map(([type,icon,label])=>`<button class="btn btn-sm btn-gh" style="justify-content:flex-start;text-align:left;padding:9px 10px" onclick="_gdPickType('${g.id}','${type}')">${icon} ${label}</button>`).join('')}
+        ${_GD_TYPES.filter(([type])=>type!=='substituicao').map(([type,,label])=>`<button class="btn btn-sm btn-gh" style="justify-content:flex-start;text-align:left;padding:9px 10px;display:flex;align-items:center;gap:7px" onclick="_gdPickType('${g.id}','${type}')">${_gdIco(type,16)} ${label}</button>`).join('')}
       </div>
       <button class="btn btn-sm btn-r" style="width:100%;margin-top:6px;padding:9px" onclick="_gdCancelMenu()">Cancelar</button>
     </div>`;
@@ -6051,11 +6102,14 @@ function exportJogoPDF(gid,type){
       const detail=e.type==='substituicao'?`Sai ${e.playerOut||'?'}, entra ${e.playerIn||'?'}`
         :isSetPiece?`${e.side==='esq'?'lado esquerdo':e.side==='dir'?'lado direito':''}${e.player?' — '+e.player:''}`
         :`${e.player||''}${e.assistName?' (assist. '+e.assistName+')':''}${e.goalZoneLbl?' — '+e.goalZoneLbl:''}${e.scoreAfter?' ('+e.scoreAfter+')':''}`;
-      return `<tr><td>${e.minRaw||''}</td><td>${_TL_EVLBL[e.type]||e.type}</td><td>${detail}</td></tr>`;
+      return `<tr><td>${e.minRaw||''}</td><td>${_gdIco(e.type,12)} ${_TL_EVLBL[e.type]||e.type}</td><td>${detail}</td></tr>`;
     }).join('');
     const countsHtmlPdf=_gdCountsSummaryHtmlPrint(tlEvs);
     const zcPdf=_gdZoneCounts(tlEvs.filter(e=>e.type==='golo'));
     const hasZoneDataPdf=Object.values(zcPdf).some(n=>n>0);
+    // Mapas de calor no PDF (sps-v101) — lê do liveSession (tem x/y), não do fpfTimeline.
+    const heatEventsPdf=(g.liveSession&&g.liveSession.events)||[];
+    const heatmapsHtmlPdf=_gdHeatmapsHtmlPrint(heatEventsPdf);
     body+=`<div style="${type==='full'?'page-break-before:always':''}">
       <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📊 Relatório Pós-Jogo</h2>
       <p><b>Resultado:</b> ${club} ${res} ${g.opp}</p>
@@ -6063,6 +6117,7 @@ function exportJogoPDF(gid,type){
       ${ats.length?`<h3>Estatísticas Individuais</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Pos.</th><th>Min.</th><th>⚽</th><th>🅰️</th><th>🟨</th><th>🟥</th></tr></thead><tbody>${sR}</tbody></table>`:''}
       ${countsHtmlPdf?`<h3 style="margin-top:14px">Contagens do Jogo</h3>${countsHtmlPdf}`:''}
       ${hasZoneDataPdf?`<h3 style="margin-top:4px">Mapa de Golos (zona de entrada)</h3>${_gdGoalZoneMapSvg(zcPdf,150,true)}`:''}
+      ${heatmapsHtmlPdf}
       ${tlEvs.length?`<h3 style="margin-top:14px">Linha do Tempo</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>Min.</th><th>Evento</th><th>Detalhe</th></tr></thead><tbody>${tlRows}</tbody></table>`:''}
       ${g.postGameNotes?`<h3>Análise do Treinador</h3><p style="white-space:pre-line">${g.postGameNotes}</p>`:''}
     </div>`;
@@ -9720,6 +9775,7 @@ function _printWin(title,bodyHtml,headerExtra,sideLogo,landscape){
   const season=APP.config.season||'';
   const logo=APP.config.clubLogo?`<img src="${APP.config.clubLogo}" style="height:48px;object-fit:contain">`:club.slice(0,1);
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:Arial,sans-serif;font-size:11pt;color:#111;background:#fff;padding:18mm 15mm}
