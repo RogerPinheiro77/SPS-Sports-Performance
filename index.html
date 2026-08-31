@@ -4747,20 +4747,26 @@ function _jogoTimelineHtml(g){
 // Mapa de calor (onde a equipa ataca/remata mais) fica para uma fase 2, depois de
 // haver jogos reais com dados — combinado com o Roger, 26/08/2026.
 // ============================================================
+// Ícones já não se repetem entre tipos diferentes (antes remate/remate_adv/livre_of/livre_def
+// partilhavam 🎯 e canto_of/canto_def partilhavam 🚩 — no campo parecia sempre "o alvo",
+// impossível distinguir o que tinha acontecido só pelo ícone) — pedido do Roger, 31/08/2026.
 const _GD_TYPES=[
   ['golo','⚽','Golo'],
   ['golo_sofrido','🥅','Golo Sofrido'],
   ['remate','🎯','Remate'],
-  ['remate_adv','🎯','Remate (Adversário)'],
+  ['remate_adv','🛡️','Remate (Adversário)'],
   ['canto_of','🚩','Canto Ofensivo'],
-  ['canto_def','🚩','Canto Defensivo'],
-  ['livre_of','🎯','Livre Ofensivo'],
-  ['livre_def','🎯','Livre Defensivo'],
+  ['canto_def','🏳️','Canto Defensivo'],
+  ['livre_of','🟢','Livre Ofensivo'],
+  ['livre_def','🔴','Livre Defensivo'],
+  ['perda_bola','🔻','Perda de Bola'],
+  ['recuperacao_bola','🔺','Recuperação de Bola'],
   ['substituicao','🔄','Substituição'],
   ['amarelo','🟨','Amarelo'],
   ['vermelho','🟥','Vermelho']
 ];
 const _GD_TYPE_LBL={};_GD_TYPES.forEach(t=>{_GD_TYPE_LBL[t[0]]=t[2];});
+_GD_TYPE_LBL.pausa='Pausa';
 const _GD_PHASE_LBL={pre:'Antes do jogo','1':'1ª Parte',intervalo1:'Intervalo','2':'2ª Parte',fimReg:'Fim do tempo regulamentar',ET1:'1º Tempo Prolong.',intervaloET:'Intervalo Prolong.',ET2:'2º Tempo Prolong.',penaltis:'Grandes Penalidades',fim:'Jogo Terminado'};
 const _GD_GOAL_ZONES=[
   ['TL','Superior Esquerdo'],['TC','Superior Centro'],['TR','Superior Direito'],
@@ -4770,7 +4776,7 @@ const _GD_GOAL_ZONES=[
 const _GD_GOAL_ZONE_LBL={};_GD_GOAL_ZONES.forEach(z=>{_GD_GOAL_ZONE_LBL[z[0]]=z[1];});
 // Tipos "soltos" (sem atleta obrigatória ao registar) que agora podem, opcionalmente,
 // ser ligados a uma jogadora depois — via botão "+ identificar jogadora" na cronologia.
-const _GD_ATTRIBUTABLE=['remate','canto_of','canto_def','livre_of','livre_def'];
+const _GD_ATTRIBUTABLE=['remate','canto_of','canto_def','livre_of','livre_def','perda_bola','recuperacao_bola'];
 // Tipos "soltos" cuja identificação diferida aponta para o Nº do ADVERSÁRIO (g.oppRoster)
 // em vez de uma das nossas atletas — via botão "+ nº adversário" na cronologia. Pedido do
 // Roger, 27/08/2026, para estatística mais completa incluindo ações do adversário.
@@ -4781,11 +4787,13 @@ const _GD_OPP_ATTRIBUTABLE=['remate_adv','canto_def','livre_def'];
 // remate_adv/opp_amarelo/opp_vermelho acrescentados 27/08/2026 (ações do adversário).
 const _GD_COUNTABLE=[
   ['remate','🎯','Remates'],
-  ['remate_adv','🎯','Remates Advers.'],
+  ['remate_adv','🛡️','Remates Advers.'],
   ['canto_of','🚩','Cantos Of.'],
-  ['canto_def','🚩','Cantos Def.'],
-  ['livre_of','🎯','Livres Of.'],
-  ['livre_def','🎯','Livres Def.'],
+  ['canto_def','🏳️','Cantos Def.'],
+  ['livre_of','🟢','Livres Of.'],
+  ['livre_def','🔴','Livres Def.'],
+  ['perda_bola','🔻','Perdas de Bola'],
+  ['recuperacao_bola','🔺','Recuperações de Bola'],
   ['golo_sofrido','🥅','Golos Sofridos'],
   ['opp_amarelo','🟨','Amarelos Advers.'],
   ['opp_vermelho','🟥','Vermelhos Advers.']
@@ -4827,6 +4835,50 @@ function _gdGoalZoneMapSvg(counts,w,light){
       <text x="${col*(w/3)+w/6}" y="${row*(h/3)+h/6+4}" font-size="12" font-weight="700" text-anchor="middle" fill="${textFill}">${n||''}</text>`;
   }).join('');
   return `<svg viewBox="0 0 ${w} ${h}" style="width:${w}px;display:block;border:2px solid ${borderCol};border-radius:2px">${cells}</svg>`;
+}
+// Mapas de eventos (Em Posse / Sem Bola) — pedido do Roger, 31/08/2026. Não é tracking
+// posicional real (isso exigia GPS/vídeo, impossível com registo manual por toque) — é
+// uma grelha de densidade dos eventos já registados, cada um com a coordenada exata de
+// onde se tocou no campo. "Em posse" junta golo/remate/canto_of/livre_of/recuperação;
+// "sem bola" junta golo sofrido/remate_adv/canto_def/livre_def/perda de bola. Reaproveita
+// o mesmo padrão de grelha do mapa de zonas de golo acima, só que sobre o campo inteiro
+// em vez da mini-baliza 3×3.
+const _GD_HEATMAP_POSSE=['golo','remate','canto_of','livre_of','recuperacao_bola'];
+const _GD_HEATMAP_SEMBOLA=['golo_sofrido','remate_adv','canto_def','livre_def','perda_bola'];
+function _gdHeatGrid(events,types,cols,rows){
+  const grid=Array.from({length:rows},()=>Array(cols).fill(0));
+  (events||[]).forEach(e=>{
+    if(e.x==null||!types.includes(e.type))return;
+    const c=Math.max(0,Math.min(cols-1,Math.floor(e.x/100*cols)));
+    const r=Math.max(0,Math.min(rows-1,Math.floor(e.y/100*rows)));
+    grid[r][c]++;
+  });
+  return grid;
+}
+function _gdHeatSvg(grid,w){
+  const rows=grid.length,cols=grid[0].length;
+  const h=w*1.4;
+  const max=Math.max(1,...grid.map(row=>Math.max(...row)));
+  const cw=w/cols,ch=h/rows;
+  const cells=grid.map((row,r)=>row.map((n,c)=>{
+    const alpha=n?0.12+0.68*(n/max):0.02;
+    return `<rect x="${(c*cw).toFixed(1)}" y="${(r*ch).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}" fill="rgba(220,60,50,${alpha.toFixed(2)})" stroke="rgba(255,255,255,.15)" stroke-width="0.5"/>`;
+  }).join('')).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;max-width:150px;display:block;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:#0f3d24">${cells}<line x1="0" y1="${h/2}" x2="${w}" y2="${h/2}" stroke="rgba(255,255,255,.3)" stroke-width="1"/></svg>`;
+}
+function _gdHeatmapsHtml(events){
+  const hasData=(events||[]).some(e=>e.x!=null&&(_GD_HEATMAP_POSSE.includes(e.type)||_GD_HEATMAP_SEMBOLA.includes(e.type)));
+  if(!hasData)return '';
+  const heatPosse=_gdHeatGrid(events,_GD_HEATMAP_POSSE,6,8);
+  const heatSem=_gdHeatGrid(events,_GD_HEATMAP_SEMBOLA,6,8);
+  return `<div style="margin-top:14px">
+    <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">MAPAS DE EVENTOS</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:10px">
+      <div style="text-align:center"><div style="font-size:10px;color:var(--t2);margin-bottom:4px">Em Posse</div>${_gdHeatSvg(heatPosse,140)}</div>
+      <div style="text-align:center"><div style="font-size:10px;color:var(--t2);margin-bottom:4px">Sem Bola</div>${_gdHeatSvg(heatSem,140)}</div>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:4px">Densidade dos eventos registados nas coordenadas do toque — não é tracking posicional em tempo real.</div>
+  </div>`;
 }
 // Variante da contagem agregada para dentro dos PDFs (_printWin usa página branca,
 // sem as variáveis CSS --bg2/--t2/--brd do tema da app).
@@ -4902,9 +4954,23 @@ function _gdInit(g){
   if(!g.liveSession)g.liveSession={
     phase:'pre',runningSince:null,accumSec:0,regEndSec:null,etEndSec:null,
     events:[],onPitch:[...g.lineup],bench:[...g.subs],score:{casa:0,fora:0},
-    penEvents:[],launched:false
+    penEvents:[],launched:false,pauseReason:null
   };
   return g.liveSession;
+}
+// Reiniciar Jogo — pedido do Roger, 31/08/2026: se algo correr mal a meio (ex.: cronómetro
+// arrancado por engano), dá para voltar à estaca zero sem ter de sair e reentrar no jogo.
+// Só disponível enquanto ainda é rascunho — depois de "Lançar" desaparece de propósito,
+// para nunca haver risco de apagar dados que já passaram para os campos oficiais do jogo.
+function _gdResetGame(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  if(g.liveSession.launched)return toast('Já foi lançado — não é possível reiniciar','err');
+  if(!confirm('Reiniciar o jogo? Todo o registo ao vivo (eventos, cronómetro, substituições) será apagado. Esta ação não pode ser desfeita.'))return;
+  delete g.liveSession;
+  clearInterval(_gdClockInterval);_gdClockInterval=null;
+  _gdSubMode=false;_gdSubBenchSel=null;_gdPauseMenuOpen=false;
+  saveData();toast('Jogo reiniciado');
+  _renderJogoDetailFull();
 }
 function _gdRunning(ls){return !!ls.runningSince;}
 function _gdElapsedSec(ls){return ls.accumSec+(ls.runningSince?(Date.now()-ls.runningSince)/1000:0);}
@@ -4947,6 +5013,43 @@ function _gdResume(gid,phase,resetSec){
   ls.phase=phase;ls.runningSince=Date.now();
   saveData();toast((_GD_PHASE_LBL[phase]||phase)+' iniciada ⏱️');_renderJogoDetailFull();
 }
+// Pausa genérica — pedido do Roger, 31/08/2026: às vezes é preciso parar o relógio a
+// meio de uma parte (hidratação, lesão, VAR) sem "avançar de fase" como o intervalo faz.
+// Mesmo mecanismo do _gdPause (para o relógio), mas mantém a fase e fica registada com
+// motivo na cronologia — o botão "Retomar" volta exatamente onde parou.
+const _GD_PAUSE_REASONS=[['hidratacao','Hidratação'],['lesao','Lesão'],['var','Consulta VAR'],['medica','Intervenção Médica'],['outro','Outro']];
+const _GD_PAUSE_REASON_LBL={};_GD_PAUSE_REASONS.forEach(([k,l])=>{_GD_PAUSE_REASON_LBL[k]=l;});
+let _gdPauseMenuOpen=false;
+function _gdOpenPauseMenu(){_gdPauseMenuOpen=true;_renderJogoDetailFull();}
+function _gdCancelPauseMenu(){_gdPauseMenuOpen=false;_renderJogoDetailFull();}
+function _gdPauseMenuHtml(g){
+  if(!_gdPauseMenuOpen)return '';
+  return `<div style="margin-top:8px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:8px">
+    <div style="font-size:10px;color:var(--t2);margin-bottom:6px">Motivo da pausa:</div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      ${_GD_PAUSE_REASONS.map(([k,l])=>`<button class="btn btn-sm btn-gh" style="text-align:left" onclick="_gdPauseWithReason('${g.id}','${k}')">${l}</button>`).join('')}
+    </div>
+    <button class="btn btn-xs btn-r" style="width:100%;margin-top:6px" onclick="_gdCancelPauseMenu()">Cancelar</button>
+  </div>`;
+}
+function _gdPauseWithReason(gid,reason){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  ls.pauseReason=reason;
+  ls.events.push({id:uid(),sec:ls.accumSec,min:_gdMinLabel(ls.accumSec),phase:ls.phase,type:'pausa',reason});
+  _gdPauseMenuOpen=false;
+  saveData();toast('Pausa — '+(_GD_PAUSE_REASON_LBL[reason]||reason));
+  _renderJogoDetailFull();
+}
+function _gdResumeFromPause(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  ls.pauseReason=null;
+  ls.runningSince=Date.now();
+  saveData();toast('Jogo retomado ▶️');
+  _renderJogoDetailFull();
+}
 function _gdEndReg(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
   const ls=g.liveSession;
@@ -4964,7 +5067,7 @@ function _gdEndET(gid){
 }
 
 // --- Toque no campo: grava minuto+zona automaticamente, abre lista de ações ---
-let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null,_gdAssignEventId=null,_gdOppAssignEventId=null,_gdCardTeam='nos',_gdOppRosterOpen=false,_gdPitchRotated=false;
+let _gdMenuXY=null,_gdPendingType=null,_gdClockInterval=null,_gdGoalZone=null,_gdAssignEventId=null,_gdOppAssignEventId=null,_gdCardTeam='nos',_gdOppRosterOpen=false,_gdPitchRotated=false,_gdSubMode=false,_gdSubBenchSel=null;
 function _gdTogglePitchRotate(){_gdPitchRotated=!_gdPitchRotated;_renderJogoDetailFull();}
 // Atribuição opcional de jogadora a remate/canto/livre — pedido do Roger, 26/08/2026:
 // estes tipos continuam a confirmar-se de imediato ao tocar (sem abrandar o registo
@@ -5025,11 +5128,47 @@ function _gdPitchTap(e,gid){
 }
 function _gdCancelMenu(){_gdMenuXY=null;_gdPendingType=null;_gdGoalZone=null;_gdCardTeam='nos';_renderJogoDetailFull();}
 function _gdPickType(gid,type){
-  const simple=['golo_sofrido','remate','remate_adv','canto_of','canto_def','livre_of','livre_def'];
+  const simple=['golo_sofrido','remate','remate_adv','canto_of','canto_def','livre_of','livre_def','perda_bola','recuperacao_bola'];
   if(simple.includes(type)){_gdCommitEvent(gid,type,{});return;}
   _gdPendingType=type;_gdGoalZone=null;_gdCardTeam='nos';_renderJogoDetailFull();
 }
 function _gdPickGoalZone(zone){_gdGoalZone=(_gdGoalZone===zone)?null:zone;_renderJogoDetailFull();}
+// Partilhado entre a substituição via popup do campo (_gdCommitEvent) e a substituição
+// toque-toque pelo banco (_gdSelectOnPitch) — a posição/tarefa da jogadora que sai passa
+// para quem entra em todos os quadros (tático + 3 de bolas paradas), para nunca ficar um
+// quadro tático a mostrar uma jogadora que já saiu do jogo.
+function _gdApplySubPositionRemap(g,playerOut,playerIn){
+  ['tatico','cornerDef','cornerOf','freeKick'].forEach(mode=>{
+    const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
+    if(posMap[playerOut]){posMap[playerIn]=posMap[playerOut];delete posMap[playerOut];}
+    if(taskMap[playerOut]!==undefined){taskMap[playerIn]=taskMap[playerOut];delete taskMap[playerOut];}
+  });
+}
+// Substituição toque-toque — pedido do Roger, 31/08/2026: em vez do formulário com dois
+// menus dentro do popup do campo, o banco fica visível junto ao campo (chips com número),
+// toca-se na suplente que entra e depois em quem sai. Ficou toque-toque (não arrastar) por
+// ser mais fiável em ecrãs táteis pequenos — o mesmo padrão usado pela Pitch Planner.
+// Funciona também com o jogo parado (ex.: substituições ao intervalo), só não em 'pre'/'fim'.
+function _gdToggleSubMode(){_gdSubMode=!_gdSubMode;_gdSubBenchSel=null;_renderJogoDetailFull();}
+function _gdSelectBench(aid){
+  if(!_gdSubMode)return;
+  _gdSubBenchSel=(_gdSubBenchSel===aid)?null:aid;
+  _renderJogoDetailFull();
+}
+function _gdSelectOnPitch(gid,aidOut){
+  if(!_gdSubMode||!_gdSubBenchSel)return;
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
+  const ls=g.liveSession;
+  const sec=_gdElapsedSec(ls);
+  const ev={id:uid(),sec,min:_gdMinLabel(sec),phase:ls.phase,type:'substituicao',playerOut:aidOut,playerIn:_gdSubBenchSel};
+  ls.events.push(ev);
+  _gdApplySubPositionRemap(g,aidOut,_gdSubBenchSel);
+  _gdRecompute(g);
+  saveData();
+  _gdSubBenchSel=null;_gdSubMode=false;
+  toast('Substituição registada ✓');
+  _renderJogoDetailFull();
+}
 function _gdCommitEvent(gid,type,extra){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession||!_gdMenuXY)return;
   const ls=g.liveSession;
@@ -5039,11 +5178,7 @@ function _gdCommitEvent(gid,type,extra){
   Object.keys(extra||{}).forEach(k=>{ev[k]=extra[k];});
   ls.events.push(ev);
   if(type==='substituicao'&&extra.playerOut&&extra.playerIn){
-    ['tatico','cornerDef','cornerOf','freeKick'].forEach(mode=>{
-      const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
-      if(posMap[extra.playerOut]){posMap[extra.playerIn]=posMap[extra.playerOut];delete posMap[extra.playerOut];}
-      if(taskMap[extra.playerOut]!==undefined){taskMap[extra.playerIn]=taskMap[extra.playerOut];delete taskMap[extra.playerOut];}
-    });
+    _gdApplySubPositionRemap(g,extra.playerOut,extra.playerIn);
   }
   _gdRecompute(g);
   saveData();
@@ -5221,6 +5356,14 @@ function _gdStartClockInterval(gid){
     const el=document.getElementById('gd-clock-txt');
     if(!g||!g.liveSession||!el){clearInterval(_gdClockInterval);_gdClockInterval=null;return;}
     if(_gdRunning(g.liveSession))el.textContent=(_gdRunning(g.liveSession)?'▶ ':'⏸ ')+_gdFmtClock(_gdElapsedSec(g.liveSession));
+    // Esconde marcadores com mais de 10s, sem re-render completo (só display:none/'' em
+    // cada <text> já desenhado) — mantém o tick leve, tal como o próprio relógio.
+    const now=_gdElapsedSec(g.liveSession);
+    g.liveSession.events.forEach(e=>{
+      if(e.x==null)return;
+      const mk=document.getElementById('gd-mk-'+e.id);
+      if(mk)mk.style.display=(now-e.sec<10)?'':'none';
+    });
   },1000);
 }
 function _gdSubformHtml(g,type,onPitchAts,benchAts){
@@ -5287,9 +5430,10 @@ function _jogoAoVivoHtml(g){
   const benchAts=ls.bench.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
   const teamName=(APP.teams.find(t=>t.id===g.teamId)||{}).name||'Nós';
 
+  const canReset=ls.phase!=='pre'&&!ls.launched;
   const header=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px;flex-wrap:wrap;gap:8px">
     <div>
-      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY</div>
+      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY${canReset?` <span onclick="_gdResetGame('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">↺ Reiniciar</span>`:''}</div>
       <div style="font-size:16px;font-weight:900">${escHtml(teamName)} <span style="color:var(--c1l)">${ls.score.casa}</span> – <span style="color:var(--t2)">${ls.score.fora}</span> ${escHtml(g.opp)}</div>
     </div>
     <div style="text-align:right">
@@ -5298,15 +5442,30 @@ function _jogoAoVivoHtml(g){
     </div>
   </div>`;
 
+  // Fases "ao vivo" — cronómetro corre e pode ser pausado genericamente (motivo), sem
+  // avançar de fase. ls.pauseReason marca que está parada por esse motivo (distinto das
+  // paragens normais entre fases, que já têm os seus próprios ecrãs).
+  const livePhases=['1','2','ET1','ET2'];
   let controls='';
   if(ls.phase==='pre'){
     controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdStartGame('${g.id}')">▶️ Iniciar Jogo</button>`;
+  }else if(livePhases.includes(ls.phase)&&ls.pauseReason){
+    controls=`<div style="text-align:center">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:6px">⏸ Pausa — ${escHtml(_GD_PAUSE_REASON_LBL[ls.pauseReason]||ls.pauseReason)}</div>
+      <button class="btn btn-g" style="width:100%;padding:12px" onclick="_gdResumeFromPause('${g.id}')">▶️ Retomar</button>
+    </div>`;
   }else if(ls.phase==='1'){
-    controls=`<button class="btn btn-gh" style="width:100%;padding:12px" onclick="_gdPause('${g.id}','intervalo1')">⏸ Intervalo</button>`;
+    controls=`<div style="display:flex;gap:8px">
+      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
+      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdPause('${g.id}','intervalo1')">⏹ Intervalo</button>
+    </div>${_gdPauseMenuHtml(g)}`;
   }else if(ls.phase==='intervalo1'){
     controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdResume('${g.id}','2',2700)">▶️ Iniciar 2ª Parte</button>`;
   }else if(ls.phase==='2'){
-    controls=`<button class="btn btn-gh" style="width:100%;padding:12px" onclick="_gdEndReg('${g.id}')">⏹ Terminar Tempo Regulamentar</button>`;
+    controls=`<div style="display:flex;gap:8px">
+      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
+      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdEndReg('${g.id}')">⏹ Terminar Tempo Regulamentar</button>
+    </div>${_gdPauseMenuHtml(g)}`;
   }else if(ls.phase==='fimReg'){
     const tied=ls.score.casa===ls.score.fora;
     controls=`<div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -5314,11 +5473,17 @@ function _jogoAoVivoHtml(g){
       <button class="btn btn-g" style="flex:1;padding:12px" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar na Plataforma</button>
     </div>`;
   }else if(ls.phase==='ET1'){
-    controls=`<button class="btn btn-gh" style="width:100%;padding:12px" onclick="_gdPause('${g.id}','intervaloET')">⏸ Intervalo do Prolongamento</button>`;
+    controls=`<div style="display:flex;gap:8px">
+      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
+      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdPause('${g.id}','intervaloET')">⏹ Intervalo do Prolongamento</button>
+    </div>${_gdPauseMenuHtml(g)}`;
   }else if(ls.phase==='intervaloET'){
     controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdResume('${g.id}','ET2',6300)">▶️ Iniciar 2º Tempo do Prolongamento</button>`;
   }else if(ls.phase==='ET2'){
-    controls=`<button class="btn btn-gh" style="width:100%;padding:12px" onclick="_gdEndET('${g.id}')">⏹ Terminar Prolongamento</button>`;
+    controls=`<div style="display:flex;gap:8px">
+      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
+      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdEndET('${g.id}')">⏹ Terminar Prolongamento</button>
+    </div>${_gdPauseMenuHtml(g)}`;
   }else if(ls.phase==='penaltis'){
     controls=_gdPenaltisHtml(g);
   }else if(ls.phase==='fim'){
@@ -5326,14 +5491,23 @@ function _jogoAoVivoHtml(g){
   }
 
   const canTap=running;
-  const markerIcon={golo:'⚽',golo_sofrido:'🥅',remate:'🎯',remate_adv:'🎯',canto_of:'🚩',canto_def:'🚩',livre_of:'🎯',livre_def:'🎯',substituicao:'🔄',amarelo:'🟨',vermelho:'🟥'};
-  const markers=ls.events.map(e=>{
+  // Ícones já não são hardcoded aqui — vêm de _GD_TYPES, fonte única (evita divergir do
+  // que aparece no popup de escolha de ação).
+  const markerIcon={};_GD_TYPES.forEach(([type,icon])=>{markerIcon[type]=icon;});
+  // Marcadores ficam visíveis só ~10s depois do toque (pedido do Roger, 31/08/2026, para
+  // o campo não ficar poluído de ícones ao longo do jogo) — os dados continuam todos
+  // guardados (cronologia, contagens, heat maps), só a marca visual no campo desaparece.
+  // Eventos "soltos" sem coordenada (ex.: pausa genérica) nunca tiveram marcador — filtram-se
+  // aqui. O desaparecimento em si é feito pelo tick do relógio (_gdStartClockInterval),
+  // que só mexe em display:none/'' de cada <text>, sem re-render completo a cada segundo.
+  const markers=ls.events.filter(e=>e.x!=null).map(e=>{
     const cx=(e.x*3).toFixed(1),cy=(e.y*4.2).toFixed(1);
     // Com o campo rodado 180° (_gdPitchRotated), o texto do marcador ganha uma
     // contra-rotação própria em torno do seu ponto — fica sempre direito e
     // legível, mesmo que a posição em si acompanhe a rotação do campo todo.
     const rot=_gdPitchRotated?` transform="rotate(180 ${cx} ${cy})"`:'';
-    return `<text x="${cx}" y="${cy}" font-size="11" text-anchor="middle"${rot}>${markerIcon[e.type]||'•'}</text>`;
+    const fresh=(elapsed-e.sec)<10;
+    return `<text id="gd-mk-${e.id}" x="${cx}" y="${cy}" font-size="11" text-anchor="middle"${rot}${fresh?'':' style="display:none"'}>${markerIcon[e.type]||'•'}</text>`;
   }).join('');
   // Popups ancorados ao toque no campo: em telemóvel o campo tem só ~300px de largura,
   // por isso a âncora percentual antiga (left:X%) empurrava o popup para fora do ecrã
@@ -5351,7 +5525,7 @@ function _jogoAoVivoHtml(g){
     popup=`<div style="position:absolute;${_gdAnchor(_gdMenuXY.x,26)};top:${Math.min(_gdMenuXY.y,72)}%;background:var(--bg1);border:2px solid var(--c1l);border-radius:10px;padding:8px;width:min(170px,72vw);box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5${_gdCounterRot}">
       <div style="font-size:10px;color:var(--c1l);font-weight:800;margin-bottom:6px">📍 ${_gdMinLabel(_gdMenuXY.sec)}</div>
       <div style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto">
-        ${_GD_TYPES.map(([type,icon,label])=>`<button class="btn btn-sm btn-gh" style="justify-content:flex-start;text-align:left;padding:9px 10px" onclick="_gdPickType('${g.id}','${type}')">${icon} ${label}</button>`).join('')}
+        ${_GD_TYPES.filter(([type])=>type!=='substituicao').map(([type,icon,label])=>`<button class="btn btn-sm btn-gh" style="justify-content:flex-start;text-align:left;padding:9px 10px" onclick="_gdPickType('${g.id}','${type}')">${icon} ${label}</button>`).join('')}
       </div>
       <button class="btn btn-sm btn-r" style="width:100%;margin-top:6px;padding:9px" onclick="_gdCancelMenu()">Cancelar</button>
     </div>`;
@@ -5377,6 +5551,29 @@ function _jogoAoVivoHtml(g){
   </div>
   <div class="gd-pitch-rot-row"><button class="btn btn-xs btn-gh" onclick="_gdTogglePitchRotate()" title="Roda o campo 180° — ajusta a como seguras o ecrã, ou à troca de baliza ao intervalo">🔄 Rodar Campo</button></div>`;
 
+  // Substituição toque-toque: banco visível junto ao campo, ativa-se pelo botão dedicado
+  // (evita trocas por engano ao tocar nos avatares só para ver quem está onde).
+  const subChipsHtml=(()=>{
+    if(ls.phase==='pre'||ls.phase==='fim')return '';
+    const chip=(a,isBench)=>{
+      const sel=isBench&&_gdSubBenchSel===a.id;
+      const onClick=isBench?`_gdSelectBench('${a.id}')`:`_gdSelectOnPitch('${g.id}','${a.id}')`;
+      const active=_gdSubMode&&(isBench||_gdSubBenchSel);
+      return `<div onclick="${active?onClick:''}" style="flex-shrink:0;text-align:center;cursor:${active?'pointer':'default'};opacity:${_gdSubMode?'1':'.55'}">
+        <div style="width:34px;height:34px;border-radius:50%;background:${sel?'var(--c1l)':'var(--bg3)'};border:2px solid ${sel?'var(--c1l)':'var(--brd)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:${sel?'#fff':'var(--t1)'}">${a.number||'?'}</div>
+        <div style="font-size:8px;color:var(--t2);max-width:38px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(_shortName(a))}</div>
+      </div>`;
+    };
+    return `<div style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px">
+        <span style="font-size:10px;color:var(--t2)">${_gdSubMode?(_gdSubBenchSel?'Toca em quem sai':'Toca na suplente que entra'):'Em campo / Banco'}</span>
+        <button class="btn btn-xs ${_gdSubMode?'btn-g':'btn-gh'}" onclick="_gdToggleSubMode()">🔄 Substituição</button>
+      </div>
+      <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">${onPitchAts.map(a=>chip(a,false)).join('')}</div>
+      ${benchAts.length?`<div style="display:flex;gap:8px;overflow-x:auto;margin-top:6px;padding-top:6px;border-top:1px dashed var(--brd)">${benchAts.map(a=>chip(a,true)).join('')}</div>`:'<div style="font-size:10px;color:var(--t2);margin-top:4px">Sem suplentes disponíveis.</div>'}
+    </div>`;
+  })();
+
   const oppLbl=e=>e.oppNum?`Adversário nº${e.oppNum}`:'Adversário';
   const evRows=[...ls.events].sort((a,b)=>b.sec-a.sec).map(e=>{
     const nm=aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?_shortName(a):'?';};
@@ -5387,6 +5584,8 @@ function _jogoAoVivoHtml(g){
     else if(e.type==='remate')detail=e.player?nm(e.player):'';
     else if(e.type==='remate_adv')detail=e.oppNum?oppLbl(e):'';
     else if(e.type==='canto_of'||e.type==='canto_def'||e.type==='livre_of'||e.type==='livre_def')detail=(e.side==='esq'?'lado esquerdo':'lado direito')+(e.player?' — '+nm(e.player):'')+(e.oppNum?' · '+oppLbl(e):'');
+    else if(e.type==='perda_bola'||e.type==='recuperacao_bola')detail=(e.side==='esq'?'lado esquerdo':'lado direito')+(e.player?' — '+nm(e.player):'');
+    else if(e.type==='pausa')detail=_GD_PAUSE_REASON_LBL[e.reason]||e.reason||'';
     const assignable=_GD_ATTRIBUTABLE.includes(e.type);
     const oppAssignable=_GD_OPP_ATTRIBUTABLE.includes(e.type);
     const isAssigning=_gdAssignEventId===e.id;
@@ -5437,6 +5636,7 @@ function _jogoAoVivoHtml(g){
       <div class="gd-pitch-col">
         ${header}
         ${pitchSvg}
+        ${subChipsHtml}
       </div>
       <div class="gd-info-col">
         <div style="margin-top:12px">${controls}</div>
@@ -5446,6 +5646,7 @@ function _jogoAoVivoHtml(g){
           <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">CRONOLOGIA</div>
           <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;max-height:260px;overflow-y:auto">${evRows}</div>
         </div>
+        ${_gdHeatmapsHtml(ls.events)}
         <div style="font-size:10px;color:var(--t3);margin-top:10px">💾 Grava sozinho a cada toque — funciona sem internet no campo.</div>
       </div>
     </div>
