@@ -2308,10 +2308,10 @@ function openAthleteModal(id){
     const gev=APP.schedule.find(e=>e.id===r.eventId);
     if(!gev||!gev.gymSheet)return;
     (gev.gymSheet.exercises||[]).forEach((ex,i)=>{
-      const v=(r.vals||[])[i];
-      if(v&&v.trim()){
+      const vStr=_gymValStr((r.vals||[])[i]);
+      if(vStr){
         if(!gymTimeline[ex.name])gymTimeline[ex.name]=[];
-        gymTimeline[ex.name].push({date:gev.date,val:v});
+        gymTimeline[ex.name].push({date:gev.date,val:vStr});
       }
     });
   });
@@ -9057,18 +9057,34 @@ async function _saveGinasioQuickSchedule(){
 // ─── REGISTOS DE GINÁSIO (Fase 2) ──────────────────────────
 // Grelha de registo de uma sessão de Ginásio concreta: uma linha por atleta
 // da equipa do evento (+ convocadas avulso, mesmo padrão de guestIds já usado
-// no resto do Planeamento), colunas = cada exercício da ficha importada
-// (carga×reps em texto livre, como no papel) + RIR geral + Observações
-// (partilhados pela sessão toda, não por exercício — replica a "Tabela geral
-// de registo" do documento original do Roger). Aberta a partir de 2 sítios:
-// botão "Registar Sessão" no editor do evento (Planeamento) e a partir da
-// aba "Registos" em Fichas de Ginásio — ambos chamam openGymSessionGrid(id).
-// _gymGridData é um rascunho em memória (não grava a cada tecla); só grava
-// tudo de uma vez ao clicar "Guardar Registos", mesmo espírito do _gsDraft
-// nas Fichas. Ver project_sps_fichas_ginasio_fase2.
+// no resto do Planeamento), colunas = 4 por exercício da ficha importada
+// (Carga/Séries/Repetições/RIR, cada uma separada — pedido do Roger, 31/08/2026:
+// antes era 1 campo de texto livre "kg × reps" por exercício + 1 RIR geral só
+// para a sessão toda; RIR passou a ser por exercício, RIR geral deixou de
+// existir) + Observações (continua só da sessão toda). Aberta a partir de 2
+// sítios: botão "Registar Sessão" no editor do evento (Planeamento) e a
+// partir da aba "Registos" em Fichas de Ginásio — ambos chamam
+// openGymSessionGrid(id). _gymGridData é um rascunho em memória (não grava a
+// cada tecla); só grava tudo de uma vez ao clicar "Guardar Registos", mesmo
+// espírito do _gsDraft nas Fichas. Ver project_sps_fichas_ginasio_fase2 e
+// project_sps_ginasio_registo_colunas.
 let _gymGridEventId=null, _gymGridData={}, _gymAccOpen=null;
 function _gymGridAthletes(ev){
   return APP.athletes.filter(a=>a.teamId===ev.teamId||(ev.guestIds||[]).includes(a.id)).sort((a,b)=>_shortName(a).localeCompare(_shortName(b)));
+}
+// Um valor de exercício era antes uma string livre ("40kg x 8"); agora é um
+// objeto {carga,series,reps,rir}. Esta função aceita as duas formas — usada
+// em todos os sítios que leem vals[i], para registos antigos continuarem a
+// aparecer (tenta separar carga/reps do texto; o que não consegue separar
+// fica tudo na carga, para o treinador rever à mão) e novos já virem prontos.
+function _gymParseVal(v){
+  if(v&&typeof v==='object')return {carga:v.carga||'',series:v.series||'',reps:v.reps||'',rir:v.rir||''};
+  if(typeof v==='string'&&v.trim()){
+    const m=v.match(/^\s*([\d]+(?:[.,]\d+)?)\s*k?g?\.?\s*[x×]\s*([\d]+(?:[.,]\d+)?)/i);
+    if(m)return {carga:m[1],series:'',reps:m[2],rir:''};
+    return {carga:v.trim(),series:'',reps:'',rir:''};
+  }
+  return {carga:'',series:'',reps:'',rir:''};
 }
 function openGymSessionGrid(eventId){
   const ev=APP.schedule.find(e=>e.id===eventId);
@@ -9078,7 +9094,7 @@ function openGymSessionGrid(eventId){
   _gymAccOpen=null;
   _gymGridAthletes(ev).forEach(a=>{
     const rec=(APP.gymRecords||[]).find(r=>r.eventId===eventId&&r.athleteId===a.id);
-    _gymGridData[a.id]={vals:rec&&rec.vals?[...rec.vals]:[],rirGeral:(rec&&rec.rirGeral)||'',obs:(rec&&rec.obs)||''};
+    _gymGridData[a.id]={vals:(rec&&rec.vals?rec.vals:[]).map(_gymParseVal),obs:(rec&&rec.obs)||''};
   });
   renderGymSessionGrid();
 }
@@ -9102,26 +9118,43 @@ function renderGymSessionGrid(){
     <button class="btn btn-gh" onclick="closeMod()">Fechar</button>
   </div>`,'xl');
 }
+// 4 colunas por exercício (Carga/Séries/Reps/RIR), agrupadas sob o nome do
+// exercício numa 1ª linha de cabeçalho; separador mais grosso entre grupos de
+// exercícios para facilitar a leitura numa tabela larga. Ver
+// project_sps_ginasio_registo_colunas.
+const _GYM_FIELDS=[['carga','Carga'],['series','Séries'],['reps','Reps'],['rir','RIR']];
 function _gymGridTableHtml(gs,athletes){
-  const headHtml=gs.exercises.map(ex=>`<th style="padding:6px 8px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--brd)">${escHtml(ex.name)}<div style="font-weight:400;font-size:9.5px;color:var(--t2)">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div></th>`).join('');
+  const groupHeadHtml=gs.exercises.map((ex,i)=>{
+    const last=i===gs.exercises.length-1;
+    return `<th colspan="4" style="padding:6px 8px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--brd);${last?'':'border-right:2px solid var(--brd);'}background:var(--bg2)">${escHtml(ex.name)}<div style="font-weight:400;font-size:9.5px;color:var(--t2)">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div></th>`;
+  }).join('');
+  const subHeadHtml=gs.exercises.map((ex,i)=>{
+    const last=i===gs.exercises.length-1;
+    return _GYM_FIELDS.map(([f,lbl],j)=>`<th style="padding:4px 5px;text-align:center;border-bottom:1px solid var(--brd);font-weight:400;font-size:9.5px;color:var(--t2);${j===3&&!last?'border-right:2px solid var(--brd);':''}">${lbl}</th>`).join('');
+  }).join('');
   const rowsHtml=athletes.length?athletes.map(a=>{
-    const d=_gymGridData[a.id]||{vals:[],rirGeral:'',obs:''};
-    const exCells=gs.exercises.map((ex,i)=>`<td style="padding:3px 6px"><input class="fc" style="width:100px;font-size:11px;padding:5px 7px" value="${escHtml(d.vals[i]||'')}" placeholder="kg × reps" data-ath="${a.id}" data-ex="${i}" oninput="_gymCellInput(this)"></td>`).join('');
+    const d=_gymGridData[a.id]||{vals:[],obs:''};
+    const exCells=gs.exercises.map((ex,i)=>{
+      const v=d.vals[i]||{carga:'',series:'',reps:'',rir:''};
+      const last=i===gs.exercises.length-1;
+      return _GYM_FIELDS.map(([f],j)=>`<td style="padding:3px 2px;${j===3&&!last?'border-right:2px solid var(--brd);':''}"><input class="fc" style="width:${f==='carga'?'46px':'32px'};font-size:11px;padding:5px 4px;text-align:center" value="${escHtml(v[f]||'')}" ${f==='carga'?'placeholder="kg"':''} data-ath="${a.id}" data-ex="${i}" data-field="${f}" oninput="_gymCellInput(this)"></td>`).join('');
+    }).join('');
     return `<tr>
       <td style="padding:6px 8px;font-weight:700;white-space:nowrap;border-bottom:1px solid var(--brd)">${escHtml(_shortName(a))}</td>
       ${exCells}
-      <td style="padding:3px 6px"><input class="fc" style="width:50px;font-size:11px;padding:5px 7px" value="${escHtml(d.rirGeral||'')}" placeholder="RIR" data-ath="${a.id}" data-f="rirGeral" oninput="_gymCellInput(this)"></td>
       <td style="padding:3px 6px"><input class="fc" style="width:160px;font-size:11px;padding:5px 7px" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></td>
     </tr>`;
   }).join(''):`<tr><td colspan="99" style="padding:16px;text-align:center;color:var(--t2)">Sem atletas nesta equipa.</td></tr>`;
   return `<div style="overflow-x:auto;max-height:60vh">
   <table style="border-collapse:collapse;width:100%">
-    <thead><tr>
-      <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd)">Atleta</th>
-      ${headHtml}
-      <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd);white-space:nowrap">RIR geral</th>
-      <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd)">Observações</th>
-    </tr></thead>
+    <thead>
+      <tr>
+        <th rowspan="2" style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd);vertical-align:bottom">Atleta</th>
+        ${groupHeadHtml}
+        <th rowspan="2" style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--brd);vertical-align:bottom">Observações</th>
+      </tr>
+      <tr>${subHeadHtml}</tr>
+    </thead>
     <tbody>${rowsHtml}</tbody>
   </table>
   </div>`;
@@ -9132,15 +9165,20 @@ function _gymToggleAcc(athId){
 }
 function _gymGridAccordionHtml(gs,athletes){
   if(!athletes.length)return `<div class="empty"><div class="ei">🏋️‍♀️</div><p>Sem atletas nesta equipa.</p></div>`;
+  const fieldLbl={carga:'Carga (kg)',series:'Séries',reps:'Repetições',rir:'RIR'};
   return `<div style="max-height:65vh;overflow-y:auto">`+athletes.map(a=>{
-    const d=_gymGridData[a.id]||{vals:[],rirGeral:'',obs:''};
-    const filled=d.vals.filter(v=>v&&String(v).trim()).length;
+    const d=_gymGridData[a.id]||{vals:[],obs:''};
+    const filled=d.vals.filter(v=>v&&(v.carga||v.series||v.reps||v.rir)).length;
     const open=_gymAccOpen===a.id;
-    const exRows=gs.exercises.map((ex,i)=>`
-      <div class="form-g" style="margin-bottom:8px">
-        <label class="fl">${escHtml(ex.name)}${ex.reps?` <span style="font-weight:400;color:var(--t2)">(${escHtml(ex.reps)}${ex.rir?' · RIR '+escHtml(ex.rir):''})</span>`:''}</label>
-        <input class="fc" value="${escHtml(d.vals[i]||'')}" placeholder="kg × reps" data-ath="${a.id}" data-ex="${i}" oninput="_gymCellInput(this)">
-      </div>`).join('');
+    const exRows=gs.exercises.map((ex,i)=>{
+      const v=d.vals[i]||{carga:'',series:'',reps:'',rir:''};
+      const fields=_GYM_FIELDS.map(([f])=>`<div><label style="font-size:10px;color:var(--t2);display:block;margin-bottom:2px">${fieldLbl[f]}</label><input class="fc" value="${escHtml(v[f]||'')}" data-ath="${a.id}" data-ex="${i}" data-field="${f}" oninput="_gymCellInput(this)"></div>`).join('');
+      return `
+      <div style="margin-bottom:12px">
+        <label class="fl" style="display:block;margin-bottom:6px">${escHtml(ex.name)}${ex.reps?` <span style="font-weight:400;color:var(--t2)">(${escHtml(ex.reps)}${ex.rir?' · RIR '+escHtml(ex.rir):''})</span>`:''}</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${fields}</div>
+      </div>`;
+    }).join('');
     return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
       <div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="_gymToggleAcc('${a.id}')">
         <div><div style="font-weight:700;font-size:13px">${escHtml(_shortName(a))}</div>
@@ -9149,7 +9187,6 @@ function _gymGridAccordionHtml(gs,athletes){
       </div>
       ${open?`<div style="border-top:1px solid var(--brd);padding:12px 14px">
         ${exRows}
-        <div class="form-g" style="margin-bottom:8px"><label class="fl">RIR geral</label><input class="fc" value="${escHtml(d.rirGeral||'')}" placeholder="RIR" data-ath="${a.id}" data-f="rirGeral" oninput="_gymCellInput(this)"></div>
         <div class="form-g"><label class="fl">Observações</label><input class="fc" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></div>
       </div>`:''}
     </div>`;
@@ -9157,11 +9194,14 @@ function _gymGridAccordionHtml(gs,athletes){
 }
 function _gymCellInput(el){
   const ath=el.getAttribute('data-ath');
-  if(!_gymGridData[ath])_gymGridData[ath]={vals:[],rirGeral:'',obs:''};
+  if(!_gymGridData[ath])_gymGridData[ath]={vals:[],obs:''};
   const exIdx=el.getAttribute('data-ex');
+  const field=el.getAttribute('data-field');
   const f=el.getAttribute('data-f');
-  if(exIdx!==null){_gymGridData[ath].vals[+exIdx]=el.value;}
-  else if(f==='rirGeral'){_gymGridData[ath].rirGeral=el.value;}
+  if(exIdx!==null&&field){
+    if(!_gymGridData[ath].vals[+exIdx])_gymGridData[ath].vals[+exIdx]={carga:'',series:'',reps:'',rir:''};
+    _gymGridData[ath].vals[+exIdx][field]=el.value;
+  }
   else if(f==='obs'){_gymGridData[ath].obs=el.value;}
 }
 async function saveGymRecords(){
@@ -9170,7 +9210,7 @@ async function saveGymRecords(){
   if(!APP.gymRecords)APP.gymRecords=[];
   for(const athleteId in _gymGridData){
     const d=_gymGridData[athleteId];
-    const hasData=(d.vals||[]).some(v=>v&&v.trim())||(d.rirGeral&&d.rirGeral.trim())||(d.obs&&d.obs.trim());
+    const hasData=(d.vals||[]).some(v=>v&&(v.carga||v.series||v.reps||v.rir))||(d.obs&&d.obs.trim());
     let rec=APP.gymRecords.find(r=>r.eventId===ev.id&&r.athleteId===athleteId);
     if(!hasData){
       if(rec){
@@ -9180,8 +9220,8 @@ async function saveGymRecords(){
       }
       continue;
     }
-    if(rec){rec.vals=d.vals;rec.rirGeral=d.rirGeral;rec.obs=d.obs;rec.updatedAt=new Date().toISOString();}
-    else{rec={id:uid(),eventId:ev.id,athleteId,vals:d.vals,rirGeral:d.rirGeral,obs:d.obs,updatedAt:new Date().toISOString()};APP.gymRecords.push(rec);}
+    if(rec){rec.vals=d.vals;rec.obs=d.obs;rec.updatedAt=new Date().toISOString();delete rec.rirGeral;}
+    else{rec={id:uid(),eventId:ev.id,athleteId,vals:d.vals,obs:d.obs,updatedAt:new Date().toISOString()};APP.gymRecords.push(rec);}
     if(_sync)await cloudUpsert('gym_records',{...rec,club_id:_cid});
   }
   saveData();
@@ -9193,14 +9233,25 @@ async function saveGymRecords(){
 
 // PDF de uma sessão de Ginásio: A4 paisagem, 3 blocos de exercício por página
 // (imagem+identificação+prescrição à esquerda, atletas em grelha compacta à
-// direita) + página final com RIR geral/Observações. Uma única função de
-// render (_gymSessionPdfHtml) recebe um dataMap {athleteId:{vals,rirGeral,obs}}
-// — chamada com dados vazios produz um modelo em branco (para imprimir e
-// preencher à mão no ginásio); chamada com APP.gymRecords ou o rascunho ao
-// vivo da grelha (_gymGridData) produz o registo preenchido. Dois pontos de
-// entrada: exportGymSessionPDF(eventId) (fora da grelha, lê o guardado) e
-// exportGymSessionPDFFromGrid() (dentro da grelha aberta, lê o rascunho não
-// guardado). Ver project_sps_fichas_ginasio_fase2.
+// direita) + página final com Observações. Uma única função de render
+// (_gymSessionPdfHtml) recebe um dataMap {athleteId:{vals,obs}} — chamada com
+// dados vazios produz um modelo em branco (para imprimir e preencher à mão no
+// ginásio); chamada com APP.gymRecords ou o rascunho ao vivo da grelha
+// (_gymGridData) produz o registo preenchido. vals[i] passa por _gymParseVal
+// (aceita string antiga ou objeto {carga,series,reps,rir}) — dataMap vindo
+// direto de APP.gymRecords pode ainda ter registos antigos por migrar. Dois
+// pontos de entrada: exportGymSessionPDF(eventId) (fora da grelha, lê o
+// guardado) e exportGymSessionPDFFromGrid() (dentro da grelha aberta, lê o
+// rascunho não guardado). Ver project_sps_fichas_ginasio_fase2 e
+// project_sps_ginasio_registo_colunas.
+function _gymValStr(v){
+  const p=_gymParseVal(v);
+  const parts=[];
+  if(p.carga)parts.push(p.carga+'kg');
+  if(p.series||p.reps)parts.push((p.series||'?')+'x'+(p.reps||'?'));
+  if(p.rir)parts.push('RIR '+p.rir);
+  return parts.join(' · ');
+}
 function _gymSessionPdfHtml(ev,dataMap){
   const gs=ev.gymSheet;
   const athletes=_gymGridAthletes(ev);
@@ -9209,10 +9260,10 @@ function _gymSessionPdfHtml(ev,dataMap){
   const blocksHtml=exercises.length?exercises.map((ex,idx)=>{
     const athCells=athletes.map(a=>{
       const d=dataMap[a.id]||{};
-      const v=(d.vals||[])[idx]||'';
+      const vStr=_gymValStr((d.vals||[])[idx]);
       return `<div style="display:flex;justify-content:space-between;gap:4px;border-bottom:1px dotted #ccc;padding:1.5px 0;font-size:7pt;overflow:hidden">
-        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:58%">${escHtml(_shortName(a))}</span>
-        <span style="color:#1d6f3b;font-weight:700;white-space:nowrap">${v?escHtml(v):'&nbsp;'}</span>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52%">${escHtml(_shortName(a))}</span>
+        <span style="color:#1d6f3b;font-weight:700;white-space:nowrap">${vStr?escHtml(vStr):'&nbsp;'}</span>
       </div>`;
     }).join('');
     const imgPart=ex.img?`<img src="${ex.img}" style="width:26mm;height:26mm;object-fit:cover;border-radius:4px;flex-shrink:0">`
@@ -9229,12 +9280,12 @@ function _gymSessionPdfHtml(ev,dataMap){
   }).join(''):'<div style="color:#999;text-align:center;padding:30px">Esta ficha não tem exercícios.</div>';
   const summaryRows=athletes.length?athletes.map(a=>{
     const d=dataMap[a.id]||{};
-    return `<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;font-weight:700">${escHtml(_shortName(a))}</td><td style="padding:5px 8px;border-bottom:1px solid #eee">${escHtml(d.rirGeral||'')||'&nbsp;'}</td><td style="padding:5px 8px;border-bottom:1px solid #eee">${escHtml(d.obs||'')||'&nbsp;'}</td></tr>`;
-  }).join(''):`<tr><td colspan="3" style="padding:8px;color:#999">Sem atletas nesta equipa.</td></tr>`;
+    return `<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;font-weight:700">${escHtml(_shortName(a))}</td><td style="padding:5px 8px;border-bottom:1px solid #eee">${escHtml(d.obs||'')||'&nbsp;'}</td></tr>`;
+  }).join(''):`<tr><td colspan="2" style="padding:8px;color:#999">Sem atletas nesta equipa.</td></tr>`;
   const summaryHtml=`<div style="page-break-before:always">
-    <div style="font-size:11pt;font-weight:700;color:#1d6f3b;margin-bottom:8px">RIR Geral &amp; Observações</div>
+    <div style="font-size:11pt;font-weight:700;color:#1d6f3b;margin-bottom:8px">Observações</div>
     <table style="width:100%;border-collapse:collapse;font-size:9pt">
-      <thead><tr><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">Atleta</th><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">RIR geral</th><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">Observações</th></tr></thead>
+      <thead><tr><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">Atleta</th><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">Observações</th></tr></thead>
       <tbody>${summaryRows}</tbody>
     </table>
   </div>`;
@@ -9246,7 +9297,7 @@ function exportGymSessionPDF(eventId){
   const dataMap={};
   _gymGridAthletes(ev).forEach(a=>{
     const rec=(APP.gymRecords||[]).find(r=>r.eventId===eventId&&r.athleteId===a.id);
-    dataMap[a.id]=rec?{vals:rec.vals||[],rirGeral:rec.rirGeral||'',obs:rec.obs||''}:{vals:[],rirGeral:'',obs:''};
+    dataMap[a.id]=rec?{vals:rec.vals||[],obs:rec.obs||''}:{vals:[],obs:''};
   });
   _printWin('Registo de Ginásio — '+(ev.gymSheet.title||'Ficha')+' ('+fmtDate(ev.date)+')',_gymSessionPdfHtml(ev,dataMap),null,false,true);
 }
