@@ -4980,7 +4980,7 @@ function _gdAutoAnalysisHtml(g){
 
   // 2) Contagens do SPS-Gameday (remates/cantos/livres)
   if(countsTotal){
-    const parts=_GD_COUNTABLE.filter(([k])=>k!=='golo_sofrido'&&counts[k]>0).map(([k,icon,lbl])=>`${counts[k]} ${lbl.toLowerCase()}`);
+    const parts=_GD_COUNTABLE.filter(([k])=>k!=='golo_sofrido'&&counts[k]>0).map(([k,lbl])=>`${counts[k]} ${lbl.toLowerCase()}`);
     if(parts.length)paras.push(`Foram registados ${parts.join(', ')}.`);
   }
 
