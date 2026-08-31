@@ -5285,7 +5285,7 @@ function _gdPitchTap(e,gid){
 }
 function _gdCancelMenu(){_gdMenuXY=null;_gdPendingType=null;_gdGoalZone=null;_gdCardTeam='nos';_renderJogoDetailFull();}
 function _gdPickType(gid,type){
-  const simple=['golo_sofrido','remate_adv','canto_of','canto_def','livre_of','livre_def','perda_bola','recuperacao_bola'];
+  const simple=['golo_sofrido','remate_adv','canto_of','canto_def','livre_of','livre_def'];
   if(simple.includes(type)){_gdCommitEvent(gid,type,{});return;}
   _gdPendingType=type;_gdGoalZone=null;_gdCardTeam='nos';_renderJogoDetailFull();
 }
@@ -5365,6 +5365,14 @@ function _gdSubmitGolo(gid){
 function _gdSubmitRemate(gid){
   _gdCommitEvent(gid,'remate',{goalZone:_gdGoalZone||null});
   _gdGoalZone=null;
+}
+// Perda/Recuperação de bola passaram a abrir subform (pedido do Roger, 31/08/2026: ao
+// registar não aparecia nenhuma lista de jogadoras — eram tipos "instantâneos", a
+// atribuição só existia depois via "+ identificar jogadora" na cronologia, um link
+// pequeno fácil de não reparar). Agora mostram logo o select, continua opcional.
+function _gdSubmitPerdaRecup(gid,type){
+  const player=document.getElementById('gd-pr-player').value;
+  _gdCommitEvent(gid,type,{player:player||null});
 }
 function _gdSubmitSub(gid){
   const playerOut=document.getElementById('gd-out').value;
@@ -5578,6 +5586,16 @@ function _gdSubformHtml(g,type,onPitchAts,benchAts){
         <button class="btn btn-gh btn-sm" onclick="_gdCancelMenu()">Cancelar</button>
       </div>`;
   }
+  if(type==='perda_bola'||type==='recuperacao_bola'){
+    const lbl=type==='perda_bola'?'Perda de Bola':'Recuperação de Bola';
+    return `<div style="font-size:11px;color:var(--c1l);font-weight:800;margin-bottom:6px">${_gdIco(type,14)} ${lbl}</div>
+      <label class="fl" style="font-size:10px">Jogadora (opcional)</label>
+      <select class="fc" id="gd-pr-player" style="margin-bottom:8px;width:100%"><option value="">— sem identificar —</option>${opts(onPitchAts)}</select>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="_gdSubmitPerdaRecup('${gid}','${type}')">✓ Confirmar</button>
+        <button class="btn btn-gh btn-sm" onclick="_gdCancelMenu()">Cancelar</button>
+      </div>`;
+  }
   if(type==='substituicao'){
     return `<div style="font-size:11px;color:var(--c1l);font-weight:800;margin-bottom:6px">🔄 Substituição</div>
       <label class="fl" style="font-size:10px">Sai</label>
@@ -5617,64 +5635,73 @@ function _jogoAoVivoHtml(g){
   const teamName=(APP.teams.find(t=>t.id===g.teamId)||{}).name||'Nós';
 
   const canReset=ls.phase!=='pre'&&!ls.launched;
-  const header=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px;flex-wrap:wrap;gap:8px">
-    <div>
-      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY${canReset?` <span onclick="_gdResetGame('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">↺ Reiniciar</span>`:''}${ls.phase!=='pre'?` <span onclick="_gdExportBackup('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">⬇ Backup</span>`:''}</div>
-      <div style="font-size:16px;font-weight:900">${escHtml(teamName)} <span style="color:var(--c1l)">${ls.score.casa}</span> – <span style="color:var(--t2)">${ls.score.fora}</span> ${escHtml(g.opp)}</div>
-    </div>
-    <div style="text-align:right">
-      <div id="gd-clock-txt" style="font-size:24px;font-weight:900;color:${running?'var(--c1l)':'var(--t2)'};font-variant-numeric:tabular-nums">${running?'▶ ':'⏸ '}${_gdFmtClock(elapsed)}</div>
-      <div style="font-size:10px;color:var(--t2)">${_GD_PHASE_LBL[ls.phase]||ls.phase}</div>
-    </div>
-  </div>`;
 
   // Fases "ao vivo" — cronómetro corre e pode ser pausado genericamente (motivo), sem
   // avançar de fase. ls.pauseReason marca que está parada por esse motivo (distinto das
   // paragens normais entre fases, que já têm os seus próprios ecrãs).
+  // Botões empilhados (coluna), não em linha — pedido do Roger, 31/08/2026: ficam por
+  // baixo do cronómetro, no canto superior direito, em vez de lá em baixo na coluna de
+  // informação — acesso mais rápido a Pausa/Intervalo/Lançar sem ter que percorrer o
+  // ecrã (sobretudo em telemóvel, onde a coluna de info só aparece depois do campo todo).
   const livePhases=['1','2','ET1','ET2'];
   let controls='';
   if(ls.phase==='pre'){
-    controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdStartGame('${g.id}')">▶️ Iniciar Jogo</button>`;
+    controls=`<button class="btn btn-g" style="width:100%;padding:10px;font-size:13px" onclick="_gdStartGame('${g.id}')">▶️ Iniciar Jogo</button>`;
   }else if(livePhases.includes(ls.phase)&&ls.pauseReason){
-    controls=`<div style="text-align:center">
-      <div style="font-size:11px;color:var(--t2);margin-bottom:6px">⏸ Pausa — ${escHtml(_GD_PAUSE_REASON_LBL[ls.pauseReason]||ls.pauseReason)}</div>
-      <button class="btn btn-g" style="width:100%;padding:12px" onclick="_gdResumeFromPause('${g.id}')">▶️ Retomar</button>
+    controls=`<div style="text-align:right">
+      <div style="font-size:10px;color:var(--t2);margin-bottom:4px">⏸ Pausa — ${escHtml(_GD_PAUSE_REASON_LBL[ls.pauseReason]||ls.pauseReason)}</div>
+      <button class="btn btn-g" style="width:100%;padding:9px;font-size:12px" onclick="_gdResumeFromPause('${g.id}')">▶️ Retomar</button>
     </div>`;
   }else if(ls.phase==='1'){
-    controls=`<div style="display:flex;gap:8px">
-      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
-      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdPause('${g.id}','intervalo1')">⏹ Intervalo</button>
+    controls=`<div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
+      <button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdPause('${g.id}','intervalo1')">⏹ Intervalo</button>
     </div>${_gdPauseMenuHtml(g)}`;
   }else if(ls.phase==='intervalo1'){
-    controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdResume('${g.id}','2',2700)">▶️ Iniciar 2ª Parte</button>`;
+    controls=`<button class="btn btn-g" style="width:100%;padding:10px;font-size:13px" onclick="_gdResume('${g.id}','2',2700)">▶️ Iniciar 2ª Parte</button>`;
   }else if(ls.phase==='2'){
-    controls=`<div style="display:flex;gap:8px">
-      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
-      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdEndReg('${g.id}')">⏹ Terminar Tempo Regulamentar</button>
+    controls=`<div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
+      <button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdEndReg('${g.id}')">⏹ Terminar Tempo Reg.</button>
     </div>${_gdPauseMenuHtml(g)}`;
   }else if(ls.phase==='fimReg'){
     const tied=ls.score.casa===ls.score.fora;
-    controls=`<div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${tied?`<button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdResume('${g.id}','ET1',5400)">⏱️ Iniciar Prolongamento</button>`:''}
-      <button class="btn btn-g" style="flex:1;padding:12px" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar na Plataforma</button>
+    controls=`<div style="display:flex;flex-direction:column;gap:6px">
+      ${tied?`<button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdResume('${g.id}','ET1',5400)">⏱️ Prolongamento</button>`:''}
+      <button class="btn btn-g" style="padding:9px;font-size:12px" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar</button>
     </div>`;
   }else if(ls.phase==='ET1'){
-    controls=`<div style="display:flex;gap:8px">
-      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
-      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdPause('${g.id}','intervaloET')">⏹ Intervalo do Prolongamento</button>
+    controls=`<div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
+      <button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdPause('${g.id}','intervaloET')">⏹ Intervalo Prolong.</button>
     </div>${_gdPauseMenuHtml(g)}`;
   }else if(ls.phase==='intervaloET'){
-    controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdResume('${g.id}','ET2',6300)">▶️ Iniciar 2º Tempo do Prolongamento</button>`;
+    controls=`<button class="btn btn-g" style="width:100%;padding:10px;font-size:13px" onclick="_gdResume('${g.id}','ET2',6300)">▶️ Iniciar 2º T. Prolong.</button>`;
   }else if(ls.phase==='ET2'){
-    controls=`<div style="display:flex;gap:8px">
-      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
-      <button class="btn btn-gh" style="flex:1;padding:12px" onclick="_gdEndET('${g.id}')">⏹ Terminar Prolongamento</button>
+    controls=`<div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdOpenPauseMenu()">⏸ Pausa</button>
+      <button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdEndET('${g.id}')">⏹ Terminar Prolong.</button>
     </div>${_gdPauseMenuHtml(g)}`;
   }else if(ls.phase==='penaltis'){
-    controls=_gdPenaltisHtml(g);
+    controls='';
   }else if(ls.phase==='fim'){
-    controls=`<button class="btn btn-g" style="width:100%;padding:14px;font-size:14px" onclick="_gdLaunch('${g.id}')">🚀 ${ls.launched?'Relançar':'Lançar'} na Plataforma</button>`;
+    controls=`<button class="btn btn-g" style="width:100%;padding:10px;font-size:13px" onclick="_gdLaunch('${g.id}')">🚀 ${ls.launched?'Relançar':'Lançar'}</button>`;
   }
+  // Grandes penalidades tem o próprio ecrã completo (marcadora a marcadora) — não cabe
+  // no espaço estreito por baixo do cronómetro, continua no corpo principal como antes.
+  const penControls=ls.phase==='penaltis'?_gdPenaltisHtml(g):'';
+
+  const header=`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:4px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY${canReset?` <span onclick="_gdResetGame('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">↺ Reiniciar</span>`:''}${ls.phase!=='pre'?` <span onclick="_gdExportBackup('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">⬇ Backup</span>`:''}</div>
+      <div style="font-size:16px;font-weight:900">${escHtml(teamName)} <span style="color:var(--c1l)">${ls.score.casa}</span> – <span style="color:var(--t2)">${ls.score.fora}</span> ${escHtml(g.opp)}</div>
+    </div>
+    <div style="text-align:right;min-width:150px">
+      <div id="gd-clock-txt" style="font-size:24px;font-weight:900;color:${running?'var(--c1l)':'var(--t2)'};font-variant-numeric:tabular-nums">${running?'▶ ':'⏸ '}${_gdFmtClock(elapsed)}</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${_GD_PHASE_LBL[ls.phase]||ls.phase}</div>
+      ${controls}
+    </div>
+  </div>`;
 
   const canTap=running;
   // Ícones já não são hardcoded aqui — vêm de _GD_TYPES, fonte única (evita divergir do
@@ -5825,7 +5852,7 @@ function _jogoAoVivoHtml(g){
         ${subChipsHtml}
       </div>
       <div class="gd-info-col">
-        <div style="margin-top:12px">${controls}</div>
+        ${penControls?`<div style="margin-top:12px">${penControls}</div>`:''}
         ${countsHtml?`<div style="margin-top:14px">${countsHtml}</div>`:''}
         ${oppRosterLink}
         <div style="margin-top:14px">
