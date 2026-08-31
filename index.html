@@ -4979,8 +4979,14 @@ function _gdResetGame(gid){
 // pedido de rede, só grava um Blob local. Pode ser copiado manualmente para a
 // Drive do projeto se o Roger quiser guardar como cópia extra. Ver
 // _gdIsLiveUnlaunched / feedback_sps_gameday_pullcloud_overwrite.
-function _gdExportBackup(gid){
-  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return toast('Sem sessão ao vivo para exportar','err');
+//
+// `tag` identifica o momento do backup no nome do ficheiro (ex: 'inicio','golo',
+// 'intervalo','lancado') — útil quando há vários backups do mesmo jogo no
+// dispositivo. `silent` evita o toast — usado pelos gatilhos automáticos abaixo,
+// para não interromper o operador a meio do jogo com uma confirmação a cada golo;
+// o botão manual continua a mostrar o toast, porque aí foi um toque explícito.
+function _gdExportBackup(gid,tag,silent){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return silent?undefined:toast('Sem sessão ao vivo para exportar','err');
   const payload={
     exportedAt:new Date().toISOString(),
     gameId:g.id,opponent:g.opp,date:g.date,time:g.time,
@@ -4990,11 +4996,20 @@ function _gdExportBackup(gid){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
-  a.download=`sps_gameday_backup_${(g.opp||'jogo').replace(/[^a-z0-9]+/gi,'_')}_${g.date||''}.json`;
+  a.download=`sps_gameday_backup_${(g.opp||'jogo').replace(/[^a-z0-9]+/gi,'_')}_${g.date||''}${tag?'_'+tag:''}.json`;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  toast('Backup do jogo descarregado ✓');
+  if(!silent)toast('Backup do jogo descarregado ✓');
 }
+// Backup automático — pedido do Roger, 31/08/2026: nos momentos-chave do jogo
+// (início, cada golo, fim de cada parte/prolongamento, e mesmo antes de Lançar),
+// sem o operador ter de se lembrar do botão manual. Só é seguro fazer isto porque
+// cada chamada acontece dentro de uma função já disparada por um toque real do
+// operador (_gdStartGame, _gdCommitEvent, _gdEndReg/_gdEndET, _gdLaunch) — os
+// browsers bloqueiam downloads repetidos disparados por código sem interação
+// direta do utilizador (ex: um setInterval), por isso um backup automático "a
+// cada X segundos" simplesmente não funcionaria de forma fiável.
+function _gdAutoBackup(gid,tag){ _gdExportBackup(gid,tag,true); }
 function _gdRunning(ls){return !!ls.runningSince;}
 function _gdElapsedSec(ls){return ls.accumSec+(ls.runningSince?(Date.now()-ls.runningSince)/1000:0);}
 function _gdFmtClock(sec){sec=Math.max(0,Math.round(sec));const m=Math.floor(sec/60),s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
@@ -5020,7 +5035,7 @@ function _gdStartGame(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   const ls=_gdInit(g);
   ls.phase='1';ls.runningSince=Date.now();ls.accumSec=0;
-  saveData();toast('Jogo iniciado — 1ª Parte ⏱️');_renderJogoDetailFull();
+  saveData();_gdAutoBackup(gid,'inicio');toast('Jogo iniciado — 1ª Parte ⏱️');_renderJogoDetailFull();
 }
 function _gdPause(gid,nextPhase){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
@@ -5078,7 +5093,7 @@ function _gdEndReg(gid){
   const ls=g.liveSession;
   if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
   ls.regEndSec=ls.accumSec;ls.phase='fimReg';
-  saveData();_renderJogoDetailFull();
+  saveData();_gdAutoBackup(gid,'fim_parte');_renderJogoDetailFull();
 }
 function _gdEndET(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
@@ -5086,7 +5101,7 @@ function _gdEndET(gid){
   if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
   ls.etEndSec=ls.accumSec;
   ls.phase=(ls.score.casa===ls.score.fora)?'penaltis':'fim';
-  saveData();_renderJogoDetailFull();
+  saveData();_gdAutoBackup(gid,'fim_prolongamento');_renderJogoDetailFull();
 }
 
 // --- Toque no campo: grava minuto+zona automaticamente, abre lista de ações ---
@@ -5205,6 +5220,7 @@ function _gdCommitEvent(gid,type,extra){
   }
   _gdRecompute(g);
   saveData();
+  if(type==='golo'||type==='golo_sofrido')_gdAutoBackup(gid,'golo');
   _gdMenuXY=null;_gdPendingType=null;
   const lbl=_GD_TYPE_LBL[type]||type;
   toast(type==='golo'||type==='golo_sofrido'?`${lbl} — ${ls.score.casa}-${ls.score.fora} ✓`:`${lbl} registado ✓`);
@@ -5349,6 +5365,9 @@ function _gdLaunch(gid){
   const ls=g.liveSession;
   const msg=ls.launched?'Este jogo já foi lançado antes. Lançar outra vez substitui as estatísticas/linha do tempo atuais pelos dados desta sessão. Confirmas?':'Terminar o jogo e lançar os dados para a plataforma (Estatísticas, Linha do Tempo, Resultado)? Esta ação atualiza o Pós-Jogo.';
   if(!confirm(msg))return;
+  // Pedido explícito do Roger, 31/08/2026: backup automático ANTES de lançar,
+  // não depois — se algo correr mal a meio do _gdLaunch, o ficheiro já existe.
+  _gdAutoBackup(gid,'lancamento');
   const statMap=_gdBuildPlayerStats(g);
   if(!g.playerStats)g.playerStats=[];
   Object.values(statMap).forEach(st=>{
