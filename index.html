@@ -4972,6 +4972,29 @@ function _gdResetGame(gid){
   saveData();toast('Jogo reiniciado');
   _renderJogoDetailFull();
 }
+// Exportar backup do jogo — pedido do Roger, 31/08/2026, depois do incidente de
+// perda de dados do jogo vs Aldeia Nova (30/08): rede de segurança independente
+// da sincronização com a cloud. Descarrega um ficheiro .json com a sessão ao vivo
+// para o próprio aparelho — funciona sem internet nenhuma, porque não faz nenhum
+// pedido de rede, só grava um Blob local. Pode ser copiado manualmente para a
+// Drive do projeto se o Roger quiser guardar como cópia extra. Ver
+// _gdIsLiveUnlaunched / feedback_sps_gameday_pullcloud_overwrite.
+function _gdExportBackup(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return toast('Sem sessão ao vivo para exportar','err');
+  const payload={
+    exportedAt:new Date().toISOString(),
+    gameId:g.id,opponent:g.opp,date:g.date,time:g.time,
+    liveSession:g.liveSession
+  };
+  const blob=new Blob([JSON.stringify(payload,null,1)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`sps_gameday_backup_${(g.opp||'jogo').replace(/[^a-z0-9]+/gi,'_')}_${g.date||''}.json`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast('Backup do jogo descarregado ✓');
+}
 function _gdRunning(ls){return !!ls.runningSince;}
 function _gdElapsedSec(ls){return ls.accumSec+(ls.runningSince?(Date.now()-ls.runningSince)/1000:0);}
 function _gdFmtClock(sec){sec=Math.max(0,Math.round(sec));const m=Math.floor(sec/60),s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
@@ -5433,7 +5456,7 @@ function _jogoAoVivoHtml(g){
   const canReset=ls.phase!=='pre'&&!ls.launched;
   const header=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px;flex-wrap:wrap;gap:8px">
     <div>
-      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY${canReset?` <span onclick="_gdResetGame('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">↺ Reiniciar</span>`:''}</div>
+      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY${canReset?` <span onclick="_gdResetGame('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">↺ Reiniciar</span>`:''}${ls.phase!=='pre'?` <span onclick="_gdExportBackup('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">⬇ Backup</span>`:''}</div>
       <div style="font-size:16px;font-weight:900">${escHtml(teamName)} <span style="color:var(--c1l)">${ls.score.casa}</span> – <span style="color:var(--t2)">${ls.score.fora}</span> ${escHtml(g.opp)}</div>
     </div>
     <div style="text-align:right">
@@ -11822,6 +11845,29 @@ function _doImport(){
     setTimeout(()=>location.reload(),1200);
   }catch(e){toast('Erro ao importar: '+e.message,'err');}
 }
+// ── Proteção do Gameday contra pullCloud a sobrepor jogo ao vivo ────────────
+// Incidente real (30/08/2026, jogo vs Aldeia Nova): o tablet gravou a sessão ao
+// vivo inteira em localStorage (saveData() grava sempre, mesmo offline), mas ao
+// voltar a ter rede, um pullCloud() automático (ver handler de visibilitychange
+// mais abaixo) substituiu APP.games pela cópia antiga da cloud — sem eventos —
+// e essa substituição foi logo gravada por cima do localStorage. pushAppMeta()
+// já tinha proteção contra isto (staleness guard); pullCloud() nunca teve.
+// _gdIsLiveUnlaunched(g) identifica um jogo "em risco": tem liveSession, ainda
+// não foi lançado, e já tem sinais de atividade real (eventos, fase avançada
+// ou relógio a correr) — não basta ter liveSession, porque TODOS os jogos têm
+// uma liveSession em branco assim que a aba Ao Vivo é aberta (_gdInit). Ver
+// memória feedback_sps_gameday_pullcloud_overwrite.
+function _gdIsLiveUnlaunched(g){
+  const ls=g&&g.liveSession;
+  if(!ls||ls.launched)return false;
+  return (ls.events&&ls.events.length>0)||ls.phase!=='pre'||!!ls.runningSince;
+}
+// Lista de jogos deste dispositivo com sessão ao vivo em risco (por lançar,
+// com atividade). Usado tanto pelo merge do pullCloud como pelo handler de
+// visibilitychange, para decidir se é seguro sincronizar em segundo plano.
+function _gdLiveGamesAtRisk(){
+  return (APP.games||[]).filter(_gdIsLiveUnlaunched);
+}
 async function pullCloud(){
   if(!_supa||!_cid)return;
   try{
@@ -11872,7 +11918,20 @@ async function pullCloud(){
       // 'users' já não vem daqui — tem tabela própria (staff_users, ver pulls acima).
       if(m.config)APP.config=Object.assign(APP.config||{},m.config);
       if(m.teams&&m.teams.length)APP.teams=m.teams;
-      if(m.games&&m.games.length)APP.games=m.games;
+      if(m.games&&m.games.length){
+        // Nunca sobrepor um jogo com sessão ao vivo em risco (ver _gdIsLiveUnlaunched
+        // acima) — mantém a versão local desse(s) jogo(s) e só aceita a versão da
+        // cloud para todos os outros. Protege qualquer chamada a pullCloud (login,
+        // visibilitychange, botão Sincronizar), não só o caso que causou o incidente.
+        const atRisk=_gdLiveGamesAtRisk();
+        if(atRisk.length){
+          const atRiskIds=new Set(atRisk.map(g=>g.id));
+          console.warn('[pullCloud] '+atRisk.length+' jogo(s) com sessão ao vivo em risco — a preservar localmente:',[...atRiskIds]);
+          APP.games=[...m.games.filter(g=>!atRiskIds.has(g.id)),...atRisk];
+        } else {
+          APP.games=m.games;
+        }
+      }
       if(m.evaluations)APP.evaluations=m.evaluations;
       if(m.evalPeriods)APP.evalPeriods=m.evalPeriods;
       if(m.evalResponses){APP.evalResponses=m.evalResponses;console.log('[pullCloud] evalResponses=',m.evalResponses.length);}
@@ -12264,11 +12323,31 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='hidden'){_hiddenAt=Date.now();return;}
     if(document.visibilityState==='visible'&&_hiddenAt&&(Date.now()-_hiddenAt)>60000){
-      if(_sync&&_supa&&_cid&&(ROLE||AID))pullCloud().catch(()=>{});
+      if(_sync&&_supa&&_cid&&(ROLE||AID)){
+        // Incidente 30/08/2026 (jogo vs Aldeia Nova): este pull silencioso apanhou
+        // um tablet a meio de um jogo do Gameday e apagou a sessão ao vivo local
+        // (ver _gdIsLiveUnlaunched acima). O merge protetor do pullCloud já evita
+        // a perda de dados mesmo que este pull corra, mas mais vale nem tentar —
+        // se há um jogo ao vivo em risco neste aparelho, o mais seguro é ENVIAR
+        // (pushAppMeta) em vez de TRAZER (pullCloud) enquanto o jogo não é lançado.
+        if(_gdLiveGamesAtRisk().length){pushAppMeta().catch(()=>{});}
+        else pullCloud().catch(()=>{});
+      }
     }
     _hiddenAt=null;
   });
 })();
+
+// ── Enviar assim que a rede volta, durante um jogo ao vivo ──────────────────
+// Complemento ao ponto acima: não espera pelo separador voltar a ficar visível
+// (pode passar o jogo inteiro em segundo plano se ninguém tocar no aparelho).
+// O evento 'online' do browser dispara assim que a ligação volta, mesmo com o
+// ecrã bloqueado nalguns aparelhos — aproveita para tentar enviar logo os dados
+// do jogo em vez de esperar pelo próximo pullCloud automático. Ver
+// _gdIsLiveUnlaunched / feedback_sps_gameday_pullcloud_overwrite.
+window.addEventListener('online',()=>{
+  if(_sync&&_supa&&_cid&&_gdLiveGamesAtRisk().length)pushAppMeta().catch(()=>{});
+});
 
 // ─── FASE 2 + 3: LINK/TOKEN + AUTH SIMPLIFICADA ─────────────────────────────
 
