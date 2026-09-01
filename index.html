@@ -120,6 +120,13 @@ ul{list-style:none}
 .gy-mode #tb-cfg-btn,.gy-mode .tb-btn[onclick="toggleSb()"]{display:none}
 .gy-only{display:none}
 .gy-mode .gy-only{display:flex}
+/* SPS-Fisio standalone (?fisio=1) — mesmo padrão do gd-mode/gy-mode acima: sidebar
+   escondida, topbar reduzida a título + atalhos Dashboard/Episódios/Tratamentos/Anamnese/Sair. */
+.fs-mode #sidebar{display:none}
+.fs-mode #main{margin-left:0}
+.fs-mode #tb-cfg-btn,.fs-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.fs-only{display:none}
+.fs-mode .fs-only{display:flex}
 #sb-backdrop{display:none}
 /* Campo tocável do Ao Vivo — maior em tablet/desktop (mais espaço, toque mais preciso),
    compacto em telemóvel. A escala é feita pelo viewBox do SVG, não pelas coordenadas. */
@@ -150,6 +157,8 @@ ul{list-style:none}
 .gd-mode .tb-btn{width:38px;height:38px}
 /* Em modo Ginásio, mesmo motivo — usado de pé, no ginásio, com o telemóvel na mão. */
 .gy-mode .tb-btn{width:38px;height:38px}
+/* Em modo Fisio, mesmo motivo — usado de pé, junto à maca/ginásio, com o telemóvel na mão. */
+.fs-mode .tb-btn{width:38px;height:38px}
 
 /* CARDS */
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
@@ -414,6 +423,11 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn gy-only" onclick="_gsTab='registos';navTo('fichas-ginasio')" title="Registo">🏋️</button>
       <button class="tb-btn gy-only" onclick="navTo('biblioteca')" title="Biblioteca">📚</button>
       <button class="tb-btn gy-only" onclick="logout()" title="Sair">🚪</button>
+      <button class="tb-btn fs-only" onclick="navTo('fisio-dash')" title="Dashboard">🩺</button>
+      <button class="tb-btn fs-only" onclick="navTo('fisio-ep')" title="Episódios">📈</button>
+      <button class="tb-btn fs-only" onclick="navTo('fisio-trat')" title="Tratamentos">💊</button>
+      <button class="tb-btn fs-only" onclick="navTo('fisio-anamnese')" title="Anamnese">📋</button>
+      <button class="tb-btn fs-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
       <div class="pg on" id="pg-dashboard"></div>
@@ -521,7 +535,7 @@ function _markDeleted(key,ids){
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
@@ -606,6 +620,12 @@ const _forceGamedayMode=new URLSearchParams(location.search).get('gameday')==='1
 // staff, exige acesso a Fichas de Ginásio (ver _ginasioEligibleRole), só muda o que acontece
 // DEPOIS do login (ver _maybeEnterGinasioMode).
 const _forceGinasioMode=new URLSearchParams(location.search).get('ginasio')==='1';
+// SPS-Fisio standalone (?fisio=1) — mesmo padrão do ?ginasio=1 acima: login normal de
+// staff, exige acesso ao Dashboard de Fisio (ver _fisioEligibleRole), só muda o que
+// acontece DEPOIS do login (ver _maybeEnterFisioMode). Pedido do Roger 01/09/2026 para
+// facilitar o acesso pelo telemóvel a quem faz fisioterapia (pode ser mais que uma
+// pessoa) — ver project_sps_fisio_autoria.
+const _forceFisioMode=new URLSearchParams(location.search).get('fisio')==='1';
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -683,7 +703,7 @@ async function createFirstAdmin(){
   setSession({userId:user.id,role:'treinador',isAdmin:true,name:user.name});
   ROLE='treinador';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();
 }
 async function handleLogin(){
   const username=(document.getElementById('login-user')?.value||'').trim();
@@ -705,7 +725,7 @@ async function handleLogin(){
   setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
   ROLE=user.role;showStaffApp();
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();
 }
 // ── 1º acesso staff: obrigar a definir password própria (troca a password fixa inicial) ──
 function _showStaffPwdSetup(user){
@@ -738,7 +758,7 @@ async function _saveStaffPwdSetup(userId){
   ROLE=user.role;showStaffApp();
   toast('Password definida ✓ Bem-vindo, '+user.name+'!');
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();
 }
 async function handleAthleteLogin(){
   const username=(document.getElementById('at-login-user')?.value||'').trim();
@@ -932,6 +952,24 @@ function _ginasioAutoOpenToday(){
   const td=today();
   const evs=(APP.schedule||[]).filter(e=>e.type==='Ginásio'&&e.gymSheet&&e.date===td);
   if(evs.length===1)openGymSessionGrid(evs[0].id);
+}
+// SPS-Fisio standalone (?fisio=1) — mesmo espírito do SPS-Ginásio acima: cargo sem
+// acesso ao Dashboard de Fisio cai no comportamento normal (Dashboard completo), com
+// aviso. Entra direto no Dashboard de Fisio (já tem os Avisos ativos no topo — ver
+// _fisioAlertsHtml/Fase 3 — que é exatamente o que interessa ver primeiro ao abrir a
+// app no telemóvel). Ver project_sps_fisio_autoria.
+function _fisioEligibleRole(role){
+  const def=ROLE_DEFS[role];
+  return !!def&&def.pages.includes('fisio-dash')&&!def.readOnly;
+}
+function _maybeEnterFisioMode(){
+  if(typeof _forceFisioMode==='undefined'||!_forceFisioMode)return;
+  if(!_fisioEligibleRole(ROLE)){
+    toast('Este acesso é para o SPS-Fisio — o teu cargo não tem acesso ao Dashboard de Fisio','err');
+    return;
+  }
+  document.body.classList.add('fs-mode');
+  navTo('fisio-dash');
 }
 // Títulos qualificados por página — partilhado entre navTo() (cabeçalho da página) e
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
@@ -9539,6 +9577,80 @@ function _riscoCicloHojeRows(){
     return {at,well,pse,inj,trat,risco:_riscoCiclo({pse,well,inj,trat})};
   }).filter(r=>r.well);
 }
+// Avisos ativos (Fase 3, project_sps_fisio_autoria) — antes disto, a única sinalização
+// para a fisio era passiva (🔔 só visível dentro da própria página de Anamnese). Isto
+// junta 3 sinais num só sítio, visível assim que qualquer fisio abre o Dashboard (ou a
+// app SPS-Fisio, Fase 4): anamnese autorreportada e ainda não vista, dor alta (≥7/10)
+// reportada no wellness nos últimos 3 dias, e lesões ativas/reabilitação sem tratamento
+// registado há 7+ dias (sinal de caso "parado", útil sobretudo com mais que uma fisio a
+// revezar-se). Não substitui o julgamento clínico nem é diagnóstico — é só visibilidade.
+const _FISIO_PAIN_THRESHOLD=7, _FISIO_PAIN_WINDOW_DAYS=3, _FISIO_STALE_DAYS=7;
+function _fisioAlerts(){
+  const alerts=[];
+  (APP.athletes||[]).forEach(at=>{
+    const an=_getAnamnesis(at.id);
+    if(an.selfReportUpdatedAt&&(!an.fisioViewedAt||an.selfReportUpdatedAt>an.fisioViewedAt)){
+      alerts.push({type:'anamnese',athleteId:at.id,at:an.selfReportUpdatedAt.slice(0,10),label:'Anamnese atualizada',detail:'Autorreporte alterado desde a última visita à ficha'});
+    }
+  });
+  const cutoff=addDaysStr(today(),-_FISIO_PAIN_WINDOW_DAYS);
+  (APP.wellness||[]).filter(w=>w.date>=cutoff&&(w.pain||0)>=_FISIO_PAIN_THRESHOLD).forEach(w=>{
+    alerts.push({type:'dor',athleteId:w.athleteId,at:w.date,label:`Dor ${w.pain}/10 reportada`,detail:'Wellness de '+fmtDate(w.date)});
+  });
+  (APP.injuries||[]).filter(i=>i.status==='ativo'||i.status==='reabilitação').forEach(inj=>{
+    const treats=(APP.treatments||[]).filter(t=>t.injuryId===inj.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const lastDate=treats[0]?.date||inj.date;
+    const days=diffDays(lastDate,today());
+    if(days>=_FISIO_STALE_DAYS){
+      alerts.push({type:'parada',athleteId:inj.athleteId,at:lastDate,label:`Sem tratamento há ${days} dias`,detail:inj.diagnosis||inj.type||'Lesão ativa'});
+    }
+  });
+  return alerts.sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+}
+function _fisioAlertsHtml(){
+  const alerts=_fisioAlerts();
+  if(!alerts.length)return '';
+  const ICON={anamnese:'📋',dor:'⚠️',parada:'⏸️'};
+  return `<div class="card" style="margin-bottom:14px;border-left:3px solid #f87171">
+    <div class="ch"><span class="ct">🔔 Avisos (${alerts.length})</span></div>
+    <div class="cb" style="padding:0">
+    ${alerts.map(a=>{
+      const at=APP.athletes.find(x=>x.id===a.athleteId);
+      const action=a.type==='anamnese'?`openAnamneseDetail('${a.athleteId}')`:`navTo('fisio-ep')`;
+      return `<div style="padding:10px 14px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <div><span style="margin-right:6px">${ICON[a.type]||'•'}</span><strong>${escHtml(at?_displayName(at):'?')}</strong> — ${escHtml(a.label)}
+        <div style="font-size:10px;color:var(--t2);margin-left:22px">${escHtml(a.detail)}</div></div>
+        <button class="btn btn-xs btn-gh" onclick="${action}">Ver</button>
+      </div>`;
+    }).join('')}
+    </div>
+  </div>`;
+}
+// Responsável pelo plantel (Fase 5, project_sps_fisio_autoria) — informativo, não
+// bloqueia ninguém: o Roger confirmou que há normalmente uma fisio responsável pelo
+// plantel, mas qualquer uma pode ver/tratar uma atleta numa sessão concreta (por isso
+// cada tratamento continua a gravar o seu próprio autor real, ver saveTratamento).
+// Isto só define o valor por defeito de "responsavelId" ao abrir um episódio novo —
+// e pode sempre ser trocado episódio a episódio. Vive em APP.config (meta blob), como
+// wellnessStart/wellnessEnd — não precisa de tabela dedicada.
+function _setFisioResponsavel(id){
+  const u=APP.users.find(x=>x.id===id);
+  APP.config.fisioResponsavelId=id||null;
+  saveData();
+  toast(u?'Responsável pelo plantel: '+u.name:'Responsável pelo plantel removido');
+}
+function _fisioResponsavelSelectorHtml(){
+  const fisios=(APP.users||[]).filter(u=>u.role==='fisio'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!fisios.length)return '';
+  const cur=APP.config.fisioResponsavelId||'';
+  return `<div class="card" style="margin-bottom:14px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--t2);white-space:nowrap">👤 Responsável pelo plantel (defeito para novos episódios):</span>
+    <select class="fc" style="width:auto" onchange="_setFisioResponsavel(this.value)">
+      <option value="">— Nenhum —</option>
+      ${fisios.map(u=>`<option value="${u.id}" ${u.id===cur?'selected':''}>${escHtml(u.name)}</option>`).join('')}
+    </select>
+  </div>`;
+}
 function renderFisioDash(){
   const active=APP.injuries.filter(i=>i.status==='ativo');
   const rehab=APP.injuries.filter(i=>i.status==='reabilitação');
@@ -9553,6 +9665,7 @@ function renderFisioDash(){
         <div>
           <div style="font-size:13px;font-weight:800">${at?escHtml(_displayName(at)):'?'} <span style="font-size:10px;color:var(--t2)">${at?.pos||''}</span></div>
           <div style="font-size:11px;color:var(--t2)">${inj.type||'—'} · ${inj.diagnosis||'—'} · ${inj.bodyPart||''}</div>
+          ${inj.responsavelName?`<div style="font-size:10px;color:var(--t2);margin-top:2px">👤 Responsável: ${escHtml(inj.responsavelName)}</div>`:''}
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           ${statusBadge(inj.status)} ${sevBadge(inj.severity)}
@@ -9561,7 +9674,7 @@ function renderFisioDash(){
       </div>
       <div class="pbar">${[1,2,3,4,5].map(p=>`<div class="ps ${p<(inj.phase||1)?'done':p===(inj.phase||1)?'now':''}"></div>`).join('')}</div>
       <div style="font-size:10px;color:var(--t2);margin-top:3px">Fase ${inj.phase||1}/5 — ${inj.phaseDesc||'Avaliação inicial'} ${inj.returnDate?'· Retorno: '+fmtDate(inj.returnDate):''}</div>
-      ${lastT?`<div style="font-size:11px;color:var(--t2);margin-top:6px">Último tratamento: ${lastT.type} — ${fmtDate(lastT.date)}</div>`:''}
+      ${lastT?`<div style="font-size:11px;color:var(--t2);margin-top:6px">Último tratamento: ${lastT.type} — ${fmtDate(lastT.date)}${lastT.professional?' · por '+escHtml(lastT.professional):''}</div>`:''}
       <div style="display:flex;gap:6px;margin-top:8px">
         <button class="btn btn-xs btn-g" onclick="navTo('fisio-trat');setTratAt('${inj.id}')">+ Tratamento</button>
         <button class="btn btn-xs btn-gh" onclick="updatePhase('${inj.id}')">📈 Fase</button>
@@ -9601,6 +9714,8 @@ function renderFisioDash(){
   </details>`;
 
   document.getElementById('pg-fisio-dash').innerHTML=`
+  ${_fisioResponsavelSelectorHtml()}
+  ${_fisioAlertsHtml()}
   <div class="kpis">
     <div class="kpi red"><div class="kpi-lbl">Ativas</div><div class="kpi-val" style="color:#f87171">${active.length}</div><div class="kpi-sub">Lesões em curso</div></div>
     <div class="kpi yel"><div class="kpi-lbl">Reabilitação</div><div class="kpi-val" style="color:#fbbf24">${rehab.length}</div><div class="kpi-sub">Em prog. reab.</div></div>
@@ -9617,6 +9732,10 @@ function renderFisioDash(){
 
 let _showEpForm=false, _editEpId=null;
 function renderFisioEp(){
+  // Valor por defeito do Responsável: o da lesão (a editar) ou o "responsável pelo
+  // plantel" configurado (Fase 5, ver _fisioResponsavelSelectorHtml) para episódios novos.
+  const _epExisting=_editEpId?APP.injuries.find(x=>x.id===_editEpId):null;
+  const _epDefaultResp=_epExisting?_epExisting.responsavelId:(APP.config.fisioResponsavelId||'');
   const formHtml=_showEpForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">${_editEpId?'Editar Episódio':'Novo Episódio de Lesão'}</div><button class="btn btn-sm btn-gh" onclick="_showEpForm=false;_editEpId=null;renderFisioEp()">✕</button></div>
@@ -9628,6 +9747,7 @@ function renderFisioEp(){
     <div class="fr"><div class="form-g"><label class="fl">Gravidade</label><select class="fc" id="epf-sev"><option>ligeira</option><option>moderada</option><option>grave</option><option>muito grave</option></select></div>
     <div class="form-g"><label class="fl">Retorno Previsto</label><input class="fc" id="epf-ret" type="date"></div></div>
     <div class="form-g"><label class="fl">Mecanismo / Notas</label><textarea class="fc" id="epf-notes" rows="3"></textarea></div>
+    <div class="form-g"><label class="fl">Responsável (opcional — pode mudar depois)</label><select class="fc" id="epf-resp"><option value="" ${_epDefaultResp?'':'selected'}>— Nenhum —</option>${(APP.users||[]).filter(u=>u.role==='fisio'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<option value="${u.id}" ${u.id===_epDefaultResp?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveEpisodio()">💾 Guardar</button><button class="btn btn-gh" onclick="_showEpForm=false;_editEpId=null;renderFisioEp()">Cancelar</button></div>
   </div>`:'';
 
@@ -9652,25 +9772,66 @@ function saveEpisodio(){
   const aid=document.getElementById('epf-at').value;
   const date=document.getElementById('epf-date').value;
   if(!aid||!date)return toast('Atleta e data obrigatórios','err');
-  const ep={id:_editEpId||uid(),athleteId:aid,date,type:document.getElementById('epf-type').value,bodyPart:document.getElementById('epf-body').value,diagnosis:document.getElementById('epf-diag').value,severity:document.getElementById('epf-sev').value,returnDate:document.getElementById('epf-ret').value,notes:document.getElementById('epf-notes').value,status:'ativo',phase:1,phaseDesc:'Avaliação inicial',progress:0};
-  if(_editEpId){const i=APP.injuries.findIndex(x=>x.id===_editEpId);if(i>=0)APP.injuries[i]={...APP.injuries[i],...ep};}
-  else APP.injuries.push(ep);
+  const sess=getSession();
+  const ep={id:_editEpId||uid(),athleteId:aid,date,type:document.getElementById('epf-type').value,bodyPart:document.getElementById('epf-body').value,diagnosis:document.getElementById('epf-diag').value,severity:document.getElementById('epf-sev').value,returnDate:document.getElementById('epf-ret').value,notes:document.getElementById('epf-notes').value};
+  // Responsável pelo plantel (Fase 5) — ao contrário da autoria (registeredBy, que fica
+  // fixa em quem abriu o episódio), este campo é reatribuível em qualquer edição, porque
+  // na prática o acompanhamento pode passar de uma fisio para outra. Ver project_sps_fisio_autoria.
+  const respEl=document.getElementById('epf-resp');
+  const respId=respEl?respEl.value:'';
+  const respUser=respId?APP.users.find(u=>u.id===respId):null;
+  ep.responsavelId=respId||null;
+  ep.responsavelName=respUser?respUser.name:'';
+  if(_editEpId){
+    const i=APP.injuries.findIndex(x=>x.id===_editEpId);
+    if(i>=0)APP.injuries[i]={...APP.injuries[i],...ep};
+  }else{
+    // Autoria automática (quem abriu o episódio) — ver project_sps_fisio_autoria.
+    // phaseHistory arranca já com a fase 1, para a timeline (Fase 2) começar completa.
+    ep.status='ativo';ep.phase=1;ep.phaseDesc='Avaliação inicial';ep.progress=0;
+    ep.registeredBy=sess?sess.name:'';ep.registeredById=sess?sess.userId:null;ep.registeredAt=new Date().toISOString();
+    ep.phaseHistory=[{phase:1,phaseDesc:'Avaliação inicial',by:ep.registeredBy,byId:ep.registeredById,at:ep.registeredAt}];
+    APP.injuries.push(ep);
+  }
   if(_sync)cloudUpsert('injuries',APP.injuries.find(x=>x.id===ep.id));
   saveData();_showEpForm=false;_editEpId=null;toast('Episódio registado ✓');renderFisioEp();
 }
 function editEpisodio(id){_editEpId=id;_showEpForm=true;renderFisioEp();}
 function deleteEpisodio(id){if(!confirm('Apagar?'))return;APP.injuries=APP.injuries.filter(i=>i.id!==id);APP.treatments=APP.treatments.filter(t=>t.injuryId!==id);saveData();toast('Apagado');renderFisioEp();}
-function altaMedica(id){const i=APP.injuries.find(x=>x.id===id);if(i){i.status='alta';i.phase=5;saveData();toast('Alta médica registada ✓');renderFisioDash();}}
+// Cada avanço de fase/alta regista quem o fez (sessão logada) em i.phaseHistory — é a
+// base da timeline de handoff entre fisios (Fase 2) quando há mais que uma a acompanhar
+// o plantel. Ver project_sps_fisio_autoria.
+function _injLogPhase(i,phase,phaseDesc){
+  const sess=getSession();
+  if(!i.phaseHistory)i.phaseHistory=[];
+  i.phaseHistory.push({phase,phaseDesc,by:sess?sess.name:'',byId:sess?sess.userId:null,at:new Date().toISOString()});
+}
+function altaMedica(id){
+  const i=APP.injuries.find(x=>x.id===id);if(!i)return;
+  i.status='alta';i.phase=5;i.phaseDesc='Alta médica';
+  _injLogPhase(i,5,'Alta médica');
+  if(_sync)cloudUpsert('injuries',i);
+  saveData();toast('Alta médica registada ✓');renderFisioDash();
+}
 function updatePhase(id){
   const i=APP.injuries.find(x=>x.id===id);if(!i)return;
   const phases=['Avaliação inicial','Controlo da dor','Recuperação funcional','Treino específico','Retorno ao jogo'];
   const next=Math.min((i.phase||1)+1,5);
   i.phase=next;i.phaseDesc=phases[next-1];
   if(next>=4)i.status='reabilitação';
+  _injLogPhase(i,next,phases[next-1]);
+  if(_sync)cloudUpsert('injuries',i);
   saveData();toast(`Fase ${next}: ${phases[next-1]}`);renderFisioDash();
 }
 let _tratEpId=null;
 function setTratAt(epId){_tratEpId=epId;renderFisioTrat();}
+// Lista de quem pode assinar um tratamento — calculada a partir de quem tem acesso à
+// própria página (ROLE_DEFS['<role>'].pages inclui 'fisio-trat'), não uma lista fixa de
+// cargos: cobre fisio + treinador/adjunto automaticamente, e qualquer cargo futuro que
+// ganhe acesso a esta página, sem precisar de tocar aqui. Ver project_sps_fisio_autoria.
+function _fisioEligibleUsers(){
+  return (APP.users||[]).filter(u=>u.active!==false&&ROLE_DEFS[u.role]?.pages?.includes('fisio-trat')).sort((a,b)=>a.name.localeCompare(b.name));
+}
 function renderFisioTrat(){
   const inj=APP.injuries.find(i=>i.id===_tratEpId);
   const at=inj?APP.athletes.find(a=>a.id===inj.athleteId):null;
@@ -9684,7 +9845,7 @@ function renderFisioTrat(){
     <div class="form-g"><label class="fl">Tipo de Tratamento</label><select class="fc" id="tr-type"><option>Fisioterapia Manual</option><option>Electroterapia</option><option>Hidroterapia</option><option>Crioterapia</option><option>Termoterapia</option><option>Massagem</option><option>Fortalecimento</option><option>Mobilidade</option><option>Propriocepção</option><option>Outro</option></select></div></div>
     <div class="form-g"><label class="fl">Descrição / Protocolo</label><textarea class="fc" id="tr-desc" rows="3" placeholder="Técnicas aplicadas, duração, intensidade..."></textarea></div>
     <div class="fr"><div class="form-g"><label class="fl">Resposta da Atleta</label><select class="fc" id="tr-resp"><option value="">— Selecionar —</option><option>Boa</option><option>Moderada</option><option>Fraca</option><option>Sem alteração</option></select></div>
-    <div class="form-g"><label class="fl">Profissional</label><input class="fc" id="tr-prof" placeholder="Nome do fisioterapeuta"></div></div>
+    <div class="form-g"><label class="fl">Profissional</label><select class="fc" id="tr-prof">${(()=>{const sess=getSession();const users=_fisioEligibleUsers();return users.map(u=>`<option value="${u.id}" ${u.id===sess?.userId?'selected':''}>${escHtml(u.name)}</option>`).join('')||'<option value="">— Sem fisios/treinadores registados —</option>';})()}</select></div></div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveTratamento()">💾 Guardar</button></div>
   </div>`;
 
@@ -9705,7 +9866,9 @@ function saveTratamento(){
   const date=document.getElementById('tr-date').value;
   if(!date)return toast('Data obrigatória','err');
   const inj=APP.injuries.find(i=>i.id===_tratEpId);
-  const t={id:uid(),injuryId:_tratEpId,athleteId:inj?.athleteId||null,date,type:document.getElementById('tr-type').value,description:document.getElementById('tr-desc').value,response:document.getElementById('tr-resp').value,professional:document.getElementById('tr-prof').value};
+  const profId=document.getElementById('tr-prof').value;
+  const profUser=APP.users.find(u=>u.id===profId);
+  const t={id:uid(),injuryId:_tratEpId,athleteId:inj?.athleteId||null,date,type:document.getElementById('tr-type').value,description:document.getElementById('tr-desc').value,response:document.getElementById('tr-resp').value,professionalId:profId||null,professional:profUser?.name||'',registeredAt:new Date().toISOString()};
   APP.treatments.push(t);
   if(_sync)cloudUpsert('treatments',t);
   if(t.athleteId)_autoMarkAttendance(t.athleteId,date,'tratamento');
@@ -9751,13 +9914,18 @@ function openAnamneseDetail(athleteId){
   saveData();
   if(_sync)cloudUpsert('athlete_anamnesis',{...an,club_id:_cid});
 
+  // Timeline de handoff (Fase 2, project_sps_fisio_autoria) — junta tratamentos e mudanças
+  // de fase de cada episódio, ordenados no tempo, cada linha com quem a fez, para uma fisio
+  // nova (ou outra em rotação) perceber o caso completo sem ter de perguntar a ninguém.
   const injs=APP.injuries.filter(i=>i.athleteId===athleteId).sort((a,b)=>b.date.localeCompare(a.date));
   const timelineHtml=injs.length?injs.map(inj=>{
-    const treats=APP.treatments.filter(t=>t.injuryId===inj.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const treats=APP.treatments.filter(t=>t.injuryId===inj.id).map(t=>({at:t.date,label:`💊 ${t.type}`,by:t.professional||'—'}));
+    const phases=(inj.phaseHistory||[]).map(p=>({at:(p.at||'').slice(0,10)||inj.date,label:`📈 Fase ${p.phase}: ${p.phaseDesc}`,by:p.by||'—'}));
+    const events=[...treats,...phases].sort((a,b)=>(a.at||'').localeCompare(b.at||''));
     return `<div style="padding:8px 0;border-bottom:1px solid var(--brd)">
       <div style="font-size:12px;font-weight:700">${fmtDate(inj.date)} — ${escHtml(inj.diagnosis||inj.type||'')} ${statusBadge(inj.status)}</div>
-      <div style="font-size:10px;color:var(--t2)">${inj.bodyPart||''}</div>
-      ${treats.map(t=>`<div style="font-size:10px;color:var(--t2);padding-left:10px">↳ ${fmtDate(t.date)} · ${t.type}</div>`).join('')}
+      <div style="font-size:10px;color:var(--t2)">${inj.bodyPart||''}${inj.registeredBy?' · aberto por '+escHtml(inj.registeredBy):''}</div>
+      ${events.map(e=>`<div style="font-size:10px;color:var(--t2);padding-left:10px">↳ ${fmtDate(e.at)} · ${e.label} — <em>${escHtml(e.by)}</em></div>`).join('')}
     </div>`;
   }).join(''):'<div style="font-size:11px;color:var(--t2)">Sem episódios registados desde que está no clube.</div>';
 
@@ -9785,6 +9953,7 @@ async function saveClinicalNotes(athleteId){
   an.clinicalNotes=document.getElementById('an-clinical')?.value.trim()||'';
   an.clinicalNotesUpdatedAt=new Date().toISOString();
   an.clinicalNotesUpdatedBy=sess?sess.name:'';
+  an.clinicalNotesUpdatedById=sess?sess.userId:null;
   saveData();
   if(_sync)await cloudUpsert('athlete_anamnesis',{...an,club_id:_cid});
   closeMod();
@@ -12770,15 +12939,15 @@ async function pullCloud(){
       ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash,nat:r.nationality||r.nat,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}))],
       ['wellness_records','wellness',(d)=>APP.wellness=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at,cycleImpact:r.cycle_impact}))],
       ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at,eventId:r.event_id}))],
-      ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at}))],
-      ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professionalName:r.professional_name,registeredAt:r.registered_at}))],
+      ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at,registeredById:r.registered_by_id,phaseHistory:r.phase_history||[],responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
+      ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name,professionalId:r.professional_id,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null,rsvp:r.rsvp||{}}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
       ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
-      ['athlete_anamnesis','anamnesis',(d)=>APP.anamnesis=d.map(r=>({id:r.id,athleteId:r.athlete_id,selfReport:r.self_report||{},selfReportUpdatedAt:r.self_report_updated_at,clinicalNotes:r.clinical_notes||'',clinicalNotesUpdatedAt:r.clinical_notes_updated_at,clinicalNotesUpdatedBy:r.clinical_notes_updated_by,fisioViewedAt:r.fisio_viewed_at}))],
+      ['athlete_anamnesis','anamnesis',(d)=>APP.anamnesis=d.map(r=>({id:r.id,athleteId:r.athlete_id,selfReport:r.self_report||{},selfReportUpdatedAt:r.self_report_updated_at,clinicalNotes:r.clinical_notes||'',clinicalNotesUpdatedAt:r.clinical_notes_updated_at,clinicalNotesUpdatedBy:r.clinical_notes_updated_by,clinicalNotesUpdatedById:r.clinical_notes_updated_by_id,fisioViewedAt:r.fisio_viewed_at}))],
       // Treino Extra: registo autoiniciado pela atleta (ginásio, corrida, treino em casa...),
       // sem ligação a schedule_events — tabela dedicada própria, mesmo padrão de pse_records/
       // wellness_records (série temporal, não singleton). UA calculado mas propositadamente
@@ -12980,10 +13149,10 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at',cycleImpact:'cycle_impact'}},
   pse_records:{cols:['id','athlete_id','date','pse','duration','ua','session_type','submitted_at','event_id'],
     rename:{athleteId:'athlete_id',sessionType:'session_type',submittedAt:'submitted_at',eventId:'event_id'}},
-  injuries:{cols:['id','athlete_id','date','type','diagnosis','severity','status','return_date','notes','phase','phase_desc','progress','registered_by','registered_at','body_part'],
-    rename:{athleteId:'athlete_id',returnDate:'return_date',bodyPart:'body_part',phaseDesc:'phase_desc',registeredAt:'registered_at',registeredBy:'registered_by'}},
-  treatments:{cols:['id','injury_id','athlete_id','date','type','description','response','professional_name','registered_at'],
-    rename:{injuryId:'injury_id',athleteId:'athlete_id',professional:'professional_name',registeredAt:'registered_at'}},
+  injuries:{cols:['id','athlete_id','date','type','diagnosis','severity','status','return_date','notes','phase','phase_desc','progress','registered_by','registered_by_id','registered_at','body_part','phase_history','responsavel_id','responsavel_name'],
+    rename:{athleteId:'athlete_id',returnDate:'return_date',bodyPart:'body_part',phaseDesc:'phase_desc',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id',phaseHistory:'phase_history',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
+  treatments:{cols:['id','injury_id','athlete_id','date','type','description','response','professional_name','professional_id','registered_at'],
+    rename:{injuryId:'injury_id',athleteId:'athlete_id',professional:'professional_name',professionalId:'professional_id',registeredAt:'registered_at'}},
   nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle'],
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at'],
@@ -12996,8 +13165,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{eventId:'event_id',athleteId:'athlete_id',createdAt:'created_at'}},
   staff_users:{cols:['id','name','email','role','photo','password_hash','is_admin','active','created_at','must_change_pwd'],
     rename:{passwordHash:'password_hash',isAdmin:'is_admin',createdAt:'created_at',mustChangePwd:'must_change_pwd'}},
-  athlete_anamnesis:{cols:['id','athlete_id','self_report','self_report_updated_at','clinical_notes','clinical_notes_updated_at','clinical_notes_updated_by','fisio_viewed_at'],
-    rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',clinicalNotes:'clinical_notes',clinicalNotesUpdatedAt:'clinical_notes_updated_at',clinicalNotesUpdatedBy:'clinical_notes_updated_by',fisioViewedAt:'fisio_viewed_at'}},
+  athlete_anamnesis:{cols:['id','athlete_id','self_report','self_report_updated_at','clinical_notes','clinical_notes_updated_at','clinical_notes_updated_by','clinical_notes_updated_by_id','fisio_viewed_at'],
+    rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',clinicalNotes:'clinical_notes',clinicalNotesUpdatedAt:'clinical_notes_updated_at',clinicalNotesUpdatedBy:'clinical_notes_updated_by',clinicalNotesUpdatedById:'clinical_notes_updated_by_id',fisioViewedAt:'fisio_viewed_at'}},
   extra_training_records:{cols:['id','athlete_id','date','type','duration','pse','ua','summary','guidance','submitted_at'],
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
   gym_records:{cols:['id','event_id','athlete_id','vals','rir_geral','obs','updated_at'],
@@ -13173,6 +13342,10 @@ function _swMaybeShowUpdateBanner(){
       // login terminar), mas ícone SVG gerado (mesmo padrão do Fisio/Nutri) em vez de PNG
       // dedicado — não bloqueia o lançamento a criar assets novos.
       applyPWAManifest({name:'SPS Ginásio',shortName:'SPS Ginásio',iconSrc:_roleIconSVG('GYM','#8e44ad'),iconType:'image/svg+xml',themeColor:'#8e44ad',startUrl:location.pathname+'?ginasio=1'});
+    } else if(typeof _forceFisioMode!=='undefined'&&_forceFisioMode){
+      // SPS-Fisio standalone — mesmo motivo dos anteriores (ícone certo já antes do login
+      // terminar); mesma cor/ícone SVG já usados para o Fisio em showStaffApp() (sps-v114+).
+      applyPWAManifest({name:'SPS Fisio',shortName:'SPS Fisio',iconSrc:_roleIconSVG('FIS','#c0392b'),iconType:'image/svg+xml',themeColor:'#c0392b',startUrl:location.pathname+'?fisio=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     }
@@ -13269,7 +13442,7 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
       AID=sess.userId;
       const at=APP.athletes.find(a=>a.id===AID);
       if(at){showAtletaApp(at);return;}
-    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();return;}
+    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();_maybeEnterFisioMode();return;}
   }
   if(_checkAtletaToken()) return;
   // Sessão persistente da atleta (localStorage)
