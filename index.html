@@ -2873,7 +2873,7 @@ function _renderEfGymBox(){
       <button class="btn btn-xs btn-r" onclick="_efGymSheet=null;_renderEfGymBox()">Remover</button>
     </div>
   </div>
-  ${!_editEvId?`<div style="font-size:10.5px;color:var(--t2);margin-top:4px">Guarda o evento primeiro para poderes registar a sessão.</div>`:''}`:`<button class="btn btn-sm btn-gh" onclick="pickGymSheetForEvent()">+ Importar Ficha da Biblioteca</button>`;
+  ${!_editEvId?`<div style="font-size:10.5px;color:var(--t2);margin-top:4px">Guarda o evento primeiro para poderes registar a sessão.</div>`:_gymRsvpStatusHtml((APP.schedule||[]).find(e=>e.id===_editEvId)||{})}`:`<button class="btn btn-sm btn-gh" onclick="pickGymSheetForEvent()">+ Importar Ficha da Biblioteca</button>`;
 }
 function pickGymSheetForEvent(){
   const list=(APP.gymSheets||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
@@ -9162,6 +9162,7 @@ function renderGymSessionGrid(){
   const isMobile=window.innerWidth<640;
   const bodyHtml=isMobile?_gymGridAccordionHtml(gs,athletes):_gymGridTableHtml(gs,athletes);
   openMod(`📋 Registar Sessão — ${escHtml(gs.title||'Ficha')} (${fmtDate(ev.date)})`,`
+  ${_gymRsvpStatusHtml(ev)}
   ${bodyHtml}
   <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-g" onclick="saveGymRecords()">💾 Guardar Registos</button>
@@ -12104,12 +12105,19 @@ function _atEventsForAthlete(at){
 }
 function _atEvCardHtml(e){
   const c=EV_COLORS[e.type]||'#27a34a';
-  return `<div class="card" style="margin-bottom:6px;padding:11px;display:flex;gap:10px;align-items:center;cursor:pointer" onclick="atOpenEventDetail('${e.id}')">
+  // Ginásio pede confirmação Vou/Não vou (é opcional, depende do horário da atleta;
+  // os outros tipos são obrigatórios e não pedem) — bloco RSVP inline, fora da linha
+  // clicável que abre o detalhe, para não precisar de stopPropagation em cada botão.
+  const rsvpHtml=e.type==='Ginásio'?_gymRsvpCardBlockHtml(e):'';
+  return `<div class="card" style="margin-bottom:6px;padding:11px">
+    <div style="display:flex;gap:10px;align-items:center;cursor:pointer" onclick="atOpenEventDetail('${e.id}')">
     <div style="width:4px;height:40px;border-radius:2px;background:${c};flex-shrink:0"></div>
     <div style="flex:1"><div style="font-size:12px;font-weight:800">${e.title}</div>
     <div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''} ${e.dur?'· '+e.dur+'min':''}</div>
     ${e.notes?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${e.notes}</div>`:''}
     </div><span class="mc-sess s-tec" style="background:${c}22;color:${c};padding:3px 7px;font-size:9px">${e.type}</span>
+    </div>
+    ${rsvpHtml}
   </div>`;
 }
 // Detalhe ao tocar num evento (Agenda + lista "Hoje" da Casa) — para Treino ligado a
@@ -12445,6 +12453,117 @@ function _rsvpBlockHtml(c){
     <a href="#" onclick="event.preventDefault();atRsvpReset('${c.id}')" style="color:var(--pri);margin-left:6px">mudar resposta</a>
   </div>`;
 }
+// Confirmação de presença (RSVP) — Ginásio, pedido do Roger 01/09/2026: ao contrário
+// dos outros treinos (obrigatórios), o Ginásio depende da disponibilidade de horário
+// de cada atleta, por isso passa a pedir confirmação Vou/Não vou, como já acontece
+// nas convocatórias de Jogo — mas guardado direto no evento (ev.rsvp[AID]), já que
+// schedule_events é tabela dedicada (não meta blob) desde sps-v113. Prazo de resposta:
+// fecha 2h antes da hora de início da sessão (_gymRsvpDeadlinePassed); sem hora
+// definida no evento, não há prazo (fica sempre aberto). Mesmo padrão visual/UX do
+// RSVP de Jogo (_rsvpBlockHtml), mas mostrado inline na Agenda, não num separador à
+// parte — ver _gymRsvpCardBlockHtml e _atEvCardHtml. Ver project_sps_rsvp_ginasio.
+function _gymRsvpDeadline(ev){
+  if(!ev.date||!ev.time)return null;
+  const dt=new Date(`${ev.date}T${ev.time.slice(0,5)}:00`);
+  if(isNaN(dt.getTime()))return null;
+  return new Date(dt.getTime()-120*60000);
+}
+function _gymRsvpDeadlinePassed(ev){
+  const d=_gymRsvpDeadline(ev);
+  return d?new Date()>=d:false;
+}
+function _gymRsvpOf(ev){return (ev.rsvp&&ev.rsvp[AID])||null;}
+let _gymRsvpDeclining=new Set();
+async function atGymRsvpYes(eventId){
+  const ev=(APP.schedule||[]).find(e=>e.id===eventId);if(!ev)return;
+  if(_gymRsvpDeadlinePassed(ev))return toast('Prazo de resposta terminado','err');
+  if(!ev.rsvp)ev.rsvp={};
+  ev.rsvp[AID]={status:'yes',reason:'',respondedAt:new Date().toISOString()};
+  _gymRsvpDeclining.delete(eventId);
+  saveData();
+  if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
+  renderAtAgenda();toast('Confirmaste presença ✓');
+}
+function atGymRsvpDeclineStart(eventId){_gymRsvpDeclining.add(eventId);renderAtAgenda();}
+function atGymRsvpDeclineCancel(eventId){_gymRsvpDeclining.delete(eventId);renderAtAgenda();}
+async function atGymRsvpDeclineConfirm(eventId){
+  const ev=(APP.schedule||[]).find(e=>e.id===eventId);if(!ev)return;
+  if(_gymRsvpDeadlinePassed(ev))return toast('Prazo de resposta terminado','err');
+  const sel=document.getElementById('gym-rsvp-reason-'+eventId);
+  const reason=sel?sel.value:'';
+  if(!reason)return toast('Escolhe um motivo','err');
+  if(!ev.rsvp)ev.rsvp={};
+  ev.rsvp[AID]={status:'no',reason,respondedAt:new Date().toISOString()};
+  _gymRsvpDeclining.delete(eventId);
+  saveData();
+  if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
+  renderAtAgenda();toast('Resposta registada');
+}
+async function atGymRsvpReset(eventId){
+  const ev=(APP.schedule||[]).find(e=>e.id===eventId);if(!ev)return;
+  if(_gymRsvpDeadlinePassed(ev))return toast('Prazo de resposta terminado','err');
+  if(ev.rsvp)delete ev.rsvp[AID];
+  _gymRsvpDeclining.delete(eventId);
+  saveData();
+  if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
+  renderAtAgenda();
+}
+function _gymRsvpCardBlockHtml(ev){
+  if(ev.date<today())return '';
+  const passed=_gymRsvpDeadlinePassed(ev);
+  const r=_gymRsvpOf(ev);
+  if(_gymRsvpDeclining.has(ev.id)){
+    return `<div onclick="event.stopPropagation()" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--brd)">
+      <div style="font-size:10.5px;color:var(--t2);margin-bottom:6px">Motivo:</div>
+      <select class="fc" id="gym-rsvp-reason-${ev.id}" style="margin-bottom:8px;font-size:12px">
+        <option value="">Escolhe...</option>
+        ${Object.entries(ATT_REASONS).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-r btn-sm" style="flex:1" onclick="atGymRsvpDeclineConfirm('${ev.id}')">Confirmar</button>
+        <button class="btn btn-gh btn-sm" style="flex:1" onclick="atGymRsvpDeclineCancel('${ev.id}')">Cancelar</button>
+      </div>
+    </div>`;
+  }
+  if(!r&&!passed){
+    return `<div onclick="event.stopPropagation()" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--brd)">
+      <div style="font-size:10.5px;color:var(--t2);margin-bottom:6px">Vais ao ginásio? (confirma até 2h antes)</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="atGymRsvpYes('${ev.id}')">✅ Vou</button>
+        <button class="btn btn-gh btn-sm" style="flex:1" onclick="atGymRsvpDeclineStart('${ev.id}')">❌ Não vou</button>
+      </div>
+    </div>`;
+  }
+  if(!r&&passed){
+    return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--brd);font-size:10.5px;color:var(--t2)">⏳ Prazo de resposta terminado — sem resposta registada</div>`;
+  }
+  return `<div onclick="event.stopPropagation()" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--brd);font-size:10.5px;color:var(--t2)">
+    ${r.status==='yes'?'✅ Confirmaste presença':'❌ Avisaste que não vais'+(r.reason?' — '+escHtml(ATT_REASONS[r.reason]||r.reason):'')}
+    ${!passed?`<a href="#" onclick="event.preventDefault();atGymRsvpReset('${ev.id}')" style="color:var(--pri);margin-left:6px">mudar resposta</a>`:''}
+  </div>`;
+}
+// Estado das confirmações do lado do staff — usado na app SPS-Ginásio (sessão de
+// hoje) e no editor de evento do Planeamento (ficha importada). Mesma elegibilidade
+// de atletas que a grelha de registos (_gymGridAthletes: teamId + guestIds).
+function _gymRsvpStatusHtml(ev){
+  const athletes=typeof _gymGridAthletes==='function'?_gymGridAthletes(ev):[];
+  if(!athletes.length)return '';
+  const passed=_gymRsvpDeadlinePassed(ev);
+  const nYes=athletes.filter(a=>(ev.rsvp&&ev.rsvp[a.id]&&ev.rsvp[a.id].status)==='yes').length;
+  const rows=athletes.map(a=>{
+    const r=(ev.rsvp&&ev.rsvp[a.id])||null;
+    let badge;
+    if(r&&r.status==='yes')badge='<span class="bdg bg-g" style="font-size:9px">✅ Vai</span>';
+    else if(r&&r.status==='no')badge=`<span class="bdg bg-r" style="font-size:9px" title="${escHtml(ATT_REASONS[r.reason]||r.reason||'')}">❌ Não vai</span>`;
+    else if(passed)badge='<span class="bdg" style="font-size:9px;background:var(--bg4);color:var(--t2)">— Sem resposta</span>';
+    else badge='<span class="bdg" style="font-size:9px;background:var(--bg4);color:var(--t2)">⏳ Por confirmar</span>';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11.5px"><span>${escHtml(_shortName(a))}</span>${badge}</div>`;
+  }).join('');
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
+    <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Confirmações (${nYes}/${athletes.length} vão)${passed?' · prazo terminado':''}</div>
+    ${rows}
+  </div>`;
+}
 function renderAtConvoc(){
   const td=today();
   const convs=APP.convocatorias.filter(c=>c.athletes?.includes(AID)&&c.date>=td&&_convIsPublished(c)).sort((a,b)=>a.date.localeCompare(b.date));
@@ -12655,7 +12774,7 @@ async function pullCloud(){
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professionalName:r.professional_name,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
-      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null}))],
+      ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null,rsvp:r.rsvp||{}}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
       ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
@@ -12869,7 +12988,7 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at'],
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at'}},
-  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet'],
+  schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet','rsvp'],
     rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao',guestIds:'guest_ids',gymSheet:'gym_sheet'}},
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
     rename:{athleteId:'athlete_id',createdAt:'created_at',doneAt:'done_at',doneTime:'done_time'}},
