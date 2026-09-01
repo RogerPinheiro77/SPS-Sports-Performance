@@ -5694,13 +5694,21 @@ function _jogoAoVivoHtml(g){
   }else if(ls.phase==='fim'){
     controls=`<button class="btn btn-g" style="width:100%;padding:10px;font-size:13px" onclick="_gdLaunch('${g.id}')">🚀 ${ls.launched?'Relançar':'Lançar'}</button>`;
   }
+  // Reiniciar Jogo: passou do rodapé (link de texto ao lado do logótipo) para debaixo do
+  // cronómetro, junto aos outros controlos — pedido do Roger, 01/09/2026, mesmo padrão de
+  // sps-v105 (Pausa/Intervalo/Lançar). Fica sempre por último na coluna de controlos,
+  // em todas as fases onde já é permitido reiniciar (canReset), incluindo penalidades
+  // (onde `controls` está vazio — este botão passa a ser o único conteúdo ali).
+  if(canReset){
+    controls+=`<button class="btn btn-gh" style="width:100%;padding:8px;font-size:11px;color:var(--t3);margin-top:6px" onclick="_gdResetGame('${g.id}')">↺ Reiniciar Jogo</button>`;
+  }
   // Grandes penalidades tem o próprio ecrã completo (marcadora a marcadora) — não cabe
   // no espaço estreito por baixo do cronómetro, continua no corpo principal como antes.
   const penControls=ls.phase==='penaltis'?_gdPenaltisHtml(g):'';
 
   const header=`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:4px;flex-wrap:wrap;gap:8px">
     <div>
-      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY${canReset?` <span onclick="_gdResetGame('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">↺ Reiniciar</span>`:''}${ls.phase!=='pre'?` <span onclick="_gdExportBackup('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">⬇ Backup</span>`:''}</div>
+      <div style="font-size:11px;color:var(--t2)">SPS-GAMEDAY${ls.phase!=='pre'?` <span onclick="_gdExportBackup('${g.id}')" style="color:var(--t3);cursor:pointer;text-decoration:underline">⬇ Backup</span>`:''}</div>
       <div style="font-size:16px;font-weight:900">${escHtml(teamName)} <span style="color:var(--c1l)">${ls.score.casa}</span> – <span style="color:var(--t2)">${ls.score.fora}</span> ${escHtml(g.opp)}</div>
     </div>
     <div style="text-align:right;min-width:150px">
