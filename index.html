@@ -2837,6 +2837,15 @@ function _planSemanaGridHtml(){
 function _toggleEfTreinoFields(){
   const type=document.getElementById('ef-type')?.value;
   const isTr=type==='Treino';
+  // Duração predefinida por tipo — só preenche se o campo ainda estiver vazio,
+  // para não sobrepor um valor já escrito pelo utilizador nem o valor de um
+  // evento existente (o pré-preenchimento da edição corre antes desta função,
+  // ver renderPlaneamento). Pedido do Roger 01/09/2026: Ginásio 30min, Treino 90min.
+  const durEl=document.getElementById('ef-dur');
+  if(durEl&&!durEl.value){
+    if(type==='Ginásio')durEl.value=30;
+    else if(type==='Treino')durEl.value=90;
+  }
   const wrap=document.getElementById('ef-extra-wrap'),note=document.getElementById('ef-treino-note');
   if(wrap)wrap.style.display=isTr?'none':'';
   if(note)note.style.display=isTr?'':'none';
