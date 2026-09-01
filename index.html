@@ -12907,10 +12907,63 @@ function applyPWAManifest(opts){
 
 loadData();
 
+// Deteção de nova versão do Service Worker + aviso não-intrusivo para recarregar.
+// Motivo (31/08/2026): um separador aberto há dias, com uma versão de código mais
+// antiga, continua a gravar dados à moda antiga (sem as proteções mais recentes)
+// até ser recarregado — foi assim que a Biblioteca de Exercícios perdeu os
+// exercícios de Ginásio duas vezes seguidas, mesmo depois de corrigido (sps-v108).
+// skipWaiting()+clients.claim() no sw.js já ativa o Service Worker novo de
+// imediato, mas isso só controla PEDIDOS DE REDE futuros — o JavaScript já
+// carregado na memória do separador continua a correr até a página ser
+// recarregada. Por isso NUNCA recarrega sozinho: só mostra um aviso pequeno com
+// botão, e fica escondido enquanto houver um jogo do Gameday ao vivo por lançar
+// (reutiliza _gdLiveGamesAtRisk, já usado para o mesmo tipo de proteção em
+// feedback_sps_gameday_pullcloud_overwrite) — nunca arrisca interromper um jogo a
+// meio. Ver feedback_sps_biblioteca_exercicios_wipe.
+let _swUpdatePending=false;
+function _swShowUpdateBanner(){
+  if(document.getElementById('sw-update-banner'))return;
+  const b=document.createElement('div');
+  b.id='sw-update-banner';
+  b.style.cssText='position:fixed;bottom:16px;right:16px;z-index:9999;background:var(--bg2,#1a1a1a);border:1px solid var(--brd);border-radius:12px;padding:12px 14px;box-shadow:0 4px 20px rgba(0,0,0,.35);display:flex;align-items:center;gap:10px;font-size:12px;max-width:280px;color:var(--t1,#fff)';
+  b.innerHTML='<span style="flex:1;line-height:1.4">Há uma versão nova da app. Atualiza para evitar perder dados.</span><button class="btn btn-g btn-sm" style="white-space:nowrap" onclick="location.reload()">Atualizar</button>';
+  document.body.appendChild(b);
+}
+function _swMaybeShowUpdateBanner(){
+  if(!_swUpdatePending)return;
+  // Nunca interromper um jogo ao vivo por lançar — o aviso fica pendente e volta a
+  // ser reavaliado (visibilitychange / intervalo periódico) até deixar de haver risco.
+  if(typeof _gdLiveGamesAtRisk==='function'&&_gdLiveGamesAtRisk().length>0)return;
+  _swShowUpdateBanner();
+}
+
 (function initPWA(){
   try{
-    // Registar Service Worker
-    if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(function(e){console.warn('SW register error:',e);});}
+    // Registar Service Worker — e detetar quando uma versão nova fica pronta
+    // (reg.waiting já presente no registo, ou updatefound → installed com um
+    // controller já ativo, o que distingue "atualização" de "primeira instalação").
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('./sw.js').then(function(reg){
+        if(reg.waiting&&navigator.serviceWorker.controller){_swUpdatePending=true;_swMaybeShowUpdateBanner();}
+        reg.addEventListener('updatefound',function(){
+          const nw=reg.installing;if(!nw)return;
+          nw.addEventListener('statechange',function(){
+            if(nw.state==='installed'&&navigator.serviceWorker.controller){
+              _swUpdatePending=true;_swMaybeShowUpdateBanner();
+            }
+          });
+        });
+        // O browser só verifica automaticamente por atualizações na navegação —
+        // uma SPA que fica horas na mesma página nunca navega. Forçar verificação
+        // periódica e sempre que o separador volta a ficar visível (ex: troca de
+        // app no telemóvel), e reavaliar o aviso pendente na mesma ocasião.
+        setInterval(function(){if(document.visibilityState==='visible')reg.update().catch(function(){});},20*60*1000);
+        document.addEventListener('visibilitychange',function(){
+          if(document.visibilityState==='visible'){reg.update().catch(function(){});_swMaybeShowUpdateBanner();}
+        });
+        setInterval(_swMaybeShowUpdateBanner,5*60*1000);
+      }).catch(function(e){console.warn('SW register error:',e);});
+    }
     var cfg=APP.config||{};
     var clubColor=cfg.color||'#1d6f3b';
     var raw=(cfg.clubName||'SPS').split(' ').map(function(w){return w[0]||'';}).join('').slice(0,3).toUpperCase()||'SPS';
