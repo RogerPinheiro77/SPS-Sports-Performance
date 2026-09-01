@@ -8742,7 +8742,10 @@ function _publishConvNow(id){
 }
 
 // ─── BIBLIOTECA ───────────────────────────────────────────
-let _libCat='', _showLibForm=false, _editLibId=null;
+// Dentro da app SPS-Ginásio (?ginasio=1), a Biblioteca só interessa para a categoria
+// Ginásio — evita começar sempre em "Todos" com exercícios de Tático/Físico à mistura.
+// Continua trocável manualmente (não bloqueia outras categorias). Pedido do Roger 01/09/2026.
+let _libCat=_forceGinasioMode?'Ginásio':'', _showLibForm=false, _editLibId=null;
 const EX_CATS=['Tático','Físico','Técnico','Velocidade','Força','Resistência','Recuperação','Ativação','Ginásio'];
 function renderBiblioteca(){
   const formHtml=_showLibForm?`
@@ -8864,10 +8867,21 @@ function saveExercise(){
   const e={id:_editLibId||uid(),name,cat:document.getElementById('lf-cat').value,muscles:document.getElementById('lf-muscles').value,diff:document.getElementById('lf-diff').value,equip:document.getElementById('lf-equip').value,desc:document.getElementById('lf-desc').value,img:imgBox?imgBox.getAttribute('data-val')||'':''};
   if(_editLibId){const i=APP.exercises.findIndex(x=>x.id===_editLibId);if(i>=0)APP.exercises[i]=e;}
   else APP.exercises.push(e);
-  saveData();_showLibForm=false;_editLibId=null;toast('Exercício guardado ✓');renderBiblioteca();
+  saveData();
+  // Tabela dedicada 'exercises' (própria linha por exercício, ver migração de
+  // 01/09/2026 abaixo) — já não vive no meta blob, por isso este cloudUpsert
+  // normal chega. Ver feedback_sps_biblioteca_exercicios_wipe.
+  if(_sync)cloudUpsert('exercises',e);
+  _showLibForm=false;_editLibId=null;toast('Exercício guardado ✓');renderBiblioteca();
 }
 function editExercise(id){_editLibId=id;_showLibForm=true;renderBiblioteca();}
-function deleteExercise(id){if(!confirm('Apagar?'))return;_markDeleted('exercises',id);APP.exercises=APP.exercises.filter(e=>e.id!==id);saveData();toast('Apagado');renderBiblioteca();}
+async function deleteExercise(id){
+  if(!confirm('Apagar?'))return;
+  APP.exercises=APP.exercises.filter(e=>e.id!==id);
+  saveData();
+  if(_sync&&_supa){try{await _supa.from('exercises').delete().eq('id',id);}catch(err){_warnSyncFailure('exercises (apagar)',err);}}
+  toast('Apagado');renderBiblioteca();
+}
 
 // ─── FICHAS DE GINÁSIO ─────────────────────────────────────
 // Biblioteca de modelos de sessão de ginásio (força/RIR): cada ficha agrupa
@@ -8953,13 +8967,16 @@ function duplicateGymSheet(id){
   copy.id=uid();copy.title=(copy.title||'Ficha')+' (cópia)';copy.createdAt=new Date().toISOString();
   if(!APP.gymSheets)APP.gymSheets=[];
   APP.gymSheets.push(copy);
-  saveData();toast('Ficha duplicada ✓');renderFichasGinasio();
+  saveData();
+  if(_sync)cloudUpsert('gym_sheets',copy);
+  toast('Ficha duplicada ✓');renderFichasGinasio();
 }
-function deleteGymSheet(id){
+async function deleteGymSheet(id){
   if(!confirm('Apagar esta ficha de ginásio?'))return;
-  _markDeleted('gymSheets',id);
   APP.gymSheets=(APP.gymSheets||[]).filter(f=>f.id!==id);
-  saveData();toast('Ficha apagada');renderFichasGinasio();
+  saveData();
+  if(_sync&&_supa){try{await _supa.from('gym_sheets').delete().eq('id',id);}catch(err){_warnSyncFailure('gym_sheets (apagar)',err);}}
+  toast('Ficha apagada');renderFichasGinasio();
 }
 function _renderGsDetail(){
   const f=_gsDraft;
@@ -9049,7 +9066,9 @@ function saveGymSheet(){
   if(!APP.gymSheets)APP.gymSheets=[];
   const idx=APP.gymSheets.findIndex(f=>f.id===_gsDraft.id);
   if(idx>=0)APP.gymSheets[idx]=_gsDraft;else APP.gymSheets.push(_gsDraft);
-  saveData();toast('Ficha guardada ✓');_gsView='list';_gsDraft=null;renderFichasGinasio();
+  saveData();
+  if(_sync)cloudUpsert('gym_sheets',_gsDraft);
+  toast('Ficha guardada ✓');_gsView='list';_gsDraft=null;renderFichasGinasio();
 }
 
 // Agendar Sessão de Ginásio — atalho rápido (Data/Hora/Local/Equipa/Ficha) a partir de
@@ -12650,7 +12669,14 @@ async function pullCloud(){
       // event.gymSheet.exercises (mesmo índice = mesmo exercício). Tabela dedicada própria
       // (mesmo padrão de pse_records/attendance_records) em vez de meta blob — pode crescer
       // muito (1 linha por atleta por sessão de Ginásio). Ver project_sps_fichas_ginasio_fase2.
-      ['gym_records','gymRecords',(d)=>APP.gymRecords=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,rirGeral:r.rir_geral,updatedAt:r.updated_at,vals:r.vals||[]}))]
+      ['gym_records','gymRecords',(d)=>APP.gymRecords=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,rirGeral:r.rir_geral,updatedAt:r.updated_at,vals:r.vals||[]}))],
+      // Biblioteca de Exercícios + Fichas de Ginásio: tabelas dedicadas desde
+      // 01/09/2026 (antes viviam em clubs.meta e foram apagadas por sobreposição
+      // 4 vezes seguidas por separadores com código antigo — ver
+      // feedback_sps_biblioteca_exercicios_wipe). Fora do meta blob, um pushAppMeta()
+      // de um separador desatualizado nunca mais consegue tocar nestes dados.
+      ['exercises','exercises',(d)=>APP.exercises=d.map(r=>({id:r.id,cat:r.cat,name:r.name,muscles:r.muscles,diff:r.diff,equip:r.equip,desc:r.desc,img:r.img}))],
+      ['gym_sheets','gymSheets',(d)=>APP.gymSheets=d.map(r=>({id:r.id,title:r.title,phase:r.phase,notes:r.notes,exercises:r.exercises||[],createdAt:r.created_at}))]
     ];
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
@@ -12701,8 +12727,9 @@ async function pullCloud(){
       if(m.scouting)APP.scouting=m.scouting;
       if(m.microcycles)APP.microcycles=m.microcycles;
       if(m.sessions)APP.sessions=m.sessions;
-      if(m.exercises&&m.exercises.length)APP.exercises=m.exercises;
-      if(m.gymSheets)APP.gymSheets=m.gymSheets;
+      // exercises/gymSheets deixaram de vir daqui (01/09/2026) — têm tabelas
+      // dedicadas próprias, puxadas acima no array `pulls`. Ver
+      // feedback_sps_biblioteca_exercicios_wipe.
       toast('Sincronizado ✓');
     } else {
       toast('Cloud: sem dados de meta (club_id='+_cid+')','err');
@@ -12737,8 +12764,9 @@ async function pushAppMeta(_pushRetry){
         const _localSnap={
           games:APP.games||[], evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
           evalResponses:APP.evalResponses||[], trainings:APP.trainings||[], convocatorias:APP.convocatorias||[],
-          scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[],
-          exercises:APP.exercises||[], gymSheets:APP.gymSheets||[]
+          scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[]
+          // exercises/gymSheets removidos daqui (01/09/2026) — já não fazem parte
+          // do meta blob, têm tabelas dedicadas com o seu próprio cloudUpsert.
         };
         await pullCloud();
         Object.keys(_localSnap).forEach(key=>{
@@ -12787,15 +12815,15 @@ async function pushAppMeta(_pushRetry){
       schedule:APP.schedule||[],
       scouting:APP.scouting||[],
       microcycles:APP.microcycles||[],
-      sessions:APP.sessions||[],
-      // Biblioteca de Exercícios e Fichas de Ginásio: até aqui APP.exercises nunca
-      // tinha sido sincronizado (só existia por navegador/dispositivo) — passou a
-      // fazer sentido sincronizar quando se tornou uma biblioteca partilhada entre
-      // fichas de ginásio e (mais tarde) Unidades de Treino. Imagens não vão aqui —
-      // ficam no Supabase Storage, só a URL viaja neste blob. Ver
-      // project_sps_fichas_ginasio_fase1.
-      exercises:APP.exercises||[],
-      gymSheets:APP.gymSheets||[]
+      sessions:APP.sessions||[]
+      // exercises/gymSheets deixaram de fazer parte deste blob a partir de
+      // 01/09/2026 — passaram para tabelas dedicadas ('exercises'/'gym_sheets',
+      // uma linha por item, cloudUpsert normal). Motivo: mesmo com o merge raso
+      // abaixo, um separador com código anterior a este continuava a poder apagar
+      // esta biblioteca sempre que gravasse QUALQUER coisa (pushAppMeta corre a
+      // seguir a todo cloudUpsert) — aconteceu 4 vezes em <48h. Fora do meta blob,
+      // nenhuma versão de código consegue voltar a tocar-lhe por acidente. Ver
+      // feedback_sps_biblioteca_exercicios_wipe.
     };
     // Escrever por cima do meta.exercises da Biblioteca de Ginásio, 31/08/2026: um
     // separador com uma versão de código mais antiga (aberto há dias, sem recarregar)
@@ -12854,7 +12882,13 @@ const _CLOUD_TABLE_SCHEMA={
   extra_training_records:{cols:['id','athlete_id','date','type','duration','pse','ua','summary','guidance','submitted_at'],
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
   gym_records:{cols:['id','event_id','athlete_id','vals','rir_geral','obs','updated_at'],
-    rename:{eventId:'event_id',athleteId:'athlete_id',rirGeral:'rir_geral',updatedAt:'updated_at'}}
+    rename:{eventId:'event_id',athleteId:'athlete_id',rirGeral:'rir_geral',updatedAt:'updated_at'}},
+  // Biblioteca de Exercícios e Fichas de Ginásio saíram do meta blob para tabelas
+  // dedicadas (01/09/2026) — ver feedback_sps_biblioteca_exercicios_wipe. Uma
+  // linha por exercício/ficha, mesmo padrão de cloudUpsert por id que todas as
+  // outras tabelas aqui já usam, em vez de gravação do array inteiro.
+  exercises:{cols:['id','cat','name','muscles','diff','equip','desc','img'],rename:{}},
+  gym_sheets:{cols:['id','title','phase','notes','exercises','created_at'],rename:{createdAt:'created_at'}}
 };
 // Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
 // console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud
