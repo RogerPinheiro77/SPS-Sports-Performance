@@ -6566,7 +6566,15 @@ function _renderTrDetail(){
 // desta unidade (não a hoje), para se poder analisar sessões passadas tal
 // como estavam então, mesmo que o estado atual de uma atleta já tenha mudado.
 function _trAnaliseCompute(tr){
-  const ats=(APP.athletes||[]).filter(a=>a.teamId==='T1'||!a.teamId).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  // Estava fixo a 'T1' (Equipa Principal) e nunca olhava para convocatórias
+  // avulsas — uma atleta de outra equipa (ex. Sub/17) trazida a este Treino
+  // ficava de fora da Análise mesmo aparecendo na Lista de Presenças. Mesmo
+  // padrão teamId+guestIds já usado em _trAtChecklistHtml. Pedido do Roger
+  // 01/09/2026.
+  const _anEv=tr?.eventId?(APP.schedule||[]).find(e=>e.id===tr.eventId):null;
+  const _anTeamId=tr?.teamId||_anEv?.teamId||'T1';
+  const _anGuestIds=tr?.guestIds||_anEv?.guestIds||[];
+  const ats=(APP.athletes||[]).filter(a=>a.teamId===_anTeamId||(!_anTeamId&&!a.teamId)||_anGuestIds.includes(a.id)).slice().sort((a,b)=>a.name.localeCompare(b.name));
   const dt=tr.date;
   const nextDt=addDaysStr(dt,1);
   const rows=ats.map(at=>{
