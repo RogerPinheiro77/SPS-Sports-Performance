@@ -843,9 +843,9 @@ function showStaffApp(){
   // App própria no ecrã inicial para Fisio e Nutri (espaços pequenos e focados) — os
   // restantes cargos mantêm a marca genérica do clube já aplicada em initPWA().
   if(ROLE==='fisio'){
-    applyPWAManifest({name:'SPS Fisio',shortName:'SPS Fisio',iconSrc:_roleIconSVG('FIS','#c0392b'),iconType:'image/svg+xml',themeColor:'#c0392b'});
+    applyPWAManifest({name:'SPS Fisio',shortName:'SPS Fisio',icon192:_FISIO_ICON_192,icon512:_FISIO_ICON_512,iconType:'image/png',themeColor:'#c0392b',appleIcon:_FISIO_ICON_APPLE});
   } else if(ROLE==='nutri'){
-    applyPWAManifest({name:'SPS Nutri',shortName:'SPS Nutri',iconSrc:_roleIconSVG('NUT','#3d7a52'),iconType:'image/svg+xml',themeColor:'#3d7a52'});
+    applyPWAManifest({name:'SPS Nutri',shortName:'SPS Nutri',icon192:_NUTRI_ICON_192,icon512:_NUTRI_ICON_512,iconType:'image/png',themeColor:'#3d7a52',appleIcon:_NUTRI_ICON_APPLE});
   }
   if(window._flushPwaBar)window._flushPwaBar();
   renderSidebar();
@@ -13364,6 +13364,14 @@ var _ATLETA_ICON_APPLE='assets/icon_atleta_apple.png';
 var _GAMEDAY_ICON_192='assets/icon_gameday_192.png';
 var _GAMEDAY_ICON_512='assets/icon_gameday_512.png';
 var _GAMEDAY_ICON_APPLE='assets/icon_gameday_apple.png';
+// Logos próprios do SPS-Fisio e SPS-Nutri (fornecidos pelo Roger, 02/09/2026) — substituem
+// os ícones "FIS"/"NUT" gerados em SVG usados inicialmente no sps-v15/v115/v116.
+var _FISIO_ICON_192='assets/icon_fisio_192.png';
+var _FISIO_ICON_512='assets/icon_fisio_512.png';
+var _FISIO_ICON_APPLE='assets/icon_fisio_apple.png';
+var _NUTRI_ICON_192='assets/icon_nutri_192.png';
+var _NUTRI_ICON_512='assets/icon_nutri_512.png';
+var _NUTRI_ICON_APPLE='assets/icon_nutri_apple.png';
 function applyPWAManifest(opts){
   try{
     var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, icon192=opts.icon192||iconSrc, icon512=opts.icon512||iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
@@ -13480,10 +13488,10 @@ function _swMaybeShowUpdateBanner(){
     } else if(typeof _forceFisioMode!=='undefined'&&_forceFisioMode){
       // SPS-Fisio standalone — mesmo motivo dos anteriores (ícone certo já antes do login
       // terminar); mesma cor/ícone SVG já usados para o Fisio em showStaffApp() (sps-v114+).
-      applyPWAManifest({name:'SPS Fisio',shortName:'SPS Fisio',iconSrc:_roleIconSVG('FIS','#c0392b'),iconType:'image/svg+xml',themeColor:'#c0392b',startUrl:location.pathname+'?fisio=1'});
+      applyPWAManifest({name:'SPS Fisio',shortName:'SPS Fisio',icon192:_FISIO_ICON_192,icon512:_FISIO_ICON_512,iconType:'image/png',themeColor:'#c0392b',appleIcon:_FISIO_ICON_APPLE,startUrl:location.pathname+'?fisio=1'});
     } else if(typeof _forceNutriMode!=='undefined'&&_forceNutriMode){
       // SPS-Nutri standalone — mesma cor/ícone já usados para o Nutri em showStaffApp() (sps-v15+).
-      applyPWAManifest({name:'SPS Nutri',shortName:'SPS Nutri',iconSrc:_roleIconSVG('NUT','#3d7a52'),iconType:'image/svg+xml',themeColor:'#3d7a52',startUrl:location.pathname+'?nutri=1'});
+      applyPWAManifest({name:'SPS Nutri',shortName:'SPS Nutri',icon192:_NUTRI_ICON_192,icon512:_NUTRI_ICON_512,iconType:'image/png',themeColor:'#3d7a52',appleIcon:_NUTRI_ICON_APPLE,startUrl:location.pathname+'?nutri=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     }
