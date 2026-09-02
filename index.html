@@ -6196,12 +6196,16 @@ function savePostStats(gid){
 // Registo manual de PSE (staff insere em nome da atleta, ex: reportado por WhatsApp
 // depois de um jogo) — usa o mesmo _CLOUD_TABLE_SCHEMA/pse_records que o autorregisto
 // da atleta, para entrar nos cálculos de ACWR/monotonia sem tratamento especial.
-// Atletas que já têm PSE nesse dia ficam bloqueadas por defeito (evita sobrepor por
-// engano); _pseManualShow guarda quais foram explicitamente destrancadas para substituir.
+// Atletas que já têm PSE de Jogo nesse dia ficam bloqueadas por defeito (evita sobrepor
+// por engano); _pseManualShow guarda quais foram explicitamente destrancadas para
+// substituir. IMPORTANTE (fix checkup 02/09/2026): filtrar sempre por sessionType==='Jogo'
+// aqui e em saveJogoPseManual — antes filtrava só por athleteId+date, o que fazia esta
+// função mostrar (e depois apagar) um PSE de Ginásio do mesmo dia como se fosse o do
+// Jogo. Mesmo espírito do "1 PSE por sessão" já usado no Ginásio (ver _teRows).
 let _pseManualShow=new Set();
 function _jogoPseManualRows(g,ats){
   return ats.map(a=>{
-    const existing=APP.pse.find(p=>p.athleteId===a.id&&p.date===g.date);
+    const existing=APP.pse.find(p=>p.athleteId===a.id&&p.date===g.date&&p.sessionType==='Jogo');
     const st=(g.playerStats||[]).find(s=>s.aid===a.id);
     const defMin=st&&st.mins?st.mins:'';
     if(existing&&!_pseManualShow.has(a.id)){
@@ -6229,7 +6233,9 @@ function saveJogoPseManual(gid){
     const durEl=document.querySelector(`[data-pse-field="duration"][data-pse-aid="${aid}"]`);
     const dur=durEl?+durEl.value:0;
     if(!dur)return;
-    APP.pse=APP.pse.filter(p=>!(p.athleteId===aid&&p.date===g.date));
+    // Só remove o PSE de Jogo anterior desse dia — nunca um de Ginásio/Treino/outro
+    // tipo que a atleta possa já ter registado no mesmo dia (fix checkup 02/09/2026).
+    APP.pse=APP.pse.filter(p=>!(p.athleteId===aid&&p.date===g.date&&p.sessionType==='Jogo'));
     const pseVal=+sel.value;
     const entry={id:uid(),athleteId:aid,date:g.date,pse:pseVal,duration:dur,ua:Math.round(pseVal*dur),sessionType:'Jogo',submittedAt:new Date().toISOString()};
     APP.pse.push(entry);
