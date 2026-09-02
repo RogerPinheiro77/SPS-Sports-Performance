@@ -127,6 +127,13 @@ ul{list-style:none}
 .fs-mode #tb-cfg-btn,.fs-mode .tb-btn[onclick="toggleSb()"]{display:none}
 .fs-only{display:none}
 .fs-mode .fs-only{display:flex}
+/* SPS-Nutri standalone (?nutri=1) — mesmo padrão do fs-mode acima: sidebar escondida,
+   topbar reduzida a título + atalhos Dashboard/Avaliações/Planos/Sair. */
+.nu-mode #sidebar{display:none}
+.nu-mode #main{margin-left:0}
+.nu-mode #tb-cfg-btn,.nu-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.nu-only{display:none}
+.nu-mode .nu-only{display:flex}
 #sb-backdrop{display:none}
 /* Campo tocável do Ao Vivo — maior em tablet/desktop (mais espaço, toque mais preciso),
    compacto em telemóvel. A escala é feita pelo viewBox do SVG, não pelas coordenadas. */
@@ -159,6 +166,8 @@ ul{list-style:none}
 .gy-mode .tb-btn{width:38px;height:38px}
 /* Em modo Fisio, mesmo motivo — usado de pé, junto à maca/ginásio, com o telemóvel na mão. */
 .fs-mode .tb-btn{width:38px;height:38px}
+/* Em modo Nutri, mesmo motivo. */
+.nu-mode .tb-btn{width:38px;height:38px}
 
 /* CARDS */
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
@@ -428,6 +437,10 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn fs-only" onclick="navTo('fisio-trat')" title="Tratamentos">💊</button>
       <button class="tb-btn fs-only" onclick="navTo('fisio-anamnese')" title="Anamnese">📋</button>
       <button class="tb-btn fs-only" onclick="logout()" title="Sair">🚪</button>
+      <button class="tb-btn nu-only" onclick="navTo('nutri-dash')" title="Dashboard">🏠</button>
+      <button class="tb-btn nu-only" onclick="navTo('nutri-aval')" title="Avaliações">📏</button>
+      <button class="tb-btn nu-only" onclick="navTo('nutri-planos')" title="Planos">🥗</button>
+      <button class="tb-btn nu-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
       <div class="pg on" id="pg-dashboard"></div>
@@ -535,7 +548,7 @@ function _markDeleted(key,ids){
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
@@ -626,6 +639,11 @@ const _forceGinasioMode=new URLSearchParams(location.search).get('ginasio')==='1
 // facilitar o acesso pelo telemóvel a quem faz fisioterapia (pode ser mais que uma
 // pessoa) — ver project_sps_fisio_autoria.
 const _forceFisioMode=new URLSearchParams(location.search).get('fisio')==='1';
+// SPS-Nutri standalone (?nutri=1) — mesmo padrão exato do ?fisio=1 acima, agora para
+// nutricionistas (ver _nutriEligibleRole/_maybeEnterNutriMode). Pedido do Roger
+// 02/09/2026: mesmo pacote do Fisio (autoria, responsável, app própria) aplicado à
+// Nutrição — ver project_sps_nutri_autoria.
+const _forceNutriMode=new URLSearchParams(location.search).get('nutri')==='1';
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -703,7 +721,7 @@ async function createFirstAdmin(){
   setSession({userId:user.id,role:'treinador',isAdmin:true,name:user.name});
   ROLE='treinador';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();
 }
 async function handleLogin(){
   const username=(document.getElementById('login-user')?.value||'').trim();
@@ -725,7 +743,7 @@ async function handleLogin(){
   setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
   ROLE=user.role;showStaffApp();
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();
 }
 // ── 1º acesso staff: obrigar a definir password própria (troca a password fixa inicial) ──
 function _showStaffPwdSetup(user){
@@ -758,7 +776,7 @@ async function _saveStaffPwdSetup(userId){
   ROLE=user.role;showStaffApp();
   toast('Password definida ✓ Bem-vindo, '+user.name+'!');
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();
 }
 async function handleAthleteLogin(){
   const username=(document.getElementById('at-login-user')?.value||'').trim();
@@ -970,6 +988,19 @@ function _maybeEnterFisioMode(){
   }
   document.body.classList.add('fs-mode');
   navTo('fisio-dash');
+}
+function _nutriEligibleRole(role){
+  const def=ROLE_DEFS[role];
+  return !!def&&def.pages.includes('nutri-dash')&&!def.readOnly;
+}
+function _maybeEnterNutriMode(){
+  if(typeof _forceNutriMode==='undefined'||!_forceNutriMode)return;
+  if(!_nutriEligibleRole(ROLE)){
+    toast('Este acesso é para o SPS-Nutri — o teu cargo não tem acesso ao Dashboard de Nutrição','err');
+    return;
+  }
+  document.body.classList.add('nu-mode');
+  navTo('nutri-dash');
 }
 // Títulos qualificados por página — partilhado entre navTo() (cabeçalho da página) e
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
@@ -9961,6 +9992,68 @@ async function saveClinicalNotes(athleteId){
 }
 
 // ─── NUTRIÇÃO ─────────────────────────────────────────────
+// Responsável pelo plantel (project_sps_nutri_autoria) — mesmo espírito da Fase 5 do
+// Fisio: informativo, nunca bloqueia quem regista uma avaliação ou plano; só define o
+// valor por defeito do campo "Responsável" ao criar um plano novo. Vive em APP.config
+// (meta blob), como fisioResponsavelId.
+function _setNutriResponsavel(id){
+  const u=APP.users.find(x=>x.id===id);
+  APP.config.nutriResponsavelId=id||null;
+  saveData();
+  toast(u?'Responsável pelo plantel: '+u.name:'Responsável pelo plantel removido');
+}
+function _nutriResponsavelSelectorHtml(){
+  const nutris=(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!nutris.length)return '';
+  const cur=APP.config.nutriResponsavelId||'';
+  return `<div class="card" style="margin-bottom:14px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--t2);white-space:nowrap">👤 Responsável pelo plantel (defeito para novos planos):</span>
+    <select class="fc" style="width:auto" onchange="_setNutriResponsavel(this.value)">
+      <option value="">— Nenhum —</option>
+      ${nutris.map(u=>`<option value="${u.id}" ${u.id===cur?'selected':''}>${escHtml(u.name)}</option>`).join('')}
+    </select>
+  </div>`;
+}
+// Avisos ativos (project_sps_nutri_autoria) — mesmo espírito da Fase 3 do Fisio: 2
+// sinais operacionais para quem acompanha o plantel (pode ser mais que uma
+// nutricionista): atleta sem avaliação antropométrica recente, e atleta sem plano
+// nutricional ativo. Não é diagnóstico, é só visibilidade para não perder ninguém de vista.
+const _NUTRI_STALE_AVAL_DAYS=60;
+function _nutriAlerts(){
+  const alerts=[];
+  (APP.athletes||[]).forEach(at=>{
+    const avals=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const last=avals[0];
+    const days=last?diffDays(last.date,today()):null;
+    if(!last||days>=_NUTRI_STALE_AVAL_DAYS){
+      alerts.push({type:'semAvaliacao',athleteId:at.id,at:last?last.date:'',label:last?`Sem avaliação há ${days} dias`:'Nunca foi avaliada',detail:'Avaliação antropométrica'});
+    }
+    const hasPlan=(APP.nutritionPlans||[]).some(p=>p.athleteId===at.id&&p.active);
+    if(!hasPlan){
+      alerts.push({type:'semPlano',athleteId:at.id,at:'',label:'Sem plano nutricional ativo',detail:'Plano Nutricional'});
+    }
+  });
+  return alerts.sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+}
+function _nutriAlertsHtml(){
+  const alerts=_nutriAlerts();
+  if(!alerts.length)return '';
+  const ICON={semAvaliacao:'📏',semPlano:'🥗'};
+  return `<div class="card" style="margin-bottom:14px;border-left:3px solid #f87171">
+    <div class="ch"><span class="ct">🔔 Avisos (${alerts.length})</span></div>
+    <div class="cb" style="padding:0">
+    ${alerts.map(a=>{
+      const at=APP.athletes.find(x=>x.id===a.athleteId);
+      const action=a.type==='semAvaliacao'?`_naAtId='${a.athleteId}';_showNaForm=true;navTo('nutri-aval')`:`_npAtId='${a.athleteId}';_showNpForm=true;navTo('nutri-planos')`;
+      return `<div style="padding:10px 14px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <div><span style="margin-right:6px">${ICON[a.type]||'•'}</span><strong>${escHtml(at?_displayName(at):'?')}</strong> — ${escHtml(a.label)}
+        <div style="font-size:10px;color:var(--t2);margin-left:22px">${escHtml(a.detail)}</div></div>
+        <button class="btn btn-xs btn-gh" onclick="${action}">Ver</button>
+      </div>`;
+    }).join('')}
+    </div>
+  </div>`;
+}
 function renderNutriDash(){
   const athletes=APP.athletes.sort((a,b)=>a.name.localeCompare(b.name));
   const rows=athletes.map(at=>{
@@ -9981,6 +10074,8 @@ function renderNutriDash(){
 
   const withPlan=APP.athletes.filter(a=>APP.nutritionPlans.some(p=>p.athleteId===a.id&&p.active)).length;
   document.getElementById('pg-nutri-dash').innerHTML=`
+  ${_nutriResponsavelSelectorHtml()}
+  ${_nutriAlertsHtml()}
   <div class="kpis">
     <div class="kpi"><div class="kpi-lbl">Atletas</div><div class="kpi-val">${athletes.length}</div></div>
     <div class="kpi grn"><div class="kpi-lbl">Com Plano Ativo</div><div class="kpi-val" style="color:#4ade80">${withPlan}</div></div>
@@ -10012,13 +10107,14 @@ function renderNutriAval(){
   </div>`:'';
 
   const list=APP.nutritionAssessments.sort((a,b)=>b.date.localeCompare(a.date));
-  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Atleta</th><th>Peso</th><th>Altura</th><th>IMC</th><th>% Gordo</th><th>% Músculo</th><th>Hidratação</th><th>Ações</th></tr></thead>
+  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Atleta</th><th>Peso</th><th>Altura</th><th>IMC</th><th>% Gordo</th><th>% Músculo</th><th>Hidratação</th><th>Registado por</th><th>Ações</th></tr></thead>
   <tbody>${list.map(a=>{const at=APP.athletes.find(x=>x.id===a.athleteId);const bmi=+a.bmi||0;const bc=bmi<18.5?'bg-y':bmi<25?'bg-g':bmi<30?'bg-y':'bg-r';
   return`<tr><td>${fmtDate(a.date)}</td><td><strong>${at?.name||'?'}</strong></td>
   <td>${a.weight?a.weight+'kg':'—'}</td><td>${a.height?a.height+'cm':'—'}</td>
   <td>${bmi?`<span class="bdg ${bc}">${bmi}</span>`:'—'}</td>
   <td>${a.bodyFat?a.bodyFat+'%':'—'}</td><td>${a.muscle?a.muscle+'%':'—'}</td>
   <td>${a.hydration||'—'}</td>
+  <td style="font-size:10px;color:var(--t2)">${escHtml(a.registeredBy||'—')}</td>
   <td><button class="btn btn-xs btn-r" onclick="deleteNutriAval('${a.id}')">🗑️</button></td></tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">📏</div><p>Sem avaliações</p></div>`;
 
   document.getElementById('pg-nutri-aval').innerHTML=`
@@ -10035,7 +10131,10 @@ function saveNutriAval(){
   const aid=document.getElementById('na-at').value;
   const date=document.getElementById('na-date').value;
   if(!aid||!date)return toast('Atleta e data obrigatórios','err');
-  const a={id:uid(),athleteId:aid,date,weight:document.getElementById('na-wt').value,height:document.getElementById('na-ht').value,bmi:document.getElementById('na-bmi').value,bodyFat:document.getElementById('na-fat').value,muscle:document.getElementById('na-mus').value,hydration:document.getElementById('na-hyd').value,tricipital:document.getElementById('na-tri').value,suprailiaca:document.getElementById('na-sup').value,notes:document.getElementById('na-notes').value};
+  const sess=getSession();
+  // Autoria automática (project_sps_nutri_autoria) — cada avaliação regista quem a fez
+  // (sessão logada), mesmo padrão da Fase 1 do Fisio (tratamentos).
+  const a={id:uid(),athleteId:aid,date,weight:document.getElementById('na-wt').value,height:document.getElementById('na-ht').value,bmi:document.getElementById('na-bmi').value,bodyFat:document.getElementById('na-fat').value,muscle:document.getElementById('na-mus').value,hydration:document.getElementById('na-hyd').value,tricipital:document.getElementById('na-tri').value,suprailiaca:document.getElementById('na-sup').value,notes:document.getElementById('na-notes').value,registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
   APP.nutritionAssessments.push(a);
   if(_sync)cloudUpsert('nutrition_records',a);
   saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
@@ -10046,6 +10145,10 @@ let _npAtId=null, _showNpForm=false, _editNpId=null;
 const MEALS=['Pequeno-almoço','Meio da manhã','Almoço','Lanche da tarde','Jantar','Ceia'];
 const MEAL_ICONS={'Pequeno-almoço':'🌅','Meio da manhã':'🍎','Almoço':'🍽️','Lanche da tarde':'🥐','Jantar':'🌙','Ceia':'🌛'};
 function renderNutriPlanos(){
+  // Valor por defeito do Responsável: o do plano (a editar) ou o "responsável pelo
+  // plantel" configurado (project_sps_nutri_autoria) para planos novos.
+  const _npExisting=_editNpId?APP.nutritionPlans.find(x=>x.id===_editNpId):null;
+  const _npDefaultResp=_npExisting?_npExisting.responsavelId:(APP.config.nutriResponsavelId||'');
   const formHtml=_showNpForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">${_editNpId?'Editar Plano':'Novo Plano Nutricional'}</div><button class="btn btn-sm btn-gh" onclick="_showNpForm=false;_editNpId=null;renderNutriPlanos()">✕</button></div>
@@ -10062,6 +10165,7 @@ function renderNutriPlanos(){
     <div class="form-g"><label class="fl">kcal</label><input class="fc" id="np-mk-${i}" type="number" placeholder="0"></div></div>
     <div class="form-g"><textarea class="fc" id="np-mf-${i}" rows="2" placeholder="Alimentos e quantidades..."></textarea></div>
     </div>`).join('')}
+    <div class="form-g"><label class="fl">Responsável (opcional — pode mudar depois)</label><select class="fc" id="np-resp"><option value="" ${_npDefaultResp?'':'selected'}>— Nenhum —</option>${(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<option value="${u.id}" ${u.id===_npDefaultResp?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
     <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-g" onclick="saveNutriPlano()">💾 Guardar Plano</button><button class="btn btn-gh" onclick="_showNpForm=false;_editNpId=null;renderNutriPlanos()">Cancelar</button></div>
   </div>`:'';
 
@@ -10070,6 +10174,7 @@ function renderNutriPlanos(){
     <div class="ch"><span class="ct">${at?.name||'?'} — ${p.name}</span>
       <div style="display:flex;gap:6px;align-items:center">
         ${p.active?'<span class="bdg bg-g">Ativo</span>':'<span class="bdg bg-gr">Inativo</span>'}
+        <button class="btn btn-xs btn-gh" onclick="editNutriPlano('${p.id}')">✏️</button>
         <button class="btn btn-xs btn-gh" onclick="toggleNpActive('${p.id}')">${p.active?'Desativar':'Ativar'}</button>
         <button class="btn btn-xs btn-r" onclick="deleteNutriPlano('${p.id}')">🗑️</button>
       </div>
@@ -10077,6 +10182,8 @@ function renderNutriPlanos(){
     <div class="cb">
       <div class="macros" style="margin-bottom:12px">${p.kcal?`<span class="mac">🔥 ${p.kcal} kcal</span>`:''}${p.protein?`<span class="mac">🥩 ${p.protein}g proteína</span>`:''}${p.carbs?`<span class="mac">🍞 ${p.carbs}g HC</span>`:''}${p.fat?`<span class="mac">🧈 ${p.fat}g gordura</span>`:''}${p.objective?`<span class="mac">🎯 ${p.objective}</span>`:''}</div>
       ${(p.meals||[]).filter(m=>m.foods).map(m=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?'<span style="font-size:10px;color:var(--t2)">'+m.time+'</span>':''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div><div class="meal-f">${m.foods}</div></div>`).join('')}
+      ${p.responsavelName?`<div style="font-size:10px;color:var(--t2);margin-top:8px">👤 Responsável: ${escHtml(p.responsavelName)}</div>`:''}
+      ${p.registeredBy?`<div style="font-size:10px;color:var(--t2)">Criado por ${escHtml(p.registeredBy)}</div>`:''}
     </div>
   </div>`;}).join(''):`<div class="empty"><div class="ei">🥗</div><p>Sem planos nutricionais</p></div>`;
 
@@ -10089,12 +10196,40 @@ function saveNutriPlano(){
   const aid=document.getElementById('np-at').value;
   const name=document.getElementById('np-name').value.trim();
   if(!aid||!name)return toast('Atleta e nome obrigatórios','err');
+  const sess=getSession();
   const meals=MEALS.map((m,i)=>({name:m,time:document.getElementById('np-mt-'+i).value,kcal:document.getElementById('np-mk-'+i).value,foods:document.getElementById('np-mf-'+i).value}));
-  const p={id:_editNpId||uid(),athleteId:aid,name,objective:document.getElementById('np-obj').value,kcal:document.getElementById('np-kcal').value,protein:document.getElementById('np-prot').value,carbs:document.getElementById('np-carb').value,fat:document.getElementById('np-fat').value,meals,active:true,startDate:today()};
-  if(_editNpId){const i=APP.nutritionPlans.findIndex(x=>x.id===_editNpId);if(i>=0)APP.nutritionPlans[i]=p;}
-  else APP.nutritionPlans.push(p);
-  if(_sync)cloudUpsert('nutrition_plans',p);
+  // Responsável pelo plantel (project_sps_nutri_autoria) — reatribuível em qualquer
+  // edição (ao contrário da autoria, que fica fixa em quem criou o plano), porque o
+  // acompanhamento pode passar de uma nutricionista para outra. Mesmo padrão da Fase 5
+  // do Fisio (epf-resp/saveEpisodio).
+  const respEl=document.getElementById('np-resp');
+  const respId=respEl?respEl.value:'';
+  const respUser=respId?APP.users.find(u=>u.id===respId):null;
+  const p={id:_editNpId||uid(),athleteId:aid,name,objective:document.getElementById('np-obj').value,kcal:document.getElementById('np-kcal').value,protein:document.getElementById('np-prot').value,carbs:document.getElementById('np-carb').value,fat:document.getElementById('np-fat').value,meals,responsavelId:respId||null,responsavelName:respUser?respUser.name:''};
+  if(_editNpId){
+    // Fix (project_sps_nutri_autoria): antes, editar um plano incluía sempre
+    // active:true+startDate:today() no objeto gravado por cima do existente — o que
+    // reativava silenciosamente um plano desativado e reescrevia a data de início a
+    // cada edição. Agora esses campos só são definidos na criação (abaixo), preservando
+    // os valores existentes na edição.
+    const i=APP.nutritionPlans.findIndex(x=>x.id===_editNpId);
+    if(i>=0)APP.nutritionPlans[i]={...APP.nutritionPlans[i],...p};
+  }else{
+    p.active=true;p.startDate=today();
+    p.registeredBy=sess?sess.name:'';p.registeredById=sess?sess.userId:null;p.registeredAt=new Date().toISOString();
+    APP.nutritionPlans.push(p);
+  }
+  if(_sync)cloudUpsert('nutrition_plans',APP.nutritionPlans.find(x=>x.id===p.id));
   saveData();_showNpForm=false;_editNpId=null;toast('Plano guardado ✓');renderNutriPlanos();
+}
+function editNutriPlano(id){
+  const p=APP.nutritionPlans.find(x=>x.id===id);if(!p)return;
+  _editNpId=id;_npAtId=p.athleteId;_showNpForm=true;renderNutriPlanos();
+  // Pré-preencher os campos do plano (o form só tem defeitos vazios no HTML) — mesmo
+  // padrão usado noutros formulários de edição da app (ex. editEpisodio/renderFisioEp).
+  const f=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||'';};
+  f('np-name',p.name);f('np-obj',p.objective);f('np-kcal',p.kcal);f('np-prot',p.protein);f('np-carb',p.carbs);f('np-fat',p.fat);
+  (p.meals||[]).forEach((m,i)=>{f('np-mt-'+i,m.time);f('np-mk-'+i,m.kcal);f('np-mf-'+i,m.foods);});
 }
 function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;if(_sync)cloudUpsert('nutrition_plans',p);saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
@@ -12941,8 +13076,8 @@ async function pullCloud(){
       ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at,eventId:r.event_id}))],
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at,registeredById:r.registered_by_id,phaseHistory:r.phase_history||[],responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name,professionalId:r.professional_id,registeredAt:r.registered_at}))],
-      ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at}))],
-      ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at}))],
+      ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id}))],
+      ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null,rsvp:r.rsvp||{}}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
@@ -13153,10 +13288,10 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',returnDate:'return_date',bodyPart:'body_part',phaseDesc:'phase_desc',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id',phaseHistory:'phase_history',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
   treatments:{cols:['id','injury_id','athlete_id','date','type','description','response','professional_name','professional_id','registered_at'],
     rename:{injuryId:'injury_id',athleteId:'athlete_id',professional:'professional_name',professionalId:'professional_id',registeredAt:'registered_at'}},
-  nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle'],
-    rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at'}},
-  nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at'],
-    rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at'}},
+  nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle','registered_by','registered_by_id'],
+    rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id'}},
+  nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at','registered_by','registered_by_id','responsavel_id','responsavel_name'],
+    rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at',registeredBy:'registered_by',registeredById:'registered_by_id',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
   schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet','rsvp'],
     rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao',guestIds:'guest_ids',gymSheet:'gym_sheet'}},
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
@@ -13346,6 +13481,9 @@ function _swMaybeShowUpdateBanner(){
       // SPS-Fisio standalone — mesmo motivo dos anteriores (ícone certo já antes do login
       // terminar); mesma cor/ícone SVG já usados para o Fisio em showStaffApp() (sps-v114+).
       applyPWAManifest({name:'SPS Fisio',shortName:'SPS Fisio',iconSrc:_roleIconSVG('FIS','#c0392b'),iconType:'image/svg+xml',themeColor:'#c0392b',startUrl:location.pathname+'?fisio=1'});
+    } else if(typeof _forceNutriMode!=='undefined'&&_forceNutriMode){
+      // SPS-Nutri standalone — mesma cor/ícone já usados para o Nutri em showStaffApp() (sps-v15+).
+      applyPWAManifest({name:'SPS Nutri',shortName:'SPS Nutri',iconSrc:_roleIconSVG('NUT','#3d7a52'),iconType:'image/svg+xml',themeColor:'#3d7a52',startUrl:location.pathname+'?nutri=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     }
@@ -13442,7 +13580,7 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
       AID=sess.userId;
       const at=APP.athletes.find(a=>a.id===AID);
       if(at){showAtletaApp(at);return;}
-    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();_maybeEnterFisioMode();return;}
+    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();return;}
   }
   if(_checkAtletaToken()) return;
   // Sessão persistente da atleta (localStorage)
