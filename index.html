@@ -9289,15 +9289,20 @@ async function deleteGymSheet(id){
 }
 function _renderGsDetail(){
   const f=_gsDraft;
-  const exHtml=(f.exercises||[]).length?f.exercises.map((ex,i)=>`
+  const exHtml=(f.exercises||[]).length?f.exercises.map((ex,i)=>{
+    const full=_gymExResolve(ex);
+    const metaBits=[full.muscles?'💪 '+escHtml(full.muscles):'',full.diff?'Dificuldade: '+escHtml(full.diff):'',full.equip?'🏋️ '+escHtml(full.equip):''].filter(Boolean).join(' · ');
+    return `
   <div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
     <div style="display:grid;grid-template-columns:1fr 120px;min-height:100px">
       <div style="padding:10px 12px;display:flex;flex-direction:column;gap:5px">
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="background:var(--bg3);color:var(--t2);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${escHtml(ex.cat||'Ginásio')}</span>
+          <span style="background:var(--bg3);color:var(--t2);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${escHtml(full.cat)}</span>
           <span style="font-size:11px;color:var(--t2)">#${i+1}</span>
         </div>
-        <div style="font-weight:700;font-size:13px">${escHtml(ex.name||'—')}</div>
+        <div style="font-weight:700;font-size:13px">${escHtml(full.name)}</div>
+        ${metaBits?`<div style="font-size:10.5px;color:var(--t2)">${metaBits}</div>`:''}
+        ${full.desc?`<div style="font-size:11px;color:var(--t2);line-height:1.4">${escHtml(full.desc)}</div>`:''}
         <div class="fr3">
           <div class="form-g"><label class="fl">Séries×Reps</label><input class="fc" value="${escHtml(ex.reps||'')}" placeholder="2×12" oninput="_gsExField(${i},'reps',this.value)"></div>
           <div class="form-g"><label class="fl">RIR</label><input class="fc" value="${escHtml(ex.rir||'')}" placeholder="2-3" oninput="_gsExField(${i},'rir',this.value)"></div>
@@ -9305,13 +9310,14 @@ function _renderGsDetail(){
         </div>
       </div>
       <div style="background:var(--bg3);border-left:1px solid var(--brd);display:flex;align-items:center;justify-content:center;overflow:hidden">
-        ${ex.img?`<img src="${ex.img}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:22px;color:var(--t3)">📷</span>'}
+        ${full.img?`<img src="${full.img}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:22px;color:var(--t3)">📷</span>'}
       </div>
     </div>
     <div style="border-top:1px solid var(--brd);padding:6px 12px;display:flex;justify-content:flex-end">
       <button class="btn btn-xs btn-r" onclick="_gsRemoveEx(${i})">🗑️ Remover</button>
     </div>
-  </div>`).join(''):`<div style="border:1.5px dashed var(--brd);border-radius:10px;padding:20px;text-align:center;color:var(--t2);font-size:13px">Sem exercícios nesta ficha ainda.</div>`;
+  </div>`;
+  }).join(''):`<div style="border:1.5px dashed var(--brd);border-radius:10px;padding:20px;text-align:center;color:var(--t2);font-size:13px">Sem exercícios nesta ficha ainda.</div>`;
 
   document.getElementById('pg-fichas-ginasio').innerHTML=`
   <div class="sh" style="flex-wrap:wrap;gap:8px">
@@ -9366,7 +9372,11 @@ function pickExForGymSheet(){
 function _pickGsEx(exId){
   const e=(APP.exercises||[]).find(x=>x.id===exId);if(!e||!_gsDraft)return;
   closeMod();
-  _gsDraft.exercises.push({name:e.name,desc:e.desc||'',img:e.img||'',cat:e.cat||'Ginásio',equip:e.equip||'',reps:'2×12',rir:'2-3',note:''});
+  // Guarda exId para a ficha poder ir sempre buscar a versão mais atual do exercício
+  // à Biblioteca (imagem, músculos, dificuldade, descrição) em vez de ficar presa a
+  // uma cópia estática — ver _gymExResolve. Os restantes campos ficam também
+  // copiados como fallback, para fichas antigas ou se o exercício for apagado.
+  _gsDraft.exercises.push({exId:e.id,name:e.name,desc:e.desc||'',img:e.img||'',cat:e.cat||'Ginásio',muscles:e.muscles||'',diff:e.diff||'',equip:e.equip||'',reps:'2×12',rir:'2-3',note:''});
   _renderGsDetail();
 }
 function saveGymSheet(){
@@ -9387,20 +9397,46 @@ function saveGymSheet(){
 // para imprimir/plastificar e levar para o ginásio: exercícios em cartões com
 // imagem (pedido do Roger, 02/09/2026), retrato A4. Recebe o objeto da ficha
 // diretamente (não só o id) para também poder imprimir o rascunho por guardar.
+// Vai buscar a versão mais completa e atual do exercício à Biblioteca (imagem,
+// categoria, músculos/componente, dificuldade, equipamento, descrição) em vez de
+// usar só a cópia estática guardada na ficha — pedido do Roger (02/09/2026): "vai
+// buscar toda a info do exercício à biblioteca desde imagem, objetivo, descrição
+// etc". Prioridade: Biblioteca via exId (fica sempre atualizado se o exercício for
+// editado lá) → correspondência por nome (fichas antigas sem exId) → campos já
+// copiados na própria ficha, para nunca ficar sem nada mesmo que o exercício seja
+// entretanto apagado da Biblioteca.
+function _gymExResolve(ex){
+  const lib=(ex.exId&&(APP.exercises||[]).find(x=>x.id===ex.exId))||(APP.exercises||[]).find(x=>x.name===ex.name);
+  return {
+    name:ex.name||(lib&&lib.name)||'—',
+    cat:(lib&&lib.cat)||ex.cat||'Ginásio',
+    img:(lib&&lib.img)||ex.img||'',
+    muscles:(lib&&lib.muscles)||ex.muscles||'',
+    diff:(lib&&lib.diff)||ex.diff||'',
+    equip:(lib&&lib.equip)||ex.equip||'',
+    desc:(lib&&lib.desc)||ex.desc||''
+  };
+}
 function _gymSheetPdfHtml(f){
-  const exHtml=(f.exercises||[]).map((ex,i)=>`
+  const exHtml=(f.exercises||[]).map((ex,i)=>{
+    const full=_gymExResolve(ex);
+    const metaBits=[full.muscles?'💪 '+escHtml(full.muscles):'',full.diff?'Dificuldade: <b>'+escHtml(full.diff)+'</b>':'',full.equip?'🏋️ '+escHtml(full.equip):''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+    return `
   <div style="display:flex;gap:10px;border:1px solid #ddd;border-radius:6px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">
-    ${ex.img?`<div style="width:60px;height:60px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#f3f3f3"><img src="${ex.img}" style="width:100%;height:100%;object-fit:cover"></div>`:''}
+    ${full.img?`<div style="width:70px;height:70px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#f3f3f3"><img src="${full.img}" style="width:100%;height:100%;object-fit:cover"></div>`:''}
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap">
         <span style="font-size:8pt;font-weight:700;color:#1d6f3b">#${i+1}</span>
-        <span style="font-size:9.5pt;font-weight:700">${escHtml(ex.name||'—')}</span>
-        <span style="font-size:7.5pt;color:#888;background:#f0f0f0;padding:1px 7px;border-radius:10px">${escHtml(ex.cat||'Ginásio')}</span>
+        <span style="font-size:9.5pt;font-weight:700">${escHtml(full.name)}</span>
+        <span style="font-size:7.5pt;color:#888;background:#f0f0f0;padding:1px 7px;border-radius:10px">${escHtml(full.cat)}</span>
       </div>
       <div style="font-size:8.5pt;color:#333">Séries×Reps: <b>${escHtml(ex.reps||'—')}</b> &nbsp;·&nbsp; RIR: <b>${escHtml(ex.rir||'—')}</b></div>
-      ${ex.note?`<div style="font-size:8pt;color:#666;margin-top:2px">${escHtml(ex.note)}</div>`:''}
+      ${metaBits?`<div style="font-size:7.5pt;color:#777;margin-top:2px">${metaBits}</div>`:''}
+      ${full.desc?`<div style="font-size:8pt;color:#555;margin-top:3px;line-height:1.35">${escHtml(full.desc)}</div>`:''}
+      ${ex.note?`<div style="font-size:8pt;color:#666;margin-top:2px"><i>Nota da ficha:</i> ${escHtml(ex.note)}</div>`:''}
     </div>
-  </div>`).join('');
+  </div>`;
+  }).join('');
   return `
   <div style="margin-bottom:10px">
     <span style="display:inline-block;background:#7d3c9822;color:#7d3c98;font-size:9pt;font-weight:700;padding:3px 10px;border-radius:20px">${escHtml(f.phase||'Ginásio')}</span>
