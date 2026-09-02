@@ -7638,6 +7638,9 @@ async function _pdfBrandify(bytes){
 }
 // ─── PSE & WELLNESS ───────────────────────────────────────
 let _pwTab='pse', _pwTeam='T1', _pwPeriod=14, _pwPrintDate=today();
+// Formulário "Adicionar PSE em falta" — para quando a atleta não conseguiu submeter
+// (ex: sem telemóvel). Ver _pwAddPse().
+let _pwAddOpen=false;
 // Controla que linhas (atleta+aba) têm o histórico "últimos registos" expandido.
 // Chave = "pse_<athleteId>" ou "wellness_<athleteId>" — o mesmo Set serve as duas
 // abas porque nunca são renderizadas ao mesmo tempo.
@@ -7666,6 +7669,40 @@ function _pwDeletePse(id){
   APP.pse=APP.pse.filter(p=>p.id!==id);
   if(_sync&&_supa){_supa.from('pse_records').delete().eq('id',id).catch(err=>_warnSyncFailure('pse_records (apagar)',err));}
   saveData();toast('Registo de PSE apagado');renderPSEWellness();
+}
+// Adicionar PSE em falta — quando a atleta não conseguiu submeter (ex: sem telemóvel).
+// Cria um registo novo em nome dela, igual em tudo ao autorregisto (mesma tabela/campos),
+// para entrar nos cálculos de ACWR/monotonia sem tratamento especial. Se já existir um PSE
+// do mesmo tipo de sessão nesse dia, pede confirmação antes de substituir (nunca cria
+// duplicado silenciosamente) — mesmo cuidado do registo manual de PSE de Jogo, ver
+// saveJogoPseManual. Pedido do Roger, 02/09/2026.
+function _pwToggleAdd(){
+  _pwAddOpen=!_pwAddOpen;
+  renderPSEWellness();
+  if(_pwAddOpen)setTimeout(()=>document.getElementById('pw-add-at')?.focus(),50);
+}
+function _pwAddPse(){
+  const aid=document.getElementById('pw-add-at').value;
+  const date=document.getElementById('pw-add-date').value;
+  const pseSel=document.getElementById('pw-add-pse').value;
+  const dur=+document.getElementById('pw-add-dur').value;
+  const sessionType=document.getElementById('pw-add-type').value;
+  if(!aid)return toast('Escolhe a atleta','err');
+  if(!date)return toast('Escolhe a data','err');
+  if(pseSel==='')return toast('Escolhe o PSE','err');
+  if(!dur)return toast('Duração obrigatória','err');
+  const pseVal=+pseSel;
+  const existing=APP.pse.find(p=>p.athleteId===aid&&p.date===date&&p.sessionType===sessionType);
+  if(existing){
+    if(!confirm(`Já existe um PSE de ${sessionType} para esta atleta em ${fmtDate(date)} (${existing.pse}/10 · ${existing.duration} min). Substituir?`))return;
+    APP.pse=APP.pse.filter(p=>p.id!==existing.id);
+  }
+  const entry={id:uid(),athleteId:aid,date,pse:pseVal,duration:dur,ua:Math.round(pseVal*dur),sessionType,submittedAt:new Date().toISOString()};
+  APP.pse.push(entry);
+  if(_sync)cloudUpsert('pse_records',{...entry,athlete_id:entry.athleteId,session_type:entry.sessionType,club_id:_cid});
+  _autoMarkAttendance(aid,date,'treino');
+  _pwAddOpen=false;
+  saveData();toast('PSE registado ✓');renderPSEWellness();
 }
 function _pwSaveWellness(id){
   const w=APP.wellness.find(x=>x.id===id);if(!w)return;
@@ -7755,7 +7792,31 @@ function renderPSEWellness(){
       <td><span style="font-size:10px;color:var(--t2)">${lastSub?lastSub.date:'Sem dados'}</span></td></tr>${histRow}`;
     }).join('');
 
+    // Formulário "Adicionar PSE em falta" — atleta sem telemóvel/não conseguiu submeter.
+    // Cria um registo em nome dela, igual ao autorregisto, para entrar nos cálculos.
+    const addAthletesOpts=[...APP.athletes].sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}">${escHtml(a.name)}</option>`).join('');
+    const addFormHtml=_pwAddOpen?`
+    <div class="card" style="margin-bottom:16px;border:1px dashed var(--c1)">
+      <div class="ch"><span class="ct">➕ Adicionar PSE em falta</span></div>
+      <div class="cb" style="padding:14px">
+        <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Para quando a atleta não conseguiu submeter (ex: sem telemóvel). Cria o registo em nome dela.</div>
+        <div class="fr">
+          <div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="pw-add-at"><option value="">Escolhe...</option>${addAthletesOpts}</select></div>
+          <div class="form-g"><label class="fl">Data *</label><input class="fc" id="pw-add-date" type="date" value="${today()}" max="${today()}"></div>
+        </div>
+        <div class="fr" style="margin-top:8px">
+          <div class="form-g"><label class="fl">PSE (0-10) *</label><select class="fc" id="pw-add-pse"><option value="">—</option>${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div>
+          <div class="form-g"><label class="fl">Duração (min) *</label><input class="fc" id="pw-add-dur" type="number" min="1" max="300" placeholder="90"></div>
+          <div class="form-g"><label class="fl">Tipo de sessão</label><select class="fc" id="pw-add-type">${['Treino','Ginásio','Jogo','Reabilitação','Ativação'].map(o=>`<option ${o==='Treino'?'selected':''}>${o}</option>`).join('')}</select></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-g" onclick="_pwAddPse()">💾 Guardar PSE</button>
+          <button class="btn btn-gh" onclick="_pwToggleAdd()">Cancelar</button>
+        </div>
+      </div>
+    </div>`:'';
     html=`
+    ${addFormHtml}
     <div class="g2" style="margin-bottom:16px">
       <div class="card"><div class="ch"><span class="ct">PSE Médio Coletivo</span></div>
       <div class="cb"><div class="chart-wrap"><canvas id="chart-pse-col"></canvas></div></div></div>
@@ -7765,6 +7826,7 @@ function renderPSEWellness(){
     <div class="card">
       <div class="ch"><span class="ct">Individual — PSE & ACWR</span>
         <div style="display:flex;gap:6px;align-items:center">
+          ${!_pwAddOpen?`<button class="btn btn-gh btn-sm" style="font-size:11px" onclick="_pwToggleAdd()">➕ Adicionar PSE em falta</button>`:''}
           <select class="fc" style="width:auto;font-size:11px" onchange="_pwPeriod=+this.value;renderPSEWellness()">
             <option value="7" ${_pwPeriod===7?'selected':''}>7 dias</option>
             <option value="14" ${_pwPeriod===14?'selected':''}>14 dias</option>
