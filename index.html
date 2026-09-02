@@ -554,7 +554,7 @@ function defApp(){
   return{
     config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
-    athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
+    athletes:[],schedule:[],microcycles:[],sessions:[],macrocycles:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],nutritionAppointments:[],fisioAppointments:[],
@@ -3119,106 +3119,208 @@ async function deleteEvent(id){
   toast('Evento apagado');closeMod();renderPlaneamento();
 }
 
-// ─── MICROCICLOS ──────────────────────────────────────────
-let _mcWeek=getMonday(today()), _mcTeam='T1', _showMcForm=false, _mcDay=null, _editMcId=null;
-const MC_TYPES={Tático:{css:'s-tac',icon:'⚽'},Físico:{css:'s-fis',icon:'💪'},Técnico:{css:'s-tec',icon:'🎯'},Ativação:{css:'s-ati',icon:'🔥'},Recuperação:{css:'s-rec',icon:'🧊'},Jogo:{css:'s-jog',icon:'🏆'},Folga:{css:'s-fol',icon:'😴'},'Consulta Nutri':{css:'s-nut',icon:'🥗'},Fisio:{css:'s-fio',icon:'🏥'},Reunião:{css:'s-reu',icon:'📋'}};
+// ─── MICROCICLOS / MACROCICLOS ─────────────────────────────
+// Reescrito 02/09/2026: a grelha semanal deixou de ter dados próprios
+// (APP.sessions, nunca preenchidos pelo Roger) e passou a ler diretamente
+// APP.schedule — a mesma fonte usada no Planeamento — para que Treinos/Jogos
+// criados lá se reflitam aqui automaticamente. Clicar num evento abre o MESMO
+// editor do Planeamento (editEvent/clickDay + navTo), em vez de duplicar a
+// lógica do formulário — ver feedback_sps_evento_treino_dados_divergentes.
+// Macrociclos (fases da época) são um conceito novo: lista de fases por
+// equipa (nome/datas/objetivo) com linha temporal visual. A semana ativa
+// calcula o seu macrociclo automaticamente por sobreposição de datas
+// (_macroForWeek), em vez de guardar uma referência manual que fica
+// desatualizada.
+let _mcWeek=getMonday(today()), _mcTeam='T1', _mcView='semana';
+let _showMacroForm=false, _editMacroId=null;
 function getMonday(dt){const d=new Date(dt+'T00:00:00');const day=d.getDay();const diff=d.getDate()-day+(day===0?-6:1);d.setDate(diff);return _fmtISO(d);}
 function addDaysStr(dt,n){const d=new Date(dt+'T00:00:00');d.setDate(d.getDate()+n);return _fmtISO(d);}
+const MACRO_PRESETS=[
+  {name:'Pré-Época',objective:'Preparação geral — condição física de base, avaliações iniciais'},
+  {name:'Preparação Específica',objective:'Transição para o modelo de jogo, intensidade a subir'},
+  {name:'Período Competitivo — 1ª Volta',objective:'Manutenção da forma, gestão de carga jogo-a-jogo'},
+  {name:'Pausa Competitiva',objective:'Recuperação ativa e trabalho individual'},
+  {name:'Período Competitivo — 2ª Volta',objective:'Manutenção da forma, gestão de carga jogo-a-jogo'},
+  {name:'Fase Final / Play-offs',objective:'Pico de forma para os jogos decisivos'},
+  {name:'Transição / Pós-Época',objective:'Descarga, avaliação final da época, férias ativas'}
+];
+const MACRO_COLORS=['#27a34a','#2e86c1','#c0392b','#b7770d','#7d3c98','#0e6251','#935116','#5a6582'];
+function _macroForWeek(weekStart,weekEnd,teamId){
+  return (APP.macrocycles||[]).filter(m=>m.teamId===teamId&&m.startDate&&m.endDate&&m.startDate<=weekEnd&&m.endDate>=weekStart)
+    .sort((a,b)=>a.startDate.localeCompare(b.startDate))[0]||null;
+}
 function renderMicrociclos(){
+  const teamTabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_mcTeam?'on':''}" onclick="_mcTeam='${t.id}';renderMicrociclos()">${t.name}</button>`).join('');
+  const viewTabs=`<div class="tabs" style="margin-top:6px">
+    <button class="tab-btn ${_mcView==='semana'?'on':''}" onclick="_mcView='semana';renderMicrociclos()">📅 Semana</button>
+    <button class="tab-btn ${_mcView==='epoca'?'on':''}" onclick="_mcView='epoca';renderMicrociclos()">📈 Época (Macrociclos)</button>
+  </div>`;
+  document.getElementById('pg-microciclos').innerHTML=`<div class="tabs">${teamTabs}</div>${viewTabs}<div id="mc-body"></div>`;
+  if(_mcView==='epoca')_renderMacrociclosEpoca();
+  else _renderMcSemana();
+}
+function _renderMcSemana(){
   const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
   const weekDates=Array.from({length:7},(_,i)=>addDaysStr(_mcWeek,i));
+  const weekEnd=weekDates[6];
   const td=today();
-  const mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam)||{objective:'',mesocycle:''};
-  const teamTabs=APP.teams.map(t=>`<button class="tab-btn ${t.id===_mcTeam?'on':''}" onclick="_mcTeam='${t.id}';renderMicrociclos()">${t.name}</button>`).join('');
-
-  const formHtml=_showMcForm?`
-  <div class="ipanel">
-    <div class="sh"><div class="sh-t">Nova Sessão — ${days[weekDates.indexOf(_mcDay)]||''} ${fmtDate(_mcDay)}</div>
-    <button class="btn btn-sm btn-gh" onclick="_showMcForm=false;renderMicrociclos()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Tipo *</label><select class="fc" id="mf-type"><option value="">—</option>${Object.keys(MC_TYPES).map(t=>`<option>${t}</option>`).join('')}</select></div>
-    <div class="form-g"><label class="fl">Hora</label><input class="fc" id="mf-time" type="time"></div></div>
-    <div class="fr"><div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="mf-dur" type="number" placeholder="90"></div>
-    <div class="form-g"><label class="fl">Intensidade (1-10)</label><input class="fc" id="mf-int" type="number" min="1" max="10"></div></div>
-    <div class="form-g"><label class="fl">Notas / Objetivo</label><textarea class="fc" id="mf-notes" rows="2"></textarea></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveMcSession()">💾 Guardar</button>
-    <button class="btn btn-gh" onclick="_showMcForm=false;renderMicrociclos()">Cancelar</button></div>
-  </div>`:'';
+  const mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam)||{objective:''};
+  const macro=_macroForWeek(_mcWeek,weekEnd,_mcTeam);
+  const macroBadge=macro
+    ?`<span class="bdg" style="background:${(macro.color||'#27a34a')}22;color:${macro.color||'#27a34a'};font-weight:700">${escHtml(macro.name)}</span>`
+    :`<span style="font-size:11px;color:var(--t2)">Sem fase da época definida para esta semana — configura em "Época (Macrociclos)"</span>`;
 
   let gridHtml=`<div class="mc-wrap"><div class="mc-grid">`;
   weekDates.forEach((dt,i)=>{
     const isToday=dt===td;
-    const sessions=APP.sessions.filter(s=>s.date===dt&&s.teamId===_mcTeam).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    const sessHtml=sessions.map(s=>{const t=MC_TYPES[s.type]||{css:'s-tec',icon:'📌'};return`<div class="mc-sess ${t.css}" onclick="_editMcId='${s.id}';openMcSession('${s.id}')" title="${s.notes||s.type}">${t.icon} ${s.type}${s.dur?' · '+s.dur+'min':''}</div>`;}).join('');
+    const evs=(APP.schedule||[]).filter(e=>e.date===dt&&e.teamId===_mcTeam).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    const evHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div class="mc-sess" style="background:${c}22;color:${c};border-left:2px solid ${c}" onclick="_mcOpenEvent('${e.id}')" title="${escHtml(e.notes||e.title||e.type)}">${e.time?e.time.slice(0,5)+' ':''}${escHtml(_planEvTitle(e))}</div>`;}).join('');
     gridHtml+=`<div class="mc-day" style="${isToday?'border-color:var(--c1)':''}">
       <div class="mc-dn" style="${isToday?'color:var(--c1l)':''}">${days[i]}<br><span style="font-size:9px;font-weight:400">${fmtDateShort(dt)}</span></div>
-      ${sessHtml}
-      <div class="mc-add" onclick="openMcForm('${dt}')">＋ Sessão</div>
+      ${evHtml}
+      <div class="mc-add" onclick="_mcNewEvent('${dt}')">＋ Evento</div>
     </div>`;
   });
   gridHtml+=`</div></div>`;
 
-  // Week total load
-  const weekSess=APP.sessions.filter(s=>weekDates.includes(s.date)&&s.teamId===_mcTeam);
-  const totalDur=weekSess.reduce((s,x)=>s+(+x.dur||0),0);
-  const byType={};weekSess.forEach(s=>{byType[s.type]=(byType[s.type]||0)+1;});
-  const summaryHtml=Object.entries(byType).map(([t,n])=>{const tc=MC_TYPES[t]||{css:'s-tec',icon:'📌'};return`<span class="mc-sess ${tc.css}" style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;font-size:11px">${tc.icon} ${t}: ${n}</span>`;}).join(' ');
+  // Carga total da semana, lida do Planeamento (não de dados próprios)
+  const weekEvs=(APP.schedule||[]).filter(e=>weekDates.includes(e.date)&&e.teamId===_mcTeam);
+  const totalDur=weekEvs.reduce((s,x)=>s+(+x.dur||0),0);
+  const byType={};weekEvs.forEach(e=>{byType[e.type]=(byType[e.type]||0)+1;});
+  const summaryHtml=Object.entries(byType).map(([t,n])=>{const c=EV_COLORS[t]||'#27a34a';return`<span class="mc-sess" style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;font-size:11px;background:${c}22;color:${c};border-left:2px solid ${c}">${t}: ${n}</span>`;}).join(' ');
 
-  document.getElementById('pg-microciclos').innerHTML=`
+  document.getElementById('mc-body').innerHTML=`
   <div class="sh">
     <div style="display:flex;align-items:center;gap:10px">
       <button class="btn btn-gh btn-sm" onclick="mcNav(-1)">‹</button>
-      <span style="font-size:13px;font-weight:800;min-width:220px;text-align:center">Semana ${fmtDate(_mcWeek)} — ${fmtDate(addDaysStr(_mcWeek,6))}</span>
+      <span style="font-size:13px;font-weight:800;min-width:220px;text-align:center">Semana ${fmtDate(_mcWeek)} — ${fmtDate(weekEnd)}</span>
       <button class="btn btn-gh btn-sm" onclick="mcNav(1)">›</button>
     </div>
     <div class="sh-a"><button class="btn btn-g btn-sm" onclick="mcNav(0)">Semana Atual</button></div>
   </div>
-  <div class="tabs">${teamTabs}</div>
   <div class="card" style="margin-bottom:16px">
     <div class="cb" style="padding:12px 16px">
-      <div class="fr" style="margin-bottom:8px">
-        <div class="form-g"><label class="fl">Objetivo do Microciclo</label><input class="fc" id="mc-obj" value="${mc.objective||''}" placeholder="Ex: Recuperação + Tático" onchange="saveMcConfig()"></div>
-        <div class="form-g"><label class="fl">Mesociclo</label><input class="fc" id="mc-meso" value="${mc.mesocycle||''}" placeholder="Ex: Preparação Geral" onchange="saveMcConfig()"></div>
+      <div class="fr" style="margin-bottom:8px;align-items:flex-end">
+        <div class="form-g" style="flex:1"><label class="fl">Objetivo do Microciclo</label><input class="fc" id="mc-obj" value="${escHtml(mc.objective||'')}" placeholder="Ex: Recuperação + Tático" onchange="saveMcConfig()"></div>
+        <div class="form-g"><label class="fl">Fase da Época</label><div style="padding:7px 0">${macroBadge}</div></div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-        ${summaryHtml||'<span style="color:var(--t2);font-size:11px">Sem sessões esta semana</span>'}
+        ${summaryHtml||'<span style="color:var(--t2);font-size:11px">Sem eventos do Planeamento esta semana</span>'}
         ${totalDur?`<span style="font-size:11px;color:var(--t2);margin-left:auto">Total: ${totalDur} min</span>`:''}
       </div>
     </div>
   </div>
-  ${formHtml}
   ${gridHtml}`;
 }
-function mcNav(dir){if(dir===0){_mcWeek=getMonday(today());} else {_mcWeek=addDaysStr(_mcWeek,dir*7);}renderMicrociclos();}
-function openMcForm(dt){_mcDay=dt;_showMcForm=true;_editMcId=null;renderMicrociclos();}
-function saveMcSession(){
-  const type=document.getElementById('mf-type').value;
-  if(!type)return toast('Tipo obrigatório','err');
-  const sess={id:_editMcId||uid(),teamId:_mcTeam,date:_mcDay,week:_mcWeek,type,time:document.getElementById('mf-time').value,dur:+document.getElementById('mf-dur').value||null,intensity:+document.getElementById('mf-int').value||null,notes:document.getElementById('mf-notes').value};
-  if(_editMcId){const i=APP.sessions.findIndex(s=>s.id===_editMcId);if(i>=0)APP.sessions[i]=sess;}
-  else APP.sessions.push(sess);
-  saveData();_showMcForm=false;toast('Sessão guardada ✓');renderMicrociclos();
-}
+function mcNav(dir){if(dir===0){_mcWeek=getMonday(today());} else {_mcWeek=addDaysStr(_mcWeek,dir*7);}_renderMcSemana();}
 function saveMcConfig(){
   const obj=document.getElementById('mc-obj')?.value||'';
-  const meso=document.getElementById('mc-meso')?.value||'';
   let mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam);
-  if(mc){mc.objective=obj;mc.mesocycle=meso;}
-  else APP.microcycles.push({id:uid(),teamId:_mcTeam,week:_mcWeek,objective:obj,mesocycle:meso});
+  if(mc){mc.objective=obj;}
+  else APP.microcycles.push({id:uid(),teamId:_mcTeam,week:_mcWeek,objective:obj});
   saveData();
 }
-function openMcSession(id){
-  const s=APP.sessions.find(x=>x.id===id);if(!s)return;
-  const t=MC_TYPES[s.type]||{icon:'📌'};
-  openMod(`${t.icon} ${s.type}`,`
-  <div class="g2" style="margin-bottom:12px">
-    <div class="kpi"><div class="kpi-lbl">Data</div><div class="kpi-val" style="font-size:16px">${fmtDate(s.date)}</div></div>
-    <div class="kpi"><div class="kpi-lbl">Duração</div><div class="kpi-val" style="font-size:16px">${s.dur||'—'}<span style="font-size:14px"> min</span></div></div>
+// Reaproveita o editor de eventos do Planeamento em vez de duplicar o formulário.
+function _mcOpenEvent(id){editEvent(id);navTo('planeamento');}
+function _mcNewEvent(dt){clickDay(dt);navTo('planeamento');}
+
+// ─── MACROCICLOS (fases da época) ──────────────────────────
+function _renderMacrociclosEpoca(){
+  const list=(APP.macrocycles||[]).filter(m=>m.teamId===_mcTeam).sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||''));
+  const formHtml=_showMacroForm?_macroFormHtml():'';
+  const timelineHtml=list.length?_macroTimelineHtml(list):'';
+  const rowsHtml=list.length?list.map((m,i)=>{
+    const c=m.color||MACRO_COLORS[i%MACRO_COLORS.length];
+    return `<div class="card" style="margin-bottom:10px;border-left:4px solid ${c}">
+      <div class="cb" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:800;font-size:13px;color:${c}">${escHtml(m.name)}</div>
+          <div style="font-size:11px;color:var(--t2)">${fmtDate(m.startDate)} — ${fmtDate(m.endDate)}</div>
+          ${m.objective?`<div style="font-size:11.5px;margin-top:4px">${escHtml(m.objective)}</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-gh btn-sm" onclick="_editMacro('${m.id}')">✏️</button>
+          <button class="btn btn-r btn-sm" onclick="_deleteMacro('${m.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join(''):`<div class="al al-b">Ainda não há fases definidas para esta equipa. Cria a primeira fase — podes usar uma das sugestões abaixo.</div>`;
+
+  document.getElementById('mc-body').innerHTML=`
+  <div class="sh">
+    <div class="sh-t">Fases da Época</div>
+    <div class="sh-a"><button class="btn btn-g btn-sm" onclick="_newMacro()">＋ Nova Fase</button></div>
   </div>
-  ${s.intensity?`<div class="al al-b">Intensidade: ${s.intensity}/10</div>`:''}
-  ${s.notes?`<div style="font-size:12px;color:var(--t2);margin-bottom:12px">${s.notes}</div>`:''}
-  <div style="display:flex;gap:8px"><button class="btn btn-r btn-sm" onclick="deleteMcSession('${id}')">🗑️ Apagar</button><button class="btn btn-gh btn-sm" onclick="closeMod()">Fechar</button></div>`);
+  ${formHtml}
+  ${timelineHtml}
+  ${rowsHtml}`;
 }
-function deleteMcSession(id){_markDeleted('sessions',id);APP.sessions=APP.sessions.filter(s=>s.id!==id);saveData();toast('Sessão apagada');closeMod();renderMicrociclos();}
+function _macroTimelineHtml(list){
+  const start=list.reduce((s,m)=>!s||m.startDate<s?m.startDate:s,null);
+  const end=list.reduce((s,m)=>!s||m.endDate>s?m.endDate:s,null);
+  const startMs=new Date(start+'T00:00:00').getTime(), endMs=new Date(end+'T00:00:00').getTime();
+  const span=Math.max(1,endMs-startMs);
+  const segs=list.map((m,i)=>{
+    const c=m.color||MACRO_COLORS[i%MACRO_COLORS.length];
+    const left=((new Date(m.startDate+'T00:00:00').getTime()-startMs)/span)*100;
+    const width=Math.max(1,((new Date(m.endDate+'T00:00:00').getTime()-new Date(m.startDate+'T00:00:00').getTime())/span)*100);
+    return `<div style="position:absolute;left:${left}%;width:${width}%;top:0;bottom:0;background:${c};border-radius:3px" title="${escHtml(m.name)}"></div>`;
+  }).join('');
+  const td=today();
+  const tdMs=new Date(td+'T00:00:00').getTime();
+  const tdMarker=(tdMs>=startMs&&tdMs<=endMs)?`<div style="position:absolute;left:${((tdMs-startMs)/span)*100}%;top:-4px;bottom:-4px;width:2px;background:#111;z-index:2" title="Hoje"></div>`:'';
+  return `<div class="card" style="margin-bottom:16px"><div class="cb" style="padding:14px">
+    <div style="position:relative;height:26px;background:var(--bg2,#f0f1f3);border-radius:4px;margin-bottom:6px">${segs}${tdMarker}</div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t2)"><span>${fmtDateShort(start)}</span><span>${fmtDateShort(end)}</span></div>
+  </div></div>`;
+}
+function _macroFormHtml(){
+  const m=_editMacroId?(APP.macrocycles||[]).find(x=>x.id===_editMacroId):null;
+  const presetOpts=MACRO_PRESETS.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('');
+  return `<div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editMacroId?'Editar Fase':'Nova Fase'}</div>
+    <button class="btn btn-sm btn-gh" onclick="_showMacroForm=false;_editMacroId=null;_renderMacrociclosEpoca()">✕</button></div>
+    ${!_editMacroId?`<div class="form-g" style="margin-bottom:8px"><label class="fl">Sugestão (opcional)</label><select class="fc" id="mac-preset" onchange="_macroApplyPreset()"><option value="">— Preencher manualmente —</option>${presetOpts}</select></div>`:''}
+    <div class="form-g"><label class="fl">Nome da Fase *</label><input class="fc" id="mac-name" value="${escHtml(m?.name||'')}" placeholder="Ex: Pré-Época"></div>
+    <div class="fr"><div class="form-g"><label class="fl">Data Início *</label><input class="fc" id="mac-start" type="date" value="${m?.startDate||''}"></div>
+    <div class="form-g"><label class="fl">Data Fim *</label><input class="fc" id="mac-end" type="date" value="${m?.endDate||''}"></div></div>
+    <div class="form-g"><label class="fl">Objetivo</label><textarea class="fc" id="mac-obj" rows="2" placeholder="Ex: Preparação geral — condição física de base">${escHtml(m?.objective||'')}</textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="_saveMacro()">💾 Guardar</button>
+    <button class="btn btn-gh" onclick="_showMacroForm=false;_editMacroId=null;_renderMacrociclosEpoca()">Cancelar</button></div>
+  </div>`;
+}
+function _macroApplyPreset(){
+  const i=document.getElementById('mac-preset')?.value;
+  if(i===''||i===undefined)return;
+  const p=MACRO_PRESETS[+i];if(!p)return;
+  document.getElementById('mac-name').value=p.name;
+  document.getElementById('mac-obj').value=p.objective;
+}
+function _newMacro(){_editMacroId=null;_showMacroForm=true;_renderMacrociclosEpoca();}
+function _editMacro(id){_editMacroId=id;_showMacroForm=true;_renderMacrociclosEpoca();}
+function _saveMacro(){
+  const name=document.getElementById('mac-name').value.trim();
+  const startDate=document.getElementById('mac-start').value;
+  const endDate=document.getElementById('mac-end').value;
+  const objective=document.getElementById('mac-obj').value.trim();
+  if(!name||!startDate||!endDate)return toast('Nome e datas são obrigatórios','err');
+  if(endDate<startDate)return toast('A data de fim não pode ser antes da data de início','err');
+  if(!APP.macrocycles)APP.macrocycles=[];
+  if(_editMacroId){
+    const i=APP.macrocycles.findIndex(m=>m.id===_editMacroId);
+    if(i>=0)APP.macrocycles[i]={...APP.macrocycles[i],name,startDate,endDate,objective};
+  }else{
+    const idx=APP.macrocycles.filter(m=>m.teamId===_mcTeam).length;
+    APP.macrocycles.push({id:uid(),teamId:_mcTeam,name,startDate,endDate,objective,color:MACRO_COLORS[idx%MACRO_COLORS.length]});
+  }
+  saveData();_showMacroForm=false;_editMacroId=null;toast('Fase guardada ✓');_renderMacrociclosEpoca();
+}
+function _deleteMacro(id){
+  if(!confirm('Apagar esta fase da época?'))return;
+  _markDeleted('macrocycles',id);
+  APP.macrocycles=(APP.macrocycles||[]).filter(m=>m.id!==id);
+  saveData();toast('Fase apagada');_renderMacrociclosEpoca();
+}
 
 // ─── JOGOS ────────────────────────────────────────────────
 const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -13615,6 +13717,7 @@ async function pullCloud(){
       if(m.scouting)APP.scouting=m.scouting;
       if(m.microcycles)APP.microcycles=m.microcycles;
       if(m.sessions)APP.sessions=m.sessions;
+      if(m.macrocycles)APP.macrocycles=m.macrocycles;
       // exercises/gymSheets deixaram de vir daqui (01/09/2026) — têm tabelas
       // dedicadas próprias, puxadas acima no array `pulls`. Ver
       // feedback_sps_biblioteca_exercicios_wipe.
@@ -13652,7 +13755,8 @@ async function pushAppMeta(_pushRetry){
         const _localSnap={
           games:APP.games||[], evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
           evalResponses:APP.evalResponses||[], trainings:APP.trainings||[], convocatorias:APP.convocatorias||[],
-          scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[]
+          scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[],
+          macrocycles:APP.macrocycles||[]
           // exercises/gymSheets removidos daqui (01/09/2026) — já não fazem parte
           // do meta blob, têm tabelas dedicadas com o seu próprio cloudUpsert.
         };
@@ -13703,7 +13807,8 @@ async function pushAppMeta(_pushRetry){
       schedule:APP.schedule||[],
       scouting:APP.scouting||[],
       microcycles:APP.microcycles||[],
-      sessions:APP.sessions||[]
+      sessions:APP.sessions||[],
+      macrocycles:APP.macrocycles||[]
       // exercises/gymSheets deixaram de fazer parte deste blob a partir de
       // 01/09/2026 — passaram para tabelas dedicadas ('exercises'/'gym_sheets',
       // uma linha por item, cloudUpsert normal). Motivo: mesmo com o merge raso
