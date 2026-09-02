@@ -440,6 +440,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn nu-only" onclick="navTo('nutri-dash')" title="Dashboard">🏠</button>
       <button class="tb-btn nu-only" onclick="navTo('nutri-aval')" title="Avaliações">📏</button>
       <button class="tb-btn nu-only" onclick="navTo('nutri-planos')" title="Planos">🥗</button>
+      <button class="tb-btn nu-only" onclick="navTo('nutri-consultas')" title="Consultas">📅</button>
       <button class="tb-btn nu-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
@@ -467,6 +468,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-dash"></div>
       <div class="pg" id="pg-nutri-aval"></div>
       <div class="pg" id="pg-nutri-planos"></div>
+      <div class="pg" id="pg-nutri-consultas"></div>
       <div class="pg" id="pg-config"></div>
       <div class="pg" id="pg-relatorios"></div>
     </div>
@@ -553,7 +555,7 @@ function defApp(){
     athletes:[],schedule:[],microcycles:[],sessions:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
-    injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],
+    injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],nutritionAppointments:[],
     anamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     users:[]
   };
@@ -906,6 +908,7 @@ const ALL_PAGES=[
   {id:'nutri-dash',icon:'🏠',label:'Dashboard'},
   {id:'nutri-aval',icon:'📏',label:'Avaliações'},
   {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
+  {id:'nutri-consultas',icon:'📅',label:'Consultas'},
 ];
 const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 // Cargos: cada um define que páginas vê (pages), se só pode consultar (readOnly)
@@ -918,7 +921,7 @@ const ROLE_DEFS={
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat','fisio-anamnese'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos','nutri-consultas'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos'],readOnly:true,manageUsers:false}
 };
@@ -1082,7 +1085,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -10079,7 +10082,8 @@ function renderNutriDash(){
     <td style="text-align:center">${plan?`<span class="bdg bg-g">${plan.kcal||'?'} kcal</span>`:'<span class="bdg bg-gr">Sem plano</span>'}</td>
     <td style="font-size:10px;color:var(--t2)">${last?last.date:'—'}</td>
     <td><button class="btn btn-xs btn-g" onclick="_naAtId='${at.id}';_showNaForm=true;navTo('nutri-aval')">+ Aval.</button>
-        <button class="btn btn-xs btn-gh" onclick="_npAtId='${at.id}';_showNpForm=true;navTo('nutri-planos')">+ Plano</button></td></tr>`;
+        <button class="btn btn-xs btn-gh" onclick="_npAtId='${at.id}';_showNpForm=true;navTo('nutri-planos')">+ Plano</button>
+        <button class="btn btn-xs btn-gh" onclick="_ncAtId='${at.id}';_showNcForm=true;navTo('nutri-consultas')">+ Consulta</button></td></tr>`;
   }).join('');
 
   const withPlan=APP.athletes.filter(a=>APP.nutritionPlans.some(p=>p.athleteId===a.id&&p.active)).length;
@@ -10243,6 +10247,101 @@ function editNutriPlano(id){
 }
 function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;if(_sync)cloudUpsert('nutrition_plans',p);saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
+
+// ─── CONSULTAS DE NUTRIÇÃO ──────────────────────────────────────────────
+// Pedido do Roger (02/09/2026): a nutri agenda consultas por atleta na app SPS-Nutri e
+// a atleta vê a próxima marcação na aba Nutri da app dela. Módulo próprio (não o sistema
+// geral de Planeamento/Agenda) porque cada consulta é 1-para-1 com uma atleta específica
+// — os eventos gerais (schedule) são pensados para sessões da equipa toda, e o cargo Nutri
+// nem sequer tem acesso à página Planeamento. Ver project_sps_nutri_consultas.
+const NC_STATUS_BADGE={agendada:'<span class="bdg" style="background:#38bdf822;color:#38bdf8">📅 Agendada</span>',realizada:'<span class="bdg bg-g">✅ Realizada</span>',faltou:'<span class="bdg bg-r">❌ Faltou</span>'};
+let _ncAtId=null, _showNcForm=false, _editNcId=null;
+function renderNutriConsultas(){
+  const _ncExisting=_editNcId?APP.nutritionAppointments.find(x=>x.id===_editNcId):null;
+  const _ncDefaultResp=_ncExisting?_ncExisting.responsavelId:(APP.config.nutriResponsavelId||'');
+  const formHtml=_showNcForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">${_editNcId?'Editar Consulta':'Agendar Consulta'}</div><button class="btn btn-sm btn-gh" onclick="_showNcForm=false;_editNcId=null;renderNutriConsultas()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="nc-at">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_ncAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="nc-date" type="date" value="${_ncExisting?.date||today()}"></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Hora *</label><input class="fc" id="nc-time" type="time" value="${_ncExisting?.time||''}"></div>
+    <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="nc-dur" type="number" value="${_ncExisting?.duration||30}"></div>
+    <div class="form-g"><label class="fl">Local</label><input class="fc" id="nc-loc" placeholder="Gabinete / Online" value="${escHtml(_ncExisting?.location||'')}"></div></div>
+    <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="nc-notes" rows="2">${escHtml(_ncExisting?.notes||'')}</textarea></div>
+    <div class="form-g"><label class="fl">Responsável (opcional — pode mudar depois)</label><select class="fc" id="nc-resp"><option value="" ${_ncDefaultResp?'':'selected'}>— Nenhum —</option>${(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<option value="${u.id}" ${u.id===_ncDefaultResp?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-g" onclick="saveNutriConsulta()">💾 Guardar</button><button class="btn btn-gh" onclick="_showNcForm=false;_editNcId=null;renderNutriConsultas()">Cancelar</button></div>
+  </div>`:'';
+
+  // Ordem ascendente (próxima primeiro) — ao contrário de Avaliações/Planos (histórico,
+  // mais recente primeiro), Consultas é uma agenda para a frente.
+  const list=(APP.nutritionAppointments||[]).slice().sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Hora</th><th>Atleta</th><th>Duração</th><th>Local</th><th>Estado</th><th>Responsável</th><th>Ações</th></tr></thead>
+  <tbody>${list.map(c=>{const at=APP.athletes.find(x=>x.id===c.athleteId);
+  return`<tr>
+    <td>${fmtDate(c.date)}</td><td>${c.time||'—'}</td><td><strong>${at?.name||'?'}</strong></td>
+    <td>${c.duration?c.duration+'min':'—'}</td><td>${escHtml(c.location||'—')}</td>
+    <td>${NC_STATUS_BADGE[c.status]||NC_STATUS_BADGE.agendada}
+      ${c.status==='faltou'?`<div style="margin-top:4px"><select class="fc" style="font-size:10px;padding:2px 4px" onchange="setConsultaMotivo('${c.id}',this.value)">
+        <option value="">Motivo...</option>
+        ${Object.entries(ATT_REASONS).map(([v,l])=>`<option value="${v}" ${c.reason===v?'selected':''}>${l}</option>`).join('')}
+      </select></div>`:''}
+    </td>
+    <td style="font-size:10px;color:var(--t2)">${escHtml(c.responsavelName||'—')}</td>
+    <td><div style="display:flex;gap:3px;flex-wrap:wrap">
+      <button class="btn btn-xs ${c.status==='realizada'?'btn-g':'btn-gh'}" onclick="setConsultaStatus('${c.id}','realizada')" title="Realizada">✅</button>
+      <button class="btn btn-xs ${c.status==='faltou'?'btn-r':'btn-gh'}" onclick="setConsultaStatus('${c.id}','faltou')" title="Faltou">❌</button>
+      <button class="btn btn-xs btn-gh" onclick="editNutriConsulta('${c.id}')" title="Editar">✏️</button>
+      <button class="btn btn-xs btn-r" onclick="deleteNutriConsulta('${c.id}')" title="Apagar">🗑️</button>
+    </div></td>
+  </tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">📅</div><p>Sem consultas agendadas</p></div>`;
+
+  document.getElementById('pg-nutri-consultas').innerHTML=`
+  <div class="sh"><div class="sh-t">📅 Consultas de Nutrição</div>
+  <button class="btn btn-g" onclick="_showNcForm=!_showNcForm;_editNcId=null;renderNutriConsultas()">+ Agendar Consulta</button></div>
+  ${formHtml}${tableHtml}`;
+}
+function saveNutriConsulta(){
+  const aid=document.getElementById('nc-at').value;
+  const date=document.getElementById('nc-date').value;
+  const time=document.getElementById('nc-time').value;
+  if(!aid||!date||!time)return toast('Atleta, data e hora obrigatórios','err');
+  const sess=getSession();
+  const respEl=document.getElementById('nc-resp');
+  const respId=respEl?respEl.value:'';
+  const respUser=respId?APP.users.find(u=>u.id===respId):null;
+  const p={id:_editNcId||uid(),athleteId:aid,date,time,duration:document.getElementById('nc-dur').value||30,location:document.getElementById('nc-loc').value,notes:document.getElementById('nc-notes').value,responsavelId:respId||null,responsavelName:respUser?respUser.name:''};
+  if(_editNcId){
+    // Mesmo cuidado do fix em saveNutriPlano (project_sps_nutri_autoria): editar (ex.
+    // corrigir a hora) NUNCA deve repor o estado a 'agendada' se já estava marcada como
+    // realizada/faltou — merge preserva status/reason/autoria existentes.
+    const i=APP.nutritionAppointments.findIndex(x=>x.id===_editNcId);
+    if(i>=0)APP.nutritionAppointments[i]={...APP.nutritionAppointments[i],...p};
+  }else{
+    p.status='agendada';p.reason=null;
+    p.registeredBy=sess?sess.name:'';p.registeredById=sess?sess.userId:null;p.registeredAt=new Date().toISOString();
+    APP.nutritionAppointments.push(p);
+  }
+  if(_sync)cloudUpsert('nutrition_appointments',APP.nutritionAppointments.find(x=>x.id===p.id));
+  saveData();_showNcForm=false;_editNcId=null;toast('Consulta guardada ✓');renderNutriConsultas();
+}
+function editNutriConsulta(id){
+  const c=APP.nutritionAppointments.find(x=>x.id===id);if(!c)return;
+  _editNcId=id;_ncAtId=c.athleteId;_showNcForm=true;renderNutriConsultas();
+}
+function setConsultaStatus(id,status){
+  const c=APP.nutritionAppointments.find(x=>x.id===id);if(!c)return;
+  c.status=c.status===status?'agendada':status; // clicar de novo no mesmo estado desfaz, volta a agendada
+  if(c.status!=='faltou')c.reason=null;
+  if(_sync)cloudUpsert('nutrition_appointments',c);
+  saveData();renderNutriConsultas();
+}
+function setConsultaMotivo(id,val){
+  const c=APP.nutritionAppointments.find(x=>x.id===id);if(!c||c.status!=='faltou')return;
+  c.reason=val;
+  if(_sync)cloudUpsert('nutrition_appointments',c);
+  saveData();
+}
+function deleteNutriConsulta(id){if(!confirm('Apagar?'))return;APP.nutritionAppointments=APP.nutritionAppointments.filter(c=>c.id!==id);saveData();toast('Apagada');renderNutriConsultas();}
 
 // ─── RELATÓRIOS ──────────────────────────────────────────────
 let _repWellMode='diario',_repPseMode='diario',_repAtMode='semanal';
@@ -12544,8 +12643,19 @@ function renderAtNutri(){
   const plan=APP.nutritionPlans.find(p=>p.athleteId===AID&&p.active);
   const avals=APP.nutritionAssessments.filter(a=>a.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date));
   const lastA=avals[0];
+  // Próxima Consulta (project_sps_nutri_consultas) — só a agendada mais próxima a partir
+  // de hoje; passadas/realizadas/faltas não aparecem aqui (pedido do Roger: só a próxima).
+  const td=today();
+  const nextC=(APP.nutritionAppointments||[]).filter(c=>c.athleteId===AID&&c.status==='agendada'&&c.date>=td).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')))[0];
+  const nextCHtml=`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">📅 Próxima Consulta</span></div><div class="cb" style="padding:12px">
+    ${nextC?`<div style="font-size:14px;font-weight:700">${fmtDate(nextC.date)}${nextC.time?' às '+nextC.time:''}</div>
+    ${nextC.location?`<div style="font-size:12px;color:var(--t2);margin-top:2px">📍 ${escHtml(nextC.location)}</div>`:''}
+    ${nextC.notes?`<div style="font-size:12px;color:var(--t2);margin-top:4px">${escHtml(nextC.notes)}</div>`:''}`
+    :`<div style="font-size:12px;color:var(--t2)">Sem consulta agendada</div>`}
+  </div></div>`;
   document.getElementById('atp-nutri').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-salad" style="margin-right:6px;vertical-align:-3px;color:#fb923c" aria-hidden="true"></i>Nutrição</div>
+  ${nextCHtml}
   ${lastA?`<div class="g2" style="margin-bottom:14px">
     <div class="kpi"><div class="kpi-lbl">Peso</div><div class="kpi-val" style="font-size:20px">${lastA.weight||'—'}<span style="font-size:12px"> kg</span></div><div class="kpi-sub">${lastA.date}</div></div>
     <div class="kpi"><div class="kpi-lbl">IMC</div><div class="kpi-val" style="font-size:20px">${lastA.bmi||'—'}</div><div class="kpi-sub">${lastA.hydration?'Hidratação: '+lastA.hydration:''}</div></div>
@@ -12976,6 +13086,7 @@ async function forceSyncAll(){
     await upsertAll('treatments',APP.treatments);
     await upsertAll('nutrition_records',APP.nutritionAssessments);
     await upsertAll('nutrition_plans',APP.nutritionPlans);
+    await upsertAll('nutrition_appointments',APP.nutritionAppointments);
     await upsertAll('schedule_events',APP.schedule);
     await upsertAll('training_plans',APP.trainingPlans);
     await pushAppMeta();
@@ -13088,6 +13199,7 @@ async function pullCloud(){
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name,professionalId:r.professional_id,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
+      ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null,rsvp:r.rsvp||{}}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
@@ -13302,6 +13414,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at','registered_by','registered_by_id','responsavel_id','responsavel_name'],
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at',registeredBy:'registered_by',registeredById:'registered_by_id',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
+  nutrition_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name'],
+    rename:{athleteId:'athlete_id',registeredBy:'registered_by',registeredById:'registered_by_id',registeredAt:'registered_at',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
   schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet','rsvp'],
     rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao',guestIds:'guest_ids',gymSheet:'gym_sheet'}},
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
