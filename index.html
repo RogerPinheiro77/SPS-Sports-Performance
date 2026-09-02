@@ -3196,7 +3196,7 @@ function _renderMcSemana(){
       <span style="font-size:13px;font-weight:800;min-width:220px;text-align:center">Semana ${fmtDate(_mcWeek)} — ${fmtDate(weekEnd)}</span>
       <button class="btn btn-gh btn-sm" onclick="mcNav(1)">›</button>
     </div>
-    <div class="sh-a"><button class="btn btn-g btn-sm" onclick="mcNav(0)">Semana Atual</button></div>
+    <div class="sh-a"><button class="btn btn-gh btn-sm" onclick="exportMicrociclosPDF()">🖨️ PDF</button><button class="btn btn-g btn-sm" onclick="mcNav(0)">Semana Atual</button></div>
   </div>
   <div class="card" style="margin-bottom:16px">
     <div class="cb" style="padding:12px 16px">
@@ -3249,7 +3249,7 @@ function _renderMacrociclosEpoca(){
   document.getElementById('mc-body').innerHTML=`
   <div class="sh">
     <div class="sh-t">Fases da Época</div>
-    <div class="sh-a"><button class="btn btn-g btn-sm" onclick="_newMacro()">＋ Nova Fase</button></div>
+    <div class="sh-a"><button class="btn btn-gh btn-sm" onclick="exportMicrociclosPDF()">🖨️ PDF</button><button class="btn btn-g btn-sm" onclick="_newMacro()">＋ Nova Fase</button></div>
   </div>
   ${formHtml}
   ${timelineHtml}
@@ -3320,6 +3320,54 @@ function _deleteMacro(id){
   _markDeleted('macrocycles',id);
   APP.macrocycles=(APP.macrocycles||[]).filter(m=>m.id!==id);
   saveData();toast('Fase apagada');_renderMacrociclosEpoca();
+}
+// PDF de Microciclos/Macrociclos — adapta-se ao separador ativo (_mcView), mesmo
+// padrão do botão único de exportPlaneamentoPDF (Semanal/Mensal). Semana: grelha
+// A4 paisagem com os eventos reais do Planeamento (não dados soltos) + objetivo +
+// fase da época + resumo de carga. Época: lista de fases + linha temporal.
+function _mcPrintDayHtml(dt,dowLabel){
+  const td=today();
+  const isToday=dt===td;
+  const evs=(APP.schedule||[]).filter(e=>e.date===dt&&e.teamId===_mcTeam).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="font-size:7pt;padding:1.5mm 2mm;margin-bottom:1.5mm;border-left:2px solid ${c};background:${c}15;border-radius:2px;line-height:1.3">${e.time?e.time.slice(0,5)+' · ':''}<b>${escHtml(_planEvTitle(e))}</b></div>`;}).join('');
+  return `<div style="min-height:45mm;border:1px solid #ddd;border-radius:2px;padding:2mm;background:${isToday?'#1d6f3b0d':'#fff'}">
+    <div style="font-size:7pt;color:#888;text-transform:uppercase;font-weight:700">${dowLabel}</div>
+    <div style="font-size:9pt;font-weight:700;color:${isToday?'#1d6f3b':'#333'};margin-bottom:1.5mm">${+dt.slice(8,10)}</div>
+    ${evsHtml||'<div style="font-size:7pt;color:#bbb">—</div>'}
+  </div>`;
+}
+function exportMicrociclosPDF(){
+  const team=APP.teams.find(t=>t.id===_mcTeam);
+  const teamName=team?team.name:'';
+  if(_mcView==='epoca'){
+    const list=(APP.macrocycles||[]).filter(m=>m.teamId===_mcTeam).sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||''));
+    if(!list.length)return toast('Sem fases definidas para esta equipa','err');
+    const rowsHtml=list.map((m,i)=>{
+      const c=m.color||MACRO_COLORS[i%MACRO_COLORS.length];
+      return `<tr><td style="border-left:4px solid ${c};font-weight:700">${escHtml(m.name)}</td><td>${fmtDate(m.startDate)} — ${fmtDate(m.endDate)}</td><td>${escHtml(m.objective||'—')}</td></tr>`;
+    }).join('');
+    const html=`${_macroTimelineHtml(list)}<table><thead><tr><th>Fase</th><th>Período</th><th>Objetivo</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    _printWin('Macrociclos — '+teamName+' — Fases da Época',html,null,false,true);
+  }else{
+    const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+    const weekDates=Array.from({length:7},(_,i)=>addDaysStr(_mcWeek,i));
+    const weekEnd=weekDates[6];
+    const mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam)||{objective:''};
+    const macro=_macroForWeek(_mcWeek,weekEnd,_mcTeam);
+    const weekEvs=(APP.schedule||[]).filter(e=>weekDates.includes(e.date)&&e.teamId===_mcTeam);
+    const totalDur=weekEvs.reduce((s,x)=>s+(+x.dur||0),0);
+    const byType={};weekEvs.forEach(e=>{byType[e.type]=(byType[e.type]||0)+1;});
+    const summaryHtml=Object.entries(byType).map(([t,n])=>{const c=EV_COLORS[t]||'#27a34a';return`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;font-size:8pt;background:${c}15;color:${c};border-left:2px solid ${c};border-radius:2px;margin-right:6px">${t}: ${n}</span>`;}).join('');
+    const hdr=`<div style="margin-bottom:10px">
+      ${mc.objective?`<div style="font-size:9.5pt;margin-bottom:4px"><b>Objetivo do Microciclo:</b> ${escHtml(mc.objective)}</div>`:''}
+      <div style="font-size:9pt;margin-bottom:6px"><b>Fase da Época:</b> ${macro?escHtml(macro.name):'—'}</div>
+      <div>${summaryHtml}${totalDur?`<span style="font-size:8pt;color:#888;margin-left:6px">Total: ${totalDur} min</span>`:''}</div>
+    </div>`;
+    const cells=weekDates.map((dt,i)=>_mcPrintDayHtml(dt,days[i])).join('');
+    const wkHdr=days.map(d=>`<div style="text-align:center;font-size:8pt;font-weight:700;color:#1d6f3b;padding:2px 0">${d}</div>`).join('');
+    const html=`${hdr}${_planPrintLegendHtml()}<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2mm">${wkHdr}${cells}</div>`;
+    _printWin('Microciclo — '+teamName+' — Semana '+fmtDateShort(_mcWeek)+' a '+fmtDateShort(weekEnd),html,null,false,true);
+  }
 }
 
 // ─── JOGOS ────────────────────────────────────────────────
@@ -9177,6 +9225,7 @@ function renderFichasGinasio(){
     </div>
     <div style="display:flex;gap:6px">
       <button class="btn btn-sm btn-gh" onclick="editGymSheet('${f.id}')">✏️ Editar</button>
+      <button class="btn btn-sm btn-gh" onclick="exportGymSheetPDF('${f.id}')">🖨️ PDF</button>
       <button class="btn btn-sm btn-gh" onclick="duplicateGymSheet('${f.id}')">⧉ Duplicar</button>
       <button class="btn btn-sm btn-r" onclick="deleteGymSheet('${f.id}')">🗑️</button>
     </div>
@@ -9267,7 +9316,10 @@ function _renderGsDetail(){
   document.getElementById('pg-fichas-ginasio').innerHTML=`
   <div class="sh" style="flex-wrap:wrap;gap:8px">
     <button class="btn btn-gh btn-sm" onclick="_gsView='list';_gsDraft=null;renderFichasGinasio()">← Todas as fichas</button>
-    <button class="btn btn-g btn-sm" onclick="saveGymSheet()">💾 Guardar</button>
+    <div class="sh-a">
+      <button class="btn btn-gh btn-sm" onclick="exportGymSheetPDFDraft()">🖨️ PDF</button>
+      <button class="btn btn-g btn-sm" onclick="saveGymSheet()">💾 Guardar</button>
+    </div>
   </div>
   <div class="card" style="padding:14px 16px;margin-bottom:12px">
     <div class="fr"><div class="form-g"><label class="fl">Título *</label><input class="fc" id="gs-title" value="${escHtml(f.title)}" placeholder="Ex: Familiarização e Registo — Sessão 1" oninput="_gsDraft.title=this.value"></div>
@@ -9329,6 +9381,42 @@ function saveGymSheet(){
   saveData();
   if(_sync)cloudUpsert('gym_sheets',_gsDraft);
   toast('Ficha guardada ✓');_gsView='list';_gsDraft=null;renderFichasGinasio();
+}
+// PDF imprimível da Ficha de Ginásio (o modelo, não os registos de uma sessão
+// concreta — esse já existe em _gymSessionPdfHtml/exportGymSessionPDF). Pensado
+// para imprimir/plastificar e levar para o ginásio: exercícios em cartões com
+// imagem (pedido do Roger, 02/09/2026), retrato A4. Recebe o objeto da ficha
+// diretamente (não só o id) para também poder imprimir o rascunho por guardar.
+function _gymSheetPdfHtml(f){
+  const exHtml=(f.exercises||[]).map((ex,i)=>`
+  <div style="display:flex;gap:10px;border:1px solid #ddd;border-radius:6px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">
+    ${ex.img?`<div style="width:60px;height:60px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#f3f3f3"><img src="${ex.img}" style="width:100%;height:100%;object-fit:cover"></div>`:''}
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap">
+        <span style="font-size:8pt;font-weight:700;color:#1d6f3b">#${i+1}</span>
+        <span style="font-size:9.5pt;font-weight:700">${escHtml(ex.name||'—')}</span>
+        <span style="font-size:7.5pt;color:#888;background:#f0f0f0;padding:1px 7px;border-radius:10px">${escHtml(ex.cat||'Ginásio')}</span>
+      </div>
+      <div style="font-size:8.5pt;color:#333">Séries×Reps: <b>${escHtml(ex.reps||'—')}</b> &nbsp;·&nbsp; RIR: <b>${escHtml(ex.rir||'—')}</b></div>
+      ${ex.note?`<div style="font-size:8pt;color:#666;margin-top:2px">${escHtml(ex.note)}</div>`:''}
+    </div>
+  </div>`).join('');
+  return `
+  <div style="margin-bottom:10px">
+    <span style="display:inline-block;background:#7d3c9822;color:#7d3c98;font-size:9pt;font-weight:700;padding:3px 10px;border-radius:20px">${escHtml(f.phase||'Ginásio')}</span>
+  </div>
+  ${f.notes?`<div style="background:#f7f7f7;border-left:3px solid #7d3c98;padding:8px 12px;font-size:9pt;color:#444;margin-bottom:14px">${escHtml(f.notes)}</div>`:''}
+  ${exHtml||'<div style="color:#999;font-size:10pt">Sem exercícios nesta ficha.</div>'}`;
+}
+function exportGymSheetPDF(id){
+  const f=(APP.gymSheets||[]).find(x=>x.id===id);
+  if(!f)return toast('Ficha não encontrada','err');
+  _printWin('Ficha de Ginásio — '+(f.title||'Sem título'),_gymSheetPdfHtml(f),null,false,false);
+}
+function exportGymSheetPDFDraft(){
+  if(!_gsDraft)return;
+  if(!_gsDraft.title)return toast('Dá um título à ficha antes de exportar em PDF','err');
+  _printWin('Ficha de Ginásio — '+_gsDraft.title,_gymSheetPdfHtml(_gsDraft),null,false,false);
 }
 
 // Agendar Sessão de Ginásio — atalho rápido (Data/Hora/Local/Equipa/Ficha) a partir de
