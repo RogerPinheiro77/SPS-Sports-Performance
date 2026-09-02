@@ -2825,6 +2825,12 @@ function renderPresencas(){
   if(!athletes.length){document.getElementById('pg-presencas').innerHTML=`${header}<div class="empty"><div class="ei">👥</div><p>Sem atletas nesta equipa</p></div>`;return;}
   if(!evs.length){document.getElementById('pg-presencas').innerHTML=`${header}<div class="empty"><div class="ei">✅</div><p>Sem treinos agendados neste mês para esta equipa</p></div>`;return;}
 
+  // Sigla curta por tipo de sessão no cabeçalho — pedido do Roger (02/09/2026): quando
+  // há Ginásio + Treino no mesmo dia, ambos ficam com a mesma data na coluna e não dá
+  // para distinguir sem passar o rato. Cor reaproveita EV_COLORS (mesma paleta do
+  // Planeamento) para reforçar visualmente, sem precisar de dados novos — o tipo já
+  // vem do próprio evento (ev.type).
+  const _PRES_TYPE_CODE={Treino:'UT',Ginásio:'GYM',Ativação:'ATV',Recuperação:'REC'};
   const STMAP={treino:['✅','#4ade80'],tratamento:['🏥','#38bdf8'],ausente:['❌','#f87171']};
   const cell=(ev,at)=>{
     const rec=APP.attendance.find(a=>a.eventId===ev.id&&a.athleteId===at.id);
@@ -2843,10 +2849,14 @@ function renderPresencas(){
       <td style="text-align:center;font-weight:800;font-size:12px">${pct!==null?pct+'%':'—'}</td>
     </tr>`;
   }).join('');
-  const thead=`<tr><th style="position:sticky;left:0;background:var(--bg2);text-align:left">Atleta</th>${evs.map(ev=>`<th style="text-align:center;font-size:10px;white-space:nowrap" title="${escHtml(ev.title)} · ${fmtDate(ev.date)}">${fmtDateShort(ev.date)}</th>`).join('')}<th style="text-align:center">%</th></tr>`;
+  const thead=`<tr><th style="position:sticky;left:0;background:var(--bg2);text-align:left">Atleta</th>${evs.map(ev=>{
+    const code=_PRES_TYPE_CODE[ev.type]||'';
+    const c=EV_COLORS[ev.type]||'var(--t2)';
+    return`<th style="text-align:center;font-size:10px;white-space:nowrap" title="${escHtml(ev.title)} · ${fmtDate(ev.date)}">${code?`<div style="font-size:8.5px;font-weight:800;color:${c};letter-spacing:.3px">${code}</div>`:''}${fmtDateShort(ev.date)}</th>`;
+  }).join('')}<th style="text-align:center">%</th></tr>`;
 
   document.getElementById('pg-presencas').innerHTML=`${header}
-  <div style="font-size:11px;color:var(--t2);margin:8px 0 12px">Clica numa célula para abrir/editar essa sessão. ✅ Presente · 🏥 Tratamento · ❌ Falta · — Por marcar</div>
+  <div style="font-size:11px;color:var(--t2);margin:8px 0 12px">Clica numa célula para abrir/editar essa sessão. ✅ Presente · 🏥 Tratamento · ❌ Falta · — Por marcar · UT Treino · GYM Ginásio · ATV Ativação · REC Recuperação</div>
   <div class="tw" style="overflow-x:auto"><table style="min-width:100%"><thead>${thead}</thead><tbody>${rows}</tbody></table></div>`;
 }
 const PLAN_MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
