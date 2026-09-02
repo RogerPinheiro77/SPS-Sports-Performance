@@ -10275,8 +10275,9 @@ function renderNutriConsultas(){
   // Ordem ascendente (próxima primeiro) — ao contrário de Avaliações/Planos (histórico,
   // mais recente primeiro), Consultas é uma agenda para a frente.
   const list=(APP.nutritionAppointments||[]).slice().sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
-  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Hora</th><th>Atleta</th><th>Duração</th><th>Local</th><th>Estado</th><th>Responsável</th><th>Ações</th></tr></thead>
+  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Hora</th><th>Atleta</th><th>Duração</th><th>Local</th><th>Estado</th><th>Confirmação</th><th>Responsável</th><th>Ações</th></tr></thead>
   <tbody>${list.map(c=>{const at=APP.athletes.find(x=>x.id===c.athleteId);
+  const rsvpBadge=c.status!=='agendada'?'—':(c.rsvpStatus==='yes'?`<span class="bdg bg-g" style="font-size:9px">✅ Vai</span>`:c.rsvpStatus==='no'?`<span class="bdg bg-r" style="font-size:9px" title="${escHtml(ATT_REASONS[c.rsvpReason]||c.rsvpReason||'')}">❌ Não vai</span>`:`<span class="bdg" style="font-size:9px;background:var(--bg4);color:var(--t2)">⏳ Por confirmar</span>`);
   return`<tr>
     <td>${fmtDate(c.date)}</td><td>${c.time||'—'}</td><td><strong>${at?.name||'?'}</strong></td>
     <td>${c.duration?c.duration+'min':'—'}</td><td>${escHtml(c.location||'—')}</td>
@@ -10286,6 +10287,7 @@ function renderNutriConsultas(){
         ${Object.entries(ATT_REASONS).map(([v,l])=>`<option value="${v}" ${c.reason===v?'selected':''}>${l}</option>`).join('')}
       </select></div>`:''}
     </td>
+    <td>${rsvpBadge}</td>
     <td style="font-size:10px;color:var(--t2)">${escHtml(c.responsavelName||'—')}</td>
     <td><div style="display:flex;gap:3px;flex-wrap:wrap">
       <button class="btn btn-xs ${c.status==='realizada'?'btn-g':'btn-gh'}" onclick="setConsultaStatus('${c.id}','realizada')" title="Realizada">✅</button>
@@ -10342,6 +10344,83 @@ function setConsultaMotivo(id,val){
   saveData();
 }
 function deleteNutriConsulta(id){if(!confirm('Apagar?'))return;APP.nutritionAppointments=APP.nutritionAppointments.filter(c=>c.id!==id);saveData();toast('Apagada');renderNutriConsultas();}
+
+// RSVP da atleta na Consulta de Nutrição — mesmo padrão do RSVP do Ginásio
+// (_gymRsvp*), mas como cada linha de nutritionAppointments já pertence a
+// exatamente 1 atleta, os campos ficam diretos na linha (rsvpStatus/rsvpReason/
+// rsvpRespondedAt) em vez do mapa rsvp:{[athleteId]} usado no Ginásio.
+function _ncRsvpDeadline(c){
+  if(!c.date||!c.time)return null;
+  const dt=new Date(`${c.date}T${c.time.slice(0,5)}:00`);
+  if(isNaN(dt.getTime()))return null;
+  return new Date(dt.getTime()-120*60000);
+}
+function _ncRsvpDeadlinePassed(c){ const d=_ncRsvpDeadline(c); return d?new Date()>=d:false; }
+let _ncRsvpDeclining=new Set();
+async function atNcRsvpYes(id){
+  const c=(APP.nutritionAppointments||[]).find(x=>x.id===id);if(!c)return;
+  if(_ncRsvpDeadlinePassed(c))return toast('Prazo de resposta terminado','err');
+  c.rsvpStatus='yes';c.rsvpReason='';c.rsvpRespondedAt=new Date().toISOString();
+  _ncRsvpDeclining.delete(id);
+  saveData();
+  if(_sync)await cloudUpsert('nutrition_appointments',c);
+  renderAtNutri();toast('Confirmaste presença ✓');
+}
+function atNcRsvpDeclineStart(id){_ncRsvpDeclining.add(id);renderAtNutri();}
+function atNcRsvpDeclineCancel(id){_ncRsvpDeclining.delete(id);renderAtNutri();}
+async function atNcRsvpDeclineConfirm(id){
+  const c=(APP.nutritionAppointments||[]).find(x=>x.id===id);if(!c)return;
+  if(_ncRsvpDeadlinePassed(c))return toast('Prazo de resposta terminado','err');
+  const sel=document.getElementById('nc-rsvp-reason-'+id);
+  const reason=sel?sel.value:'';
+  if(!reason)return toast('Escolhe um motivo','err');
+  c.rsvpStatus='no';c.rsvpReason=reason;c.rsvpRespondedAt=new Date().toISOString();
+  _ncRsvpDeclining.delete(id);
+  saveData();
+  if(_sync)await cloudUpsert('nutrition_appointments',c);
+  renderAtNutri();toast('Resposta registada');
+}
+async function atNcRsvpReset(id){
+  const c=(APP.nutritionAppointments||[]).find(x=>x.id===id);if(!c)return;
+  if(_ncRsvpDeadlinePassed(c))return toast('Prazo de resposta terminado','err');
+  c.rsvpStatus=null;c.rsvpReason=null;c.rsvpRespondedAt=null;
+  _ncRsvpDeclining.delete(id);
+  saveData();
+  if(_sync)await cloudUpsert('nutrition_appointments',c);
+  renderAtNutri();
+}
+function _ncRsvpBlockHtml(c){
+  const passed=_ncRsvpDeadlinePassed(c);
+  if(_ncRsvpDeclining.has(c.id)){
+    return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--brd)">
+      <div style="font-size:10.5px;color:var(--t2);margin-bottom:6px">Motivo:</div>
+      <select class="fc" id="nc-rsvp-reason-${c.id}" style="margin-bottom:8px;font-size:12px">
+        <option value="">Escolhe...</option>
+        ${Object.entries(ATT_REASONS).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-r btn-sm" style="flex:1" onclick="atNcRsvpDeclineConfirm('${c.id}')">Confirmar</button>
+        <button class="btn btn-gh btn-sm" style="flex:1" onclick="atNcRsvpDeclineCancel('${c.id}')">Cancelar</button>
+      </div>
+    </div>`;
+  }
+  if(!c.rsvpStatus&&!passed){
+    return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--brd)">
+      <div style="font-size:10.5px;color:var(--t2);margin-bottom:6px">Vais à consulta? (confirma até 2h antes)</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="atNcRsvpYes('${c.id}')">✅ Vou</button>
+        <button class="btn btn-gh btn-sm" style="flex:1" onclick="atNcRsvpDeclineStart('${c.id}')">❌ Não vou</button>
+      </div>
+    </div>`;
+  }
+  if(!c.rsvpStatus&&passed){
+    return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--brd);font-size:10.5px;color:var(--t2)">⏳ Prazo de resposta terminado — sem resposta registada</div>`;
+  }
+  return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--brd);font-size:10.5px;color:var(--t2)">
+    ${c.rsvpStatus==='yes'?'✅ Confirmaste presença':'❌ Avisaste que não vais'+(c.rsvpReason?' — '+escHtml(ATT_REASONS[c.rsvpReason]||c.rsvpReason):'')}
+    ${!passed?`<a href="#" onclick="event.preventDefault();atNcRsvpReset('${c.id}')" style="color:var(--pri);margin-left:6px">mudar resposta</a>`:''}
+  </div>`;
+}
 
 // ─── RELATÓRIOS ──────────────────────────────────────────────
 let _repWellMode='diario',_repPseMode='diario',_repAtMode='semanal';
@@ -12650,7 +12729,8 @@ function renderAtNutri(){
   const nextCHtml=`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">📅 Próxima Consulta</span></div><div class="cb" style="padding:12px">
     ${nextC?`<div style="font-size:14px;font-weight:700">${fmtDate(nextC.date)}${nextC.time?' às '+nextC.time:''}</div>
     ${nextC.location?`<div style="font-size:12px;color:var(--t2);margin-top:2px">📍 ${escHtml(nextC.location)}</div>`:''}
-    ${nextC.notes?`<div style="font-size:12px;color:var(--t2);margin-top:4px">${escHtml(nextC.notes)}</div>`:''}`
+    ${nextC.notes?`<div style="font-size:12px;color:var(--t2);margin-top:4px">${escHtml(nextC.notes)}</div>`:''}
+    ${_ncRsvpBlockHtml(nextC)}`
     :`<div style="font-size:12px;color:var(--t2)">Sem consulta agendada</div>`}
   </div></div>`;
   document.getElementById('atp-nutri').innerHTML=`
@@ -13199,7 +13279,7 @@ async function pullCloud(){
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name,professionalId:r.professional_id,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
-      ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
+      ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null,rsvp:r.rsvp||{}}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
@@ -13414,8 +13494,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at','registered_by','registered_by_id','responsavel_id','responsavel_name'],
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at',registeredBy:'registered_by',registeredById:'registered_by_id',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
-  nutrition_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name'],
-    rename:{athleteId:'athlete_id',registeredBy:'registered_by',registeredById:'registered_by_id',registeredAt:'registered_at',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
+  nutrition_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],
+    rename:{athleteId:'athlete_id',registeredBy:'registered_by',registeredById:'registered_by_id',registeredAt:'registered_at',responsavelId:'responsavel_id',responsavelName:'responsavel_name',rsvpStatus:'rsvp_status',rsvpReason:'rsvp_reason',rsvpRespondedAt:'rsvp_responded_at'}},
   schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet','rsvp'],
     rename:{createdAt:'created_at',teamId:'team_id',horaConcentracao:'hora_concentracao',localConcentracao:'local_concentracao',guestIds:'guest_ids',gymSheet:'gym_sheet'}},
   training_plans:{cols:['id','athlete_id','title','type','description','week','done','note','volume','created_at','done_at','done_time'],
