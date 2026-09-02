@@ -1117,8 +1117,13 @@ function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join
 // em vez de espalhar a lógica por cada sítio que mostra o nome de uma atleta:
 // _shortName  → contexto de trabalho no dia a dia (checklists, grelhas) — alcunha em
 //               primeiro plano, cai para o primeiro nome se não houver alcunha definida.
-// _displayName → contexto de identificação formal (convocatórias, fichas, relatórios) —
-//               nome completo sempre primeiro, alcunha entre parêntesis a seguir se existir.
+// _displayName → contexto de identificação formal (convocatórias, fichas, relatórios,
+//               dropdowns) — alcunha em primeiro plano (pedido do Roger, 02/09/2026: para
+//               o staff/fisios/nutris identificarem a atleta mais depressa em toda a
+//               plataforma, exceto na app da atleta, que fica sem alteração). O nome
+//               completo mantém-se sempre visível como secundário entre parêntesis quando
+//               há alcunha — importante para identificação formal externa (FPF, pais, etc),
+//               nunca escondido. Sem alcunha definida, mostra só o nome, como antes.
 function _shortName(at){
   if(!at)return '';
   if(at.alcunha&&at.alcunha.trim())return at.alcunha.trim();
@@ -1126,7 +1131,7 @@ function _shortName(at){
 }
 function _displayName(at){
   if(!at)return '';
-  return at.alcunha&&at.alcunha.trim()?(at.name||'')+' ("'+at.alcunha.trim()+'")':(at.name||'');
+  return at.alcunha&&at.alcunha.trim()?at.alcunha.trim()+' ('+(at.name||'')+')':(at.name||'');
 }
 // Mapa de posições (PT) -> coordenadas (%) num campo vertical, 0=linha de fundo adversária, 100=baliza própria
 const _POS_COORDS={
