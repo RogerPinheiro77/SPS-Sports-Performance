@@ -559,6 +559,7 @@ function defApp(){
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],nutritionAppointments:[],fisioAppointments:[],
     anamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
+    mcTemplates:[],
     users:[]
   };
 }
@@ -3159,6 +3160,110 @@ function renderMicrociclos(){
   if(_mcView==='epoca')_renderMacrociclosEpoca();
   else _renderMcSemana();
 }
+// ─── MODELO DA SEMANA (microciclo rico, relativo ao dia de jogo) ──────────
+// Estrutura pedida pelo Roger (03/09/2026, print de exemplo): 7 "papéis" de dia,
+// numerados por STEP 0-6 = nº de dias APÓS o dia de jogo real dessa semana (não
+// por dia da semana fixo) — assim a semana adapta-se automaticamente quando o
+// jogo cai noutro dia (ex: domingo nalgumas semanas), em vez de assumir sempre
+// sábado. O conteúdo de cada step é um MOLDE reutilizável por equipa
+// (APP.mcTemplates, 1 registo por teamId) — o Roger edita-o uma vez e ajusta
+// pontualmente; não se escreve nada de novo a cada semana. Molde inicial
+// pré-preenchido com o conteúdo do print de referência, editável em
+// "⚙️ Editar Modelo".
+const MC_STEP_COLORS=['#c0392b','#5a6582','#27a34a','#2e86c1','#b7770d','#7d3c98','#935116'];
+function _daysDiff(a,b){return Math.round((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000);}
+// Procura o jogo (tipo 'Jogo') mais próximo do centro desta semana, numa janela de
+// ±7 dias — cobre o caso do jogo dessa semana ter sido movido, e permite ainda
+// ancorar semanas "de transição" sem jogo próprio ao jogo anterior/seguinte mais perto.
+function _mcAnchorGameDate(weekDates,teamId){
+  const lo=addDaysStr(weekDates[0],-7), hi=addDaysStr(weekDates[6],7);
+  const games=(APP.schedule||[]).filter(e=>e.type==='Jogo'&&e.teamId===teamId&&e.date>=lo&&e.date<=hi);
+  if(!games.length)return null;
+  const mid=weekDates[3];
+  let best=games[0],bestDist=Math.abs(_daysDiff(games[0].date,mid));
+  games.forEach(g=>{const dd=Math.abs(_daysDiff(g.date,mid));if(dd<bestDist){best=g;bestDist=dd;}});
+  return best.date;
+}
+function _mcStepFor(dt,gameDate){const diff=_daysDiff(dt,gameDate);return ((diff%7)+7)%7;}
+function _defMcTemplate(teamId){
+  return {id:uid(),teamId,days:{
+    0:{label:'Jogo',color:MC_STEP_COLORS[0],rpeMin:8,rpeMax:9,intensity:'Muito alta',blocks:[
+      {title:'Auditório · 2h antes',type:'list',items:['Definição do onze inicial','Organização tática e estratégia','Tarefas individuais e coletivas','Comportamentos ajustados ao adversário']},
+      {title:'Aquecimento · 45min antes',type:'list',items:['Ativação neuromuscular progressiva','Acelerações e sprints curtos','Finalizações e situações de jogo']},
+      {title:'Jogo · 4 momentos',type:'tags',items:['Org. Ofensiva','Org. Defensiva','Trans. Ataque','Trans. Defesa','Bolas Paradas']},
+      {title:'Pós-jogo',type:'list',items:['Feedback individual e coletivo','PSE + Hooper + fase do ciclo menstrual','Registo de vídeo para análise de segunda']}
+    ]},
+    1:{label:'Folga',color:MC_STEP_COLORS[1],rpeMin:null,rpeMax:null,intensity:'',blocks:[]},
+    2:{label:'Recuperação Ativa',color:MC_STEP_COLORS[2],rpeMin:5,rpeMax:8,intensity:'Baixa',blocks:[
+      {title:'Auditório · Análise do jogo anterior',type:'list',items:['Vídeo dos momentos-chave do jogo','Reforço positivo — o que correu bem','Pontos de melhoria individuais']},
+      {title:'Campo · Jogaram ≥45min',type:'list',items:['Volume baixo, RPE 4-5','Mobilidade e propriocepção','Força leve']},
+      {title:'Campo · Pouco / não jogaram',type:'list',items:['Manutenção de níveis básicos, RPE 7-8','Força a intensidade moderada-alta']}
+    ]},
+    3:{label:'Transição',color:MC_STEP_COLORS[3],rpeMin:6,rpeMax:7,intensity:'Média',blocks:[
+      {title:'Auditório · Análise geral do adversário',type:'list',items:['Modelo de jogo e identidade tática do adversário','Sistema de jogo e variantes utilizadas','Jogadoras-chave a considerar']},
+      {title:'Campo · Transição física',type:'list',items:['Retoma progressiva do volume','Jogo posicional e combinações diretas']}
+    ]},
+    4:{label:'Resistência + Org. Adversário',color:MC_STEP_COLORS[4],rpeMin:6,rpeMax:8,intensity:'Alta',blocks:[
+      {title:'Auditório · Organização do adversário',type:'list',items:['Organização defensiva — bloco, pressão, marcações','Organização ofensiva — estrutura, circulação, ataques']},
+      {title:'Campo · Pico de intensidade',type:'list',items:['Máxima exigência física e cognitiva','Exercícios de alta intensidade','Integração dos comportamentos ensaiados no auditório']}
+    ]},
+    5:{label:'Tático-Técnico + Bolas Paradas',color:MC_STEP_COLORS[5],rpeMin:6,rpeMax:7,intensity:'Média-alta',blocks:[
+      {title:'Auditório · Bolas paradas',type:'list',items:['Cantos ofensivos e defensivos — rotinas e execuções','Livres diretos e indiretos','Lançamentos de linha lateral e pontapé de baliza']},
+      {title:'Campo · Tático-técnico',type:'list',items:['Refinamento tático com qualidade de execução','Treino específico das bolas paradas ofensivas e defensivas']}
+    ]},
+    6:{label:'Treino Autónomo / Casa',color:MC_STEP_COLORS[6],rpeMin:null,rpeMax:null,intensity:'Baixa',blocks:[
+      {title:'Plano individual',type:'list',items:['30-40min de alongamento, preparação e ativação para o jogo']}
+    ]}
+  },weekSummary:{
+    diasNaoTreino:[{label:'Domingo',text:'Folga total. Recuperação passiva.'},{label:'Sexta',text:'Treino autónomo em casa: 30-40min de alongamento, preparação e ativação para o jogo.'}],
+    auditorioPorDia:[{label:'Segunda',text:'Análise do jogo anterior'},{label:'Terça',text:'Análise geral do adversário'},{label:'Quarta',text:'Organização defensiva e ofensiva do adversário'},{label:'Quinta',text:'Bolas paradas do adversário'}],
+    monitorizacao:[{label:'PSE (Borg 1-10)',text:'Após cada sessão de treino'},{label:'Questionário Hooper',text:'Em todos os dias de treino'},{label:'Fase do ciclo menstrual',text:'Menstrual / Folicular / Ovulatória / Lútea'},{label:'Análise de vídeo',text:'Jogo anterior (Seg) e adversário (Ter-Qui)'}],
+    pilares:[{label:'Especificidade',text:'Sessões ancoradas no modelo de jogo'},{label:'Progressividade',text:'Carga cresce ao longo da semana até ao jogo'},{label:'Variabilidade',text:'Estímulos diversificados por microciclo'},{label:'Teoria integrada',text:'Sessão de auditório em cada dia de treino'}]
+  }};
+}
+function _mcGetTemplate(teamId){
+  if(!APP.mcTemplates)APP.mcTemplates=[];
+  let t=APP.mcTemplates.find(x=>x.teamId===teamId);
+  if(!t){t=_defMcTemplate(teamId);APP.mcTemplates.push(t);saveData();}
+  return t;
+}
+function _mcDayCardHtml(dt,dayName,step,tpl,isToday){
+  const d=(tpl.days&&tpl.days[step])||{label:'',blocks:[]};
+  const c=d.color||'#27a34a';
+  const rpeTxt=(d.rpeMin||d.rpeMax)?`RPE ${d.rpeMin??'?'}-${d.rpeMax??'?'}`:'';
+  const blocksHtml=(d.blocks||[]).map(b=>{
+    if(b.type==='tags'){
+      return `<div style="margin-bottom:6px"><div style="font-size:9.5px;font-weight:700;color:var(--t2);text-transform:uppercase">${escHtml(b.title||'')}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">${(b.items||[]).map(it=>`<span class="bdg" style="background:${c}22;color:${c}">${escHtml(it)}</span>`).join('')}</div></div>`;
+    }
+    return `<div style="margin-bottom:6px"><div style="font-size:9.5px;font-weight:700;color:var(--t2);text-transform:uppercase">${escHtml(b.title||'')}</div>
+      <ul style="margin:3px 0 0 14px;padding:0;font-size:11px;line-height:1.5">${(b.items||[]).map(it=>`<li>${escHtml(it)}</li>`).join('')}</ul></div>`;
+  }).join('');
+  const evs=(APP.schedule||[]).filter(e=>e.date===dt&&e.teamId===_mcTeam).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const evHtml=evs.map(e=>{const ec=EV_COLORS[e.type]||'#27a34a';return`<div style="font-size:10px;padding:3px 6px;margin-bottom:3px;border-left:2px solid ${ec};background:${ec}15;border-radius:2px;cursor:pointer" onclick="_mcOpenEvent('${e.id}')">${e.time?e.time.slice(0,5)+' ':''}${escHtml(_planEvTitle(e))}</div>`;}).join('');
+  return `<div class="card" style="overflow:hidden;${isToday?'border-color:'+c:''}">
+    <div style="background:${c}22;color:${c};padding:6px 10px;font-weight:800;font-size:11px">${dayName} · ${fmtDateShort(dt)}${d.label?' · '+escHtml(d.label):''}</div>
+    <div class="cb" style="padding:8px 10px">
+      ${rpeTxt||d.intensity?`<div style="font-size:10px;color:var(--t2);margin-bottom:6px">${rpeTxt}${d.intensity?' · Intensidade '+escHtml(d.intensity):''}</div>`:''}
+      ${blocksHtml}
+      ${evHtml?`<div style="margin-top:6px;border-top:1px dashed var(--brd);padding-top:6px">${evHtml}</div>`:''}
+      <div class="mc-add" style="margin-top:6px" onclick="_mcNewEvent('${dt}')">＋ Evento</div>
+    </div>
+  </div>`;
+}
+const MC_SUMMARY_SECTIONS=[['diasNaoTreino','Dias não treino'],['auditorioPorDia','Bloco auditório por dia'],['monitorizacao','Monitorização'],['pilares','Pilares metodológicos']];
+function _mcSummaryPanelsHtml(tpl){
+  const s=tpl.weekSummary||{};
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:14px">
+    ${MC_SUMMARY_SECTIONS.map(([key,title])=>{
+      const items=s[key]||[];
+      return `<div class="card"><div class="cb" style="padding:10px 12px">
+        <div style="font-weight:800;font-size:11px;margin-bottom:6px">${title}</div>
+        ${items.length?items.map(it=>`<div style="font-size:10.5px;margin-bottom:4px"><b>${escHtml(it.label||'')}</b>${it.text?' — '+escHtml(it.text):''}</div>`).join(''):'<div style="font-size:10.5px;color:var(--t2)">—</div>'}
+      </div></div>`;
+    }).join('')}
+  </div>`;
+}
 function _renderMcSemana(){
   const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
   const weekDates=Array.from({length:7},(_,i)=>addDaysStr(_mcWeek,i));
@@ -3170,18 +3275,11 @@ function _renderMcSemana(){
     ?`<span class="bdg" style="background:${(macro.color||'#27a34a')}22;color:${macro.color||'#27a34a'};font-weight:700">${escHtml(macro.name)}</span>`
     :`<span style="font-size:11px;color:var(--t2)">Sem fase da época definida para esta semana — configura em "Época (Macrociclos)"</span>`;
 
-  let gridHtml=`<div class="mc-wrap"><div class="mc-grid">`;
-  weekDates.forEach((dt,i)=>{
-    const isToday=dt===td;
-    const evs=(APP.schedule||[]).filter(e=>e.date===dt&&e.teamId===_mcTeam).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    const evHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div class="mc-sess" style="background:${c}22;color:${c};border-left:2px solid ${c}" onclick="_mcOpenEvent('${e.id}')" title="${escHtml(e.notes||e.title||e.type)}">${e.time?e.time.slice(0,5)+' ':''}${escHtml(_planEvTitle(e))}</div>`;}).join('');
-    gridHtml+=`<div class="mc-day" style="${isToday?'border-color:var(--c1)':''}">
-      <div class="mc-dn" style="${isToday?'color:var(--c1l)':''}">${days[i]}<br><span style="font-size:9px;font-weight:400">${fmtDateShort(dt)}</span></div>
-      ${evHtml}
-      <div class="mc-add" onclick="_mcNewEvent('${dt}')">＋ Evento</div>
-    </div>`;
-  });
-  gridHtml+=`</div></div>`;
+  const tpl=_mcGetTemplate(_mcTeam);
+  let gameDate=_mcAnchorGameDate(weekDates,_mcTeam);
+  const gameFallback=!gameDate;
+  if(!gameDate)gameDate=weekDates[5];
+  const cardsHtml=weekDates.map((dt,i)=>_mcDayCardHtml(dt,days[i],_mcStepFor(dt,gameDate),tpl,dt===td)).join('');
 
   // Carga total da semana, lida do Planeamento (não de dados próprios)
   const weekEvs=(APP.schedule||[]).filter(e=>weekDates.includes(e.date)&&e.teamId===_mcTeam);
@@ -3196,7 +3294,7 @@ function _renderMcSemana(){
       <span style="font-size:13px;font-weight:800;min-width:220px;text-align:center">Semana ${fmtDate(_mcWeek)} — ${fmtDate(weekEnd)}</span>
       <button class="btn btn-gh btn-sm" onclick="mcNav(1)">›</button>
     </div>
-    <div class="sh-a"><button class="btn btn-gh btn-sm" onclick="exportMicrociclosPDF()">🖨️ PDF</button><button class="btn btn-g btn-sm" onclick="mcNav(0)">Semana Atual</button></div>
+    <div class="sh-a"><button class="btn btn-gh btn-sm" onclick="_mcOpenTplEditor()">⚙️ Editar Modelo</button><button class="btn btn-gh btn-sm" onclick="exportMicrociclosPDF()">🖨️ PDF</button><button class="btn btn-g btn-sm" onclick="mcNav(0)">Semana Atual</button></div>
   </div>
   <div class="card" style="margin-bottom:16px">
     <div class="cb" style="padding:12px 16px">
@@ -3210,9 +3308,93 @@ function _renderMcSemana(){
       </div>
     </div>
   </div>
-  ${gridHtml}`;
+  ${gameFallback?`<div class="al al-b" style="margin-bottom:10px">Jogo não identificado perto desta semana — a assumir Sábado como dia de referência.</div>`:''}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">${cardsHtml}</div>
+  ${_mcSummaryPanelsHtml(tpl)}`;
 }
 function mcNav(dir){if(dir===0){_mcWeek=getMonday(today());} else {_mcWeek=addDaysStr(_mcWeek,dir*7);}_renderMcSemana();}
+// ─── Editor do Modelo da Semana ─────────────────────────────
+let _mcTplDraft=null, _mcTplStep=0;
+function _mcOpenTplEditor(){
+  const t=_mcGetTemplate(_mcTeam);
+  _mcTplDraft=JSON.parse(JSON.stringify(t));
+  _mcTplStep=0;
+  openMod('Modelo da Semana — '+(APP.teams.find(x=>x.id===_mcTeam)?.name||''),_mcTplEditorHtml(),'xl');
+}
+function _mcRefreshTplEditor(){const b=document.getElementById('modal-body');if(b)b.innerHTML=_mcTplEditorHtml();}
+function _mcTplEditorHtml(){
+  const stepLabels=['Dia de Jogo','+1','+2','+3','+4','+5','+6'];
+  const tabs=[0,1,2,3,4,5,6].map(s=>{
+    const d=_mcTplDraft.days[s]||{};
+    return `<button class="tab-btn ${s===_mcTplStep?'on':''}" onclick="_mcTplStep=${s};_mcRefreshTplEditor()">${escHtml(d.label||stepLabels[s])}</button>`;
+  }).join('')+`<button class="tab-btn ${_mcTplStep==='summary'?'on':''}" onclick="_mcTplStep='summary';_mcRefreshTplEditor()">📋 Resumo</button>`;
+  const body=_mcTplStep==='summary'?_mcTplSummaryHtml():_mcTplDayEditorHtml();
+  return `<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Molde reutilizável — aplica-se a todas as semanas desta equipa. Os dias adaptam-se automaticamente ao dia de jogo real de cada semana.</div>
+  <div class="tabs" style="margin-bottom:12px;flex-wrap:wrap">${tabs}</div>
+  ${body}
+  <div style="display:flex;gap:8px;margin-top:16px;border-top:1px solid var(--brd);padding-top:12px">
+    <button class="btn btn-g" onclick="_mcSaveTpl()">💾 Guardar Modelo</button>
+    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+  </div>`;
+}
+function _mcTplDayEditorHtml(){
+  const d=_mcTplDraft.days[_mcTplStep]||(_mcTplDraft.days[_mcTplStep]={label:'',color:MC_STEP_COLORS[_mcTplStep],rpeMin:null,rpeMax:null,intensity:'',blocks:[]});
+  const blocksHtml=(d.blocks||[]).map((b,bi)=>`
+    <div class="card" style="margin-bottom:8px;padding:10px">
+      <div class="fr" style="margin-bottom:6px;align-items:flex-end">
+        <div class="form-g" style="flex:1"><label class="fl">Título do bloco</label><input class="fc" value="${escHtml(b.title||'')}" onchange="_mcTplBlockField(${bi},'title',this.value)"></div>
+        <div class="form-g"><label class="fl">Tipo</label><select class="fc" onchange="_mcTplBlockField(${bi},'type',this.value)">
+          <option value="list" ${b.type!=='tags'?'selected':''}>Lista</option>
+          <option value="tags" ${b.type==='tags'?'selected':''}>Etiquetas</option>
+        </select></div>
+        <button class="btn btn-r btn-sm" onclick="_mcTplRemoveBlock(${bi})">🗑️</button>
+      </div>
+      <label class="fl">Itens (um por linha)</label>
+      <textarea class="fc" rows="3" onchange="_mcTplBlockItems(${bi},this.value)">${escHtml((b.items||[]).join('\n'))}</textarea>
+    </div>`).join('');
+  return `
+  <div class="fr" style="margin-bottom:8px">
+    <div class="form-g" style="flex:1"><label class="fl">Nome do dia</label><input class="fc" value="${escHtml(d.label||'')}" onchange="_mcTplDayField('label',this.value)"></div>
+    <div class="form-g"><label class="fl">Cor</label><input class="fc" type="color" style="height:36px;padding:2px" value="${d.color||'#27a34a'}" onchange="_mcTplDayField('color',this.value)"></div>
+  </div>
+  <div class="fr" style="margin-bottom:12px">
+    <div class="form-g"><label class="fl">RPE mín</label><input class="fc" type="number" min="1" max="10" value="${d.rpeMin??''}" onchange="_mcTplDayField('rpeMin',this.value?+this.value:null)"></div>
+    <div class="form-g"><label class="fl">RPE máx</label><input class="fc" type="number" min="1" max="10" value="${d.rpeMax??''}" onchange="_mcTplDayField('rpeMax',this.value?+this.value:null)"></div>
+    <div class="form-g" style="flex:1"><label class="fl">Intensidade</label><select class="fc" onchange="_mcTplDayField('intensity',this.value)">
+      ${['','Baixa','Média','Média-alta','Alta','Muito alta'].map(v=>`<option value="${v}" ${d.intensity===v?'selected':''}>${v||'—'}</option>`).join('')}
+    </select></div>
+  </div>
+  <div style="margin-bottom:8px;font-weight:700;font-size:12px">Blocos de conteúdo</div>
+  ${blocksHtml||'<div style="color:var(--t2);font-size:12px;margin-bottom:8px">Sem blocos ainda.</div>'}
+  <button class="btn btn-gh btn-sm" onclick="_mcTplAddBlock()">＋ Bloco</button>`;
+}
+function _mcTplSummaryHtml(){
+  const s=_mcTplDraft.weekSummary||(_mcTplDraft.weekSummary={diasNaoTreino:[],auditorioPorDia:[],monitorizacao:[],pilares:[]});
+  return MC_SUMMARY_SECTIONS.map(([key,title])=>{
+    const items=s[key]||(s[key]=[]);
+    const rows=items.map((it,ii)=>`
+      <div class="fr" style="margin-bottom:6px">
+        <input class="fc" style="flex:1" value="${escHtml(it.label||'')}" placeholder="Título" onchange="_mcTplSummField('${key}',${ii},'label',this.value)">
+        <input class="fc" style="flex:2" value="${escHtml(it.text||'')}" placeholder="Texto" onchange="_mcTplSummField('${key}',${ii},'text',this.value)">
+        <button class="btn btn-r btn-sm" onclick="_mcTplSummRemove('${key}',${ii})">🗑️</button>
+      </div>`).join('');
+    return `<div style="margin-bottom:16px"><div style="font-weight:700;font-size:12px;margin-bottom:6px">${title}</div>${rows}<button class="btn btn-gh btn-sm" onclick="_mcTplSummAdd('${key}')">＋ Item</button></div>`;
+  }).join('');
+}
+function _mcTplDayField(k,v){if(!_mcTplDraft.days[_mcTplStep])_mcTplDraft.days[_mcTplStep]={blocks:[]};_mcTplDraft.days[_mcTplStep][k]=v;}
+function _mcTplAddBlock(){const d=_mcTplDraft.days[_mcTplStep];if(!d.blocks)d.blocks=[];d.blocks.push({title:'',type:'list',items:[]});_mcRefreshTplEditor();}
+function _mcTplRemoveBlock(bi){_mcTplDraft.days[_mcTplStep].blocks.splice(bi,1);_mcRefreshTplEditor();}
+function _mcTplBlockField(bi,k,v){_mcTplDraft.days[_mcTplStep].blocks[bi][k]=v;}
+function _mcTplBlockItems(bi,v){_mcTplDraft.days[_mcTplStep].blocks[bi].items=v.split('\n').map(x=>x.trim()).filter(Boolean);}
+function _mcTplSummField(key,i,f,v){_mcTplDraft.weekSummary[key][i][f]=v;}
+function _mcTplSummAdd(key){_mcTplDraft.weekSummary[key].push({label:'',text:''});_mcRefreshTplEditor();}
+function _mcTplSummRemove(key,i){_mcTplDraft.weekSummary[key].splice(i,1);_mcRefreshTplEditor();}
+function _mcSaveTpl(){
+  if(!APP.mcTemplates)APP.mcTemplates=[];
+  const i=APP.mcTemplates.findIndex(t=>t.teamId===_mcTeam);
+  if(i>=0)APP.mcTemplates[i]=_mcTplDraft;else APP.mcTemplates.push(_mcTplDraft);
+  saveData();closeMod();toast('Modelo da semana guardado ✓');_renderMcSemana();
+}
 function saveMcConfig(){
   const obj=document.getElementById('mc-obj')?.value||'';
   let mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam);
@@ -3325,15 +3507,41 @@ function _deleteMacro(id){
 // padrão do botão único de exportPlaneamentoPDF (Semanal/Mensal). Semana: grelha
 // A4 paisagem com os eventos reais do Planeamento (não dados soltos) + objetivo +
 // fase da época + resumo de carga. Época: lista de fases + linha temporal.
-function _mcPrintDayHtml(dt,dowLabel){
-  const td=today();
-  const isToday=dt===td;
-  const evs=(APP.schedule||[]).filter(e=>e.date===dt&&e.teamId===_mcTeam).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-  const evsHtml=evs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="font-size:7pt;padding:1.5mm 2mm;margin-bottom:1.5mm;border-left:2px solid ${c};background:${c}15;border-radius:2px;line-height:1.3">${e.time?e.time.slice(0,5)+' · ':''}<b>${escHtml(_planEvTitle(e))}</b></div>`;}).join('');
-  return `<div style="min-height:45mm;border:1px solid #ddd;border-radius:2px;padding:2mm;background:${isToday?'#1d6f3b0d':'#fff'}">
-    <div style="font-size:7pt;color:#888;text-transform:uppercase;font-weight:700">${dowLabel}</div>
-    <div style="font-size:9pt;font-weight:700;color:${isToday?'#1d6f3b':'#333'};margin-bottom:1.5mm">${+dt.slice(8,10)}</div>
-    ${evsHtml||'<div style="font-size:7pt;color:#bbb">—</div>'}
+// Cartão de impressão do Modelo da Semana — versão condensada (6-7pt) do
+// cartão do ecrã (_mcDayCardHtml), pensada para caber as 7 colunas + os 4
+// painéis-resumo numa única página A4 paisagem, tal como o print de
+// referência do Roger (03/09/2026). Não repete a listagem de eventos do
+// Planeamento (o objetivo aqui é o molde metodológico, não a agenda).
+function _mcPrintCardHtml(dt,dayName,step,tpl){
+  const d=(tpl.days&&tpl.days[step])||{label:'',blocks:[]};
+  const c=d.color||'#27a34a';
+  const rpeTxt=(d.rpeMin||d.rpeMax)?`RPE ${d.rpeMin??'?'}-${d.rpeMax??'?'}`:'';
+  const blocksHtml=(d.blocks||[]).map(b=>{
+    if(b.type==='tags'){
+      return `<div style="margin-bottom:2mm"><div style="font-size:6pt;font-weight:700;color:#888;text-transform:uppercase">${escHtml(b.title||'')}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:1.5px;margin-top:1mm">${(b.items||[]).map(it=>`<span style="font-size:6.3pt;background:${c}18;color:${c};padding:1px 4px;border-radius:8px">${escHtml(it)}</span>`).join('')}</div></div>`;
+    }
+    return `<div style="margin-bottom:2mm"><div style="font-size:6pt;font-weight:700;color:#888;text-transform:uppercase">${escHtml(b.title||'')}</div>
+      <ul style="margin:1mm 0 0 3mm;padding:0;font-size:6.3pt;line-height:1.35">${(b.items||[]).map(it=>`<li>${escHtml(it)}</li>`).join('')}</ul></div>`;
+  }).join('');
+  return `<div style="border:1px solid #ddd;border-radius:2px;overflow:hidden;background:#fff">
+    <div style="background:${c}22;color:${c};padding:1.5mm 2mm;font-weight:700;font-size:7.5pt">${dayName} ${+dt.slice(8,10)}${d.label?' · '+escHtml(d.label):''}</div>
+    <div style="padding:2mm">
+      ${rpeTxt||d.intensity?`<div style="font-size:6.3pt;color:#666;margin-bottom:1.5mm">${rpeTxt}${d.intensity?' · '+escHtml(d.intensity):''}</div>`:''}
+      ${blocksHtml||'<div style="font-size:6.3pt;color:#bbb">—</div>'}
+    </div>
+  </div>`;
+}
+function _mcPrintSummaryHtml(tpl){
+  const s=tpl.weekSummary||{};
+  return `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:2mm;margin-top:3mm">
+    ${MC_SUMMARY_SECTIONS.map(([key,title])=>{
+      const items=s[key]||[];
+      return `<div style="border:1px solid #eee;border-radius:2px;padding:2mm">
+        <div style="font-size:7pt;font-weight:700;color:#1d6f3b;margin-bottom:1mm">${title}</div>
+        ${items.length?items.map(it=>`<div style="font-size:6.2pt;margin-bottom:1mm"><b>${escHtml(it.label||'')}</b>${it.text?' — '+escHtml(it.text):''}</div>`).join(''):'<div style="font-size:6.2pt;color:#bbb">—</div>'}
+      </div>`;
+    }).join('')}
   </div>`;
 }
 function exportMicrociclosPDF(){
@@ -3358,14 +3566,18 @@ function exportMicrociclosPDF(){
     const totalDur=weekEvs.reduce((s,x)=>s+(+x.dur||0),0);
     const byType={};weekEvs.forEach(e=>{byType[e.type]=(byType[e.type]||0)+1;});
     const summaryHtml=Object.entries(byType).map(([t,n])=>{const c=EV_COLORS[t]||'#27a34a';return`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;font-size:8pt;background:${c}15;color:${c};border-left:2px solid ${c};border-radius:2px;margin-right:6px">${t}: ${n}</span>`;}).join('');
-    const hdr=`<div style="margin-bottom:10px">
-      ${mc.objective?`<div style="font-size:9.5pt;margin-bottom:4px"><b>Objetivo do Microciclo:</b> ${escHtml(mc.objective)}</div>`:''}
-      <div style="font-size:9pt;margin-bottom:6px"><b>Fase da Época:</b> ${macro?escHtml(macro.name):'—'}</div>
-      <div>${summaryHtml}${totalDur?`<span style="font-size:8pt;color:#888;margin-left:6px">Total: ${totalDur} min</span>`:''}</div>
+    const tpl=_mcGetTemplate(_mcTeam);
+    let gameDate=_mcAnchorGameDate(weekDates,_mcTeam);
+    const gameFallback=!gameDate;
+    if(!gameDate)gameDate=weekDates[5];
+    const hdr=`<div style="margin-bottom:6px">
+      ${mc.objective?`<div style="font-size:9pt;margin-bottom:3px"><b>Objetivo do Microciclo:</b> ${escHtml(mc.objective)}</div>`:''}
+      <div style="font-size:8pt;margin-bottom:3px"><b>Fase da Época:</b> ${macro?escHtml(macro.name):'—'}</div>
+      <div>${summaryHtml}${totalDur?`<span style="font-size:7.5pt;color:#888;margin-left:6px">Total: ${totalDur} min</span>`:''}</div>
+      ${gameFallback?`<div style="font-size:7.5pt;color:#b7770d;margin-top:3px">Jogo não identificado perto desta semana — assumido Sábado como dia de referência.</div>`:''}
     </div>`;
-    const cells=weekDates.map((dt,i)=>_mcPrintDayHtml(dt,days[i])).join('');
-    const wkHdr=days.map(d=>`<div style="text-align:center;font-size:8pt;font-weight:700;color:#1d6f3b;padding:2px 0">${d}</div>`).join('');
-    const html=`${hdr}${_planPrintLegendHtml()}<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2mm">${wkHdr}${cells}</div>`;
+    const cells=weekDates.map((dt,i)=>_mcPrintCardHtml(dt,days[i],_mcStepFor(dt,gameDate),tpl)).join('');
+    const html=`${hdr}<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2mm">${cells}</div>${_mcPrintSummaryHtml(tpl)}`;
     _printWin('Microciclo — '+teamName+' — Semana '+fmtDateShort(_mcWeek)+' a '+fmtDateShort(weekEnd),html,null,false,true);
   }
 }
@@ -13842,6 +14054,7 @@ async function pullCloud(){
       if(m.microcycles)APP.microcycles=m.microcycles;
       if(m.sessions)APP.sessions=m.sessions;
       if(m.macrocycles)APP.macrocycles=m.macrocycles;
+      if(m.mcTemplates)APP.mcTemplates=m.mcTemplates;
       // exercises/gymSheets deixaram de vir daqui (01/09/2026) — têm tabelas
       // dedicadas próprias, puxadas acima no array `pulls`. Ver
       // feedback_sps_biblioteca_exercicios_wipe.
@@ -13880,7 +14093,7 @@ async function pushAppMeta(_pushRetry){
           games:APP.games||[], evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
           evalResponses:APP.evalResponses||[], trainings:APP.trainings||[], convocatorias:APP.convocatorias||[],
           scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[],
-          macrocycles:APP.macrocycles||[]
+          macrocycles:APP.macrocycles||[], mcTemplates:APP.mcTemplates||[]
           // exercises/gymSheets removidos daqui (01/09/2026) — já não fazem parte
           // do meta blob, têm tabelas dedicadas com o seu próprio cloudUpsert.
         };
@@ -13932,7 +14145,8 @@ async function pushAppMeta(_pushRetry){
       scouting:APP.scouting||[],
       microcycles:APP.microcycles||[],
       sessions:APP.sessions||[],
-      macrocycles:APP.macrocycles||[]
+      macrocycles:APP.macrocycles||[],
+      mcTemplates:APP.mcTemplates||[]
       // exercises/gymSheets deixaram de fazer parte deste blob a partir de
       // 01/09/2026 — passaram para tabelas dedicadas ('exercises'/'gym_sheets',
       // uma linha por item, cloudUpsert normal). Motivo: mesmo com o merge raso
