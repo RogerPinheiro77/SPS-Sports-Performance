@@ -5273,7 +5273,7 @@ function _jogoPosHtml(g){
     const isS=g.lineup.includes(a.id);
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:6px">
-        <div style="width:20px;height:20px;background:${isS?'var(--pri)':'var(--bg3)'};color:${isS?'#fff':'var(--t1)'};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;flex-shrink:0">${a.number||'?'}</div>
+        <div style="width:20px;height:20px;background:${isS?'var(--pri)':'var(--bg3)'};color:${isS?'#fff':'var(--t1)'};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;flex-shrink:0">${a.number||a.num||'?'}</div>
         <span style="font-size:11px">${escHtml(a.name)}</span></div></td>
       <td><input class="fc" type="number" min="0" max="120" style="width:50px;padding:2px 5px;font-size:11px" value="${st.mins||0}" data-aid="${a.id}" data-field="mins"></td>
       <td><input class="fc" type="number" min="0" max="20" style="width:42px;padding:2px 5px;font-size:11px" value="${st.goals||0}" data-aid="${a.id}" data-field="goals"></td>
@@ -5934,7 +5934,13 @@ function _gdSelectOnPitch(gid,aidOut){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
   const ls=g.liveSession;
   const sec=_gdElapsedSec(ls);
-  const ev={id:uid(),sec,min:_gdMinLabel(sec),phase:ls.phase,type:'substituicao',playerOut:aidOut,playerIn:_gdSubBenchSel};
+  // x/y=50 (centro do círculo central) — pedido do Roger, 04/09/2026: a substituição não
+  // tinha nenhum marcador no relvado (o popup de toque no campo exclui 'substituicao' das
+  // opções, é sempre feita pelo banco toque-toque), por isso nunca aparecia nada visível
+  // durante o jogo, só um toast que desaparece logo. Sem posição real de onde a troca
+  // aconteceu, o centro do campo é um ponto neutro — reaproveita o mesmo mecanismo de
+  // marcador (ícone 🔄 já existe em _GD_TYPES) e o mesmo fade automático aos 10s.
+  const ev={id:uid(),sec,min:_gdMinLabel(sec),phase:ls.phase,type:'substituicao',playerOut:aidOut,playerIn:_gdSubBenchSel,x:50,y:50};
   ls.events.push(ev);
   _gdApplySubPositionRemap(g,aidOut,_gdSubBenchSel);
   _gdRecompute(g);
@@ -6169,7 +6175,7 @@ function _gdStartClockInterval(gid){
 }
 function _gdSubformHtml(g,type,onPitchAts,benchAts){
   const gid=g.id;
-  const opts=list=>list.map(a=>`<option value="${a.id}">${a.number||'?'} ${escHtml(_shortName(a))}</option>`).join('');
+  const opts=list=>list.map(a=>`<option value="${a.id}">${a.number||a.num||'?'} ${escHtml(_shortName(a))}</option>`).join('');
   if(type==='golo'){
     const zoneCell=(zone)=>{
       const sel=_gdGoalZone===zone;
@@ -6397,8 +6403,19 @@ function _jogoAoVivoHtml(g){
       const sel=isBench&&_gdSubBenchSel===a.id;
       const onClick=isBench?`_gdSelectBench('${a.id}')`:`_gdSelectOnPitch('${g.id}','${a.id}')`;
       const active=_gdSubMode&&(isBench||_gdSubBenchSel);
+      // Cores por grupo — pedido do Roger, 04/09/2026: titulares (em campo) em verde,
+      // suplentes (banco) em dourado; a guarda-redes ganha uma cor própria dentro de
+      // cada grupo (laranja em campo, amarelo no banco) para se distinguir das jogadoras
+      // de linha mesmo estando no mesmo grupo. Seleção ativa (a meio de uma substituição)
+      // continua a sobrepor-se com o realce habitual (var(--c1l)), para não se perder o
+      // "quem já está escolhida" no meio das cores fixas.
+      const isGK=a.pos==='GR';
+      const baseBg=isBench?(isGK?'#f1c40f':'#C9A227'):(isGK?'#e67e22':'#27ae60');
+      const baseColor=isBench?'#1a1a1a':'#fff';
+      const bg=sel?'var(--c1l)':baseBg;
+      const col=sel?'#fff':baseColor;
       return `<div onclick="${active?onClick:''}" style="flex-shrink:0;text-align:center;cursor:${active?'pointer':'default'};opacity:${_gdSubMode?'1':'.55'}">
-        <div style="width:34px;height:34px;border-radius:50%;background:${sel?'var(--c1l)':'var(--bg3)'};border:2px solid ${sel?'var(--c1l)':'var(--brd)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:${sel?'#fff':'var(--t1)'}">${a.number||'?'}</div>
+        <div style="width:34px;height:34px;border-radius:50%;background:${bg};border:2px solid ${bg};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:${col}">${a.number||a.num||'?'}</div>
         <div style="font-size:8px;color:var(--t2);max-width:38px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(_shortName(a))}</div>
       </div>`;
     };
@@ -6434,7 +6451,7 @@ function _jogoAoVivoHtml(g){
         pickerBlock+=`<div style="display:flex;gap:4px;padding:0 10px 8px">
           <select id="gd-assign-sel-${e.id}" class="fc" style="flex:1;font-size:11px;padding:3px 6px">
             <option value="">— sem jogadora —</option>
-            ${onPitchAts.map(a=>`<option value="${a.id}" ${e.player===a.id?'selected':''}>${a.number||'?'} ${escHtml(_shortName(a))}</option>`).join('')}
+            ${onPitchAts.map(a=>`<option value="${a.id}" ${e.player===a.id?'selected':''}>${a.number||a.num||'?'} ${escHtml(_shortName(a))}</option>`).join('')}
           </select>
           <button class="btn btn-xs btn-g" onclick="_gdAssignPlayer('${g.id}','${e.id}',document.getElementById('gd-assign-sel-${e.id}').value)">✓</button>
           <button class="btn btn-xs btn-gh" onclick="_gdCancelAssign()">✕</button>
@@ -6840,7 +6857,7 @@ function exportJogoPDF(gid,type){
   if(type==='posjogo'||type==='full'){
     const stats=g.playerStats||[];
     const ats=[...g.lineup,...g.subs].map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
-    const sR=ats.map(a=>{const st=stats.find(s=>s.aid===a.id)||{mins:0,goals:0,assists:0,yellow:0,red:0};const isS=g.lineup.includes(a.id);return `<tr><td>${a.number||'?'}</td><td>${a.name}${isS?'':' (S)'}</td><td>${a.pos||''}</td><td>${st.mins||0}'</td><td>${st.goals||0}</td><td>${st.assists||0}</td><td>${st.yellow||0}</td><td>${st.red||0}</td></tr>`;}).join('');
+    const sR=ats.map(a=>{const st=stats.find(s=>s.aid===a.id)||{mins:0,goals:0,assists:0,yellow:0,red:0};const isS=g.lineup.includes(a.id);return `<tr><td>${a.number||a.num||'?'}</td><td>${a.name}${isS?'':' (S)'}</td><td>${a.pos||''}</td><td>${st.mins||0}'</td><td>${st.goals||0}</td><td>${st.assists||0}</td><td>${st.yellow||0}</td><td>${st.red||0}</td></tr>`;}).join('');
     const res=g.g1!=null&&g.g2!=null?`${g.g1}–${g.g2}`:'—';
     const tlEvs=(g.fpfTimeline||[]).filter(e=>e.type!=='inicio'&&e.type!=='fim');
     const tlRows=tlEvs.map(e=>{
