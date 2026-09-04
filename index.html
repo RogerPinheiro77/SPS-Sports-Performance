@@ -134,6 +134,9 @@ ul{list-style:none}
 .nu-mode #tb-cfg-btn,.nu-mode .tb-btn[onclick="toggleSb()"]{display:none}
 .nu-only{display:none}
 .nu-mode .nu-only{display:flex}
+/* Home+Agenda Geral (sps-v130) acrescentaram atalhos à topbar do fs-mode/nu-mode —
+   flex-wrap evita cortar botões em telemóveis mais estreitos. */
+.fs-mode .topbar,.nu-mode .topbar{flex-wrap:wrap;height:auto;min-height:var(--th);padding:8px 12px;row-gap:6px}
 #sb-backdrop{display:none}
 /* Campo tocável do Ao Vivo — maior em tablet/desktop (mais espaço, toque mais preciso),
    compacto em telemóvel. A escala é feita pelo viewBox do SVG, não pelas coordenadas. */
@@ -432,15 +435,17 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn gy-only" onclick="_gsTab='registos';navTo('fichas-ginasio')" title="Registo">🏋️</button>
       <button class="tb-btn gy-only" onclick="navTo('biblioteca')" title="Biblioteca">📚</button>
       <button class="tb-btn gy-only" onclick="logout()" title="Sair">🚪</button>
-      <button class="tb-btn fs-only" onclick="navTo('fisio-dash')" title="Dashboard">🩺</button>
+      <button class="tb-btn fs-only" onclick="navTo('fisio-home')" title="Home">🏠</button>
       <button class="tb-btn fs-only" onclick="navTo('fisio-ep')" title="Episódios">📈</button>
       <button class="tb-btn fs-only" onclick="navTo('fisio-trat')" title="Tratamentos">💊</button>
       <button class="tb-btn fs-only" onclick="navTo('fisio-anamnese')" title="Anamnese">📋</button>
+      <button class="tb-btn fs-only" onclick="navTo('fisio-agenda-geral')" title="Agenda Geral">🗓️</button>
       <button class="tb-btn fs-only" onclick="navTo('fisio-consultas')" title="Consultas">📅</button>
       <button class="tb-btn fs-only" onclick="logout()" title="Sair">🚪</button>
-      <button class="tb-btn nu-only" onclick="navTo('nutri-dash')" title="Dashboard">🏠</button>
+      <button class="tb-btn nu-only" onclick="navTo('nutri-home')" title="Home">🏠</button>
       <button class="tb-btn nu-only" onclick="navTo('nutri-aval')" title="Avaliações">📏</button>
       <button class="tb-btn nu-only" onclick="navTo('nutri-planos')" title="Planos">🥗</button>
+      <button class="tb-btn nu-only" onclick="navTo('nutri-agenda-geral')" title="Agenda Geral">🗓️</button>
       <button class="tb-btn nu-only" onclick="navTo('nutri-consultas')" title="Consultas">📅</button>
       <button class="tb-btn nu-only" onclick="logout()" title="Sair">🚪</button>
     </div>
@@ -462,14 +467,18 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-fichas-ginasio"></div>
       <div class="pg" id="pg-treinos-ind"></div>
       <div class="pg" id="pg-formacao"></div>
+      <div class="pg" id="pg-fisio-home"></div>
       <div class="pg" id="pg-fisio-dash"></div>
       <div class="pg" id="pg-fisio-ep"></div>
       <div class="pg" id="pg-fisio-trat"></div>
       <div class="pg" id="pg-fisio-anamnese"></div>
+      <div class="pg" id="pg-fisio-agenda-geral"></div>
       <div class="pg" id="pg-fisio-consultas"></div>
+      <div class="pg" id="pg-nutri-home"></div>
       <div class="pg" id="pg-nutri-dash"></div>
       <div class="pg" id="pg-nutri-aval"></div>
       <div class="pg" id="pg-nutri-planos"></div>
+      <div class="pg" id="pg-nutri-agenda-geral"></div>
       <div class="pg" id="pg-nutri-consultas"></div>
       <div class="pg" id="pg-config"></div>
       <div class="pg" id="pg-relatorios"></div>
@@ -903,16 +912,20 @@ const ALL_PAGES=[
   {sec:'Exportações'},
   {id:'relatorios',icon:'📥',label:'Relatórios'},
   {sec:'Fisioterapia'},
-  {id:'fisio-dash',icon:'🏠',label:'Dashboard'},
+  {id:'fisio-home',icon:'🏠',label:'Home'},
   {id:'fisio-ep',icon:'🩺',label:'Episódios'},
   {id:'fisio-trat',icon:'💊',label:'Tratamentos'},
   {id:'fisio-anamnese',icon:'📋',label:'Anamnese'},
+  {id:'fisio-agenda-geral',icon:'🗓️',label:'Agenda Geral'},
   {id:'fisio-consultas',icon:'📅',label:'Consultas'},
+  {id:'fisio-dash',icon:'📊',label:'Dashboard Completo'},
   {sec:'Nutrição'},
-  {id:'nutri-dash',icon:'🏠',label:'Dashboard'},
+  {id:'nutri-home',icon:'🏠',label:'Home'},
   {id:'nutri-aval',icon:'📏',label:'Avaliações'},
   {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
+  {id:'nutri-agenda-geral',icon:'🗓️',label:'Agenda Geral'},
   {id:'nutri-consultas',icon:'📅',label:'Consultas'},
+  {id:'nutri-dash',icon:'📊',label:'Dashboard Completo'},
 ];
 const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 // Cargos: cada um define que páginas vê (pages), se só pode consultar (readOnly)
@@ -924,8 +937,8 @@ const ROLE_DEFS={
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
-  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-dash','fisio-ep','fisio-trat','fisio-anamnese','fisio-consultas'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-dash','nutri-aval','nutri-planos','nutri-consultas'],readOnly:false,manageUsers:false},
+  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-dash'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-agenda-geral','nutri-consultas','nutri-dash'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos'],readOnly:true,manageUsers:false}
 };
@@ -994,7 +1007,7 @@ function _maybeEnterFisioMode(){
     return;
   }
   document.body.classList.add('fs-mode');
-  navTo('fisio-dash');
+  navTo('fisio-home');
 }
 function _nutriEligibleRole(role){
   const def=ROLE_DEFS[role];
@@ -1007,13 +1020,13 @@ function _maybeEnterNutriMode(){
     return;
   }
   document.body.classList.add('nu-mode');
-  navTo('nutri-dash');
+  navTo('nutri-home');
 }
 // Títulos qualificados por página — partilhado entre navTo() (cabeçalho da página) e
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-dash':'Fisioterapia — Dashboard','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','nutri-dash':'Nutrição — Dashboard','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1089,7 +1102,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-consultas':renderFisioConsultas,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -10235,6 +10248,56 @@ function _fisioResponsavelSelectorHtml(){
     </select>
   </div>`;
 }
+// Home do SPS-Fisio (sps-v130) — dashboard mais intuitivo tipo app da atleta: grelha de
+// cartões coloridos (mesmo padrão _card/_bdg de renderAtHome) em vez de logo cair no
+// Dashboard Completo denso. Pedido do Roger: "dashboard (home) mais intuitivo tipo app
+// atleta e que também tenham a agenda como na app atleta" — ver project_sps_fisio_nutri_home_agenda.
+// Vira a página de entrada de ?fisio=1 (ver _maybeEnterFisioMode) e 1º item de
+// ROLE_DEFS.fisio.pages (_defaultPageForRole).
+function renderFisioHome(){
+  const td=today();
+  const activeInj=APP.injuries.filter(i=>i.status==='ativo'||i.status==='reabilitação').length;
+  const anamPend=APP.athletes.filter(a=>!_getAnamnesis(a.id).selfReportUpdatedAt).length;
+  const upcomingC=(APP.fisioAppointments||[]).filter(c=>c.status==='agendada'&&c.date>=td).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const nextC=upcomingC[0];
+  const todayEvs=(APP.schedule||[]).filter(e=>e.date===td).length;
+  const cicloAlerta=_riscoCicloHojeRows().filter(r=>r.risco.lvl&&r.risco.lvl!=='g').length;
+
+  const _bdg=(n,color)=>n?`<div style="position:absolute;top:7px;right:7px;background:${color};color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${n}</div>`:'';
+  const _card=(page,icon,iconColor,title,sub,subColor,badge,rgb)=>`
+  <div onclick="navTo('${page}')" style="background:rgba(${rgb},.1);border:1px solid rgba(${rgb},.3);border-radius:12px;padding:13px 11px;cursor:pointer;position:relative;min-height:90px">
+    ${badge}
+    <i class="ti ti-${icon}" style="font-size:24px;color:${iconColor};display:block;margin-bottom:6px" aria-hidden="true"></i>
+    <div style="font-size:12px;font-weight:800;color:var(--t1)">${title}</div>
+    <div style="font-size:10px;color:${subColor};margin-top:3px;line-height:1.3">${sub}</div>
+  </div>`;
+
+  const cards=[
+    _card('fisio-ep','stethoscope','#f87171','Episódios',
+      activeInj?`${activeInj} em acompanhamento`:'Sem lesões ativas',
+      activeInj?'#f87171':'#4ade80', _bdg(activeInj||'','#dc2626'),'220,38,38'),
+    _card('fisio-trat','first-aid-kit','#fb923c','Tratamentos',
+      `${APP.treatments.length} registados`,'var(--t2)','','234,88,12'),
+    _card('fisio-anamnese','clipboard-text','#38bdf8','Anamnese',
+      anamPend?`${anamPend} por preencher`:'Todas preenchidas ✓',
+      anamPend?'#f87171':'#4ade80', _bdg(anamPend||'','#dc2626'),'2,132,199'),
+    _card('fisio-agenda-geral','calendar','#a78bfa','Agenda Geral',
+      todayEvs?`${todayEvs} evento${todayEvs>1?'s':''} hoje`:'Sem eventos hoje',
+      todayEvs?'#a78bfa':'var(--t2)', _bdg(todayEvs||'','#7c3aed'),'124,58,237'),
+    _card('fisio-consultas','calendar-event','#2dd4bf','Consultas',
+      nextC?`Próx: ${fmtDateShort(nextC.date)}`:'Sem consultas agendadas',
+      nextC?'#2dd4bf':'var(--t2)', _bdg(upcomingC.length||'','#0d9488'),'13,148,136'),
+    _card('fisio-dash','chart-bar','#E3BF4A','Dashboard Completo',
+      cicloAlerta?`${cicloAlerta} alerta(s) de ciclo hoje`:'Ver análise completa',
+      cicloAlerta?'#f87171':'var(--t2)', _bdg(cicloAlerta||'','#dc2626'),'217,119,6'),
+  ];
+
+  document.getElementById('pg-fisio-home').innerHTML=`
+  <div style="font-size:17px;font-weight:900;margin-bottom:2px">Olá! 👋</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;text-transform:capitalize">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
+  ${_fisioAlertsHtml()}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">${cards.join('')}</div>`;
+}
 function renderFisioDash(){
   const active=APP.injuries.filter(i=>i.status==='ativo');
   const rehab=APP.injuries.filter(i=>i.status==='reabilitação');
@@ -10779,6 +10842,48 @@ function _nutriAlertsHtml(){
     }).join('')}
     </div>
   </div>`;
+}
+// Home do SPS-Nutri (sps-v130) — réplica 1:1 do espírito de renderFisioHome, ver nota
+// lá. Vira a página de entrada de ?nutri=1 (ver _maybeEnterNutriMode) e 1º item de
+// ROLE_DEFS.nutri.pages.
+function renderNutriHome(){
+  const td=today();
+  const withPlan=APP.athletes.filter(a=>APP.nutritionPlans.some(p=>p.athleteId===a.id&&p.active)).length;
+  const semPlano=APP.athletes.length-withPlan;
+  const upcomingC=(APP.nutritionAppointments||[]).filter(c=>c.status==='agendada'&&c.date>=td).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const nextC=upcomingC[0];
+  const todayEvs=(APP.schedule||[]).filter(e=>e.date===td).length;
+
+  const _bdg=(n,color)=>n?`<div style="position:absolute;top:7px;right:7px;background:${color};color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${n}</div>`:'';
+  const _card=(page,icon,iconColor,title,sub,subColor,badge,rgb)=>`
+  <div onclick="navTo('${page}')" style="background:rgba(${rgb},.1);border:1px solid rgba(${rgb},.3);border-radius:12px;padding:13px 11px;cursor:pointer;position:relative;min-height:90px">
+    ${badge}
+    <i class="ti ti-${icon}" style="font-size:24px;color:${iconColor};display:block;margin-bottom:6px" aria-hidden="true"></i>
+    <div style="font-size:12px;font-weight:800;color:var(--t1)">${title}</div>
+    <div style="font-size:10px;color:${subColor};margin-top:3px;line-height:1.3">${sub}</div>
+  </div>`;
+
+  const cards=[
+    _card('nutri-aval','ruler','#38bdf8','Avaliações',
+      `${APP.nutritionAssessments.length} registadas`,'var(--t2)','','2,132,199'),
+    _card('nutri-planos','salad','#4ade80','Planos',
+      semPlano?`${semPlano} sem plano ativo`:'Todas com plano ✓',
+      semPlano?'#f87171':'#4ade80', _bdg(semPlano||'','#dc2626'),'22,163,74'),
+    _card('nutri-agenda-geral','calendar','#a78bfa','Agenda Geral',
+      todayEvs?`${todayEvs} evento${todayEvs>1?'s':''} hoje`:'Sem eventos hoje',
+      todayEvs?'#a78bfa':'var(--t2)', _bdg(todayEvs||'','#7c3aed'),'124,58,237'),
+    _card('nutri-consultas','calendar-event','#2dd4bf','Consultas',
+      nextC?`Próx: ${fmtDateShort(nextC.date)}`:'Sem consultas agendadas',
+      nextC?'#2dd4bf':'var(--t2)', _bdg(upcomingC.length||'','#0d9488'),'13,148,136'),
+    _card('nutri-dash','chart-bar','#E3BF4A','Dashboard Completo',
+      'Ver visão geral do plantel','var(--t2)','','217,119,6'),
+  ];
+
+  document.getElementById('pg-nutri-home').innerHTML=`
+  <div style="font-size:17px;font-weight:900;margin-bottom:2px">Olá! 👋</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;text-transform:capitalize">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
+  ${_nutriAlertsHtml()}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">${cards.join('')}</div>`;
 }
 function renderNutriDash(){
   const athletes=APP.athletes.sort((a,b)=>a.name.localeCompare(b.name));
@@ -13431,6 +13536,118 @@ function renderAtAgenda(){
   else body=_atAgendaSemanaHtml(at);
   document.getElementById('atp-agenda').innerHTML=`<div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-calendar" style="margin-right:6px;vertical-align:-3px;color:#a78bfa" aria-hidden="true"></i>Agenda</div>${_atAgendaTabsHtml()}${body}`;
 }
+// ── Agenda Geral (Fisio/Nutri, sps-v130) ────────────────────────────────────
+// Réplica da Agenda da atleta (3 vistas Dia/Semana/Mês, mesmas cores EV_COLORS) mas para
+// TODA a equipa em vez de filtrada a uma atleta — pedido explícito do Roger: "a mesma
+// agenda que a atleta vê... a geral igual à das atletas". Estado partilhado entre
+// fisio-agenda-geral/nutri-agenda-geral porque ?fisio=1 e ?nutri=1 nunca estão ativos
+// ao mesmo tempo numa sessão — _agRenderContainer diz a _agGeralRerender() qual dos dois
+// containers (pg-fisio-agenda-geral / pg-nutri-agenda-geral) atualizar.
+// Cartão de evento próprio (não reutiliza _atEvCardHtml) porque esse inclui o bloco RSVP
+// de Ginásio da PRÓPRIA atleta (lê AID) — não faz sentido/quebra no contexto de staff.
+let _agGeralView='semana', _agGeralDay=today(), _agGeralWeekStart=getMonday(today()), _agGeralMonth=new Date().getMonth(), _agGeralYear=new Date().getFullYear(), _agGeralSelDay=today(), _agGeralTeam=null, _agRenderContainer='pg-fisio-agenda-geral';
+function _agGeralEvents(){
+  return (APP.schedule||[]).filter(e=>!_agGeralTeam||e.teamId===_agGeralTeam||!e.teamId);
+}
+function _agGeralEvCardHtml(e){
+  const c=EV_COLORS[e.type]||'#27a34a';
+  return `<div class="card" style="margin-bottom:6px;padding:11px;cursor:pointer" onclick="atOpenEventDetail('${e.id}')">
+    <div style="display:flex;gap:10px;align-items:center">
+    <div style="width:4px;height:40px;border-radius:2px;background:${c};flex-shrink:0"></div>
+    <div style="flex:1"><div style="font-size:12px;font-weight:800">${e.title}</div>
+    <div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''} ${e.dur?'· '+e.dur+'min':''}</div>
+    ${e.notes?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${e.notes}</div>`:''}
+    </div><span class="mc-sess s-tec" style="background:${c}22;color:${c};padding:3px 7px;font-size:9px">${e.type}</span>
+    </div>
+  </div>`;
+}
+function _agGeralTeamSelHtml(){
+  const teams=APP.teams||[];
+  if(teams.length<2)return '';
+  return `<select class="fc" style="margin-bottom:12px;max-width:220px" onchange="_agGeralTeam=this.value;_agGeralRerender()">
+    ${teams.map(t=>`<option value="${t.id}" ${t.id===_agGeralTeam?'selected':''}>${escHtml(t.name)}</option>`).join('')}
+  </select>`;
+}
+function _agGeralTabsHtml(){
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;background:var(--bg3);padding:4px;border-radius:8px">
+  ${[['dia','Diária'],['semana','Semanal'],['mes','Mensal']].map(([v,l])=>`<button class="tab-btn ${_agGeralView===v?'on':''}" style="flex:1;text-align:center" onclick="_agGeralView='${v}';_agGeralRerender()">${l}</button>`).join('')}
+  </div>`;
+}
+function _agGeralDiaHtml(){
+  const dt=_agGeralDay,td=today();
+  const evs=_agGeralEvents().filter(e=>e.date===dt).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const nav=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <button class="btn btn-gh btn-sm" onclick="_agGeralDay=addDaysStr(_agGeralDay,-1);_agGeralRerender()">‹</button>
+    <div style="flex:1;text-align:center;font-size:13px;font-weight:800">${dt===td?'HOJE · ':''}${fmtDate(dt)}</div>
+    <button class="btn btn-gh btn-sm" onclick="_agGeralDay=addDaysStr(_agGeralDay,1);_agGeralRerender()">›</button>
+  </div>
+  ${dt!==td?`<div style="text-align:center;margin-bottom:12px"><button class="btn btn-gh btn-sm" onclick="_agGeralDay=today();_agGeralRerender()">Hoje</button></div>`:''}`;
+  const list=evs.length?evs.map(_agGeralEvCardHtml).join(''):`<div class="empty"><div class="ei"><i class="ti ti-calendar-off" aria-hidden="true"></i></div><p>Sem eventos neste dia</p></div>`;
+  return nav+list;
+}
+function _agGeralSemanaHtml(){
+  const td=today(),wkStart=_agGeralWeekStart;
+  const days=Array.from({length:7},(_,i)=>addDaysStr(wkStart,i));
+  const evs=_agGeralEvents();
+  const nav=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <button class="btn btn-gh btn-sm" onclick="_agGeralWeekStart=addDaysStr(_agGeralWeekStart,-7);_agGeralRerender()">‹</button>
+    <div style="flex:1;text-align:center;font-size:13px;font-weight:800">${fmtDateShort(wkStart)} — ${fmtDateShort(days[6])}</div>
+    <button class="btn btn-gh btn-sm" onclick="_agGeralWeekStart=addDaysStr(_agGeralWeekStart,7);_agGeralRerender()">›</button>
+  </div>
+  ${wkStart!==getMonday(td)?`<div style="text-align:center;margin-bottom:12px"><button class="btn btn-gh btn-sm" onclick="_agGeralWeekStart=getMonday(today());_agGeralRerender()">Esta semana</button></div>`:''}`;
+  const body=days.map(dt=>{
+    const dEvs=evs.filter(e=>e.date===dt).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    return `<div style="margin-bottom:14px">
+    <div style="font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${dt===td?'HOJE · ':''}${fmtDate(dt)}</div>
+    ${dEvs.length?dEvs.map(_agGeralEvCardHtml).join(''):`<div style="font-size:11px;color:var(--t2);padding:6px 2px">Sem eventos</div>`}
+    </div>`;
+  }).join('');
+  return nav+body;
+}
+function _agGeralMesHtml(){
+  const mnths=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const first=new Date(_agGeralYear,_agGeralMonth,1);
+  const last=new Date(_agGeralYear,_agGeralMonth+1,0);
+  const startDay=first.getDay()===0?6:first.getDay()-1;
+  const td=today();
+  const evs=_agGeralEvents();
+  const byDate={};evs.forEach(e=>{if(!byDate[e.date])byDate[e.date]=[];byDate[e.date].push(e);});
+  const nav=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <button class="btn btn-gh btn-sm" onclick="_agGeralMonth--;if(_agGeralMonth<0){_agGeralMonth=11;_agGeralYear--;}_agGeralRerender()">‹</button>
+    <div style="flex:1;text-align:center;font-size:13px;font-weight:800">${mnths[_agGeralMonth]} ${_agGeralYear}</div>
+    <button class="btn btn-gh btn-sm" onclick="_agGeralMonth++;if(_agGeralMonth>11){_agGeralMonth=0;_agGeralYear++;}_agGeralRerender()">›</button>
+  </div>`;
+  let grid=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:14px">`;
+  ['S','T','Q','Q','S','S','D'].forEach(d=>{grid+=`<div style="text-align:center;font-size:9px;font-weight:700;color:var(--t2);padding:2px 0">${d}</div>`;});
+  for(let i=0;i<startDay;i++)grid+=`<div></div>`;
+  for(let day=1;day<=last.getDate();day++){
+    const dt=`${_agGeralYear}-${String(_agGeralMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday=dt===td,isSel=dt===_agGeralSelDay;
+    const dEvs=byDate[dt]||[];
+    const dots=dEvs.slice(0,4).map(e=>`<span style="width:5px;height:5px;border-radius:50%;background:${EV_COLORS[e.type]||'#27a34a'};display:inline-block"></span>`).join('');
+    grid+=`<div onclick="_agGeralSelDay='${dt}';_agGeralRerender()" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:6px;cursor:pointer;background:${isSel?'#a78bfa22':'var(--bg3)'};border:1px solid ${isToday?'var(--c1)':'var(--brd)'}">
+      <div style="font-size:10px;font-weight:${isToday?'800':'600'};color:${isToday?'var(--c1)':'var(--t1)'}">${day}</div>
+      <div style="display:flex;gap:2px;min-height:5px">${dots}</div>
+    </div>`;
+  }
+  grid+=`</div>`;
+  const legend=`<div style="display:flex;flex-wrap:wrap;gap:8px 12px;margin-bottom:14px;padding:8px 2px">${Object.entries(EV_COLORS).map(([t,c])=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;color:var(--t2)"><span style="width:7px;height:7px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span>${t}</span>`).join('')}</div>`;
+  const selEvs=(byDate[_agGeralSelDay]||[]).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const detail=`<div style="font-size:11px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${_agGeralSelDay===td?'HOJE · ':''}${fmtDate(_agGeralSelDay)}</div>
+  ${selEvs.length?selEvs.map(_agGeralEvCardHtml).join(''):`<div style="font-size:11px;color:var(--t2);padding:6px 2px">Sem eventos neste dia</div>`}`;
+  return nav+grid+legend+detail;
+}
+function _agGeralRerender(){_agendaGeralCore(_agRenderContainer);}
+function _agendaGeralCore(containerId){
+  if(!_agGeralTeam&&APP.teams&&APP.teams.length)_agGeralTeam=APP.teams[0].id;
+  let body;
+  if(_agGeralView==='dia')body=_agGeralDiaHtml();
+  else if(_agGeralView==='mes')body=_agGeralMesHtml();
+  else body=_agGeralSemanaHtml();
+  document.getElementById(containerId).innerHTML=`<div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-calendar" style="margin-right:6px;vertical-align:-3px;color:#a78bfa" aria-hidden="true"></i>Agenda Geral</div>${_agGeralTeamSelHtml()}${_agGeralTabsHtml()}${body}`;
+}
+function renderFisioAgendaGeral(){_agRenderContainer='pg-fisio-agenda-geral';_agendaGeralCore('pg-fisio-agenda-geral');}
+function renderNutriAgendaGeral(){_agRenderContainer='pg-nutri-agenda-geral';_agendaGeralCore('pg-nutri-agenda-geral');}
 function renderAtNutri(){
   const plan=APP.nutritionPlans.find(p=>p.athleteId===AID&&p.active);
   const avals=APP.nutritionAssessments.filter(a=>a.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date));
