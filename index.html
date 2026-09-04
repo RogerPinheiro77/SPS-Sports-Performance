@@ -430,6 +430,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn" onclick="toggleSb()">☰</button>
       <button class="tb-btn fs-only" id="fs-home-btn" onclick="navTo('fisio-home')" title="Home">🏠</button>
       <button class="tb-btn nu-only" id="nu-home-btn" onclick="navTo('nutri-home')" title="Home">🏠</button>
+      <button class="tb-btn gd-only" id="gd-home-btn" onclick="_jogoView='list';navTo('jogos')" title="Home">🏠</button>
       <span class="topbar-title" id="pg-title">Dashboard</span>
       <button class="tb-btn" onclick="openCloud()" title="Cloud">☁️</button>
       <button class="tb-btn" id="tb-cfg-btn" onclick="navTo('config')" title="Config">⚙️</button>
@@ -3591,6 +3592,12 @@ const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 
 let _jogoView='list',_jogoDetailId=null,_jogoDetailTab='info';
 let _showJogoForm=false,_editJogoId=null,_jogoTab='proximos';
+// Classificação (Campeonato/Taça, sps-v133) — pedido do Roger: ver a posição na tabela e a
+// fase da Taça na Home do Gameday, ao lado de V/E/D/Golos. Sem tabela completa disponível
+// na app (só temos os nossos próprios jogos) — Campeonato importa-se da FPF (mesmo padrão
+// "cola o código-fonte" do resto da app, ver _fpfParseHtml); Taça é só um campo de texto
+// (a FPF mostra isso como eliminatória, não como tabela, não vale a pena scraper).
+let _showCampImport=false,_campImportRows=null;
 let _pitchDragging=null,_pitchWasDrag=false;
 
 const _FPOS={
@@ -3895,6 +3902,143 @@ function exportRankingPDF(){
       </div>${body}${zoneMapHtml}</div>`);
 }
 
+// ── Classificação (sps-v133): Campeonato importado da FPF + fase da Taça manual ────
+// Parser genérico de tabela (não específico de uma página da FPF, ao contrário de
+// _fpfParseHtml que assume a estrutura exata da página de detalhe de um jogo) — procura
+// a tabela com mais colunas reconhecíveis (Pos/Equipa/J/V/E/D/Pts) e cai para heurísticas
+// posicionais se não encontrar cabeçalhos claros. Sempre com pré-visualização editável
+// antes de aplicar — se o parsing vier torto, o Roger corrige à mão em vez de ficar preso.
+function _campParseHtml(raw){
+  const doc=new DOMParser().parseFromString(raw,'text/html');
+  const tables=[...doc.querySelectorAll('table')];
+  if(!tables.length)throw new Error('sem tabelas no conteúdo colado');
+  const HEAD_RE={pos:/^(pos|#|nº|classif)/i,equipa:/equipa|clube|team/i,j:/^j$/i,v:/^v$/i,e:/^e$/i,d:/^d$/i,gm:/^(gm|m)$/i,gs:/^(gs|s)$/i,pts:/^(pts?|pontos)$/i};
+  const rowsOf=t=>[...t.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll('th,td')].map(c=>c.textContent.replace(/\s+/g,' ').trim()));
+  let best=null,bestScore=-1;
+  for(const t of tables){
+    const rows=rowsOf(t).filter(r=>r.length>2);
+    if(rows.length<3)continue;
+    const head=rows[0];
+    let score=0;
+    head.forEach(h=>{Object.values(HEAD_RE).forEach(re=>{if(re.test(h))score++;});});
+    if(score>bestScore){bestScore=score;best=rows;}
+  }
+  if(!best)throw new Error('não encontrei uma tabela com aspeto de classificação');
+  const head=best[0];
+  const idx={};
+  Object.entries(HEAD_RE).forEach(([k,re])=>{const i=head.findIndex(h=>re.test(h));if(i>=0)idx[k]=i;});
+  if(idx.pos===undefined)idx.pos=0;
+  if(idx.equipa===undefined){
+    let li=-1,lw=-1;
+    for(let i=0;i<head.length;i++){
+      const avgLen=best.slice(1).reduce((s,r)=>s+(r[i]||'').length,0)/(best.length-1||1);
+      if(avgLen>lw){lw=avgLen;li=i;}
+    }
+    idx.equipa=li>=0?li:1;
+  }
+  const num=v=>{const n=parseInt((v||'').replace(/[^\d-]/g,''),10);return isNaN(n)?null:n;};
+  return best.slice(1).map(r=>({
+    pos:num(r[idx.pos]),equipa:r[idx.equipa]||'',
+    j:idx.j!==undefined?num(r[idx.j]):null,v:idx.v!==undefined?num(r[idx.v]):null,
+    e:idx.e!==undefined?num(r[idx.e]):null,d:idx.d!==undefined?num(r[idx.d]):null,
+    gm:idx.gm!==undefined?num(r[idx.gm]):null,gs:idx.gs!==undefined?num(r[idx.gs]):null,
+    pts:idx.pts!==undefined?num(r[idx.pts]):null
+  })).filter(r=>r.equipa&&r.pos!=null);
+}
+function _campFindOwnRow(rows){
+  const own=_normName(APP.config.clubName||'');
+  if(!own||!rows)return null;
+  return rows.find(r=>{const rn=_normName(r.equipa);return rn&&(rn.includes(own)||own.includes(rn));})||null;
+}
+function parseCampPaste(){
+  const raw=document.getElementById('camp-paste').value;
+  try{
+    _campImportRows=_campParseHtml(raw);
+  }catch(e){
+    toast('Não consegui interpretar — confirma se colaste a página da classificação','err');
+    _campImportRows=null;
+  }
+  renderJogos();
+}
+function applyCampImport(){
+  const val=id=>{const el=document.getElementById(id);return el&&el.value!==''?+el.value:null;};
+  APP.config.campeonato={pos:val('camp-f-pos'),pts:val('camp-f-pts'),j:val('camp-f-j'),v:val('camp-f-v'),e:val('camp-f-e'),d:val('camp-f-d'),updatedAt:new Date().toISOString()};
+  saveData();
+  if(_sync)pushAppMeta();
+  _showCampImport=false;_campImportRows=null;
+  toast('Classificação atualizada ✓');
+  renderJogos();
+}
+function _setTacaFase(){
+  const el=document.getElementById('taca-fase-input');if(!el)return;
+  APP.config.tacaFase=el.value.trim();
+  saveData();
+  if(_sync)pushAppMeta();
+  toast('Fase da Taça atualizada ✓');
+}
+function _campManualFormHtml(row){
+  row=row||{};
+  const f=(id,label,val)=>`<div class="form-g"><label class="fl">${label}</label><input class="fc" id="camp-f-${id}" type="number" value="${val!=null?val:''}"></div>`;
+  return `<div class="fr3" style="margin-top:8px">${f('pos','Posição',row.pos)}${f('pts','Pontos',row.pts)}${f('j','Jogos',row.j)}</div>
+  <div class="fr3">${f('v','Vitórias',row.v)}${f('e','Empates',row.e)}${f('d','Derrotas',row.d)}</div>
+  <button class="btn btn-g" style="margin-top:8px" onclick="applyCampImport()">💾 Guardar Classificação</button>`;
+}
+function _campImportPreviewHtml(){
+  const own=_campFindOwnRow(_campImportRows);
+  if(!own){
+    return `<div class="al al-r" style="margin-top:10px">Não encontrei "${escHtml(APP.config.clubName||'')}" na tabela — confirma se colaste a página certa, ou preenche à mão abaixo.</div>${_campManualFormHtml({})}`;
+  }
+  return `<div class="al al-g" style="margin-top:10px">Encontrado: <strong>${escHtml(own.equipa)}</strong> — confirma os valores antes de guardar:</div>${_campManualFormHtml(own)}`;
+}
+function _classificacaoTabHtml(){
+  const camp=APP.config.campeonato||null;
+  const tacaFase=APP.config.tacaFase||'';
+  const td=today();
+  const realizados=APP.games.filter(g=>g.date<td||g.status==='realizado');
+  const amistosos=realizados.filter(g=>g.tipo==='particular');
+  const av=amistosos.filter(g=>g.g1!=null&&g.g1>g.g2).length,
+        ae=amistosos.filter(g=>g.g1!=null&&g.g2!=null&&g.g1===g.g2).length,
+        ad=amistosos.filter(g=>g.g1!=null&&g.g1<g.g2).length,
+        agm=amistosos.reduce((s,g)=>s+(+g.g1||0),0),ags=amistosos.reduce((s,g)=>s+(+g.g2||0),0);
+
+  const campHtml=`<div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct">🏆 Campeonato</span>
+    <button class="btn btn-xs btn-gh" onclick="_showCampImport=!_showCampImport;renderJogos()">${_showCampImport?'✕ Fechar':'📥 Importar da FPF'}</button></div>
+    <div class="cb">
+    ${camp?`<div class="kpis">
+      <div class="kpi"><div class="kpi-lbl">Posição</div><div class="kpi-val">${camp.pos!=null?camp.pos+'º':'—'}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Pontos</div><div class="kpi-val">${camp.pts!=null?camp.pts:'—'}</div></div>
+      <div class="kpi"><div class="kpi-lbl">V-E-D</div><div class="kpi-val" style="font-size:16px">${camp.v??'—'}-${camp.e??'—'}-${camp.d??'—'}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Jogos</div><div class="kpi-val">${camp.j??'—'}</div></div>
+    </div>
+    <p style="font-size:10px;color:var(--t2);margin-top:6px">Atualizado em ${fmtDate((camp.updatedAt||'').slice(0,10))}</p>`
+    :`<div class="empty" style="padding:16px"><div class="ei">🏆</div><p>Sem dados da classificação ainda</p><div class="esub">Importa da FPF para ver a tua posição</div></div>`}
+    ${_showCampImport?`
+    <div class="ipanel" style="margin-top:12px">
+      <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Abre a página da classificação do Campeonato no site da FPF, copia o código-fonte da página (Ctrl+U ou "Ver código fonte") e cola aqui.</p>
+      <textarea class="fc" id="camp-paste" rows="4" placeholder="Cola aqui o código-fonte da página..."></textarea>
+      <button class="btn btn-g" style="margin-top:8px" onclick="parseCampPaste()">🔍 Interpretar</button>
+      ${_campImportRows?_campImportPreviewHtml():''}
+    </div>`:''}
+    </div>
+  </div>`;
+
+  const tacaHtml=`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">🥤 Taça</span></div>
+  <div class="cb" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input class="fc" id="taca-fase-input" style="flex:1;min-width:180px" placeholder="Ex: Oitavos de Final" value="${escHtml(tacaFase)}">
+    <button class="btn btn-g btn-sm" onclick="_setTacaFase()">💾 Guardar</button>
+  </div></div>`;
+
+  const amistososHtml=amistosos.length?`<div class="card"><div class="ch"><span class="ct">🤝 Amistosos</span></div>
+  <div class="cb"><div class="kpis">
+    <div class="kpi grn"><div class="kpi-lbl">Vitórias</div><div class="kpi-val" style="color:#4ade80">${av}</div></div>
+    <div class="kpi yel"><div class="kpi-lbl">Empates</div><div class="kpi-val" style="color:#fbbf24">${ae}</div></div>
+    <div class="kpi red"><div class="kpi-lbl">Derrotas</div><div class="kpi-val" style="color:#f87171">${ad}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Golos</div><div class="kpi-val">${agm}–${ags}</div></div>
+  </div></div></div>`:`<div class="empty"><div class="ei">🤝</div><p>Sem amistosos realizados</p></div>`;
+
+  return campHtml+tacaHtml+amistososHtml;
+}
 function openJogo(id,tab='info'){
   const g=APP.games.find(x=>x.id===id);
   if(!g)return;
@@ -3935,7 +4079,7 @@ function renderJogos(){
 
   const proximos=APP.games.filter(g=>g.date>=td&&g.status!=='cancelado').sort((a,b)=>a.date.localeCompare(b.date));
   const realizados=APP.games.filter(g=>g.date<td||g.status==='realizado').sort((a,b)=>b.date.localeCompare(a.date));
-  const tabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button><button class="tab-btn ${_jogoTab==='ranking'?'on':''}" onclick="_jogoTab='ranking';renderJogos()">🏆 Ranking</button></div>`;
+  const tabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button><button class="tab-btn ${_jogoTab==='ranking'?'on':''}" onclick="_jogoTab='ranking';renderJogos()">🏆 Ranking</button><button class="tab-btn ${_jogoTab==='classificacao'?'on':''}" onclick="_jogoTab='classificacao';renderJogos()">🏆 Classificação</button></div>`;
 
   const makeRow=g=>{
     const ha={casa:'🏠',fora:'✈️',neutro:'⚖️'}[g.ha]||'';
@@ -3957,10 +4101,11 @@ function renderJogos(){
   };
 
   const list=_jogoTab==='proximos'?proximos:realizados;
-  const tableHtml=_jogoTab==='ranking'?_rankingPlantelHtml():(list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Equipa</th><th>Resultado</th><th></th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`);
+  const tableHtml=_jogoTab==='ranking'?_rankingPlantelHtml():_jogoTab==='classificacao'?_classificacaoTabHtml():(list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Equipa</th><th>Resultado</th><th></th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`);
 
-  // Jogos Treino não contam para estatísticas competitivas (V/E/D/Golos) — só Oficiais e Particulares.
-  const realizadosStats=realizados.filter(g=>g.tipo!=='treino');
+  // Estatísticas competitivas (V/E/D/Golos) só com jogos Oficiais — Amistosos (particular) e
+  // Treino têm o seu próprio bloco na aba Classificação (pedido do Roger, sps-v133).
+  const realizadosStats=realizados.filter(g=>g.tipo==='oficial');
   const vit=realizadosStats.filter(g=>g.g1!=null&&g.g1>g.g2).length,emp=realizadosStats.filter(g=>g.g1!=null&&g.g2!=null&&g.g1===g.g2).length,der=realizadosStats.filter(g=>g.g1!=null&&g.g1<g.g2).length;
   const gm=realizadosStats.reduce((s,g)=>s+(+g.g1||0),0),gs=realizadosStats.reduce((s,g)=>s+(+g.g2||0),0);
 
@@ -3968,7 +4113,7 @@ function renderJogos(){
   <div class="sh"><div class="sh-t">⚽ Jogos</div>
   <button class="btn btn-g" onclick="_showJogoForm=!_showJogoForm;_editJogoId=null;renderJogos()">+ Novo Jogo</button></div>
   ${formHtml}
-  ${realizados.length?`<div class="kpis" style="margin-bottom:16px">
+  ${realizadosStats.length?`<div class="kpis" style="margin-bottom:16px">
     <div class="kpi grn"><div class="kpi-lbl">Vitórias</div><div class="kpi-val" style="color:#4ade80">${vit}</div></div>
     <div class="kpi yel"><div class="kpi-lbl">Empates</div><div class="kpi-val" style="color:#fbbf24">${emp}</div></div>
     <div class="kpi red"><div class="kpi-lbl">Derrotas</div><div class="kpi-val" style="color:#f87171">${der}</div></div>
@@ -14221,10 +14366,21 @@ function _doImport(){
 // ou relógio a correr) — não basta ter liveSession, porque TODOS os jogos têm
 // uma liveSession em branco assim que a aba Ao Vivo é aberta (_gdInit). Ver
 // memória feedback_sps_gameday_pullcloud_overwrite.
+// sps-v133: a proteção original não tinha prazo — uma sessão ao vivo esquecida a
+// meio (ex: cronómetro arrancado por engano e nunca fechado) ficava "em risco" para
+// sempre, bloqueando a sincronização desse jogo indefinidamente em qualquer dispositivo
+// que a tivesse localmente. Incidente real (04/09/2026): jogo vs Rio Ave com o relógio
+// arrancado há dias — o resultado corrigido na plataforma nunca chegava ao dispositivo
+// do Gameday. Agora só protege sessões de jogos de hoje/ontem (cobre jogos tardios que
+// passam da meia-noite) — uma sessão presa num jogo de há vários dias deixa de bloquear
+// a sincronização. Ver feedback_sps_gameday_pullcloud_overwrite.
 function _gdIsLiveUnlaunched(g){
   const ls=g&&g.liveSession;
   if(!ls||ls.launched)return false;
-  return (ls.events&&ls.events.length>0)||ls.phase!=='pre'||!!ls.runningSince;
+  const hasActivity=(ls.events&&ls.events.length>0)||ls.phase!=='pre'||!!ls.runningSince;
+  if(!hasActivity)return false;
+  if(!g.date)return true; // sem data, mantém a proteção por segurança
+  return Math.abs(diffDays(g.date,today()))<=1;
 }
 // Lista de jogos deste dispositivo com sessão ao vivo em risco (por lançar,
 // com atividade). Usado tanto pelo merge do pullCloud como pelo handler de
