@@ -435,18 +435,9 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn gy-only" onclick="_gsTab='registos';navTo('fichas-ginasio')" title="Registo">🏋️</button>
       <button class="tb-btn gy-only" onclick="navTo('biblioteca')" title="Biblioteca">📚</button>
       <button class="tb-btn gy-only" onclick="logout()" title="Sair">🚪</button>
-      <button class="tb-btn fs-only" onclick="navTo('fisio-home')" title="Home">🏠</button>
-      <button class="tb-btn fs-only" onclick="navTo('fisio-ep')" title="Episódios">📈</button>
-      <button class="tb-btn fs-only" onclick="navTo('fisio-trat')" title="Tratamentos">💊</button>
-      <button class="tb-btn fs-only" onclick="navTo('fisio-anamnese')" title="Anamnese">📋</button>
-      <button class="tb-btn fs-only" onclick="navTo('fisio-agenda-geral')" title="Agenda Geral">🗓️</button>
-      <button class="tb-btn fs-only" onclick="navTo('fisio-consultas')" title="Consultas">📅</button>
+      <button class="tb-btn fs-only" id="fs-back-btn" onclick="navTo('fisio-home')" title="Voltar à Home">←</button>
       <button class="tb-btn fs-only" onclick="logout()" title="Sair">🚪</button>
-      <button class="tb-btn nu-only" onclick="navTo('nutri-home')" title="Home">🏠</button>
-      <button class="tb-btn nu-only" onclick="navTo('nutri-aval')" title="Avaliações">📏</button>
-      <button class="tb-btn nu-only" onclick="navTo('nutri-planos')" title="Planos">🥗</button>
-      <button class="tb-btn nu-only" onclick="navTo('nutri-agenda-geral')" title="Agenda Geral">🗓️</button>
-      <button class="tb-btn nu-only" onclick="navTo('nutri-consultas')" title="Consultas">📅</button>
+      <button class="tb-btn nu-only" id="nu-back-btn" onclick="navTo('nutri-home')" title="Voltar à Home">←</button>
       <button class="tb-btn nu-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
@@ -1104,6 +1095,14 @@ function navTo(id){
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
   const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
+  // SPS-Fisio/SPS-Nutri standalone (sps-v131): a Home é o hub (grelha de cartões), as
+  // restantes páginas ficam "dentro" de uma secção — em vez de repetir todos os atalhos
+  // na topbar, mostra só uma seta de retrocesso para a Home. Pedido do Roger: "botão Home
+  // mais destacado e quando se entra numa aba uma seta de retrocesso" — ver
+  // project_sps_fisio_nutri_home_agenda.
+  const fsBackBtn=document.getElementById('fs-back-btn'),nuBackBtn=document.getElementById('nu-back-btn');
+  if(fsBackBtn)fsBackBtn.style.display=id==='fisio-home'?'none':'';
+  if(nuBackBtn)nuBackBtn.style.display=id==='nutri-home'?'none':'';
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
 }
@@ -10204,12 +10203,32 @@ function _fisioAlerts(){
   });
   return alerts.sort((a,b)=>(b.at||'').localeCompare(a.at||''));
 }
+// Avisos colapsados por defeito (sps-v131) — com o plantel todo, a lista pode ter
+// dezenas de linhas (ex: Nutri chegou a 52) e empurrava o resto da página lá para
+// baixo. Pedido do Roger: mostrar só o botão + contagem total + contagem por categoria,
+// a lista completa só aparece depois de clicar. Ver project_sps_fisio_nutri_home_agenda.
+let _fisioAlertsOpen=false, _nutriAlertsOpen=false;
+function _alertsSummaryChips(alerts,ICON,LABEL){
+  const byType={};
+  alerts.forEach(a=>{byType[a.type]=(byType[a.type]||0)+1;});
+  return Object.entries(byType).map(([t,n])=>`<span class="bdg bg-gr" style="margin-right:4px;margin-top:4px;display:inline-block">${ICON[t]||'•'} ${n} ${LABEL[t]||t}</span>`).join('');
+}
 function _fisioAlertsHtml(){
   const alerts=_fisioAlerts();
   if(!alerts.length)return '';
   const ICON={anamnese:'📋',dor:'⚠️',parada:'⏸️'};
+  const LABEL={anamnese:'Anamnese',dor:'Dor',parada:'Paragem'};
+  if(!_fisioAlertsOpen){
+    return `<div class="card" style="margin-bottom:14px;border-left:3px solid #f87171;padding:12px 14px;cursor:pointer" onclick="_fisioAlertsOpen=true;navTo(_curPg)">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <span style="font-weight:800;font-size:13px">🔔 Avisos (${alerts.length})</span>
+        <span style="font-size:10px;color:var(--t2)">Toca para ver ▾</span>
+      </div>
+      <div>${_alertsSummaryChips(alerts,ICON,LABEL)}</div>
+    </div>`;
+  }
   return `<div class="card" style="margin-bottom:14px;border-left:3px solid #f87171">
-    <div class="ch"><span class="ct">🔔 Avisos (${alerts.length})</span></div>
+    <div class="ch" style="cursor:pointer" onclick="_fisioAlertsOpen=false;navTo(_curPg)"><span class="ct">🔔 Avisos (${alerts.length}) — Fechar ▴</span></div>
     <div class="cb" style="padding:0">
     ${alerts.map(a=>{
       const at=APP.athletes.find(x=>x.id===a.athleteId);
@@ -10217,7 +10236,7 @@ function _fisioAlertsHtml(){
       return `<div style="padding:10px 14px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;gap:8px;align-items:center">
         <div><span style="margin-right:6px">${ICON[a.type]||'•'}</span><strong>${escHtml(at?_displayName(at):'?')}</strong> — ${escHtml(a.label)}
         <div style="font-size:10px;color:var(--t2);margin-left:22px">${escHtml(a.detail)}</div></div>
-        <button class="btn btn-xs btn-gh" onclick="${action}">Ver</button>
+        <button class="btn btn-xs btn-gh" onclick="event.stopPropagation();${action}">Ver</button>
       </div>`;
     }).join('')}
     </div>
@@ -10828,8 +10847,18 @@ function _nutriAlertsHtml(){
   const alerts=_nutriAlerts();
   if(!alerts.length)return '';
   const ICON={semAvaliacao:'📏',semPlano:'🥗'};
+  const LABEL={semAvaliacao:'Sem Avaliação',semPlano:'Sem Plano'};
+  if(!_nutriAlertsOpen){
+    return `<div class="card" style="margin-bottom:14px;border-left:3px solid #f87171;padding:12px 14px;cursor:pointer" onclick="_nutriAlertsOpen=true;navTo(_curPg)">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <span style="font-weight:800;font-size:13px">🔔 Avisos (${alerts.length})</span>
+        <span style="font-size:10px;color:var(--t2)">Toca para ver ▾</span>
+      </div>
+      <div>${_alertsSummaryChips(alerts,ICON,LABEL)}</div>
+    </div>`;
+  }
   return `<div class="card" style="margin-bottom:14px;border-left:3px solid #f87171">
-    <div class="ch"><span class="ct">🔔 Avisos (${alerts.length})</span></div>
+    <div class="ch" style="cursor:pointer" onclick="_nutriAlertsOpen=false;navTo(_curPg)"><span class="ct">🔔 Avisos (${alerts.length}) — Fechar ▴</span></div>
     <div class="cb" style="padding:0">
     ${alerts.map(a=>{
       const at=APP.athletes.find(x=>x.id===a.athleteId);
@@ -10837,7 +10866,7 @@ function _nutriAlertsHtml(){
       return `<div style="padding:10px 14px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;gap:8px;align-items:center">
         <div><span style="margin-right:6px">${ICON[a.type]||'•'}</span><strong>${escHtml(at?_displayName(at):'?')}</strong> — ${escHtml(a.label)}
         <div style="font-size:10px;color:var(--t2);margin-left:22px">${escHtml(a.detail)}</div></div>
-        <button class="btn btn-xs btn-gh" onclick="${action}">Ver</button>
+        <button class="btn btn-xs btn-gh" onclick="event.stopPropagation();${action}">Ver</button>
       </div>`;
     }).join('')}
     </div>
