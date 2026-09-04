@@ -14503,6 +14503,39 @@ async function pullCloud(){
     if(ROLE!=='atleta'&&_curPg)navTo(_curPg);
   }catch(e){console.warn('pullCloud error',e);toast('Erro sync: '+e.message,'err');}
 }
+// Fusão campo-a-campo das convocatórias — pedido do Roger, 04/09/2026: "não me parece
+// estar a ficar confirmado, vê se perderam confirmações". Investigação em Supabase
+// confirmou: várias convocatórias tinham muito mais entradas em seenBy do que em rsvp
+// (ex: jogo de 22/08 com 15 seenBy mas 0 rsvp) — as respostas Vou/Não vou das atletas
+// estavam mesmo a perder-se. Causa: ao contrário dos outros arrays deste blob (games,
+// evaluations, etc — tipicamente um dispositivo staff de cada vez), uma convocatória é
+// escrita por MUITOS dispositivos ao mesmo tempo (cada atleta que marca 'vista' ou
+// responde RSVP), e a guarda de staleness abaixo só fazia merge "registo inteiro local
+// substitui a versão da cloud" por id — se a atleta A confirmasse e a atleta B, num
+// dispositivo com a app aberta há mais tempo (staleness detetada), gravasse a seguir,
+// a versão inteira de B substituía a de A na cloud, apagando a resposta de A. Esta
+// função funde rsvp/seenBy/djChecks campo a campo em vez de deixar um registo inteiro
+// ganhar ao outro. Ver feedback_sps_meta_delete_revert_bug / feedback_sps_full_meta_blob_overwrite_risk
+// para o mesmo padrão de bug noutros campos deste blob.
+function _mergeConvocatorias(freshList,localList,deletedIds){
+  deletedIds=deletedIds||new Set();
+  const freshById={};(freshList||[]).forEach(f=>{if(f&&f.id)freshById[f.id]=f;});
+  const localById={};(localList||[]).forEach(l=>{if(l&&l.id)localById[l.id]=l;});
+  const allIds=[...new Set([...Object.keys(freshById),...Object.keys(localById)])];
+  return allIds.filter(id=>!deletedIds.has(id)).map(id=>{
+    const f=freshById[id],l=localById[id];
+    if(f&&!l)return f;
+    if(l&&!f)return l;
+    const seenByMap={};
+    [...(f.seenBy||[]),...(l.seenBy||[])].forEach(s=>{if(s&&s.athleteId)seenByMap[s.athleteId]=s;});
+    return {
+      ...f,...l,
+      rsvp:{...(f.rsvp||{}),...(l.rsvp||{})},
+      seenBy:Object.values(seenByMap),
+      djChecks:{...(f.djChecks||{}),...(l.djChecks||{})}
+    };
+  });
+}
 async function pushAppMeta(_pushRetry){
   if(!_supa||!_cid){console.log('[pushAppMeta] skipped: supa=',!!_supa,'cid=',_cid);return;}
   try{
@@ -14513,7 +14546,14 @@ async function pushAppMeta(_pushRetry){
     // de Campeonato/Taça perdidos em 2026-08-18 — ver memória feedback_sps_meta_staleness_guard).
     // Verificação leve (1 SELECT) antes de cada gravação do blob inteiro.
     try{
-      const {data:chk}=await _supa.from('clubs').select('updated_at').eq('id',_cid).maybeSingle();
+      const {data:chk}=await _supa.from('clubs').select('updated_at, meta').eq('id',_cid).maybeSingle();
+      // Convocatórias: fusão campo-a-campo SEMPRE (não só quando a guarda de staleness
+      // abaixo dispara) — o problema descrito acima pode acontecer mesmo dentro da janela
+      // de 2s que essa guarda tolera, já que várias atletas costumam responder quase ao
+      // mesmo tempo assim que uma convocatória é publicada. Ver _mergeConvocatorias acima.
+      if(chk&&chk.meta&&chk.meta.convocatorias){
+        APP.convocatorias=_mergeConvocatorias(chk.meta.convocatorias,APP.convocatorias||[],_pendingDeletes.convocatorias);
+      }
       if(chk&&chk.updated_at&&_metaSyncAt&&new Date(chk.updated_at).getTime()>new Date(_metaSyncAt).getTime()+2000){
         console.warn('[pushAppMeta] cloud mais recente que a última sincronização deste separador — a fundir com a alteração local antes de gravar');
         // ATENÇÃO (2026-08-18, sps-v22): a versão anterior desta guarda fazia só pullCloud()
@@ -14526,15 +14566,19 @@ async function pushAppMeta(_pushRetry){
         // local substitui (por id) o equivalente vindo da cloud — a alteração que disparou este
         // push nunca se perde, e o que outras sessões acrescentaram entretanto também não. Ver
         // memória feedback_sps_meta_staleness_guard / feedback_sps_meta_local_change_lost_on_merge.
+        // 'convocatorias' fica de fora deste snapshot — já foi fundida campo-a-campo acima,
+        // meter-lhe aqui a lógica "registo inteiro local ganha" desfaria essa fusão.
         const _localSnap={
           games:APP.games||[], evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
-          evalResponses:APP.evalResponses||[], trainings:APP.trainings||[], convocatorias:APP.convocatorias||[],
+          evalResponses:APP.evalResponses||[], trainings:APP.trainings||[],
           scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[],
           macrocycles:APP.macrocycles||[], mcTemplates:APP.mcTemplates||[]
           // exercises/gymSheets removidos daqui (01/09/2026) — já não fazem parte
           // do meta blob, têm tabelas dedicadas com o seu próprio cloudUpsert.
         };
+        const _convSnap=APP.convocatorias;
         await pullCloud();
+        APP.convocatorias=_convSnap;
         Object.keys(_localSnap).forEach(key=>{
           const fresh=APP[key]||[];
           const local=_localSnap[key]||[];
