@@ -9946,19 +9946,28 @@ async function saveGymRecords(){
   if(gsPage&&gsPage.classList.contains('on')&&_gsTab==='registos')renderGymRecordsList();
 }
 
-// PDF de uma sessão de Ginásio: A4 paisagem, 3 blocos de exercício por página
-// (imagem+identificação+prescrição à esquerda, atletas em grelha compacta à
-// direita) + página final com Observações. Uma única função de render
-// (_gymSessionPdfHtml) recebe um dataMap {athleteId:{vals,obs}} — chamada com
-// dados vazios produz um modelo em branco (para imprimir e preencher à mão no
-// ginásio); chamada com APP.gymRecords ou o rascunho ao vivo da grelha
-// (_gymGridData) produz o registo preenchido. vals[i] passa por _gymParseVal
-// (aceita string antiga ou objeto {carga,series,reps,rir}) — dataMap vindo
-// direto de APP.gymRecords pode ainda ter registos antigos por migrar. Dois
-// pontos de entrada: exportGymSessionPDF(eventId) (fora da grelha, lê o
-// guardado) e exportGymSessionPDFFromGrid() (dentro da grelha aberta, lê o
-// rascunho não guardado). Ver project_sps_fichas_ginasio_fase2 e
-// project_sps_ginasio_registo_colunas.
+// PDF de uma sessão de Ginásio: A4 retrato, tabela-matriz — atletas em linha,
+// exercícios em coluna (4 sub-colunas cada: Carga/Séries/Reps/RIR), com o
+// espaço da imagem por cima do nome do exercício, 4 exercícios por página (se
+// a ficha tiver mais, cria-se automaticamente uma 2ª/3ª página). Pedido do
+// Roger, 04/09/2026: "quero em A4 horizontal e apenas linhas com nome das
+// atletas e colunas com exercícios... não preciso de descritivo do exercício
+// porque já está na ficha" — depois refinado para A4 vertical (Opção B, para
+// caber todo o plantel numa página) com imagem acima do nome, confirmado com
+// exemplo em dados reais antes de avançar (ver project_sps_registo_ginasio_matriz).
+// Substitui o layout anterior (3 blocos de exercício por página, atletas em
+// grelha compacta ao lado) que tinha descrição do exercício repetida — já
+// consta na Ficha de Ginásio em si (_gymSheetPdfHtml).
+// Uma única função de render (_gymSessionPdfHtml) recebe um dataMap
+// {athleteId:{vals,obs}} — chamada com dados vazios produz um modelo em
+// branco (para imprimir e preencher à mão no ginásio); chamada com
+// APP.gymRecords ou o rascunho ao vivo da grelha (_gymGridData) produz o
+// registo preenchido. vals[i] passa por _gymParseVal (aceita string antiga ou
+// objeto {carga,series,reps,rir}) — dataMap vindo direto de APP.gymRecords
+// pode ainda ter registos antigos por migrar. Dois pontos de entrada:
+// exportGymSessionPDF(eventId) (fora da grelha, lê o guardado) e
+// exportGymSessionPDFFromGrid() (dentro da grelha aberta, lê o rascunho não
+// guardado). Ver project_sps_fichas_ginasio_fase2 e project_sps_ginasio_registo_colunas.
 function _gymValStr(v){
   const p=_gymParseVal(v);
   const parts=[];
@@ -9967,31 +9976,48 @@ function _gymValStr(v){
   if(p.rir)parts.push('RIR '+p.rir);
   return parts.join(' · ');
 }
+const _GYM_PDF_PER_PAGE=4;
+function _gymPdfPageHtml(pageExs,startIdx,pageNum,pageCount,athletes,dataMap){
+  const headImgRow=pageExs.map((ex,i)=>{
+    const imgPart=ex.img?`<img src="${ex.img}" style="width:100%;height:14mm;object-fit:cover;border-radius:3px;display:block">`
+      :`<div style="width:100%;height:14mm;background:#f0f0f0;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:16px">🏋️</div>`;
+    return `<th colspan="4" style="padding:3px;border:1px solid #ccc">
+      <div style="font-size:6.5pt;color:#888;margin-bottom:2px">Exercício ${startIdx+i+1}</div>
+      ${imgPart}
+    </th>`;
+  }).join('');
+  const headNameRow=pageExs.map(ex=>`<th colspan="4" style="padding:3px;border:1px solid #ccc;background:#1d6f3b;color:#fff;font-size:8pt">
+    ${escHtml(ex.name)}<div style="font-weight:400;font-size:7pt">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div>
+  </th>`).join('');
+  const headFieldRow=pageExs.map(()=>_GYM_FIELDS.map(([f,lbl])=>`<th style="padding:2px;border:1px solid #ccc;background:#f0f0f0;font-size:6.5pt;font-weight:400">${lbl}</th>`).join('')).join('');
+  const rows=athletes.length?athletes.map((a,ai)=>{
+    const d=dataMap[a.id]||{};
+    const cells=pageExs.map((ex,i)=>{
+      const p=_gymParseVal((d.vals||[])[startIdx+i]);
+      return _GYM_FIELDS.map(([f])=>`<td style="padding:2px;border:1px solid #ddd;text-align:center;font-size:8pt;height:5mm">${p[f]?escHtml(p[f]):'&nbsp;'}</td>`).join('');
+    }).join('');
+    return `<tr style="background:${ai%2?'#fafafa':'#fff'}"><td style="padding:3px 5px;border:1px solid #ddd;font-weight:700;font-size:8pt;white-space:nowrap">${escHtml(_shortName(a))}</td>${cells}</tr>`;
+  }).join(''):`<tr><td colspan="99" style="padding:10px;color:#999;text-align:center">Sem atletas nesta equipa.</td></tr>`;
+  return `<div style="${pageNum>1?'page-break-before:always;':''}margin-bottom:6mm">
+    <div style="font-size:7.5pt;color:#888;text-align:right;margin-bottom:2mm">Página ${pageNum}/${pageCount}</div>
+    <table style="border-collapse:collapse;width:100%">
+      <thead>
+        <tr><th rowspan="3" style="padding:3px 5px;border:1px solid #ccc;background:#f0f0f0;font-size:8pt">Atleta</th>${headImgRow}</tr>
+        <tr>${headNameRow}</tr>
+        <tr>${headFieldRow}</tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
 function _gymSessionPdfHtml(ev,dataMap){
   const gs=ev.gymSheet;
   const athletes=_gymGridAthletes(ev);
-  const cols=athletes.length>18?6:(athletes.length>10?5:4);
   const exercises=gs.exercises||[];
-  const blocksHtml=exercises.length?exercises.map((ex,idx)=>{
-    const athCells=athletes.map(a=>{
-      const d=dataMap[a.id]||{};
-      const vStr=_gymValStr((d.vals||[])[idx]);
-      return `<div style="display:flex;justify-content:space-between;gap:4px;border-bottom:1px dotted #ccc;padding:1.5px 0;font-size:7pt;overflow:hidden">
-        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52%">${escHtml(_shortName(a))}</span>
-        <span style="color:#1d6f3b;font-weight:700;white-space:nowrap">${vStr?escHtml(vStr):'&nbsp;'}</span>
-      </div>`;
-    }).join('');
-    const imgPart=ex.img?`<img src="${ex.img}" style="width:26mm;height:26mm;object-fit:cover;border-radius:4px;flex-shrink:0">`
-      :`<div style="width:26mm;height:26mm;border-radius:4px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏋️</div>`;
-    return `<div style="${idx>0&&idx%3===0?'page-break-before:always;':''}display:flex;gap:10px;border:1px solid #ddd;border-radius:8px;padding:8px;margin-bottom:6mm;height:52mm;page-break-inside:avoid">
-      <div style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;width:70mm;overflow:hidden">
-        ${imgPart}
-        <div style="font-size:9.5pt;font-weight:700;color:#1d6f3b">${escHtml(ex.name)}</div>
-        <div style="font-size:7.5pt;color:#666">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}${ex.equip?' · '+escHtml(ex.equip):''}</div>
-        <div style="font-size:7pt;color:#555;line-height:1.3;overflow:hidden">${escHtml(ex.desc||'')}</div>
-      </div>
-      <div style="flex:1;display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px 8px;align-content:start;overflow:hidden">${athCells||'<div style="color:#bbb;font-size:8pt">Sem atletas nesta equipa.</div>'}</div>
-    </div>`;
+  const pageCount=exercises.length?Math.ceil(exercises.length/_GYM_PDF_PER_PAGE):0;
+  const blocksHtml=exercises.length?Array.from({length:pageCount},(_,p)=>{
+    const startIdx=p*_GYM_PDF_PER_PAGE;
+    return _gymPdfPageHtml(exercises.slice(startIdx,startIdx+_GYM_PDF_PER_PAGE),startIdx,p+1,pageCount,athletes,dataMap);
   }).join(''):'<div style="color:#999;text-align:center;padding:30px">Esta ficha não tem exercícios.</div>';
   const summaryRows=athletes.length?athletes.map(a=>{
     const d=dataMap[a.id]||{};
@@ -10014,12 +10040,12 @@ function exportGymSessionPDF(eventId){
     const rec=(APP.gymRecords||[]).find(r=>r.eventId===eventId&&r.athleteId===a.id);
     dataMap[a.id]=rec?{vals:rec.vals||[],obs:rec.obs||''}:{vals:[],obs:''};
   });
-  _printWin('Registo de Ginásio — '+(ev.gymSheet.title||'Ficha')+' ('+fmtDate(ev.date)+')',_gymSessionPdfHtml(ev,dataMap),null,false,true);
+  _printWin('Registo de Ginásio — '+(ev.gymSheet.title||'Ficha')+' ('+fmtDate(ev.date)+')',_gymSessionPdfHtml(ev,dataMap),null,false,false);
 }
 function exportGymSessionPDFFromGrid(){
   const ev=APP.schedule.find(e=>e.id===_gymGridEventId);
   if(!ev||!ev.gymSheet)return;
-  _printWin('Registo de Ginásio — '+(ev.gymSheet.title||'Ficha')+' ('+fmtDate(ev.date)+')',_gymSessionPdfHtml(ev,_gymGridData),null,false,true);
+  _printWin('Registo de Ginásio — '+(ev.gymSheet.title||'Ficha')+' ('+fmtDate(ev.date)+')',_gymSessionPdfHtml(ev,_gymGridData),null,false,false);
 }
 
 // ─── TREINOS INDIVIDUALIZADOS ─────────────────────────────
