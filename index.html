@@ -428,6 +428,8 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
   <div id="main">
     <div class="topbar">
       <button class="tb-btn" onclick="toggleSb()">☰</button>
+      <button class="tb-btn fs-only" id="fs-home-btn" onclick="navTo('fisio-home')" title="Home">🏠</button>
+      <button class="tb-btn nu-only" id="nu-home-btn" onclick="navTo('nutri-home')" title="Home">🏠</button>
       <span class="topbar-title" id="pg-title">Dashboard</span>
       <button class="tb-btn" onclick="openCloud()" title="Cloud">☁️</button>
       <button class="tb-btn" id="tb-cfg-btn" onclick="navTo('config')" title="Config">⚙️</button>
@@ -435,9 +437,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn gy-only" onclick="_gsTab='registos';navTo('fichas-ginasio')" title="Registo">🏋️</button>
       <button class="tb-btn gy-only" onclick="navTo('biblioteca')" title="Biblioteca">📚</button>
       <button class="tb-btn gy-only" onclick="logout()" title="Sair">🚪</button>
-      <button class="tb-btn fs-only" id="fs-back-btn" onclick="navTo('fisio-home')" title="Voltar à Home">←</button>
       <button class="tb-btn fs-only" onclick="logout()" title="Sair">🚪</button>
-      <button class="tb-btn nu-only" id="nu-back-btn" onclick="navTo('nutri-home')" title="Voltar à Home">←</button>
       <button class="tb-btn nu-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
@@ -1095,14 +1095,6 @@ function navTo(id){
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
   const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
-  // SPS-Fisio/SPS-Nutri standalone (sps-v131): a Home é o hub (grelha de cartões), as
-  // restantes páginas ficam "dentro" de uma secção — em vez de repetir todos os atalhos
-  // na topbar, mostra só uma seta de retrocesso para a Home. Pedido do Roger: "botão Home
-  // mais destacado e quando se entra numa aba uma seta de retrocesso" — ver
-  // project_sps_fisio_nutri_home_agenda.
-  const fsBackBtn=document.getElementById('fs-back-btn'),nuBackBtn=document.getElementById('nu-back-btn');
-  if(fsBackBtn)fsBackBtn.style.display=id==='fisio-home'?'none':'';
-  if(nuBackBtn)nuBackBtn.style.display=id==='nutri-home'?'none':'';
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
 }
