@@ -1,0 +1,2648 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title id="page-title">Sport Performance System</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --club:#1a3a5c;--club-l:#e8f1f8;--club-t:#ffffff;
+  --green:#27ae60;--green-l:#eafaf1;--green-t:#1a5c35;
+  --yellow:#e67e22;--yellow-l:#fef5ec;--yellow-t:#7d4e00;
+  --red:#c0392b;--red-l:#fdedec;--red-t:#7b241c;
+  --bg:#f4f6f9;--card:#ffffff;--border:#e2e8f0;
+  --text:#1a202c;--muted:#718096;--faint:#a0aec0;
+  --radius:10px;--shadow:0 1px 4px rgba(0,0,0,0.08);
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+.screen{display:none;min-height:100vh;flex-direction:column;}
+.screen.active{display:flex;}
+
+/* TOPBAR */
+.topbar{background:var(--club);color:var(--club-t);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.topbar-logo{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;}
+.topbar-info p{font-weight:600;font-size:14px;margin:0;}
+.topbar-info span{font-size:11px;opacity:0.75;}
+.topbar-btn{background:rgba(255,255,255,0.15);border:none;color:white;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font);}
+
+/* CONTENT */
+.content{flex:1;overflow-y:auto;padding:16px;}
+.content-nopad{flex:1;overflow-y:auto;}
+
+/* CARDS */
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:14px 16px;margin-bottom:10px;}
+.card-title{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text);}
+
+/* GRID */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.grid-auto{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;}
+
+/* KPI CARDS */
+.kpi{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:12px 14px;text-align:center;}
+.kpi-val{font-size:26px;font-weight:700;line-height:1;}
+.kpi-lbl{font-size:10px;color:var(--muted);margin-top:4px;}
+
+/* STATUS */
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.dot-g{background:var(--green);}
+.dot-y{background:var(--yellow);}
+.dot-r{background:var(--red);}
+.badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;white-space:nowrap;}
+.badge-g{background:var(--green-l);color:var(--green-t);}
+.badge-y{background:var(--yellow-l);color:var(--yellow-t);}
+.badge-r{background:var(--red-l);color:var(--red-t);}
+.badge-blue{background:#ebf5fb;color:#1a5276;}
+.badge-gray{background:#f0f0f0;color:#555;}
+.notif-dot{background:var(--red);color:white;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;}
+
+/* TABS */
+.tabs{display:flex;gap:4px;padding:12px 16px 0;background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;}
+.tab{padding:8px 12px;font-size:12px;border-radius:6px 6px 0 0;cursor:pointer;border:none;background:transparent;font-family:var(--font);color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:4px;}
+.tab.active{background:var(--club);color:white;font-weight:600;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* FORMS */
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);background:white;color:var(--text);outline:none;transition:border 0.15s;}
+input:focus,select:focus,textarea:focus{border-color:var(--club);}
+label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;}
+.form-row{margin-bottom:12px;}
+.btn{width:100%;padding:12px;border-radius:8px;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:opacity 0.15s;}
+.btn:active{opacity:0.8;}
+.btn-primary{background:var(--club);color:white;}
+.btn-success{background:var(--green);color:white;}
+.btn-sm{padding:7px 14px;font-size:12px;border-radius:6px;border:none;cursor:pointer;font-family:var(--font);font-weight:600;}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-family:var(--font);}
+
+/* BORG GRID */
+.borg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0;}
+.borg-btn{padding:10px 4px;border-radius:8px;border:1px solid var(--border);background:white;cursor:pointer;text-align:center;font-family:var(--font);transition:all 0.15s;}
+.borg-btn.sel{border-color:var(--club);background:var(--club-l);}
+.borg-val{font-size:18px;font-weight:700;}
+.borg-lbl{font-size:9px;color:var(--muted);margin-top:2px;line-height:1.2;}
+
+/* WELLNESS BUTTONS */
+.w-scale{display:flex;gap:4px;}
+.w-btn{flex:1;padding:10px 4px;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;text-align:center;font-size:13px;font-weight:600;font-family:var(--font);transition:all 0.15s;}
+.w-btn.sel{border-color:var(--club);background:var(--club);color:white;}
+
+/* CYCLE BUTTONS */
+.cycle-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}
+.cycle-btn{padding:10px;border:1px solid var(--border);border-radius:8px;background:white;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);text-align:center;transition:all 0.15s;}
+.cycle-btn.sel-m{background:#fdedec;border-color:#c0392b;color:#7b241c;}
+.cycle-btn.sel-f{background:#ebf5fb;border-color:#2980b9;color:#1a5276;}
+.cycle-btn.sel-o{background:#eafaf1;border-color:#27ae60;color:#1a5c35;}
+.cycle-btn.sel-l{background:#fef5ec;border-color:#e67e22;color:#7d4e00;}
+
+/* ATHLETE ROW */
+.athlete-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.athlete-row:last-child{border-bottom:none;}
+.athlete-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0;}
+.athlete-name{font-size:13px;font-weight:600;flex:1;min-width:0;}
+.athlete-pos{font-size:10px;color:var(--muted);}
+.progress-bar{height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:4px;}
+.progress-fill{height:100%;border-radius:3px;}
+
+/* SETUP SCREEN */
+.setup-wrap{max-width:440px;margin:0 auto;padding:20px 16px;}
+.setup-logo{width:80px;height:80px;border-radius:50%;background:var(--club);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:white;margin:0 auto 20px;}
+.color-swatch{width:32px;height:32px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform 0.15s;}
+.color-swatch.active{border-color:var(--text);transform:scale(1.1);}
+.swatches{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+/* LOGIN */
+.login-wrap{max-width:400px;margin:0 auto;padding:20px 16px;}
+.role-card{background:var(--card);border:2px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;gap:14px;transition:all 0.15s;}
+.role-card:hover{border-color:var(--club);background:var(--club-l);}
+.role-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.role-title{font-size:14px;font-weight:700;}
+.role-desc{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* NOTIFICATION FEED */
+.notif-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.notif-item:last-child{border-bottom:none;}
+.notif-time{font-size:10px;color:var(--faint);white-space:nowrap;margin-top:2px;}
+
+/* INJURY CARD */
+.injury-card{border-left:3px solid;padding:10px 12px;border-radius:0 8px 8px 0;margin-bottom:8px;background:var(--card);border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);}
+
+/* BOTTOM NAV */
+.bottom-nav{display:flex;background:var(--card);border-top:1px solid var(--border);padding:4px 0;flex-shrink:0;}
+.nav-btn{flex:1;padding:6px 4px;border:none;background:transparent;cursor:pointer;font-family:var(--font);font-size:9px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;transition:color 0.15s;}
+.nav-btn.active{color:var(--club);}
+.nav-icon{font-size:20px;line-height:1;}
+
+/* CHART CONTAINER */
+.chart-wrap{position:relative;width:100%;height:200px;}
+
+/* SUCCESS TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a202c;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;}
+.toast.show{opacity:1;}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:32px 16px;color:var(--muted);}
+.empty-icon{font-size:36px;margin-bottom:8px;}
+
+/* ATHLETE SELECTOR */
+.athlete-select-btn{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:8px;background:white;width:100%;cursor:pointer;font-family:var(--font);text-align:left;}
+.athlete-select-btn.sel{border-color:var(--club);background:var(--club-l);}
+
+/* SECTION HEADER */
+.section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.section-hdr h3{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;}
+
+/* RESPONSIVE */
+@media(min-width:600px){
+  .screen{max-width:480px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,0.12);}
+}
+</style>
+</head>
+<body>
+
+<!-- ======================== SCREEN: SETUP ======================== -->
+<div class="screen" id="scr-setup">
+<div class="content">
+<div class="setup-wrap">
+  <div style="text-align:center;margin-bottom:24px;">
+    <div class="setup-logo" id="setup-logo-preview">SPS</div>
+    <h1 style="font-size:20px;font-weight:700;margin-bottom:6px;">Sport Performance System</h1>
+    <p style="font-size:13px;color:var(--muted);">Configure o sistema para o seu clube</p>
+  </div>
+  <div class="form-row">
+    <label>Nome do Clube</label>
+    <input id="setup-club-name" type="text" placeholder="ex: Moreirense FC" oninput="updateSetupPreview()">
+  </div>
+  <div class="form-row">
+    <label>Sigla / Iniciais</label>
+    <input id="setup-club-short" type="text" placeholder="ex: MFC" maxlength="4" oninput="updateSetupPreview()">
+  </div>
+  <div class="form-row">
+    <label>Modalidade</label>
+    <select id="setup-sport">
+      <option value="Futebol Feminino">Futebol Feminino</option>
+      <option value="Futebol Masculino">Futebol Masculino</option>
+      <option value="Futebol Formação">Futebol Formação</option>
+      <option value="Futsal Feminino">Futsal Feminino</option>
+      <option value="Futsal Masculino">Futsal Masculino</option>
+      <option value="Andebol">Andebol</option>
+      <option value="Basquetebol">Basquetebol</option>
+      <option value="Voleibol">Voleibol</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label>Época</label>
+    <input id="setup-season" type="text" placeholder="ex: 2025/2026" value="2025/2026">
+  </div>
+  <div class="form-row">
+    <label>Cor principal do clube</label>
+    <div class="swatches" id="swatches"></div>
+  </div>
+  <div style="height:16px;"></div>
+  <button class="btn btn-primary" onclick="saveClubSetup()">Criar sistema do clube →</button>
+
+  <!-- Cloud sync section (opcional) -->
+  <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <span style="font-size:18px;">☁️</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;">Sincronização Cloud <span style="font-size:10px;font-weight:400;color:var(--muted);">— opcional</span></div>
+        <div style="font-size:11px;color:var(--muted);">Conecta ao Supabase para partilhar dados entre dispositivos</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Supabase URL</label>
+      <input id="setup-supa-url" type="url" placeholder="https://xxxx.supabase.co">
+    </div>
+    <div class="form-row">
+      <label>Anon Key</label>
+      <input id="setup-supa-key" type="text" placeholder="eyJh...">
+    </div>
+    <div id="setup-cloud-status" style="font-size:11px;color:var(--muted);margin-bottom:8px;min-height:16px;"></div>
+    <button class="btn btn-outline" onclick="setupConnectCloud()" style="font-size:13px;">Testar ligação e ativar ☁️</button>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ======================== SCREEN: LOGIN ======================== -->
+<div class="screen" id="scr-login">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="topbar-logo" id="login-logo">SPS</div>
+    <div class="topbar-info">
+      <p id="login-club-name">Sport Performance System</p>
+      <span id="login-club-sub">Seleciona o teu perfil</span>
+    </div>
+  </div>
+  <button class="topbar-btn" onclick="goSetup()">⚙</button>
+</div>
+<div class="content">
+<div class="login-wrap">
+  <p style="font-size:12px;color:var(--muted);margin-bottom:16px;text-align:center;">Quem és tu neste sistema?</p>
+  <div class="role-card" onclick="loginAs('tecnico')">
+    <div class="role-icon" style="background:#ebf5fb;">📋</div>
+    <div>
+      <div class="role-title">Técnico</div>
+      <div class="role-desc">Dashboard principal · gestão do plantel · todos os dados</div>
+    </div>
+  </div>
+  <div class="role-card" onclick="showAthleteSelect()">
+    <div class="role-icon" style="background:#eafaf1;">⚽</div>
+    <div>
+      <div class="role-title">Atleta</div>
+      <div class="role-desc">Registar PSE · wellness · ver agenda e treino</div>
+    </div>
+  </div>
+  <div class="role-card" onclick="loginAs('nutricao')">
+    <div class="role-icon" style="background:#fef9ec;">🥗</div>
+    <div>
+      <div class="role-title">Nutricionista</div>
+      <div class="role-desc">Avaliações corporais · planos nutricionais · alertas</div>
+    </div>
+  </div>
+  <div class="role-card" onclick="loginAs('fisio')">
+    <div class="role-icon" style="background:#fdedec;">🏥</div>
+    <div>
+      <div class="role-title">Fisioterapeuta</div>
+      <div class="role-desc">Gestão de lesões · protocolos · retorno à competição</div>
+    </div>
+  </div>
+  <!-- Athlete select panel -->
+  <div id="athlete-select-panel" style="display:none;margin-top:8px;">
+    <div class="card">
+      <div class="card-title">Seleciona a tua atleta</div>
+      <input type="text" placeholder="Pesquisar..." id="athlete-search" oninput="filterAthletes()" style="margin-bottom:8px;">
+      <div id="athlete-list" style="max-height:200px;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ======================== SCREEN: TÉCNICO ======================== -->
+<div class="screen" id="scr-tecnico">
+<div class="topbar" id="tecnico-topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="topbar-logo" id="tecnico-logo">SPS</div>
+    <div class="topbar-info">
+      <p id="tecnico-club-name">Dashboard Técnico</p>
+      <span id="tecnico-sub">A carregar...</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span class="cloud-badge" style="display:none;font-size:10px;background:rgba(255,255,255,0.2);padding:3px 8px;border-radius:10px;font-weight:600;cursor:pointer;" onclick="showCloudPanel()" title="Estado da ligação cloud"></span>
+    <button class="topbar-btn" onclick="showCloudPanel()" title="Configurar Cloud Sync" style="font-size:16px;padding:6px 8px;">☁️</button>
+    <button class="topbar-btn" onclick="logout()">Sair</button>
+  </div>
+</div>
+<!-- KPIs -->
+<div style="padding:12px 16px 0;background:var(--club);">
+  <div class="grid-auto" style="padding-bottom:12px;" id="tecnico-kpis"></div>
+</div>
+<!-- Tabs -->
+<div class="tabs" id="tecnico-tabs">
+  <button class="tab active" data-tab="plantel" onclick="switchTab('tecnico','plantel',this)">Plantel</button>
+  <button class="tab" data-tab="wellness" onclick="switchTab('tecnico','wellness',this)">Wellness <span id="notif-wellness"></span></button>
+  <button class="tab" data-tab="pse" onclick="switchTab('tecnico','pse',this)">PSE/Carga <span id="notif-pse"></span></button>
+  <button class="tab" data-tab="lesoes" onclick="switchTab('tecnico','lesoes',this)">Lesões <span id="notif-lesoes"></span></button>
+  <button class="tab" data-tab="nutricao" onclick="switchTab('tecnico','nutricao',this)">Nutrição <span id="notif-nutricao"></span></button>
+  <button class="tab" data-tab="treinos" onclick="switchTab('tecnico','treinos',this)">Treinos <span id="notif-treinos"></span></button>
+  <button class="tab" data-tab="agenda" onclick="switchTab('tecnico','agenda',this)">Agenda</button>
+</div>
+<div class="content-nopad">
+  <div class="content tab-panel active" id="tec-plantel"></div>
+  <div class="content tab-panel" id="tec-wellness"></div>
+  <div class="content tab-panel" id="tec-pse"></div>
+  <div class="content tab-panel" id="tec-lesoes"></div>
+  <div class="content tab-panel" id="tec-nutricao"></div>
+  <div class="content tab-panel" id="tec-treinos"></div>
+  <div class="content tab-panel" id="tec-agenda"></div>
+</div>
+</div>
+
+<!-- ======================== SCREEN: ATLETA ======================== -->
+<div class="screen" id="scr-atleta">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="topbar-logo" id="atleta-logo">A</div>
+    <div class="topbar-info">
+      <p id="atleta-name">Atleta</p>
+      <span id="atleta-club"></span>
+    </div>
+  </div>
+  <button class="topbar-btn" onclick="logout()">Sair</button>
+</div>
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('atleta','pse-form',this)">PSE</button>
+  <button class="tab" onclick="switchTab('atleta','well-form',this)">Wellness</button>
+  <button class="tab" onclick="switchTab('atleta','agenda-at',this)">Agenda</button>
+  <button class="tab" onclick="switchTab('atleta','treino-at',this)">Treino</button>
+</div>
+<div class="content-nopad" style="flex:1;overflow-y:auto;">
+
+  <!-- PSE Form -->
+  <div class="content tab-panel active" id="at-pse-form">
+    <div class="card">
+      <div class="card-title">Registo PSE — Borg CR10</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Como classificas o esforço da sessão de hoje?</p>
+      <div class="borg-grid" id="borg-grid"></div>
+      <div id="borg-feedback" style="display:none;padding:8px 12px;border-radius:8px;background:var(--club-l);color:var(--club);font-size:12px;font-weight:600;margin-bottom:12px;border:1px solid var(--club);"></div>
+      <div class="form-row">
+        <label>Tipo de sessão</label>
+        <select id="at-session-type">
+          <option value="tatico">Tático</option>
+          <option value="fisico">Físico</option>
+          <option value="tecnico">Técnico</option>
+          <option value="ativacao">Ativação</option>
+          <option value="recuperacao">Recuperação</option>
+          <option value="jogo">Jogo</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Duração (minutos)</label>
+        <input type="number" id="at-duration" placeholder="ex: 90" min="10" max="180">
+      </div>
+      <div id="ua-preview" style="display:none;text-align:center;padding:10px;background:var(--club-l);border-radius:8px;margin-bottom:12px;">
+        <span style="font-size:11px;color:var(--muted);">Carga interna calculada</span>
+        <div style="font-size:24px;font-weight:700;color:var(--club);" id="ua-val">— UA</div>
+      </div>
+      <button class="btn btn-primary" id="pse-submit-btn" onclick="submitPSE()" disabled>Submeter PSE</button>
+    </div>
+    <div id="pse-today-status"></div>
+  </div>
+
+  <!-- Wellness Form -->
+  <div class="content tab-panel" id="at-well-form">
+    <div id="wellness-today-banner"></div>
+    <div class="card">
+      <div class="card-title">Questionário wellness diário</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">Preenche todas as dimensões — os dados chegam ao técnico em tempo real.</p>
+      <div id="wellness-form-body"></div>
+      <button class="btn btn-primary" onclick="submitWellness()">Enviar wellness</button>
+    </div>
+  </div>
+
+  <!-- Agenda -->
+  <div class="content tab-panel" id="at-agenda-at">
+    <div class="section-hdr"><h3>Esta semana</h3></div>
+    <div id="atleta-agenda-list"></div>
+  </div>
+
+  <!-- Treino individualizado -->
+  <div class="content tab-panel" id="at-treino-at">
+    <div id="atleta-treino-content"></div>
+  </div>
+</div>
+</div>
+
+<!-- ======================== SCREEN: NUTRICIONISTA ======================== -->
+<div class="screen" id="scr-nutricao">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="topbar-logo" id="nutricao-logo">N</div>
+    <div class="topbar-info">
+      <p id="nutricao-club-name">Nutricionista</p>
+      <span id="nutricao-sub"></span>
+    </div>
+  </div>
+  <button class="topbar-btn" onclick="logout()">Sair</button>
+</div>
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('nutricao','plantel-n',this)">Plantel</button>
+  <button class="tab" onclick="switchTab('nutricao','avaliacao-n',this)">Nova Avaliação</button>
+  <button class="tab" onclick="switchTab('nutricao','prescricao-n',this)">Prescrição</button>
+</div>
+<div class="content-nopad" style="flex:1;overflow-y:auto;">
+  <div class="content tab-panel active" id="nut-plantel-n">
+    <div id="nut-plantel-list"></div>
+  </div>
+  <div class="content tab-panel" id="nut-avaliacao-n">
+    <div class="card">
+      <div class="card-title">Nova avaliação antropométrica</div>
+      <div class="form-row">
+        <label>Atleta</label>
+        <select id="nut-athlete-sel" onchange="updateNutAthlete()">
+          <option value="">— Selecionar atleta —</option>
+        </select>
+      </div>
+      <div class="grid2">
+        <div class="form-row"><label>Peso (kg)</label><input type="number" id="nut-peso" placeholder="62.5" step="0.1" oninput="calcIMC()"></div>
+        <div class="form-row"><label>Altura (cm)</label><input type="number" id="nut-altura" placeholder="168" oninput="calcIMC()"></div>
+      </div>
+      <div id="imc-result" style="display:none;text-align:center;padding:8px;background:var(--club-l);border-radius:8px;margin-bottom:10px;font-weight:700;color:var(--club);font-size:15px;"></div>
+      <div class="grid2">
+        <div class="form-row"><label>% Gordura</label><input type="number" id="nut-gordura" placeholder="19.4" step="0.1"></div>
+        <div class="form-row"><label>Hidratação</label>
+          <select id="nut-hidratacao">
+            <option value="boa">Boa</option><option value="razoavel">Razoável</option><option value="ma">Má</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="form-row"><label>Prega tricipital (mm)</label><input type="number" id="nut-tricip" placeholder="12"></div>
+        <div class="form-row"><label>Prega suprailiaca (mm)</label><input type="number" id="nut-supra" placeholder="8"></div>
+      </div>
+      <div class="form-row"><label>Notas / recomendações</label><textarea id="nut-notas" rows="3" placeholder="Observações clínicas..."></textarea></div>
+      <button class="btn btn-success" onclick="submitNutrition()">Guardar avaliação → Técnico</button>
+    </div>
+  </div>
+  <div class="content tab-panel" id="nut-prescricao-n">
+    <div class="card">
+      <div class="card-title">Prescrição nutricional</div>
+      <div class="form-row">
+        <label>Atleta</label>
+        <select id="nut-presc-athlete"><option value="">— Selecionar —</option></select>
+      </div>
+      <div class="grid2">
+        <div class="form-row"><label>Calorias alvo</label><input type="number" id="nut-kcal" placeholder="2400"></div>
+        <div class="form-row"><label>Objetivo</label>
+          <select id="nut-objetivo">
+            <option value="manutencao">Manutenção</option>
+            <option value="reducao">Redução gordura</option>
+            <option value="ganho">Ganho massa</option>
+            <option value="performance">Performance</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="form-row"><label>Proteína (g/kg)</label><input type="number" id="nut-prot" placeholder="1.8" step="0.1"></div>
+        <div class="form-row"><label>Hidratos (g/kg)</label><input type="number" id="nut-hid" placeholder="5.0" step="0.1"></div>
+      </div>
+      <div class="form-row"><label>Suplementação</label><textarea id="nut-suplements" rows="2" placeholder="ex: Vit D3 2000UI, Omega-3 2g..."></textarea></div>
+      <div class="form-row"><label>Recomendação por fase do ciclo</label><textarea id="nut-ciclo" rows="3" placeholder="Adaptar recomendações por fase menstrual..."></textarea></div>
+      <button class="btn btn-primary" onclick="submitPrescricao()">Enviar prescrição → Atleta</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ======================== SCREEN: FISIOTERAPIA ======================== -->
+<div class="screen" id="scr-fisio">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="topbar-logo" id="fisio-logo">F</div>
+    <div class="topbar-info">
+      <p id="fisio-club-name">Fisioterapeuta</p>
+      <span id="fisio-sub"></span>
+    </div>
+  </div>
+  <button class="topbar-btn" onclick="logout()">Sair</button>
+</div>
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('fisio','lesoes-f',this)">Lesões ativas</button>
+  <button class="tab" onclick="switchTab('fisio','nova-lesao',this)">Registar</button>
+  <button class="tab" onclick="switchTab('fisio','update-f',this)">Atualizar</button>
+</div>
+<div class="content-nopad" style="flex:1;overflow-y:auto;">
+  <div class="content tab-panel active" id="fi-lesoes-f">
+    <div id="fisio-injury-list"></div>
+  </div>
+  <div class="content tab-panel" id="fi-nova-lesao">
+    <div class="card">
+      <div class="card-title">Registar ocorrência clínica</div>
+      <div class="form-row">
+        <label>Atleta</label>
+        <select id="fisio-athlete-sel"><option value="">— Selecionar —</option></select>
+      </div>
+      <div class="grid2">
+        <div class="form-row"><label>Tipo</label>
+          <select id="fisio-tipo">
+            <option value="traumatica">Traumática</option>
+            <option value="sobrecarga">Sobrecarga</option>
+            <option value="doenca">Doença</option>
+            <option value="outra">Outra</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Severidade</label>
+          <select id="fisio-severity">
+            <option value="ligeira">Ligeira</option>
+            <option value="moderada">Moderada</option>
+            <option value="grave">Grave</option>
+            <option value="critica">Crítica</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row"><label>Diagnóstico</label><input type="text" id="fisio-diag" placeholder="ex: Entorse tornozelo direito grau II"></div>
+      <div class="grid2">
+        <div class="form-row"><label>Disponibilidade</label>
+          <select id="fisio-disp">
+            <option value="disponivel">Disponível</option>
+            <option value="treino_mod">Treino modificado</option>
+            <option value="indisponivel">Indisponível</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Retorno previsto</label><input type="date" id="fisio-retorno"></div>
+      </div>
+      <div class="form-row"><label>Notas clínicas</label><textarea id="fisio-notas" rows="3" placeholder="Mecanismo de lesão, exame físico, plano..."></textarea></div>
+      <button class="btn btn-primary" onclick="submitInjury()">Registar → Técnico</button>
+    </div>
+  </div>
+  <div class="content tab-panel" id="fi-update-f">
+    <div class="card">
+      <div class="card-title">Atualizar protocolo</div>
+      <div id="fisio-update-list"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ============================================================
+// DATA STORE
+// ============================================================
+const KEY     = 'sps_v1';
+const SUPA_KEY = 'sps_supa_cfg'; // {url, anonKey, clubId}
+
+const defaultAthletes = [
+  {id:'a1',name:'Sofia Martins',pos:'GR',num:1},
+  {id:'a2',name:'Carla Nunes',pos:'GR',num:16},
+  {id:'a3',name:'Ana Costa',pos:'DD',num:2},
+  {id:'a4',name:'Diana Campos',pos:'DD',num:14},
+  {id:'a5',name:'Beatriz Silva',pos:'DC',num:5},
+  {id:'a6',name:'Inês Ferreira',pos:'DC',num:4},
+  {id:'a7',name:'Lara Teixeira',pos:'DC',num:15},
+  {id:'a8',name:'Catarina Sousa',pos:'DE',num:3},
+  {id:'a9',name:'Joana Pereira',pos:'MC',num:8},
+  {id:'a10',name:'Rita Santos',pos:'MC',num:6},
+  {id:'a11',name:'Vera Monteiro',pos:'MC',num:13},
+  {id:'a12',name:'Andreia Lima',pos:'MD',num:7},
+  {id:'a13',name:'Filipa Rodrigues',pos:'EX',num:11},
+  {id:'a14',name:'Marta Oliveira',pos:'EX',num:17},
+  {id:'a15',name:'Sara Pinto',pos:'EX',num:18},
+  {id:'a16',name:'Teresa Gomes',pos:'AC',num:9},
+  {id:'a17',name:'Helena Cruz',pos:'AC',num:10},
+  {id:'a18',name:'Patrícia Mendes',pos:'AC',num:19},
+  {id:'a19',name:'Mariana Alves',pos:'MCD',num:12},
+];
+
+const defaultSchedule = [
+  {id:'e1',date:todayPlus(0),time:'10:00',type:'tatico',title:'Treino tático',location:'Campo principal',duration:90},
+  {id:'e2',date:todayPlus(2),time:'10:00',type:'fisico',title:'Treino físico',location:'Campo 2',duration:75},
+  {id:'e3',date:todayPlus(3),time:'10:30',type:'ativacao',title:'Ativação pré-jogo',location:'Campo principal',duration:60},
+  {id:'e4',date:todayPlus(4),time:'15:00',type:'jogo',title:'Jogo oficial',location:'Estádio',duration:90},
+  {id:'e5',date:todayPlus(6),time:'10:00',type:'recuperacao',title:'Recuperação ativa',location:'Ginásio',duration:45},
+];
+
+function todayPlus(n){
+  const d = new Date(); d.setDate(d.getDate()+n);
+  return d.toISOString().split('T')[0];
+}
+function today(){ return new Date().toISOString().split('T')[0]; }
+function nowISO(){ return new Date().toISOString(); }
+function timeNow(){
+  const d=new Date();
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+
+function loadData(){
+  try{ return JSON.parse(localStorage.getItem(KEY)) || null; }
+  catch(e){ return null; }
+}
+function saveData(d){ localStorage.setItem(KEY, JSON.stringify(d)); }
+
+function getApp(){
+  let d = loadData();
+  if(!d){
+    d = {
+      club:{name:'',shortName:'',color:'#1a3a5c',sport:'Futebol Feminino',season:'2025/2026'},
+      athletes: defaultAthletes,
+      wellness:[],
+      pse:[],
+      injuries:[
+        {id:'i1',athleteId:'a19',date:'2026-05-01',type:'traumatica',diagnosis:'Rotura ligamentar joelho esq.',severity:'grave',status:'indisponivel',returnDate:'2026-06-10',notes:'Protocolo fase 1',registeredBy:'Fisioterapeuta',registeredAt:nowISO(),phase:1,phaseDesc:'Repouso e controlo da inflamação',progress:28},
+        {id:'i2',athleteId:'a18',date:'2026-05-13',type:'traumatica',diagnosis:'Entorse tornozelo dto. grau II',severity:'moderada',status:'indisponivel',returnDate:'2026-05-28',notes:'Propriocepção em curso',registeredBy:'Fisioterapeuta',registeredAt:nowISO(),phase:2,phaseDesc:'Carga parcial e propriocepção',progress:65},
+      ],
+      nutrition:[],
+      schedule: defaultSchedule,
+      treinos:[
+        {id:'t1',athleteId:'a3',title:'Trabalho de passe curto',type:'Técnico',description:'4 séries × 8 rep. em espaço reduzido (5×5m). Foco no 1.º toque.',week:todayPlus(0),done:false,note:'Foca na qualidade do 1.º toque.'},
+        {id:'t2',athleteId:'a3',title:'Aceleração 10–20m',type:'Físico',description:'6 repetições com recuperação completa. Cronometrado.',week:todayPlus(0),done:false,note:''},
+      ],
+      notifications:{wellness:null,pse:null,lesoes:null,nutricao:null},
+      lastView:{wellness:null,pse:null,lesoes:null,nutricao:null},
+      currentUser:null,
+      configured: false
+    };
+    saveData(d);
+  }
+  return d;
+}
+
+let APP = getApp();
+let currentSession = {role:null, athleteId:null, athleteName:null};
+let selBorg = null;
+let wellnessAnswers = {};
+
+// ============================================================
+// SUPABASE CLOUD LAYER
+// ============================================================
+let _supa     = null;   // Supabase client
+let _clubId   = null;   // UUID do clube no Supabase
+let _supaSync = false;  // cloud sync ativo?
+let _realtimeCh = null; // subscription channel
+
+function getSupaCfg(){ try{ return JSON.parse(localStorage.getItem(SUPA_KEY))||null; }catch(e){return null;} }
+function setSupaCfg(c){ localStorage.setItem(SUPA_KEY, JSON.stringify(c)); }
+
+function initSupabase(){
+  const cfg = getSupaCfg();
+  if(!cfg?.url || !cfg?.anonKey) return;
+  try {
+    _supa    = supabase.createClient(cfg.url, cfg.anonKey);
+    _clubId  = cfg.clubId || null;
+    _supaSync = true;
+    updateCloudBadge('🟢 Cloud');
+    subscribeRealtime();
+  } catch(e){ console.warn('Supabase init error:', e); _supaSync=false; }
+}
+
+function updateCloudBadge(label){
+  document.querySelectorAll('.cloud-badge').forEach(el=>{ el.textContent=label; el.style.display=label?'':'none'; });
+}
+
+// ── PULL: Supabase → APP (localStorage) ─────────────────────
+async function pullFromCloud(){
+  if(!_supa || !_clubId) return false;
+  try {
+    const cid = _clubId;
+    const [ath, well, pse, inj, nut, sch, tr] = await Promise.all([
+      _supa.from('athletes').select('*').eq('club_id',cid),
+      _supa.from('wellness_records').select('*').eq('club_id',cid),
+      _supa.from('pse_records').select('*').eq('club_id',cid),
+      _supa.from('injuries').select('*').eq('club_id',cid),
+      _supa.from('nutrition_records').select('*').eq('club_id',cid),
+      _supa.from('schedule_events').select('*').eq('club_id',cid),
+      _supa.from('training_plans').select('*').eq('club_id',cid),
+    ]);
+    if(ath.data)  APP.athletes   = ath.data.map(remapAthlete);
+    if(well.data) APP.wellness   = well.data.map(remapWellness);
+    if(pse.data)  APP.pse        = pse.data.map(remapPSE);
+    if(inj.data)  APP.injuries   = inj.data.map(remapInjury);
+    if(nut.data)  APP.nutrition  = nut.data.map(remapNutrition);
+    if(sch.data)  APP.schedule   = sch.data.map(remapSchedule);
+    if(tr.data)   APP.treinos    = tr.data.map(remapTreino);
+    saveData(APP);
+    return true;
+  } catch(e){ console.warn('Pull error:',e); return false; }
+}
+
+// ── PUSH helpers ──────────────────────────────────────────────
+async function cloudInsert(table, row){
+  if(!_supa || !_clubId) return;
+  const payload = {...row, club_id: _clubId};
+  const {error} = await _supa.from(table).upsert(payload);
+  if(error) console.warn('cloudInsert error:', error);
+}
+async function cloudUpdate(table, id, patch){
+  if(!_supa || !_clubId) return;
+  const {error} = await _supa.from(table).update(patch).eq('id', id).eq('club_id', _clubId);
+  if(error) console.warn('cloudUpdate error:', error);
+}
+async function cloudDelete(table, id){
+  if(!_supa || !_clubId) return;
+  const {error} = await _supa.from(table).delete().eq('id', id).eq('club_id', _clubId);
+  if(error) console.warn('cloudDelete error:', error);
+}
+
+// ── REALTIME subscriptions ─────────────────────────────────
+function subscribeRealtime(){
+  if(!_supa || !_clubId) return;
+  if(_realtimeCh) _supa.removeChannel(_realtimeCh);
+  _realtimeCh = _supa.channel('sps-'+_clubId)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'wellness_records',filter:`club_id=eq.${_clubId}`}, p=>{
+      if(!APP.wellness.find(w=>w.id===p.new.id)){ APP.wellness.push(remapWellness(p.new)); saveData(APP); refreshTecnicoCurrentTab(); updateNotifBadges(); }
+    })
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'pse_records',filter:`club_id=eq.${_clubId}`}, p=>{
+      if(!APP.pse.find(x=>x.id===p.new.id)){ APP.pse.push(remapPSE(p.new)); saveData(APP); refreshTecnicoCurrentTab(); updateNotifBadges(); }
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'injuries',filter:`club_id=eq.${_clubId}`}, p=>{
+      if(p.eventType==='DELETE'){ APP.injuries=APP.injuries.filter(i=>i.id!==p.old.id); }
+      else { const idx=APP.injuries.findIndex(i=>i.id===p.new.id); if(idx>=0) APP.injuries[idx]=remapInjury(p.new); else APP.injuries.push(remapInjury(p.new)); }
+      saveData(APP); refreshTecnicoCurrentTab(); updateNotifBadges();
+    })
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'nutrition_records',filter:`club_id=eq.${_clubId}`}, p=>{
+      if(!APP.nutrition.find(x=>x.id===p.new.id)){ APP.nutrition.push(remapNutrition(p.new)); saveData(APP); refreshTecnicoCurrentTab(); updateNotifBadges(); }
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'schedule_events',filter:`club_id=eq.${_clubId}`}, p=>{
+      if(p.eventType==='DELETE'){ APP.schedule=APP.schedule.filter(e=>e.id!==p.old.id); }
+      else { const idx=APP.schedule.findIndex(e=>e.id===p.new.id); if(idx>=0) APP.schedule[idx]=remapSchedule(p.new); else APP.schedule.push(remapSchedule(p.new)); }
+      saveData(APP); if(currentSession.role==='tecnico') renderTecnicoAgenda();
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'training_plans',filter:`club_id=eq.${_clubId}`}, p=>{
+      if(p.eventType==='DELETE'){ APP.treinos=APP.treinos.filter(t=>t.id!==p.old.id); }
+      else { const idx=APP.treinos.findIndex(t=>t.id===p.new.id); if(idx>=0) APP.treinos[idx]=remapTreino(p.new); else APP.treinos.push(remapTreino(p.new)); }
+      saveData(APP); refreshTecnicoCurrentTab();
+    })
+    .subscribe();
+}
+
+function refreshTecnicoCurrentTab(){
+  if(currentSession.role!=='tecnico') return;
+  const activeTab = document.querySelector('#scr-tecnico .tab.active')?.dataset?.tab;
+  if(!activeTab) return;
+  if(activeTab==='wellness') renderTecnicoWellness();
+  else if(activeTab==='pse') renderTecnicoPSE();
+  else if(activeTab==='lesoes') renderTecnicoLesoes();
+  else if(activeTab==='nutricao') renderTecnicoNutricao();
+  else if(activeTab==='treinos') renderTecnicoTreinos();
+  else if(activeTab==='agenda') renderTecnicoAgenda();
+}
+
+// ── Field remappers (snake_case → camelCase) ─────────────────
+function remapAthlete(r){ return {id:r.id,name:r.name,pos:r.pos,num:r.num,dob:r.dob||'',nationality:r.nationality||'',height:r.height||'',foot:r.foot||'',photo:r.photo||'',club:r.club||''}; }
+function remapWellness(r){ return {id:r.id,athleteId:r.athlete_id,date:r.date,sleep:r.sleep,fatigue:r.fatigue,stress:r.stress,pain:r.pain,mood:r.mood,score:r.score,cycle:r.cycle,submittedAt:r.submitted_at}; }
+function remapPSE(r){ return {id:r.id,athleteId:r.athlete_id,date:r.date,pse:r.pse,duration:r.duration,ua:r.ua,sessionType:r.session_type,submittedAt:r.submitted_at}; }
+function remapInjury(r){ return {id:r.id,athleteId:r.athlete_id,date:r.date,type:r.type,diagnosis:r.diagnosis,severity:r.severity,status:r.status,returnDate:r.return_date,notes:r.notes,phase:r.phase,phaseDesc:r.phase_desc,progress:r.progress,registeredBy:r.registered_by,registeredAt:r.registered_at}; }
+function remapNutrition(r){ return {id:r.id,athleteId:r.athlete_id,date:r.date,weight:r.weight,height:r.height,imc:r.imc,bodyFat:r.body_fat,hydration:r.hydration,notes:r.notes,registeredAt:r.registered_at}; }
+function remapSchedule(r){ return {id:r.id,type:r.type,title:r.title,date:r.date,time:r.time,location:r.location,duration:r.duration,notes:r.notes,createdAt:r.created_at}; }
+function remapTreino(r){ return {id:r.id,athleteId:r.athlete_id,title:r.title,type:r.type,description:r.description,week:r.week,done:r.done,note:r.note,volume:r.volume,createdAt:r.created_at}; }
+
+// ── Cloud connect / configure (called from Setup & Settings) ──
+async function connectCloud(url, anonKey){
+  try {
+    const client = supabase.createClient(url.trim(), anonKey.trim());
+    // Test connection
+    const {error} = await client.from('clubs').select('id').limit(1);
+    if(error && error.code!=='PGRST116') throw error;
+
+    // Find or create club record
+    let clubId = null;
+    const {data:existing} = await client.from('clubs').select('id').eq('name', APP.club.name).limit(1);
+    if(existing?.length){
+      clubId = existing[0].id;
+    } else {
+      const {data:created, error:ce} = await client.from('clubs').insert({
+        name:APP.club.name, short_name:APP.club.shortName,
+        color:APP.club.color, sport:APP.club.sport, season:APP.club.season
+      }).select('id').single();
+      if(ce) throw ce;
+      clubId = created.id;
+    }
+
+    // Save config
+    setSupaCfg({url:url.trim(), anonKey:anonKey.trim(), clubId});
+    _supa    = client;
+    _clubId  = clubId;
+    _supaSync = true;
+
+    // Push existing athletes to cloud if cloud is empty
+    const {data:cloudAth} = await client.from('athletes').select('id').eq('club_id',clubId).limit(1);
+    if(!cloudAth?.length){
+      for(const a of APP.athletes){
+        await client.from('athletes').upsert({...a, club_id:clubId});
+      }
+    }
+    // Push existing schedule
+    const {data:cloudSch} = await client.from('schedule_events').select('id').eq('club_id',clubId).limit(1);
+    if(!cloudSch?.length){
+      for(const e of APP.schedule){
+        await client.from('schedule_events').upsert({...e, club_id:clubId, time:e.time||'10:00'});
+      }
+    }
+
+    // Pull all data
+    await pullFromCloud();
+    updateCloudBadge('🟢 Cloud');
+    subscribeRealtime();
+    return {ok:true, clubId};
+  } catch(e){
+    console.error('connectCloud error:', e);
+    return {ok:false, error: e.message||String(e)};
+  }
+}
+
+async function disconnectCloud(){
+  if(_realtimeCh && _supa) _supa.removeChannel(_realtimeCh);
+  _supa=null; _clubId=null; _supaSync=false; _realtimeCh=null;
+  localStorage.removeItem(SUPA_KEY);
+  updateCloudBadge('');
+  showToast('Cloud desconectado — modo local ativo');
+}
+
+// ============================================================
+// CLUB COLORS
+// ============================================================
+const COLORS = [
+  {hex:'#1a3a5c',name:'Azul marinho'},
+  {hex:'#c0392b',name:'Vermelho'},
+  {hex:'#1e8449',name:'Verde'},
+  {hex:'#7d3c98',name:'Roxo'},
+  {hex:'#e67e22',name:'Laranja'},
+  {hex:'#1a5276',name:'Azul real'},
+  {hex:'#17202a',name:'Preto'},
+  {hex:'#7f8c8d',name:'Cinzento'},
+];
+let selectedColor = '#1a3a5c';
+
+function buildSwatches(){
+  const c = document.getElementById('swatches');
+  c.innerHTML = '';
+  COLORS.forEach(col => {
+    const d = document.createElement('div');
+    d.className = 'color-swatch' + (col.hex===selectedColor?' active':'');
+    d.style.background = col.hex;
+    d.title = col.name;
+    d.onclick = () => {
+      selectedColor = col.hex;
+      document.querySelectorAll('.color-swatch').forEach(x=>x.classList.remove('active'));
+      d.classList.add('active');
+      document.getElementById('setup-logo-preview').style.background = col.hex;
+      document.documentElement.style.setProperty('--club', col.hex);
+    };
+    c.appendChild(d);
+  });
+}
+
+function applyClubColor(hex){
+  document.documentElement.style.setProperty('--club', hex);
+  // Light version
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  document.documentElement.style.setProperty('--club-l', `rgba(${r},${g},${b},0.08)`);
+}
+
+function updateSetupPreview(){
+  const n = document.getElementById('setup-club-name').value;
+  const s = document.getElementById('setup-club-short').value || n.split(' ').map(w=>w[0]).join('').slice(0,3).toUpperCase();
+  document.getElementById('setup-logo-preview').textContent = s||'SPS';
+  document.getElementById('page-title').textContent = n || 'Sport Performance System';
+}
+
+function saveClubSetup(){
+  const name = document.getElementById('setup-club-name').value.trim();
+  const short = document.getElementById('setup-club-short').value.trim() || name.split(' ').map(w=>w[0]).join('').slice(0,3).toUpperCase();
+  const sport = document.getElementById('setup-sport').value;
+  const season = document.getElementById('setup-season').value.trim();
+  if(!name){ showToast('Introduz o nome do clube'); return; }
+  APP.club = {name, shortName:short, color:selectedColor, sport, season};
+  APP.configured = true;
+  saveData(APP);
+  applyClubColor(selectedColor);
+  showScreen('scr-login');
+  renderLogin();
+}
+
+function goSetup(){ showScreen('scr-setup'); }
+
+async function setupConnectCloud(){
+  const url = document.getElementById('setup-supa-url')?.value.trim();
+  const key = document.getElementById('setup-supa-key')?.value.trim();
+  const st  = document.getElementById('setup-cloud-status');
+  if(!url||!key){ if(st) st.textContent='⚠️ Preenche o URL e a Anon Key'; return; }
+  if(!APP.club.name){ if(st) st.textContent='⚠️ Configura primeiro o clube acima'; return; }
+  if(st){ st.textContent='⏳ A conectar…'; st.style.color='var(--muted)'; }
+  const r = await connectCloud(url, key);
+  if(st){
+    if(r.ok){ st.textContent='✅ Conectado! Club ID: '+r.clubId; st.style.color='var(--green)'; }
+    else     { st.textContent='❌ Erro: '+r.error; st.style.color='var(--red)'; }
+  }
+  if(r.ok) showToast('☁️ Cloud sync ativo!');
+}
+
+// ── Cloud panel overlay (from Técnico topbar) ─────────────────
+let _cloudPanelOpen = false;
+function showCloudPanel(){
+  _cloudPanelOpen = true;
+  const cfg   = getSupaCfg();
+  const panel = document.createElement('div');
+  panel.id = 'cloud-panel';
+  panel.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:8888;display:flex;align-items:flex-end;';
+  const isConnected = !!(_supa && _clubId);
+  panel.innerHTML=`
+  <div style="background:white;width:100%;max-width:480px;margin:0 auto;border-radius:16px 16px 0 0;padding:20px 16px 32px;font-family:var(--font);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:700;">☁️ Cloud Sync — Supabase</div>
+      <button onclick="document.getElementById('cloud-panel').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    ${isConnected?`
+      <div style="background:var(--green-l);border:1px solid var(--green);border-radius:8px;padding:12px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--green-t);">🟢 Cloud Sync Ativo</div>
+        <div style="font-size:11px;color:var(--green-t);margin-top:4px;">Club ID: ${_clubId}</div>
+        <div style="font-size:11px;color:var(--green-t);">Todos os dados sincronizados em tempo real</div>
+      </div>
+      <button class="btn btn-outline" onclick="syncNow()" style="margin-bottom:8px;">🔄 Forçar sincronização</button>
+      <button class="btn" style="background:var(--red-l);color:var(--red);border:none;" onclick="disconnectCloud().then(()=>document.getElementById('cloud-panel').remove())">Desconectar cloud</button>
+    `:`
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Conecta ao Supabase para que atletas, nutricionista e fisioterapeuta vejam os dados em tempo real em qualquer dispositivo.</p>
+      <div class="form-row"><label>Supabase URL</label><input id="cp-url" type="url" value="${cfg?.url||''}" placeholder="https://xxxx.supabase.co"></div>
+      <div class="form-row"><label>Anon Key</label><input id="cp-key" type="text" value="${cfg?.anonKey||''}" placeholder="eyJh..."></div>
+      <div id="cp-status" style="font-size:11px;min-height:16px;margin-bottom:10px;"></div>
+      <button class="btn btn-primary" onclick="connectFromPanel()">Ativar cloud sync ☁️</button>
+      <div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--muted);">
+        <b>Como obter as credenciais:</b><br>
+        1. Cria conta gratuita em <b>supabase.com</b><br>
+        2. Cria um novo projeto<br>
+        3. Corre o ficheiro <b>supabase_migration.sql</b><br>
+        4. Copia de: Settings → API → Project URL + anon key
+      </div>
+    `}
+  </div>`;
+  document.body.appendChild(panel);
+  panel.addEventListener('click', e=>{ if(e.target===panel) panel.remove(); });
+}
+
+async function connectFromPanel(){
+  const url = document.getElementById('cp-url')?.value.trim();
+  const key = document.getElementById('cp-key')?.value.trim();
+  const st  = document.getElementById('cp-status');
+  if(!url||!key){ if(st) st.textContent='⚠️ Preenche URL e Anon Key'; return; }
+  if(st){ st.textContent='⏳ A conectar…'; st.style.color='var(--muted)'; }
+  const r = await connectCloud(url, key);
+  if(st){
+    if(r.ok){ st.textContent='✅ Ligação estabelecida!'; st.style.color='var(--green)'; }
+    else     { st.textContent='❌ '+r.error; st.style.color='var(--red)'; }
+  }
+  if(r.ok){
+    setTimeout(()=>{ document.getElementById('cloud-panel')?.remove(); showToast('☁️ Cloud sync ativo — dados partilhados em tempo real'); },1000);
+  }
+}
+
+async function syncNow(){
+  document.getElementById('cloud-panel')?.remove();
+  showToast('🔄 A sincronizar…');
+  const ok = await pullFromCloud();
+  showToast(ok ? '✅ Sincronizado com sucesso' : '❌ Erro na sincronização');
+  refreshTecnicoCurrentTab();
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function switchTab(prefix, tabName, btn){
+  const prefix2 = prefix==='tecnico'?'tec':prefix==='atleta'?'at':prefix==='nutricao'?'nut':'fi';
+  document.querySelectorAll(`#scr-${prefix} .tab`).forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll(`#scr-${prefix} .tab-panel`).forEach(p=>p.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  const panel = document.getElementById(`${prefix2}-${tabName}`);
+  if(panel) panel.classList.add('active');
+  if(prefix==='tecnico'){
+    APP.lastView[tabName] = nowISO();
+    saveData(APP);
+    updateNotifBadges();
+    if(tabName==='plantel') renderPlantel();
+    if(tabName==='wellness') renderTecnicoWellness();
+    if(tabName==='pse') renderTecnicoPSE();
+    if(tabName==='lesoes') renderTecnicoLesoes();
+    if(tabName==='nutricao') renderTecnicoNutricao();
+    if(tabName==='treinos') renderTecnicoTreinos();
+    if(tabName==='agenda') renderTecnicoAgenda();
+  }
+  if(prefix==='atleta'){
+    if(tabName==='agenda-at') renderAtletaAgenda();
+    if(tabName==='treino-at') renderAtletaTreino();
+  }
+  if(prefix==='nutricao'){
+    if(tabName==='plantel-n') renderNutPlantel();
+  }
+  if(prefix==='fisio'){
+    if(tabName==='lesoes-f') renderFisioLesoes();
+    if(tabName==='update-f') renderFisioUpdate();
+  }
+}
+
+function logout(){
+  currentSession = {role:null, athleteId:null, athleteName:null};
+  showScreen('scr-login');
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+function renderLogin(){
+  const {club} = APP;
+  document.getElementById('login-logo').textContent = club.shortName || 'SPS';
+  document.getElementById('login-club-name').textContent = club.name || 'Sport Performance System';
+  document.getElementById('login-club-sub').textContent = `${club.sport} · ${club.season}`;
+  applyClubColor(club.color || '#1a3a5c');
+  populateAthleteList();
+}
+
+function populateAthleteList(){
+  const list = document.getElementById('athlete-list');
+  list.innerHTML = '';
+  APP.athletes.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'athlete-select-btn';
+    div.id = 'asel-'+a.id;
+    div.innerHTML = `<div class="athlete-avatar" style="background:${posColor(a.pos).bg};color:${posColor(a.pos).tx};font-size:10px;">${a.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><div><div style="font-size:13px;font-weight:600;">${a.name}</div><div style="font-size:11px;color:var(--muted);">${a.pos} · #${a.num}</div></div>`;
+    div.onclick = () => loginAsAthlete(a);
+    list.appendChild(div);
+  });
+}
+
+function filterAthletes(){
+  const q = document.getElementById('athlete-search').value.toLowerCase();
+  APP.athletes.forEach(a => {
+    const el = document.getElementById('asel-'+a.id);
+    if(el) el.style.display = a.name.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function showAthleteSelect(){
+  const p = document.getElementById('athlete-select-panel');
+  p.style.display = p.style.display==='none' ? 'block' : 'none';
+}
+
+function loginAs(role){
+  currentSession.role = role;
+  APP.currentUser = role;
+  saveData(APP);
+  if(role==='tecnico'){ showScreen('scr-tecnico'); renderTecnico(); }
+  if(role==='nutricao'){ showScreen('scr-nutricao'); renderNutricao(); }
+  if(role==='fisio'){ showScreen('scr-fisio'); renderFisio(); }
+}
+
+function loginAsAthlete(a){
+  currentSession = {role:'atleta', athleteId:a.id, athleteName:a.name};
+  showScreen('scr-atleta');
+  renderAtleta(a);
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function posColor(pos){
+  const map = {GR:{bg:'#eafaf1',tx:'#1a5c35'},DC:{bg:'#ebf5fb',tx:'#1a5276'},DD:{bg:'#ebf5fb',tx:'#1a5276'},DE:{bg:'#ebf5fb',tx:'#1a5276'},MCD:{bg:'#fef9ec',tx:'#7d4e00'},MC:{bg:'#fef9ec',tx:'#7d4e00'},MD:{bg:'#fef9ec',tx:'#7d4e00'},EX:{bg:'#fdedec',tx:'#7b241c'},AC:{bg:'#fdedec',tx:'#7b241c'}};
+  return map[pos] || {bg:'#f0f0f0',tx:'#555'};
+}
+
+function semaphore(athleteId){
+  const injury = APP.injuries.find(i=>i.athleteId===athleteId && i.status==='indisponivel');
+  if(injury) return 'r';
+  const todayW = APP.wellness.filter(w=>w.athleteId===athleteId && w.date===today());
+  if(todayW.length){
+    const last = todayW[todayW.length-1];
+    if(last.score < 55) return 'r';
+    if(last.score < 70) return 'y';
+    return 'g';
+  }
+  return 'g';
+}
+
+function athleteById(id){ return APP.athletes.find(a=>a.id===id); }
+
+function fmt(dateStr){
+  if(!dateStr) return '—';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('pt-PT',{day:'2-digit',month:'short'});
+}
+
+function fmtTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+function initials(name){ return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+
+const borgLabels = ['0\nRepouso','0.5\nMuito fraco','1\nMuito fraco','2\nFraco','3\nModerado','4\nAlgo intenso','5\nIntenso','6\nIntenso+','7\nMuito intenso','8\nMuito intenso+','9\nExtremamente','10\nMáximo'];
+const borgValues = [0,0.5,1,2,3,4,5,6,7,8,9,10];
+const borgColors = ['#27ae60','#27ae60','#27ae60','#1e8449','#f0b429','#e67e22','#e67e22','#c0392b','#c0392b','#96281b','#96281b','#7b241c'];
+
+// ============================================================
+// TÉCNICO DASHBOARD
+// ============================================================
+function renderTecnico(){
+  const {club} = APP;
+  document.getElementById('tecnico-logo').textContent = club.shortName || 'T';
+  document.getElementById('tecnico-club-name').textContent = 'Dashboard Técnico';
+  document.getElementById('tecnico-sub').textContent = `${club.name} · ${club.sport}`;
+  applyClubColor(club.color || '#1a3a5c');
+  renderKPIs();
+  renderPlantel();
+  updateNotifBadges();
+  // Pull latest from cloud on login
+  if(_supaSync){ pullFromCloud().then(ok=>{ if(ok){ renderKPIs(); renderPlantel(); updateNotifBadges(); updateCloudBadge('🟢 Cloud'); } }); }
+}
+
+function renderKPIs(){
+  const disponivel = APP.athletes.filter(a=>semaphore(a.id)==='g').length;
+  const monitor = APP.athletes.filter(a=>semaphore(a.id)==='y').length;
+  const indisponivel = APP.athletes.filter(a=>semaphore(a.id)==='r').length;
+  const todayWellness = APP.wellness.filter(w=>w.date===today());
+  const avgW = todayWellness.length ? Math.round(todayWellness.reduce((s,w)=>s+w.score,0)/todayWellness.length) : null;
+  const todayPSE = APP.pse.filter(p=>p.date===today());
+  const avgPSE = todayPSE.length ? (todayPSE.reduce((s,p)=>s+p.pse,0)/todayPSE.length).toFixed(1) : null;
+
+  document.getElementById('tecnico-kpis').innerHTML = `
+    <div class="kpi" style="border-top:3px solid var(--green);">
+      <div class="kpi-val" style="color:var(--green);">${disponivel}</div>
+      <div class="kpi-lbl">Disponíveis</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid var(--yellow);">
+      <div class="kpi-val" style="color:var(--yellow);">${monitor}</div>
+      <div class="kpi-lbl">Monitorização</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid var(--red);">
+      <div class="kpi-val" style="color:var(--red);">${indisponivel}</div>
+      <div class="kpi-lbl">Indisponíveis</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid var(--club);">
+      <div class="kpi-val" style="color:var(--club);">${avgW !== null ? avgW+'%' : '—'}</div>
+      <div class="kpi-lbl">Wellness médio</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid var(--club);">
+      <div class="kpi-val" style="color:var(--club);">${avgPSE || '—'}</div>
+      <div class="kpi-lbl">PSE média</div>
+    </div>
+  `;
+}
+
+// ─── ATHLETE IMPORT STATE ──────────────────────────────────────────────
+let addAthleteOpen  = false;
+let importPreview   = null;   // {name,pos,dob,nationality,height,foot,photo,source,url}
+let importLoading   = false;
+
+const TM_POS_MAP = {
+  'Goalkeeper':'GR','Keeper':'GR','Guarda-Redes':'GR',
+  'Centre-Back':'DC','Central':'DC','Defesa Central':'DC',
+  'Right-Back':'DD','Lateral direito':'DD',
+  'Left-Back':'DE','Lateral esquerdo':'DE',
+  'Defensive Midfield':'MCD','Médio Defensivo':'MCD',
+  'Central Midfield':'MC','Médio Centro':'MC',
+  'Right Midfield':'MD','Médio direito':'MD',
+  'Left Midfield':'MD','Médio esquerdo':'MD',
+  'Attacking Midfield':'MC','Médio Ofensivo':'MC',
+  'Right Winger':'EX','Extremo direito':'EX',
+  'Left Winger':'EX','Extremo esquerdo':'EX',
+  'Second Striker':'AC','Centre-Forward':'AC','Avançada':'AC','Avançado':'AC','Ponta-de-Lança':'AC'
+};
+
+function nameFromTMUrl(url){
+  try{
+    const parts = new URL(url).pathname.split('/').filter(Boolean);
+    return parts[0].replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  } catch(e){ return ''; }
+}
+
+async function importFromTransfermarkt(url){
+  // 1) extract name from URL immediately
+  const urlName = nameFromTMUrl(url);
+  importPreview = {name:urlName, pos:'', dob:'', nationality:'', height:'', foot:'', photo:'', club:'', source:'Transfermarkt', url};
+
+  // 2) try to fetch via CORS proxy for richer data
+  try {
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const resp  = await fetch(proxy, {signal: AbortSignal.timeout(8000)});
+    if(!resp.ok) throw new Error('proxy fail');
+    const json  = await resp.json();
+    const html  = json.contents || '';
+    const doc   = new DOMParser().parseFromString(html,'text/html');
+
+    // name
+    const h1 = doc.querySelector('h1[itemprop="name"]') || doc.querySelector('.data-header__headline-wrapper--main');
+    if(h1) importPreview.name = h1.textContent.trim().split('\n')[0].trim() || urlName;
+
+    // photo
+    const img = doc.querySelector('img.data-header__profile-image') || doc.querySelector('.tm-profile-img');
+    if(img) importPreview.photo = img.getAttribute('data-src') || img.src || '';
+
+    // table rows
+    doc.querySelectorAll('.info-table__content-value, .data-header__label').forEach(el=>{
+      const text = el.textContent.trim();
+      const prev = el.previousElementSibling?.textContent?.trim() || el.parentElement?.previousElementSibling?.textContent?.trim() || '';
+      if(/nascimento|birth|born/i.test(prev)) importPreview.dob = text.slice(0,10).replace(/\./g,'-');
+      if(/altura|height/i.test(prev)) importPreview.height = text;
+      if(/pé|foot/i.test(prev)) importPreview.foot = text;
+      if(/posição|position/i.test(prev)){
+        importPreview.pos = TM_POS_MAP[text] || importPreview.pos;
+        if(!importPreview.posLabel) importPreview.posLabel = text;
+      }
+      if(/clube|club|current/i.test(prev) && !importPreview.club) importPreview.club = text;
+    });
+
+    // nationality via flag alt
+    const flag = doc.querySelector('img[itemprop="nationality"], span[itemprop="nationality"]');
+    if(flag) importPreview.nationality = flag.getAttribute('alt') || flag.textContent.trim();
+
+  } catch(e){ /* keep URL-extracted data */ }
+
+  importLoading = false;
+  renderPlantel();
+}
+
+async function importFromFPF(url){
+  importPreview = {name:'', pos:'', dob:'', nationality:'Portuguesa', height:'', foot:'', photo:'', club:'', source:'FPF', url};
+  // FPF is a JS-rendered SPA — direct scraping fails in browser without headless
+  // We extract what we can from the URL path
+  try {
+    const parts = new URL(url).pathname.split('/').filter(Boolean);
+    const candidate = parts.find(p=>p.length>4 && !/^\d+$/.test(p));
+    if(candidate) importPreview.name = candidate.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  } catch(e){}
+  importLoading = false;
+  renderPlantel();
+  showToast('⚠️ FPF usa JavaScript dinâmico — preenche os dados manualmente');
+}
+
+function toggleAddAthlete(){
+  addAthleteOpen  = !addAthleteOpen;
+  importPreview   = null;
+  importLoading   = false;
+  renderPlantel();
+  if(addAthleteOpen) setTimeout(()=>{ document.getElementById('import-url-input')?.focus(); },80);
+}
+
+async function triggerImport(){
+  const url = document.getElementById('import-url-input')?.value.trim();
+  if(!url){ showToast('Cola um link do Transfermarkt ou FPF'); return; }
+  importLoading = true;
+  importPreview = null;
+  renderPlantel(); // show spinner
+  if(url.includes('transfermarkt')) await importFromTransfermarkt(url);
+  else if(url.includes('fpf.pt'))   await importFromFPF(url);
+  else {
+    importLoading = false;
+    importPreview = {name:'', pos:'', dob:'', nationality:'', height:'', foot:'', photo:'', club:'', source:'Manual', url:''};
+    renderPlantel();
+    showToast('URL não reconhecido — preenche os dados manualmente');
+  }
+}
+
+function saveNewAthlete(){
+  const name = document.getElementById('na-name')?.value.trim();
+  const pos  = document.getElementById('na-pos')?.value;
+  const num  = parseInt(document.getElementById('na-num')?.value) || (APP.athletes.length+1);
+  const dob  = document.getElementById('na-dob')?.value || '';
+  const nat  = document.getElementById('na-nat')?.value.trim() || '';
+  const ht   = document.getElementById('na-height')?.value.trim() || '';
+  const foot = document.getElementById('na-foot')?.value || '';
+  const photo= document.getElementById('na-photo')?.value.trim() || '';
+  const club = document.getElementById('na-club')?.value.trim() || '';
+  if(!name){ showToast('O nome é obrigatório'); return; }
+  if(!pos)  { showToast('Seleciona a posição'); return; }
+  const entry = {id:'a'+Date.now(), name, pos, num, dob, nationality:nat, height:ht, foot, photo, club};
+  APP.athletes.push(entry);
+  saveData(APP);
+  addAthleteOpen = false;
+  importPreview  = null;
+  renderPlantel();
+  renderLogin();  // refresh athlete picker
+  showToast(`✅ ${name} adicionada ao plantel`);
+}
+
+function deleteAthlete(id){
+  const a = APP.athletes.find(x=>x.id===id);
+  if(!a) return;
+  if(!confirm(`Remover ${a.name} do plantel?`)) return;
+  APP.athletes = APP.athletes.filter(x=>x.id!==id);
+  saveData(APP);
+  renderPlantel();
+  showToast(`${a.name} removida`);
+}
+
+function renderPlantel(){
+  const el = document.getElementById('tec-plantel');
+  const byPos = {};
+  APP.athletes.forEach(a=>{
+    if(!byPos[a.pos]) byPos[a.pos] = [];
+    byPos[a.pos].push(a);
+  });
+  const order = ['GR','DC','DD','DE','MCD','MC','MD','EX','AC'];
+
+  // ── ADD ATHLETE PANEL ──────────────────────────────────────────────
+  let addPanel = '';
+  if(addAthleteOpen){
+    const pr = importPreview;
+    const photoHTML = (pr?.photo && pr.photo.startsWith('http'))
+      ? `<img src="${pr.photo}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--club);" onerror="this.style.display='none'">`
+      : `<div style="width:64px;height:64px;border-radius:50%;background:var(--club);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:white;">${pr?.name?initials(pr.name):'?'}</div>`;
+
+    const formFields = pr !== null ? `
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+        ${photoHTML}
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--club);">Dados importados de ${pr.source}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">Confirma ou corrige os campos abaixo</div>
+        </div>
+      </div>
+      <div class="grid2" style="gap:8px;margin-bottom:10px;">
+        <div class="form-row" style="margin:0;">
+          <label>Nome completo *</label>
+          <input id="na-name" type="text" value="${pr.name||''}">
+        </div>
+        <div class="form-row" style="margin:0;">
+          <label>Clube atual</label>
+          <input id="na-club" type="text" value="${pr.club||''}">
+        </div>
+      </div>
+      <div class="grid2" style="gap:8px;margin-bottom:10px;">
+        <div>
+          <label>Posição *</label>
+          <select id="na-pos">
+            <option value="">-- Selecionar --</option>
+            ${order.map(p=>`<option value="${p}" ${pr.pos===p?'selected':''}>${p}</option>`).join('')}
+          </select>
+          ${pr.posLabel?`<div style="font-size:10px;color:var(--muted);margin-top:3px;">TM: ${pr.posLabel}</div>`:''}
+        </div>
+        <div>
+          <label>Nº camisola</label>
+          <input id="na-num" type="number" min="1" max="99" value="${APP.athletes.length+1}">
+        </div>
+      </div>
+      <div class="grid2" style="gap:8px;margin-bottom:10px;">
+        <div>
+          <label>Data de nascimento</label>
+          <input id="na-dob" type="date" value="${pr.dob||''}">
+        </div>
+        <div>
+          <label>Nacionalidade</label>
+          <input id="na-nat" type="text" value="${pr.nationality||''}">
+        </div>
+      </div>
+      <div class="grid2" style="gap:8px;margin-bottom:14px;">
+        <div>
+          <label>Altura</label>
+          <input id="na-height" type="text" placeholder="Ex: 1,68 m" value="${pr.height||''}">
+        </div>
+        <div>
+          <label>Pé dominante</label>
+          <select id="na-foot">
+            <option value="">--</option>
+            <option value="Direito" ${pr.foot?.toLowerCase().includes('right')||pr.foot==='Direito'?'selected':''}>Direito</option>
+            <option value="Esquerdo" ${pr.foot?.toLowerCase().includes('left')||pr.foot==='Esquerdo'?'selected':''}>Esquerdo</option>
+            <option value="Ambidextro">Ambidextro</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>URL da foto (opcional)</label>
+        <input id="na-photo" type="url" placeholder="https://..." value="${pr.photo||''}">
+      </div>
+      <div class="grid2" style="gap:8px;margin-top:4px;">
+        <button class="btn btn-outline" onclick="toggleAddAthlete()">Cancelar</button>
+        <button class="btn btn-success" onclick="saveNewAthlete()">✅ Adicionar ao plantel</button>
+      </div>` : (importLoading ? `
+      <div style="text-align:center;padding:24px;">
+        <div style="font-size:28px;margin-bottom:8px;">⏳</div>
+        <div style="font-size:13px;color:var(--muted);">A importar dados…</div>
+      </div>` : `
+      <div class="form-row">
+        <label>Link do Transfermarkt ou FPF</label>
+        <input id="import-url-input" type="url" placeholder="https://www.transfermarkt.pt/nome/profil/spieler/123456">
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Cola o link do perfil da atleta → os dados preenchem automaticamente</div>
+      </div>
+      <div class="grid2" style="gap:8px;margin-bottom:12px;">
+        <button class="btn btn-outline" onclick="toggleAddAthlete()">Cancelar</button>
+        <button class="btn btn-primary" onclick="triggerImport()">🔍 Importar dados</button>
+      </div>
+      <div style="text-align:center;color:var(--muted);font-size:11px;margin:6px 0 10px;">— ou —</div>
+      <button class="btn btn-outline" onclick="importPreview={name:'',pos:'',dob:'',nationality:'',height:'',foot:'',photo:'',club:'',source:'Manual',url:''};renderPlantel();">✏️ Preencher manualmente</button>`);
+
+    addPanel = `
+    <div class="card" style="border:2px solid var(--club);margin:14px 16px 0;" id="add-athlete-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="card-title" style="color:var(--club);margin:0;">➕ Adicionar Atleta ao Plantel</div>
+        <button onclick="toggleAddAthlete()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+      </div>
+      ${formFields}
+    </div>`;
+  }
+
+  // ── PLANTEL LIST ───────────────────────────────────────────────────
+  let listHTML = '';
+  order.forEach(pos => {
+    if(!byPos[pos]) return;
+    listHTML += `<div class="card">`;
+    listHTML += `<div class="card-title">${pos} <span style="font-weight:400;color:var(--muted);font-size:11px;">(${byPos[pos].length})</span></div>`;
+    byPos[pos].forEach(a => {
+      const s = semaphore(a.id);
+      const todayW = APP.wellness.filter(w=>w.athleteId===a.id && w.date===today());
+      const lastW = todayW.length ? todayW[todayW.length-1] : null;
+      const todayP = APP.pse.filter(p=>p.athleteId===a.id && p.date===today());
+      const lastP = todayP.length ? todayP[todayP.length-1] : null;
+      const injury = APP.injuries.find(i=>i.athleteId===a.id && i.status==='indisponivel');
+      const pc = posColor(pos);
+      const hasExtra = a.dob || a.nationality || a.height;
+      listHTML += `<div class="athlete-row">
+        ${a.photo && a.photo.startsWith('http')
+          ? `<img src="${a.photo}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.outerHTML='<div class=\\"athlete-avatar\\" style=\\"background:${pc.bg};color:${pc.tx};\\">${initials(a.name)}</div>'">`
+          : `<div class="athlete-avatar" style="background:${pc.bg};color:${pc.tx};">${initials(a.name)}</div>`}
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span class="athlete-name">${a.name}</span>
+            <span class="dot dot-${s}"></span>
+            ${injury ? `<span class="badge badge-r" style="font-size:9px;">${injury.diagnosis.slice(0,22)}…</span>` : ''}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;">
+            ${lastW ? `<span style="font-size:10px;color:var(--muted);">Wellness: <b style="color:${lastW.score>=70?'var(--green)':lastW.score>=55?'var(--yellow)':'var(--red)'}">${lastW.score}%</b></span>` : '<span style="font-size:10px;color:var(--faint);">Sem wellness hoje</span>'}
+            ${lastP ? `<span style="font-size:10px;color:var(--muted);">PSE: <b>${lastP.pse}</b> · ${lastP.ua} UA</span>` : ''}
+          </div>
+          ${hasExtra ? `<div style="font-size:10px;color:var(--faint);margin-top:2px;">${[a.nationality,a.dob?a.dob.slice(0,4)+' ('+calcAge(a.dob)+' anos)':'',a.height].filter(Boolean).join(' · ')}</div>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <span style="font-size:11px;color:var(--faint);">#${a.num}</span>
+          <button onclick="deleteAthlete('${a.id}')" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;color:var(--faint);" title="Remover atleta">🗑️</button>
+        </div>
+      </div>`;
+    });
+    listHTML += `</div>`;
+  });
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;">
+      <span style="font-size:12px;color:var(--muted);">Total: <b>${APP.athletes.length}</b> atletas</span>
+      <button class="btn-sm" style="background:var(--club);color:white;" onclick="toggleAddAthlete()">
+        ${addAthleteOpen ? '✕ Fechar' : '➕ Adicionar atleta'}
+      </button>
+    </div>
+    ${addPanel}
+    <div style="padding:0 16px 16px;">${listHTML}</div>`;
+}
+
+function calcAge(dob){
+  if(!dob) return '';
+  const diff = Date.now() - new Date(dob).getTime();
+  return Math.floor(diff / (365.25*24*60*60*1000));
+}
+
+function renderTecnicoWellness(){
+  const el = document.getElementById('tec-wellness');
+  const todayW = APP.wellness.filter(w=>w.date===today()).sort((a,b)=>a.score-b.score);
+  const noSubmit = APP.athletes.filter(a=>!APP.wellness.find(w=>w.athleteId===a.id&&w.date===today()));
+
+  let html = `<div class="card">
+    <div class="section-hdr"><h3>Submissions de hoje (${todayW.length}/${APP.athletes.length})</h3><span class="badge badge-gray">${today()}</span></div>`;
+
+  if(!todayW.length){
+    html += `<div class="empty"><div class="empty-icon">💤</div><p>Sem registos de wellness hoje ainda.</p><p style="font-size:11px;margin-top:4px;">As atletas submetem pela sua app.</p></div>`;
+  } else {
+    todayW.forEach(w => {
+      const a = athleteById(w.athleteId);
+      if(!a) return;
+      const s = w.score >= 70 ? 'g' : w.score >= 55 ? 'y' : 'r';
+      const cycleColors = {menstrual:'#c0392b',folicular:'#2980b9',ovulacao:'#27ae60',lutea:'#e67e22'};
+      html += `<div class="athlete-row">
+        <div class="athlete-avatar" style="background:${posColor(a.pos).bg};color:${posColor(a.pos).tx};">${initials(a.name)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:13px;font-weight:600;">${a.name}</span>
+            <span class="badge badge-${s}">${w.score}%</span>
+            ${w.cycle ? `<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:${cycleColors[w.cycle]}22;color:${cycleColors[w.cycle]};font-weight:600;">${w.cycle.charAt(0).toUpperCase()+w.cycle.slice(1)}</span>` : ''}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;font-size:10px;color:var(--muted);">
+            <span>Sono: ${w.sleep}/5</span>
+            <span>Fadiga: ${w.fatigue}/5</span>
+            <span>Stress: ${w.stress}/5</span>
+            <span>Dor: ${w.pain}/5</span>
+            <span>Humor: ${w.mood}/5</span>
+          </div>
+        </div>
+        <span style="font-size:10px;color:var(--faint);">${fmtTime(w.submittedAt)}</span>
+      </div>`;
+    });
+  }
+
+  if(noSubmit.length){
+    html += `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">SEM REGISTO HOJE (${noSubmit.length})</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;">`;
+    noSubmit.forEach(a => {
+      html += `<span class="badge badge-gray">${a.name.split(' ')[0]}</span>`;
+    });
+    html += `</div></div>`;
+  }
+
+  html += `</div>`;
+
+  // Wellness gráfico dos últimos 7 dias
+  html += `<div class="card"><div class="card-title">Tendência wellness — plantel (7 dias)</div><div class="chart-wrap"><canvas id="chart-wellness-tec"></canvas></div></div>`;
+  el.innerHTML = html;
+
+  // Chart
+  setTimeout(()=>{
+    const ctx = document.getElementById('chart-wellness-tec');
+    if(!ctx) return;
+    const labels=[], data=[];
+    for(let i=6;i>=0;i--){
+      const d = new Date(); d.setDate(d.getDate()-i);
+      const ds = d.toISOString().split('T')[0];
+      const dw = APP.wellness.filter(w=>w.date===ds);
+      labels.push(d.toLocaleDateString('pt-PT',{weekday:'short'}));
+      data.push(dw.length ? Math.round(dw.reduce((s,w)=>s+w.score,0)/dw.length) : null);
+    }
+    if(window._wTecChart) window._wTecChart.destroy();
+    window._wTecChart = new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Wellness médio %',data,borderColor:APP.club.color||'#1a3a5c',backgroundColor:(APP.club.color||'#1a3a5c')+'20',tension:0.4,fill:true,pointRadius:5,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:40,max:100,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10}}}}}});
+  },100);
+}
+
+function renderTecnicoPSE(){
+  const el = document.getElementById('tec-pse');
+  const todayP = APP.pse.filter(p=>p.date===today()).sort((a,b)=>b.ua-a.ua);
+
+  let html = `<div class="card">
+    <div class="section-hdr"><h3>PSE de hoje (${todayP.length})</h3><span class="badge badge-gray">${today()}</span></div>`;
+
+  if(!todayP.length){
+    html += `<div class="empty"><div class="empty-icon">📊</div><p>Sem registos de PSE hoje.</p></div>`;
+  } else {
+    todayP.forEach(p => {
+      const a = athleteById(p.athleteId);
+      if(!a) return;
+      const uaColor = p.ua>600?'var(--red)':p.ua>450?'var(--yellow)':'var(--green)';
+      html += `<div class="athlete-row">
+        <div class="athlete-avatar" style="background:${posColor(a.pos).bg};color:${posColor(a.pos).tx};">${initials(a.name)}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;">${a.name}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${p.sessionType||'—'} · ${p.duration}' · PSE <b>${p.pse}</b></div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:16px;font-weight:700;color:${uaColor};">${p.ua}</div>
+          <div style="font-size:9px;color:var(--muted);">UA</div>
+        </div>
+      </div>`;
+    });
+    const totalUA = todayP.reduce((s,p)=>s+p.ua,0);
+    const avgPSE = (todayP.reduce((s,p)=>s+p.pse,0)/todayP.length).toFixed(1);
+    html += `<div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:8px;display:flex;justify-content:space-around;">
+      <div style="text-align:center;"><div style="font-size:18px;font-weight:700;">${avgPSE}</div><div style="font-size:10px;color:var(--muted);">PSE média</div></div>
+      <div style="text-align:center;"><div style="font-size:18px;font-weight:700;">${totalUA}</div><div style="font-size:10px;color:var(--muted);">UA total plantel</div></div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  // Gráfico carga semanal
+  html += `<div class="card"><div class="card-title">Carga semanal do plantel (7 dias)</div><div class="chart-wrap"><canvas id="chart-pse-tec"></canvas></div></div>`;
+  el.innerHTML = html;
+
+  setTimeout(()=>{
+    const ctx = document.getElementById('chart-pse-tec');
+    if(!ctx) return;
+    const labels=[], data=[];
+    for(let i=6;i>=0;i--){
+      const d = new Date(); d.setDate(d.getDate()-i);
+      const ds = d.toISOString().split('T')[0];
+      const dp = APP.pse.filter(p=>p.date===ds);
+      labels.push(d.toLocaleDateString('pt-PT',{weekday:'short'}));
+      data.push(dp.length ? dp.reduce((s,p)=>s+p.ua,0) : 0);
+    }
+    if(window._pTecChart) window._pTecChart.destroy();
+    window._pTecChart = new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'UA total',data,backgroundColor:(APP.club.color||'#1a3a5c')+'99',borderColor:APP.club.color||'#1a3a5c',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10}}}}}});
+  },100);
+}
+
+function renderTecnicoLesoes(){
+  const el = document.getElementById('tec-lesoes');
+  const active = APP.injuries.filter(i=>i.status!=='alta').sort((a,b)=>new Date(b.registeredAt)-new Date(a.registeredAt));
+  const sevColor = {ligeira:'var(--yellow)',moderada:'var(--yellow)',grave:'var(--red)',critica:'var(--red)'};
+
+  let html = `<div class="card"><div class="section-hdr"><h3>Lesões e ocorrências ativas (${active.length})</h3></div>`;
+  if(!active.length){
+    html += `<div class="empty"><div class="empty-icon">✅</div><p>Sem lesões ativas no momento.</p></div>`;
+  } else {
+    active.forEach(inj => {
+      const a = athleteById(inj.athleteId);
+      if(!a) return;
+      const sc = sevColor[inj.severity] || 'var(--muted)';
+      html += `<div class="injury-card" style="border-left-color:${sc};">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">
+          <div>
+            <div style="font-size:13px;font-weight:700;">${a.name} <span style="font-weight:400;color:var(--muted);font-size:11px;">(${a.pos})</span></div>
+            <div style="font-size:12px;color:var(--text);margin-top:2px;">${inj.diagnosis}</div>
+          </div>
+          <span class="badge badge-r">${inj.status==='indisponivel'?'Indisponível':'Monitorização'}</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--muted);">
+          <span>📅 ${fmt(inj.date)}</span>
+          <span>🔄 Retorno: ${fmt(inj.returnDate)}</span>
+          ${inj.phaseDesc ? `<span>📋 ${inj.phaseDesc}</span>` : ''}
+        </div>
+        ${inj.progress !== undefined ? `<div style="margin-top:8px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px;"><span>${inj.phaseDesc||'Protocolo'}</span><span>${inj.progress}%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${inj.progress}%;background:${inj.progress>70?'var(--green)':inj.progress>40?'var(--yellow)':'var(--red)'}"></div></div>
+        </div>` : ''}
+        ${inj.notes ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;font-style:italic;">"${inj.notes}"</div>` : ''}
+        <div style="font-size:10px;color:var(--faint);margin-top:6px;">Registado por ${inj.registeredBy||'—'} · ${fmtTime(inj.registeredAt)}</div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function renderTecnicoNutricao(){
+  const el = document.getElementById('tec-nutricao');
+  const recent = [...APP.nutrition].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  let html = `<div class="card"><div class="section-hdr"><h3>Avaliações nutricionais (${recent.length})</h3></div>`;
+  if(!recent.length){
+    html += `<div class="empty"><div class="empty-icon">🥗</div><p>Sem avaliações nutricionais submetidas ainda.</p></div>`;
+  } else {
+    recent.forEach(n => {
+      const a = athleteById(n.athleteId);
+      if(!a) return;
+      const imcColor = n.imc < 18.5 || n.imc > 25 ? 'var(--yellow)' : 'var(--green)';
+      html += `<div class="athlete-row">
+        <div class="athlete-avatar" style="background:${posColor(a.pos).bg};color:${posColor(a.pos).tx};">${initials(a.name)}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;">${a.name}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-top:2px;">
+            <span>Peso: <b>${n.weight}kg</b></span>
+            <span>IMC: <b style="color:${imcColor}">${n.imc}</b></span>
+            ${n.bodyFat ? `<span>%Gord: <b>${n.bodyFat}%</b></span>` : ''}
+            <span class="badge ${n.hydration==='boa'?'badge-g':n.hydration==='razoavel'?'badge-y':'badge-r'}">${n.hydration}</span>
+          </div>
+          ${n.notes ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;font-style:italic;">"${n.notes}"</div>` : ''}
+        </div>
+        <span style="font-size:10px;color:var(--faint);">${fmt(n.date)}</span>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+const SCHED_COLORS = {tatico:'#1a5276',fisico:'#7d3c98',tecnico:'#1a5c35',ativacao:'#7d4e00',recuperacao:'#555',jogo:'#7b241c',reuniao:'#935116'};
+const SCHED_LABELS = {tatico:'Tático',fisico:'Físico',tecnico:'Técnico',ativacao:'Ativação',recuperacao:'Recuperação',jogo:'Jogo',reuniao:'Reunião'};
+const SCHED_ICONS  = {tatico:'⚽',fisico:'💪',tecnico:'🎯',ativacao:'🔥',recuperacao:'🧊',jogo:'🏆',reuniao:'📋'};
+
+let schedFilter = 'proximos';
+let schedFormOpen = false;
+
+function renderTecnicoAgenda(){
+  const el = document.getElementById('tec-agenda');
+  const todayStr = today();
+
+  // filter
+  let list = [...APP.schedule].sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
+  if(schedFilter==='proximos') list = list.filter(e=>e.date>=todayStr);
+  if(schedFilter==='passados') list = list.filter(e=>e.date<todayStr);
+
+  // form HTML
+  const formHTML = schedFormOpen ? `
+  <div class="card" style="border:2px solid var(--club);margin-bottom:12px;" id="sched-form-card">
+    <div class="card-title" style="color:var(--club);">📅 Novo Evento</div>
+    <div class="form-row">
+      <label>Tipo de evento</label>
+      <select id="sf-type" style="width:100%;">
+        <option value="tatico">⚽ Treino Tático</option>
+        <option value="fisico">💪 Treino Físico</option>
+        <option value="tecnico">🎯 Treino Técnico</option>
+        <option value="ativacao">🔥 Ativação Pré-jogo</option>
+        <option value="recuperacao">🧊 Recuperação</option>
+        <option value="jogo">🏆 Jogo</option>
+        <option value="reuniao">📋 Reunião</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Título / Descrição breve</label>
+      <input id="sf-title" type="text" placeholder="Ex: Treino tático – compacidade defensiva">
+    </div>
+    <div class="grid2" style="gap:8px;margin-bottom:12px;">
+      <div>
+        <label>Data</label>
+        <input id="sf-date" type="date" value="${todayStr}">
+      </div>
+      <div>
+        <label>Hora</label>
+        <input id="sf-time" type="time" value="10:00">
+      </div>
+    </div>
+    <div class="grid2" style="gap:8px;margin-bottom:12px;">
+      <div>
+        <label>Local</label>
+        <input id="sf-location" type="text" placeholder="Campo principal">
+      </div>
+      <div>
+        <label>Duração (min)</label>
+        <input id="sf-duration" type="number" value="90" min="5" max="300">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Notas para as atletas (opcional)</label>
+      <textarea id="sf-notes" rows="2" placeholder="Ex: Levar material extra. Concentração às 09:45h." style="resize:none;"></textarea>
+    </div>
+    <div class="grid2" style="gap:8px;">
+      <button class="btn btn-outline" onclick="toggleSchedForm()">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitSchedEvent()">Guardar evento</button>
+    </div>
+  </div>` : '';
+
+  // filter bar
+  const fBar = `
+  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+    <button class="btn-sm ${schedFilter==='proximos'?'btn-primary':'btn-outline'}" onclick="setSchedFilter('proximos');renderTecnicoAgenda();">Próximos</button>
+    <button class="btn-sm ${schedFilter==='todos'?'btn-primary':'btn-outline'}" onclick="setSchedFilter('todos');renderTecnicoAgenda();">Todos</button>
+    <button class="btn-sm ${schedFilter==='passados'?'btn-primary':'btn-outline'}" onclick="setSchedFilter('passados');renderTecnicoAgenda();">Passados</button>
+    <button class="btn-sm" style="margin-left:auto;background:var(--club);color:white;" onclick="toggleSchedForm()">＋ Novo evento</button>
+  </div>`;
+
+  // events list
+  let eventsHTML = '';
+  if(list.length===0){
+    eventsHTML = '<div class="empty"><div class="empty-icon">📅</div><p>Sem eventos neste período.</p></div>';
+  } else {
+    // group by date
+    const groups = {};
+    list.forEach(e=>{ if(!groups[e.date]) groups[e.date]=[]; groups[e.date].push(e); });
+    Object.keys(groups).sort().forEach(dateKey=>{
+      const isToday = dateKey===todayStr;
+      const isPast = dateKey<todayStr;
+      eventsHTML += `<div style="font-size:11px;font-weight:700;color:${isToday?'var(--club)':'var(--muted)'};text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 5px;">${isToday?'🔵 HOJE — ':''} ${fmt(dateKey)}</div>`;
+      groups[dateKey].forEach(e=>{
+        const col = SCHED_COLORS[e.type]||'#555';
+        const lbl = SCHED_LABELS[e.type]||e.type;
+        const ico = SCHED_ICONS[e.type]||'📌';
+        eventsHTML += `
+        <div style="border-left:3px solid ${col};padding:10px 12px;border-radius:0 8px 8px 0;margin-bottom:6px;background:${isToday?'var(--club-l)':isPast?'#fafafa':'var(--card)'};border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);opacity:${isPast?'0.7':'1'};">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:16px;">${ico}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+                <span style="font-size:13px;font-weight:600;${isToday?'color:var(--club);':''}">${e.title}</span>
+                <span class="badge" style="background:${col}22;color:${col};flex-shrink:0;">${lbl}</span>
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px;">🕐 ${e.time} &nbsp;📍 ${e.location} &nbsp;⏱ ${e.duration} min</div>
+              ${e.notes?`<div style="font-size:11px;color:var(--text);margin-top:4px;padding:5px 8px;background:rgba(0,0,0,0.04);border-radius:4px;">📝 ${e.notes}</div>`:''}
+            </div>
+            <button onclick="deleteSchedEvent('${e.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px;color:var(--muted);flex-shrink:0;" title="Eliminar evento">🗑️</button>
+          </div>
+        </div>`;
+      });
+    });
+  }
+
+  el.innerHTML = `
+  <div style="padding:14px 16px 6px;font-size:12px;color:var(--muted);">
+    Total: <b>${APP.schedule.length}</b> eventos · Visíveis para todas as atletas em tempo real
+  </div>
+  <div style="padding:0 16px 14px;">
+    ${fBar}
+    ${formHTML}
+    ${eventsHTML}
+  </div>`;
+}
+
+function toggleSchedForm(){
+  schedFormOpen = !schedFormOpen;
+  renderTecnicoAgenda();
+  if(schedFormOpen) setTimeout(()=>{ const el=document.getElementById('sf-title'); if(el)el.focus(); },50);
+}
+
+function setSchedFilter(f){ schedFilter=f; }
+
+function submitSchedEvent(){
+  const type     = document.getElementById('sf-type').value;
+  const title    = document.getElementById('sf-title').value.trim();
+  const date     = document.getElementById('sf-date').value;
+  const time     = document.getElementById('sf-time').value;
+  const location = document.getElementById('sf-location').value.trim() || 'A definir';
+  const duration = parseInt(document.getElementById('sf-duration').value) || 90;
+  const notes    = document.getElementById('sf-notes').value.trim();
+  if(!title){ showToast('Indica o título do evento'); return; }
+  if(!date){  showToast('Seleciona uma data'); return; }
+  const entry = {id:'e'+Date.now(), type, title, date, time, location, duration, notes, createdAt:nowISO()};
+  APP.schedule.push(entry);
+  saveData(APP);
+  if(_supaSync) cloudInsert('schedule_events',{id:entry.id,type:entry.type,title:entry.title,date:entry.date,time:entry.time,location:entry.location,duration:entry.duration,notes:entry.notes,created_at:entry.createdAt});
+  schedFormOpen = false;
+  schedFilter   = 'proximos';
+  renderTecnicoAgenda();
+  showToast(`✅ "${title}" adicionado · Atletas notificadas`);
+}
+
+function deleteSchedEvent(id){
+  APP.schedule = APP.schedule.filter(e=>e.id!==id);
+  saveData(APP);
+  if(_supaSync) cloudDelete('schedule_events', id);
+  renderTecnicoAgenda();
+  showToast('Evento removido da agenda');
+}
+
+function updateNotifBadges(){
+  const areas = ['wellness','pse','lesoes','nutricao'];
+  areas.forEach(area => {
+    const el = document.getElementById('notif-'+area);
+    if(!el) return;
+    let count = 0;
+    const lastView = APP.lastView[area];
+    if(area==='wellness') count = APP.wellness.filter(w=>!lastView||new Date(w.submittedAt)>new Date(lastView)).length;
+    if(area==='pse') count = APP.pse.filter(p=>!lastView||new Date(p.submittedAt)>new Date(lastView)).length;
+    if(area==='lesoes') count = APP.injuries.filter(i=>!lastView||new Date(i.registeredAt)>new Date(lastView)).length;
+    if(area==='nutricao') count = APP.nutrition.filter(n=>!lastView||new Date(n.registeredAt)>new Date(lastView)).length;
+    el.innerHTML = count > 0 ? `<span class="notif-dot">${count}</span>` : '';
+  });
+}
+
+// ============================================================
+// TÉCNICO — TREINOS INDIVIDUALIZADOS
+// ============================================================
+let treinoFormOpen   = false;
+let treinoEditId     = null;   // null = new, string = editing
+
+const TREINO_TIPOS = ['Técnico','Físico','Tático','Mental','Velocidade','Força','Resistência','Flexibilidade','Reabilitação'];
+
+function toggleTreinoForm(editId){
+  if(editId !== undefined){
+    treinoEditId   = editId;
+    treinoFormOpen = true;
+  } else {
+    treinoFormOpen = !treinoFormOpen;
+    treinoEditId   = null;
+  }
+  renderTecnicoTreinos();
+  if(treinoFormOpen) setTimeout(()=>document.getElementById('tf-athlete')?.focus(),80);
+}
+
+function saveTreino(){
+  const athleteId = document.getElementById('tf-athlete')?.value;
+  const title     = document.getElementById('tf-title')?.value.trim();
+  const tipo      = document.getElementById('tf-tipo')?.value;
+  const desc      = document.getElementById('tf-desc')?.value.trim();
+  const date      = document.getElementById('tf-date')?.value;
+  const volume    = document.getElementById('tf-volume')?.value.trim();
+  const note      = document.getElementById('tf-note')?.value.trim();
+
+  if(!athleteId){ showToast('Seleciona uma atleta'); return; }
+  if(!title)    { showToast('Escreve o título do exercício'); return; }
+
+  if(treinoEditId){
+    const t = APP.treinos.find(x=>x.id===treinoEditId);
+    if(t){ Object.assign(t,{athleteId,title,type:tipo,description:desc,week:date,note,volume});
+      if(_supaSync) cloudUpdate('training_plans', treinoEditId, {athlete_id:athleteId,title,type:tipo,description:desc,week:date,note,volume}); }
+  } else {
+    const entry = {id:'t'+Date.now(), athleteId, title, type:tipo, description:desc, week:date, done:false, note, volume, createdAt:nowISO()};
+    APP.treinos.push(entry);
+    if(_supaSync) cloudInsert('training_plans',{id:entry.id,athlete_id:entry.athleteId,title:entry.title,type:entry.type,description:entry.description,week:entry.week,done:entry.done,note:entry.note,volume:entry.volume,created_at:entry.createdAt});
+  }
+  saveData(APP);
+  treinoFormOpen = false;
+  treinoEditId   = null;
+  renderTecnicoTreinos();
+  updateNotifBadges();
+  const a = athleteById(athleteId);
+  showToast(`✅ Treino atribuído a ${a?.name||'atleta'}`);
+}
+
+function deleteTreino(id){
+  APP.treinos = APP.treinos.filter(t=>t.id!==id);
+  saveData(APP);
+  if(_supaSync) cloudDelete('training_plans', id);
+  renderTecnicoTreinos();
+  showToast('Treino removido');
+}
+
+function toggleTreinoDoneTec(id){
+  const t = APP.treinos.find(x=>x.id===id);
+  if(t){ t.done = !t.done; saveData(APP);
+    if(_supaSync) cloudUpdate('training_plans', id, {done:t.done});
+    renderTecnicoTreinos(); }
+}
+
+function renderTecnicoTreinos(){
+  const el = document.getElementById('tec-treinos');
+  if(!el) return;
+
+  // Stats
+  const total   = APP.treinos.length;
+  const done    = APP.treinos.filter(t=>t.done).length;
+  const pending = total - done;
+
+  // Build form
+  let editData = null;
+  if(treinoEditId) editData = APP.treinos.find(t=>t.id===treinoEditId);
+  const defaultDate = editData?.week || today();
+  const defaultAthlete = editData?.athleteId || '';
+
+  const formHTML = treinoFormOpen ? `
+  <div class="card" style="border:2px solid var(--club);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div class="card-title" style="color:var(--club);margin:0;">${treinoEditId?'✏️ Editar treino':'🏃 Novo treino individualizado'}</div>
+      <button onclick="toggleTreinoForm()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+    </div>
+    <div class="form-row">
+      <label>Atleta *</label>
+      <select id="tf-athlete">
+        <option value="">-- Selecionar atleta --</option>
+        ${APP.athletes.map(a=>`<option value="${a.id}" ${a.id===defaultAthlete?'selected':''}>${a.name} (${a.pos})</option>`).join('')}
+      </select>
+    </div>
+    <div class="grid2" style="gap:8px;margin-bottom:10px;">
+      <div>
+        <label>Tipo</label>
+        <select id="tf-tipo">
+          ${TREINO_TIPOS.map(t=>`<option ${(editData?.type||'Técnico')===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Data do exercício</label>
+        <input id="tf-date" type="date" value="${defaultDate}">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Título do exercício *</label>
+      <input id="tf-title" type="text" placeholder="Ex: Trabalho de finalização em espaço reduzido" value="${editData?.title||''}">
+    </div>
+    <div class="form-row">
+      <label>Descrição / Protocolo</label>
+      <textarea id="tf-desc" rows="3" placeholder="Ex: 4 séries × 10 rep. com bola. Recuperação 2 min entre séries." style="resize:none;">${editData?.description||''}</textarea>
+    </div>
+    <div class="grid2" style="gap:8px;margin-bottom:10px;">
+      <div>
+        <label>Volume (séries × reps / duração)</label>
+        <input id="tf-volume" type="text" placeholder="Ex: 4×8 | 20 min" value="${editData?.volume||''}">
+      </div>
+      <div>
+        <label>Nota para a atleta</label>
+        <input id="tf-note" type="text" placeholder="Ex: Foca na qualidade do 1.º toque" value="${editData?.note||''}">
+      </div>
+    </div>
+    <div class="grid2" style="gap:8px;">
+      <button class="btn btn-outline" onclick="toggleTreinoForm()">Cancelar</button>
+      <button class="btn btn-success" onclick="saveTreino()">💾 Guardar</button>
+    </div>
+  </div>` : '';
+
+  // Group trainings by athlete
+  const grouped = {};
+  [...APP.treinos].sort((a,b)=>a.week.localeCompare(b.week)).forEach(t=>{
+    if(!grouped[t.athleteId]) grouped[t.athleteId]=[];
+    grouped[t.athleteId].push(t);
+  });
+
+  let listHTML = '';
+  if(!total){
+    listHTML = '<div class="empty"><div class="empty-icon">🏃</div><p>Sem treinos atribuídos ainda.</p><p style="font-size:11px;margin-top:4px;">Clica em "+ Novo treino" para atribuir.</p></div>';
+  } else {
+    Object.keys(grouped).forEach(aid=>{
+      const a = athleteById(aid);
+      if(!a) return;
+      const pc = posColor(a.pos);
+      const ats = grouped[aid];
+      const atDone = ats.filter(t=>t.done).length;
+      listHTML += `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          ${a.photo&&a.photo.startsWith('http')?`<img src="${a.photo}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;">`:`<div class="athlete-avatar" style="background:${pc.bg};color:${pc.tx};">${initials(a.name)}</div>`}
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;">${a.name}</div>
+            <div style="font-size:10px;color:var(--muted);">${a.pos} · ${atDone}/${ats.length} concluídos</div>
+          </div>
+          <button class="btn-sm" style="background:var(--club);color:white;" onclick="toggleTreinoForm()">+ Treino</button>
+        </div>`;
+      ats.forEach(t=>{
+        const tipoColor={Técnico:'#1a5c35',Físico:'#7d3c98',Tático:'#1a5276',Mental:'#935116',Velocidade:'#7b241c',Força:'#4a235a',Resistência:'#1a5276',Flexibilidade:'#0e6655',Reabilitação:'#7d4e00'};
+        const col = tipoColor[t.type]||'#555';
+        const isPast = t.week < today();
+        listHTML += `
+        <div style="border-left:3px solid ${col};padding:10px 12px;border-radius:0 8px 8px 0;margin-bottom:6px;background:${t.done?'var(--green-l)':isPast?'#fafafa':'var(--bg)'};border:1px solid var(--border);border-left:3px solid ${col};opacity:${t.done?'0.8':'1'};">
+          <div style="display:flex;align-items:flex-start;gap:8px;">
+            <input type="checkbox" ${t.done?'checked':''} onchange="toggleTreinoDoneTec('${t.id}')" style="margin-top:3px;cursor:pointer;width:15px;height:15px;accent-color:var(--green);">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+                <span style="font-size:13px;font-weight:600;${t.done?'text-decoration:line-through;color:var(--muted);':''}">${t.title}</span>
+                <span class="badge" style="background:${col}22;color:${col};flex-shrink:0;">${t.type}</span>
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px;">📅 ${fmt(t.week)}${t.volume?` · 📊 ${t.volume}`:''}</div>
+              ${t.description?`<div style="font-size:11px;color:var(--text);margin-top:4px;">${t.description}</div>`:''}
+              ${t.note?`<div style="font-size:11px;margin-top:4px;padding:4px 8px;background:rgba(0,0,0,0.04);border-radius:4px;">💬 ${t.note}</div>`:''}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+              <button onclick="toggleTreinoForm('${t.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px;" title="Editar">✏️</button>
+              <button onclick="deleteTreino('${t.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px;" title="Eliminar">🗑️</button>
+            </div>
+          </div>
+        </div>`;
+      });
+      listHTML += `</div>`;
+    });
+  }
+
+  el.innerHTML = `
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;">
+    <div style="font-size:12px;color:var(--muted);">
+      <b>${total}</b> atribuídos · <b style="color:var(--green);">${done}</b> concluídos · <b style="color:var(--yellow);">${pending}</b> pendentes
+    </div>
+    <button class="btn-sm" style="background:var(--club);color:white;" onclick="toggleTreinoForm()">
+      ${treinoFormOpen?'✕ Fechar':'＋ Novo treino'}
+    </button>
+  </div>
+  <div style="padding:0 16px 16px;">
+    ${formHTML}
+    ${listHTML}
+  </div>`;
+}
+
+// ============================================================
+// ATLETA APP
+// ============================================================
+function renderAtleta(a){
+  document.getElementById('atleta-logo').textContent = initials(a.name);
+  document.getElementById('atleta-name').textContent = a.name;
+  document.getElementById('atleta-club').textContent = `${APP.club.name} · ${a.pos} · #${a.num}`;
+  applyClubColor(APP.club.color || '#1a3a5c');
+  buildBorgGrid();
+  buildWellnessForm();
+  checkTodayPSE();
+  checkTodayWellness();
+  renderAtletaAgenda();
+}
+
+function buildBorgGrid(){
+  const g = document.getElementById('borg-grid');
+  g.innerHTML = '';
+  borgValues.forEach((v,i) => {
+    const btn = document.createElement('div');
+    btn.className = 'borg-btn';
+    btn.innerHTML = `<div class="borg-val" style="color:${borgColors[i]};">${borgLabels[i].split('\n')[0]}</div><div class="borg-lbl">${borgLabels[i].split('\n')[1]}</div>`;
+    btn.onclick = () => {
+      document.querySelectorAll('.borg-btn').forEach(b=>b.classList.remove('sel'));
+      btn.classList.add('sel');
+      selBorg = v;
+      const fb = document.getElementById('borg-feedback');
+      fb.style.display='block';
+      fb.style.borderColor = borgColors[i];
+      fb.style.color = borgColors[i];
+      fb.style.background = borgColors[i]+'15';
+      fb.textContent = `PSE ${v} — ${borgLabels[i].split('\n')[1]}`;
+      checkPSEReady();
+    };
+    g.appendChild(btn);
+  });
+}
+
+function checkPSEReady(){
+  const dur = document.getElementById('at-duration').value;
+  const btn = document.getElementById('pse-submit-btn');
+  if(selBorg !== null && dur){
+    btn.disabled = false;
+    const ua = Math.round(selBorg * parseInt(dur));
+    document.getElementById('ua-preview').style.display='block';
+    document.getElementById('ua-val').textContent = ua + ' UA';
+  } else {
+    btn.disabled = true;
+    document.getElementById('ua-preview').style.display = selBorg!==null&&dur ? 'block' : 'none';
+  }
+}
+
+function checkTodayPSE(){
+  const existing = APP.pse.filter(p=>p.athleteId===currentSession.athleteId&&p.date===today());
+  const el = document.getElementById('pse-today-status');
+  if(existing.length){
+    el.innerHTML = `<div class="card" style="border-left:3px solid var(--green);"><div style="font-size:13px;font-weight:600;color:var(--green);">✓ PSE já submetida hoje</div><div style="font-size:12px;color:var(--muted);margin-top:4px;">PSE ${existing[existing.length-1].pse} · ${existing[existing.length-1].ua} UA · ${existing[existing.length-1].sessionType}</div></div>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function checkTodayWellness(){
+  const existing = APP.wellness.filter(w=>w.athleteId===currentSession.athleteId&&w.date===today());
+  const el = document.getElementById('wellness-today-banner');
+  if(existing.length){
+    el.innerHTML = `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--green);"><div style="font-size:13px;font-weight:600;color:var(--green);">✓ Wellness submetido hoje</div><div style="font-size:12px;color:var(--muted);margin-top:4px;">Índice: ${existing[existing.length-1].score}% · ${fmtTime(existing[existing.length-1].submittedAt)}</div></div>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function submitPSE(){
+  const dur = parseInt(document.getElementById('at-duration').value);
+  const type = document.getElementById('at-session-type').value;
+  if(selBorg===null || !dur){ showToast('Preenche todos os campos'); return; }
+  const entry = {
+    id:'p'+Date.now(),
+    athleteId: currentSession.athleteId,
+    date: today(),
+    pse: selBorg,
+    duration: dur,
+    ua: Math.round(selBorg * dur),
+    sessionType: type,
+    submittedAt: nowISO()
+  };
+  APP.pse.push(entry);
+  saveData(APP);
+  if(_supaSync) cloudInsert('pse_records',{id:entry.id,athlete_id:entry.athleteId,date:entry.date,pse:entry.pse,duration:entry.duration,ua:entry.ua,session_type:entry.sessionType,submitted_at:entry.submittedAt});
+  showToast('PSE registada! → Técnico notificado ✓');
+  selBorg = null;
+  document.querySelectorAll('.borg-btn').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('borg-feedback').style.display='none';
+  document.getElementById('ua-preview').style.display='none';
+  document.getElementById('at-duration').value='';
+  document.getElementById('pse-submit-btn').disabled=true;
+  checkTodayPSE();
+}
+
+const wellnessQuestions = [
+  {key:'sleep',label:'Qualidade do sono',opts:['1','2','3','4','5'],sub:['Muito má','Má','Razoável','Boa','Muito boa']},
+  {key:'fatigue',label:'Nível de fadiga',opts:['1','2','3','4','5'],sub:['Muito alto','Alto','Moderado','Baixo','Muito baixo']},
+  {key:'stress',label:'Nível de stress',opts:['1','2','3','4','5'],sub:['Muito alto','Alto','Moderado','Baixo','Muito baixo']},
+  {key:'pain',label:'Dor/desconforto muscular',opts:['1','2','3','4','5'],sub:['Severa','Moderada','Ligeira','Nenhuma','Sem dor']},
+  {key:'mood',label:'Estado de humor',opts:['1','2','3','4','5'],sub:['Muito mau','Mau','Normal','Bom','Muito bom']},
+];
+
+function buildWellnessForm(){
+  const f = document.getElementById('wellness-form-body');
+  f.innerHTML = '';
+  wellnessQuestions.forEach(q => {
+    wellnessAnswers[q.key] = null;
+    const div = document.createElement('div');
+    div.style.marginBottom='14px';
+    let html = `<label style="margin-bottom:6px;">${q.label}</label><div class="w-scale">`;
+    q.opts.forEach((o,i) => {
+      html += `<button class="w-btn" id="wbtn-${q.key}-${i}" title="${q.sub[i]}" onclick="selectWellness('${q.key}',${i+1},${i})">${o}</button>`;
+    });
+    html += `</div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--faint);margin-top:2px;"><span>${q.sub[0]}</span><span>${q.sub[4]}</span></div>`;
+    div.innerHTML = html;
+    f.appendChild(div);
+  });
+
+  // Cycle question
+  const cycleDiv = document.createElement('div');
+  cycleDiv.style.marginBottom='14px';
+  wellnessAnswers['cycle'] = null;
+  cycleDiv.innerHTML = `<label style="margin-bottom:6px;">Fase do ciclo menstrual <span style="font-size:10px;font-weight:400;color:var(--faint);">(confidencial)</span></label>
+    <div class="cycle-grid">
+      <button class="cycle-btn" id="cyc-m" onclick="selectCycle('menstrual','m')">🔴 Menstrual</button>
+      <button class="cycle-btn" id="cyc-f" onclick="selectCycle('folicular','f')">🔵 Folicular</button>
+      <button class="cycle-btn" id="cyc-o" onclick="selectCycle('ovulacao','o')">🟢 Ovulação</button>
+      <button class="cycle-btn" id="cyc-l" onclick="selectCycle('lutea','l')">🟡 Lútea</button>
+    </div>`;
+  f.appendChild(cycleDiv);
+}
+
+function selectWellness(key, val, idx){
+  wellnessAnswers[key] = val;
+  document.querySelectorAll(`[id^="wbtn-${key}-"]`).forEach((b,i)=>{
+    b.classList.toggle('sel', i===idx);
+  });
+}
+
+function selectCycle(val, code){
+  wellnessAnswers['cycle'] = val;
+  ['m','f','o','l'].forEach(c => {
+    const btn = document.getElementById('cyc-'+c);
+    btn.className = 'cycle-btn' + (c===code ? ` sel-${c}` : '');
+  });
+}
+
+function submitWellness(){
+  const required = ['sleep','fatigue','stress','pain','mood'];
+  const missing = required.filter(k=>!wellnessAnswers[k]);
+  if(missing.length){ showToast('Preenche todas as dimensões'); return; }
+  const vals = required.map(k=>wellnessAnswers[k]);
+  const score = Math.round((vals.reduce((s,v)=>s+v,0)/(required.length*5))*100);
+  const entry = {
+    id:'w'+Date.now(),
+    athleteId: currentSession.athleteId,
+    date: today(),
+    sleep: wellnessAnswers.sleep,
+    fatigue: wellnessAnswers.fatigue,
+    stress: wellnessAnswers.stress,
+    pain: wellnessAnswers.pain,
+    mood: wellnessAnswers.mood,
+    cycle: wellnessAnswers.cycle,
+    score,
+    submittedAt: nowISO()
+  };
+  APP.wellness.push(entry);
+  saveData(APP);
+  if(_supaSync) cloudInsert('wellness_records',{id:entry.id,athlete_id:entry.athleteId,date:entry.date,sleep:entry.sleep,fatigue:entry.fatigue,stress:entry.stress,pain:entry.pain,mood:entry.mood,score:entry.score,cycle:entry.cycle,submitted_at:entry.submittedAt});
+  showToast(`Wellness ${score}% enviado! → Técnico notificado ✓`);
+  wellnessAnswers = {};
+  buildWellnessForm();
+  checkTodayWellness();
+}
+
+function renderAtletaAgenda(){
+  const el = document.getElementById('at-agenda-at');
+  if(!el) return;
+  const todayStr = today();
+  // Only show upcoming (today + future)
+  const sorted = [...APP.schedule]
+    .filter(e=>e.date>=todayStr)
+    .sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
+  let html='';
+  if(!sorted.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>Sem eventos agendados.</p></div>';
+    return;
+  }
+  // group by date
+  const groups={};
+  sorted.forEach(e=>{ if(!groups[e.date]) groups[e.date]=[]; groups[e.date].push(e); });
+  Object.keys(groups).sort().forEach(dateKey=>{
+    const isToday=dateKey===todayStr;
+    html+=`<div style="font-size:11px;font-weight:700;color:${isToday?'var(--club)':'var(--muted)'};text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 5px;padding:0 16px;">${isToday?'🔵 HOJE — ':''}${fmt(dateKey)}</div>`;
+    groups[dateKey].forEach(e=>{
+      const col=SCHED_COLORS[e.type]||'#555';
+      const lbl=SCHED_LABELS[e.type]||e.type;
+      const ico=SCHED_ICONS[e.type]||'📌';
+      const isjogo=e.type==='jogo';
+      html+=`<div style="margin:0 16px 8px;border-left:3px solid ${col};padding:10px 12px;border-radius:0 8px 8px 0;background:${isToday?'var(--club-l)':'var(--card)'};border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">${ico}</span>
+          <div style="flex:1;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">
+              <span style="font-size:13px;font-weight:${isjogo?'700':'600'};${isToday?'color:var(--club);':''}">${e.title}</span>
+              <span class="badge" style="background:${col}22;color:${col};flex-shrink:0;">${lbl}</span>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">🕐 ${e.time} &nbsp;📍 ${e.location} &nbsp;⏱ ${e.duration} min${isToday?' &nbsp;<b style="color:var(--club);">(Hoje)</b>':''}</div>
+            ${e.notes?`<div style="font-size:11px;color:var(--text);margin-top:5px;padding:5px 8px;background:rgba(0,0,0,0.04);border-radius:4px;">📝 ${e.notes}</div>`:''}
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+  el.innerHTML=`<div style="padding-bottom:16px;">${html}</div>`;
+}
+
+function renderAtletaTreino(){
+  const el = document.getElementById('at-treino-at');
+  if(!el) return;
+  const myTreinos = APP.treinos.filter(t=>t.athleteId===currentSession.athleteId);
+  if(!myTreinos.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">🏃</div><p>Sem treino individualizado atribuído.</p></div>';
+    return;
+  }
+  let html='<div class="card" style="background:var(--club-l);border-color:var(--club);margin-bottom:10px;"><div style="font-size:12px;font-weight:600;color:var(--club);">Plano prescrito pelo técnico · Esta semana</div></div>';
+  myTreinos.forEach(t=>{
+    html+=`<div class="card" style="border-left:3px solid ${t.done?'var(--green)':'var(--club)'};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">${t.title}</div>
+          <span class="badge badge-gray" style="font-size:9px;">${t.type}</span>
+        </div>
+        ${t.done ? '<span class="badge badge-g">✓ Feito</span>' : ''}
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">${t.description}</p>
+      ${t.note?`<p style="font-size:11px;color:var(--muted);font-style:italic;margin-bottom:8px;">"${t.note}"</p>`:''}
+      ${!t.done?`<button class="btn-sm btn-success" onclick="markTreinoDone('${t.id}')">Marcar como feito ✓</button>`:''}
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+function markTreinoDone(id){
+  const t=APP.treinos.find(t=>t.id===id);
+  if(t){ t.done=true; saveData(APP); renderAtletaTreino(); showToast('Exercício concluído! ✓'); }
+}
+
+// ============================================================
+// NUTRICIONISTA
+// ============================================================
+function renderNutricao(){
+  const {club} = APP;
+  document.getElementById('nutricao-logo').textContent = 'N';
+  document.getElementById('nutricao-club-name').textContent = `Nutricionista · ${club.name}`;
+  document.getElementById('nutricao-sub').textContent = club.sport;
+  applyClubColor(club.color || '#1a3a5c');
+  populateSelects(['nut-athlete-sel','nut-presc-athlete']);
+  renderNutPlantel();
+}
+
+function populateSelects(ids){
+  ids.forEach(id=>{
+    const sel=document.getElementById(id);
+    if(!sel)return;
+    sel.innerHTML='<option value="">— Selecionar atleta —</option>';
+    APP.athletes.forEach(a=>{
+      sel.innerHTML+=`<option value="${a.id}">${a.name} (${a.pos})</option>`;
+    });
+  });
+}
+
+function renderNutPlantel(){
+  const el=document.getElementById('nut-plantel-list');
+  if(!el)return;
+  let html='<div class="card"><div class="card-title">Avaliações nutricionais</div>';
+  if(!APP.nutrition.length){
+    html+='<div class="empty"><div class="empty-icon">📋</div><p>Sem avaliações registadas.</p><p style="font-size:11px;margin-top:4px;">Regista avaliações no separador "Nova Avaliação".</p></div>';
+  } else {
+    APP.nutrition.slice().reverse().forEach(n=>{
+      const a=athleteById(n.athleteId);
+      if(!a)return;
+      html+=`<div class="athlete-row">
+        <div class="athlete-avatar" style="background:${posColor(a.pos).bg};color:${posColor(a.pos).tx};">${initials(a.name)}</div>
+        <div style="flex:1;"><div style="font-size:13px;font-weight:600;">${a.name}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Peso: ${n.weight}kg · IMC: ${n.imc} · Hidratação: ${n.hydration}</div></div>
+        <span style="font-size:10px;color:var(--faint);">${fmt(n.date)}</span>
+      </div>`;
+    });
+  }
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function calcIMC(){
+  const w=parseFloat(document.getElementById('nut-peso').value);
+  const h=parseFloat(document.getElementById('nut-altura').value)/100;
+  const el=document.getElementById('imc-result');
+  if(w&&h&&h>0){
+    const imc=(w/(h*h)).toFixed(1);
+    const label=imc<18.5?'Abaixo do peso':imc<25?'Normal':imc<30?'Excesso de peso':'Obesidade';
+    const col=imc>=18.5&&imc<25?'var(--green)':imc<18.5?'var(--yellow)':'var(--red)';
+    el.style.display='block';
+    el.style.color=col;
+    el.innerHTML=`IMC: ${imc} — ${label}`;
+  } else { el.style.display='none'; }
+}
+
+function updateNutAthlete(){}
+
+function submitNutrition(){
+  const athleteId=document.getElementById('nut-athlete-sel').value;
+  const weight=parseFloat(document.getElementById('nut-peso').value);
+  const height=parseFloat(document.getElementById('nut-altura').value);
+  if(!athleteId||!weight){ showToast('Seleciona atleta e introduz o peso'); return; }
+  const imc=height?+(weight/((height/100)**2)).toFixed(1):null;
+  const entry={
+    id:'n'+Date.now(),
+    athleteId,
+    date:today(),
+    weight,
+    height:height||null,
+    imc,
+    bodyFat:parseFloat(document.getElementById('nut-gordura').value)||null,
+    tricipital:parseFloat(document.getElementById('nut-tricip').value)||null,
+    suprailiaca:parseFloat(document.getElementById('nut-supra').value)||null,
+    hydration:document.getElementById('nut-hidratacao').value,
+    notes:document.getElementById('nut-notas').value.trim(),
+    registeredAt:nowISO()
+  };
+  APP.nutrition.push(entry);
+  saveData(APP);
+  if(_supaSync) cloudInsert('nutrition_records',{id:entry.id,athlete_id:entry.athleteId,date:entry.date,weight:entry.weight,height:entry.height,imc:entry.imc,body_fat:entry.bodyFat,tricipital:entry.tricipital,suprailiaca:entry.suprailiaca,hydration:entry.hydration,notes:entry.notes,registered_at:entry.registeredAt});
+  showToast('Avaliação guardada! → Técnico notificado ✓');
+  document.getElementById('nut-athlete-sel').value='';
+  document.getElementById('nut-peso').value='';
+  document.getElementById('nut-altura').value='';
+  document.getElementById('nut-gordura').value='';
+  document.getElementById('nut-notas').value='';
+  document.getElementById('imc-result').style.display='none';
+  renderNutPlantel();
+}
+
+function submitPrescricao(){
+  showToast('Prescrição enviada à atleta ✓');
+}
+
+// ============================================================
+// FISIOTERAPIA
+// ============================================================
+function renderFisio(){
+  const {club}=APP;
+  document.getElementById('fisio-logo').textContent='F';
+  document.getElementById('fisio-club-name').textContent=`Fisioterapeuta · ${club.name}`;
+  document.getElementById('fisio-sub').textContent=club.sport;
+  applyClubColor(club.color||'#1a3a5c');
+  populateSelects(['fisio-athlete-sel']);
+  renderFisioLesoes();
+}
+
+function renderFisioLesoes(){
+  const el=document.getElementById('fi-lesoes-f');
+  if(!el)return;
+  const active=APP.injuries.filter(i=>i.status!=='alta');
+  const sevColor={ligeira:'var(--yellow)',moderada:'var(--yellow)',grave:'var(--red)',critica:'var(--red)'};
+  let html='';
+  if(!active.length){
+    html='<div class="empty"><div class="empty-icon">✅</div><p>Sem lesões ativas.</p></div>';
+  } else {
+    active.forEach(inj=>{
+      const a=athleteById(inj.athleteId);
+      if(!a)return;
+      const sc=sevColor[inj.severity]||'var(--muted)';
+      html+=`<div class="injury-card" style="border-left-color:${sc};margin:0 0 8px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <div>
+            <div style="font-size:13px;font-weight:700;">${a.name} <span style="font-weight:400;color:var(--muted);">(${a.pos})</span></div>
+            <div style="font-size:12px;">${inj.diagnosis}</div>
+          </div>
+          <span class="badge badge-r">${inj.severity}</span>
+        </div>
+        ${inj.progress!==undefined?`<div class="progress-bar" style="margin-bottom:4px;"><div class="progress-fill" style="width:${inj.progress}%;background:${inj.progress>70?'var(--green)':inj.progress>40?'var(--yellow)':'var(--red)'}"></div></div><div style="font-size:10px;color:var(--muted);">${inj.phaseDesc||'—'} · ${inj.progress}% · Retorno: ${fmt(inj.returnDate)}</div>`:''}
+        <div style="margin-top:8px;"><button class="btn-sm btn-primary" onclick="advancePhase('${inj.id}')">Avançar fase →</button></div>
+      </div>`;
+    });
+  }
+  document.getElementById('fi-lesoes-f').innerHTML=html;
+}
+
+function renderFisioUpdate(){
+  const el=document.getElementById('fi-update-f');
+  if(!el)return;
+  const active=APP.injuries.filter(i=>i.status!=='alta');
+  if(!active.length){el.innerHTML='<div class="empty">Sem lesões ativas para atualizar.</div>';return;}
+  let html='';
+  active.forEach(inj=>{
+    const a=athleteById(inj.athleteId);
+    if(!a)return;
+    html+=`<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${a.name} — ${inj.diagnosis}</div>
+      <div class="form-row"><label>Atualizar notas clínicas</label><textarea id="upd-${inj.id}" rows="2" placeholder="Evolução do protocolo...">${inj.notes||''}</textarea></div>
+      <div class="grid2">
+        <div class="form-row"><label>Progresso (%)</label><input type="number" id="upd-prog-${inj.id}" value="${inj.progress||0}" min="0" max="100"></div>
+        <div class="form-row"><label>Estado</label>
+          <select id="upd-status-${inj.id}">
+            <option value="indisponivel" ${inj.status==='indisponivel'?'selected':''}>Indisponível</option>
+            <option value="treino_mod" ${inj.status==='treino_mod'?'selected':''}>Treino modificado</option>
+            <option value="alta">Alta clínica</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-sm btn-primary" onclick="updateInjury('${inj.id}')">Guardar atualização → Técnico</button>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+function advancePhase(id){
+  const inj=APP.injuries.find(i=>i.id===id);
+  if(!inj)return;
+  inj.phase=(inj.phase||1)+1;
+  const phases=['Repouso e controlo da inflamação','Carga parcial e propriocepção','Retorno progressivo ao treino','Alta clínica'];
+  inj.phaseDesc=phases[Math.min(inj.phase-1,3)];
+  inj.progress=Math.min(100,inj.progress+25);
+  if(inj.progress>=100)inj.status='alta';
+  inj.registeredAt=nowISO();
+  saveData(APP);
+  if(_supaSync) cloudUpdate('injuries', id, {phase:inj.phase,phase_desc:inj.phaseDesc,progress:inj.progress,status:inj.status,registered_at:inj.registeredAt});
+  showToast('Fase atualizada! → Técnico notificado ✓');
+  renderFisioLesoes();
+}
+
+function updateInjury(id){
+  const inj=APP.injuries.find(i=>i.id===id);
+  if(!inj)return;
+  inj.notes=document.getElementById('upd-'+id).value;
+  inj.progress=parseInt(document.getElementById('upd-prog-'+id).value)||inj.progress;
+  inj.status=document.getElementById('upd-status-'+id).value;
+  inj.registeredAt=nowISO();
+  saveData(APP);
+  if(_supaSync) cloudUpdate('injuries', id, {notes:inj.notes,progress:inj.progress,status:inj.status,registered_at:inj.registeredAt});
+  showToast('Lesão atualizada! → Técnico notificado ✓');
+  renderFisioLesoes();
+  renderFisioUpdate();
+}
+
+function submitInjury(){
+  const athleteId=document.getElementById('fisio-athlete-sel').value;
+  const diag=document.getElementById('fisio-diag').value.trim();
+  if(!athleteId||!diag){ showToast('Preenche atleta e diagnóstico'); return; }
+  const entry={
+    id:'i'+Date.now(),
+    athleteId,
+    date:today(),
+    type:document.getElementById('fisio-tipo').value,
+    diagnosis:diag,
+    severity:document.getElementById('fisio-severity').value,
+    status:document.getElementById('fisio-disp').value,
+    returnDate:document.getElementById('fisio-retorno').value||null,
+    notes:document.getElementById('fisio-notas').value.trim(),
+    registeredBy:'Fisioterapeuta',
+    registeredAt:nowISO(),
+    phase:1,
+    phaseDesc:'Avaliação e diagnóstico inicial',
+    progress:0
+  };
+  APP.injuries.push(entry);
+  saveData(APP);
+  if(_supaSync) cloudInsert('injuries',{id:entry.id,athlete_id:entry.athleteId,date:entry.date,type:entry.type,diagnosis:entry.diagnosis,severity:entry.severity,status:entry.status,return_date:entry.returnDate,notes:entry.notes,phase:entry.phase,phase_desc:entry.phaseDesc,progress:entry.progress,registered_by:entry.registeredBy,registered_at:entry.registeredAt});
+  showToast('Lesão registada! → Técnico notificado ✓');
+  document.getElementById('fisio-athlete-sel').value='';
+  document.getElementById('fisio-diag').value='';
+  document.getElementById('fisio-notas').value='';
+  document.getElementById('fisio-retorno').value='';
+  renderFisioLesoes();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+// ============================================================
+// PWA — MANIFEST + SERVICE WORKER
+// ============================================================
+function initPWA(){
+  // Dynamic manifest based on club config
+  const clubColor = APP.club?.color || '#1a3a5c';
+  const clubName  = APP.club?.name  || 'Sport Performance System';
+  const shortName = APP.club?.shortName || 'SPS';
+
+  const manifest = {
+    name: clubName + ' — Performance',
+    short_name: shortName,
+    start_url: '.',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#f4f6f9',
+    theme_color: clubColor,
+    description: 'Plataforma de monitorização e gestão de alto rendimento desportivo',
+    icons: [
+      { src: svgIconDataURL(shortName, clubColor, 192), sizes:'192x192', type:'image/svg+xml', purpose:'any maskable' },
+      { src: svgIconDataURL(shortName, clubColor, 512), sizes:'512x512', type:'image/svg+xml', purpose:'any maskable' }
+    ]
+  };
+
+  // Inject / update manifest link
+  let link = document.getElementById('pwa-manifest');
+  if(!link){ link = document.createElement('link'); link.id='pwa-manifest'; link.rel='manifest'; document.head.appendChild(link); }
+  const blob = new Blob([JSON.stringify(manifest)],{type:'application/json'});
+  link.href = URL.createObjectURL(blob);
+
+  // Theme color meta
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if(!meta){ meta=document.createElement('meta'); meta.name='theme-color'; document.head.appendChild(meta); }
+  meta.content = clubColor;
+
+  // Apple PWA metas
+  if(!document.querySelector('meta[name="apple-mobile-web-app-capable"]')){
+    const m1=document.createElement('meta'); m1.name='apple-mobile-web-app-capable'; m1.content='yes'; document.head.appendChild(m1);
+    const m2=document.createElement('meta'); m2.name='apple-mobile-web-app-status-bar-style'; m2.content='black-translucent'; document.head.appendChild(m2);
+  }
+
+  // Service Worker registration
+  if('serviceWorker' in navigator){
+    const swCode = `
+const CACHE = 'sps-v1';
+const ASSETS = ['.'];
+self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
+self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('fetch', e => {
+  if(e.request.method!=='GET') return;
+  e.respondWith(caches.match(e.request).then(cached=>{
+    const net = fetch(e.request).then(r=>{ if(r&&r.ok){ const c=r.clone(); caches.open(CACHE).then(ca=>ca.put(e.request,c)); } return r; }).catch(()=>cached);
+    return cached || net;
+  }));
+});`;
+    const swBlob = new Blob([swCode],{type:'text/javascript'});
+    const swURL  = URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swURL).catch(()=>{});
+  }
+}
+
+function svgIconDataURL(text, bg, size){
+  const fs = size > 100 ? 80 : 40;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="${size*0.2}" fill="${bg}"/><text x="50%" y="55%" font-family="system-ui,sans-serif" font-size="${fs}" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">${text.slice(0,3)}</text></svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+// ── Install banner prompt ──────────────────────────────────────
+let _deferredInstall = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _deferredInstall = e;
+  // Show install button if on login or setup screen
+  showInstallBanner();
+});
+
+function showInstallBanner(){
+  if(!_deferredInstall) return;
+  const existing = document.getElementById('pwa-install-bar');
+  if(existing) return;
+  const bar = document.createElement('div');
+  bar.id = 'pwa-install-bar';
+  bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:var(--club);color:white;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;z-index:9999;font-family:var(--font);font-size:13px;';
+  bar.innerHTML = `<span>📱 Instala a app no teu telemóvel</span><div style="display:flex;gap:8px;"><button onclick="installPWA()" style="background:white;color:var(--club);border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;">Instalar</button><button onclick="this.parentElement.parentElement.remove()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px;">✕</button></div>`;
+  document.body.appendChild(bar);
+}
+
+async function installPWA(){
+  if(!_deferredInstall) return;
+  _deferredInstall.prompt();
+  const {outcome} = await _deferredInstall.userChoice;
+  if(outcome==='accepted') _deferredInstall=null;
+  document.getElementById('pwa-install-bar')?.remove();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function init(){
+  APP = getApp();
+  buildSwatches();
+  if(!APP.configured || !APP.club.name){
+    showScreen('scr-setup');
+  } else {
+    applyClubColor(APP.club.color||'#1a3a5c');
+    showScreen('scr-login');
+    renderLogin();
+  }
+  initPWA();
+  initSupabase();
+  // Listen to dur input for UA calc
+  document.addEventListener('input', e => {
+    if(e.target.id==='at-duration') checkPSEReady();
+  });
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
