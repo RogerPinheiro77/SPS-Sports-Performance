@@ -14561,6 +14561,29 @@ function _gdGameRichness(g){
   const accum=ls.accumSec||0;
   return launched*1e9+nEvents*1e6+accum;
 }
+// _gdMergeGamesForPush(local,cloudGames,deletedIds): fusão por riqueza de 'games' entre a
+// cópia local e uma cópia da cloud — por jogo, o mais rico (_gdGameRichness) ganha; em
+// empate, local ganha (protege edições concorrentes genuínas: notas, convocatória, etc.).
+// Extraída (07/09/2026, "Parte 5" do incidente) da fusão que só corria dentro da guarda de
+// staleness do pushAppMeta — 2 jogos (Rio Ave, Esposende) voltaram a ficar em branco DEPOIS
+// do sps-v143 estar publicado, porque a guarda só dispara quando `_metaSyncAt` já está
+// definido E a cloud está >2s mais recente; uma sessão nova (sem pull completo feito ainda,
+// `_metaSyncAt` ainda null) passa direto pelo caminho normal de pushAppMeta, que reescrevia
+// `meta.games` só com a cópia local, sem comparar nada. Agora esta mesma comparação corre
+// SEMPRE que se grava 'games' na cloud, não só quando a guarda deteta staleness — ver as
+// duas chamadas em pushAppMeta e feedback_sps_gameday_pullcloud_overwrite.
+function _gdMergeGamesForPush(local,cloudGames,deletedIds){
+  deletedIds=deletedIds||new Set();
+  const cloudById={};(cloudGames||[]).forEach(f=>{if(f&&f.id)cloudById[f.id]=f;});
+  const localIds=new Set((local||[]).filter(x=>x&&x.id).map(x=>x.id));
+  const merged=(local||[]).filter(l=>!(l&&l.id&&deletedIds.has(l.id))).map(l=>{
+    const cloudVer=l&&l.id?cloudById[l.id]:null;
+    if(!cloudVer)return l; // jogo só existe localmente (novo, ainda por sincronizar)
+    return _gdGameRichness(cloudVer)>_gdGameRichness(l)?cloudVer:l;
+  });
+  const cloudOnly=(cloudGames||[]).filter(f=>!f||!f.id||(!localIds.has(f.id)&&!deletedIds.has(f.id)));
+  return [...cloudOnly,...merged];
+}
 async function pullCloud(){
   if(!_supa||!_cid)return;
   try{
@@ -14745,22 +14768,11 @@ async function pushAppMeta(_pushRetry){
             // em memória" apaga sessões ao vivo reais sempre que um dispositivo com uma cópia
             // desatualizada de OUTRO jogo qualquer dispara esta fusão (TODOS os jogos da época
             // estão sempre em APP.games, mesmo os que este dispositivo nunca abriu — não é
-            // sinal de edição real). Incidente: 2 jogos (30 eventos reais e resultado 1-5;
-            // resultado 0-3) voltaram a 'pre' em branco assim, 07/09/2026. Correção: por jogo,
-            // local só ganha se NÃO for claramente mais pobre que a versão fresca da cloud —
-            // usa _gdGameRichness (eventos/accumSec/launched). Em empate (nenhum dos dois tem
-            // liveSession com atividade, ou diferem só em campos como notas/convocatória),
-            // mantém-se o comportamento antigo — local ganha — para não perder edições
-            // concorrentes genuínas. Ver feedback_sps_gameday_pullcloud_overwrite.
-            const freshById={};fresh.forEach(f=>{if(f&&f.id)freshById[f.id]=f;});
-            const merged=local.filter(l=>!(l&&l.id&&deletedIds.has(l.id))).map(l=>{
-              const cloudVer=l&&l.id?freshById[l.id]:null;
-              if(!cloudVer)return l; // jogo só existe localmente (novo, ainda por sincronizar)
-              return _gdGameRichness(cloudVer)>_gdGameRichness(l)?cloudVer:l;
-            });
-            const localIdsAll=new Set(local.filter(x=>x&&x.id).map(x=>x.id));
-            const cloudOnly=fresh.filter(f=>!f||!f.id||(!localIdsAll.has(f.id)&&!deletedIds.has(f.id)));
-            APP.games=[...cloudOnly,...merged];
+            // sinal de edição real). Usa _gdMergeGamesForPush (por jogo, local só ganha se NÃO
+            // for claramente mais pobre que a versão fresca da cloud — ver essa função para o
+            // histórico completo do incidente). Esta fusão aqui é só a 1ª camada — a 2ª e mais
+            // importante corre sempre, no bloco final deste pushAppMeta (ver mais abaixo).
+            APP.games=_gdMergeGamesForPush(local,fresh,deletedIds);
           }else{
             // Um item da cloud só sobrevive ao merge se não tiver sido também editado
             // (localIds — a versão local ganha) nem apagado (deletedIds) nesta sessão.
@@ -14774,6 +14786,16 @@ async function pushAppMeta(_pushRetry){
       }
     }catch(e){console.warn('[pushAppMeta] staleness check falhou, a prosseguir mesmo assim',e);}
     console.log('[pushAppMeta] pushing for club_id=',_cid,'evalResponses=',((APP.evalResponses||[]).length));
+    // Lido AQUI (antes de construir `meta`), não só mais abaixo para o merge raso de chaves
+    // em falta — 07/09/2026, "Parte 5": a proteção de 'games' por riqueza (_gdMergeGamesForPush)
+    // só corria dentro do bloco de staleness acima, que só dispara quando `_metaSyncAt` já
+    // está definido E a cloud está >2s mais recente. Uma sessão nova (sem pull completo feito
+    // ainda, `_metaSyncAt` ainda null) passava direto por aqui e reescrevia games só com a
+    // cópia local, sem comparar nada — foi o que continuou a apagar o Rio Ave/Esposende mesmo
+    // depois do sps-v143 estar publicado. Agora a mesma fusão por riqueza corre SEMPRE, usando
+    // o estado da cloud mesmo antes deste push. Ver feedback_sps_gameday_pullcloud_overwrite.
+    const {data:_curRow}=await _supa.from('clubs').select('meta').eq('id',_cid).maybeSingle();
+    const _cloudMeta=(_curRow&&_curRow.meta)||{};
     // NOTA (2026-08-18): 'users' deixou de fazer parte deste blob — tem tabela própria
     // (staff_users), exatamente como 'athletes'. Motivo: qualquer dispositivo com uma cópia
     // desatualizada de APP.users em memória (ex: telemóvel de atleta com a app aberta há
@@ -14783,7 +14805,7 @@ async function pushAppMeta(_pushRetry){
     const meta={
       config:APP.config||{},
       teams:APP.teams||[],
-      games:(APP.games||[]).map(g=>{const c={...g};return c;}),
+      games:_gdMergeGamesForPush(APP.games||[],_cloudMeta.games||[],_pendingDeletes.games||new Set()),
       evaluations:APP.evaluations||[],
       evalPeriods:APP.evalPeriods||[],
       evalResponses:APP.evalResponses||[],
@@ -14825,13 +14847,12 @@ async function pushAppMeta(_pushRetry){
     // construir desaparecia da cloud em silêncio, mesmo com a guarda de staleness
     // acima (que só existe NO código novo — uma sessão com código antigo não a tem).
     // Foi assim que os 6 exercícios de Ginásio desapareceram da Biblioteca. Correção:
-    // ler o meta atual da cloud mesmo antes de gravar e fazer merge raso — qualquer
-    // chave que este `meta` local não tenha (código desatualizado) mantém o valor que
-    // já estava na cloud, em vez de desaparecer. Uma chave que O código atual gere
-    // sempre substitui (mesmo vazia — array vazio é um estado válido e intencional).
+    // `_cloudMeta` já foi lido mais acima (antes de construir `meta`, para o merge por
+    // riqueza de 'games') — reaproveita-se aqui para o mesmo merge raso: qualquer chave
+    // que este `meta` local não tenha (código desatualizado) mantém o valor que já
+    // estava na cloud, em vez de desaparecer. Uma chave que o código atual gere sempre
+    // substitui (mesmo vazia — array vazio é um estado válido e intencional).
     // Ver project_sps_biblioteca_exercicios_wipe.
-    const {data:_curRow}=await _supa.from('clubs').select('meta').eq('id',_cid).maybeSingle();
-    const _cloudMeta=(_curRow&&_curRow.meta)||{};
     const _mergedMeta={..._cloudMeta,...meta};
     const _pushTs=new Date().toISOString();
     await _supa.from('clubs').update({meta:_mergedMeta,updated_at:_pushTs}).eq('id',_cid);
