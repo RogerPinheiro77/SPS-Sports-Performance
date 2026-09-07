@@ -150,10 +150,11 @@ ul{list-style:none}
 /* Campo Tático Interativo (separador "Campo" do Jogo — Tático/Cantos/Livre, mesmo
    separador na plataforma e dentro do Gameday) — pedido do Roger, 07/09/2026: estava
    preso a max-width:280px (viewBox 300x200, meio-campo), muito pequeno para arrastar
-   atletas com precisão no telemóvel. Cresce até 480px (mesmo teto do campo Ao Vivo),
-   sem depender de vh — este campo vive no meio de outros conteúdos da página (abas,
-   lista de tarefas), não num ecrã dedicado. */
-.jc-pitch-wrap{width:min(94vw,480px)}
+   atletas com precisão no telemóvel. Primeiro subiu para 480px (mesmo teto do campo Ao
+   Vivo); Roger pediu ainda maior, subiu para 640px — deixou de estar amarrado a esse
+   teto porque este campo vive no meio de outros conteúdos da página (abas, lista de
+   tarefas), não num ecrã dedicado, por isso não depende de vh como o Ao Vivo. */
+.jc-pitch-wrap{width:min(96vw,640px)}
 .gd-live-wrap{display:flex;flex-direction:column;gap:4px}
 .gd-pitch-col{display:flex;flex-direction:column;align-items:stretch;gap:8px}
 .gd-pitch-col>.gd-pitch-rot-row{text-align:center}
@@ -5032,9 +5033,10 @@ function _jogoCampoHtml(g){
   // do círculo, os outros 3 só número (espaço mais apertado, ver [[project_sps_campo_tatico_4_quadros]]).
   const showName=mode==='tatico';
   // Marcadores maiores — pedido do Roger, 07/09/2026, a par do campo em si crescer
-  // (max-width 280px→480px, ver .jc-pitch-wrap): raio/letra quase +40%, para caberem
-  // dedos a arrastar com precisão no telemóvel sem ficar desproporcionado ao SVG maior.
-  const rad=10,numFs=9.5,sw=1.7,capFs=9,capOff=8,capY=-9;
+  // (max-width 280px→480px→640px, ver .jc-pitch-wrap): raio/letra escalados na mesma
+  // proporção do campo, para caberem dedos a arrastar com precisão no telemóvel sem
+  // ficar desproporcionado ao SVG maior.
+  const rad=13,numFs=12.5,sw=2.3,capFs=12,capOff=11,capY=-12;
   const maxY=_pitchMaxY(mode);
   // Ordem pelo número da camisola (não pela ordem em que foram clicadas como titulares
   // no Pré-Jogo) — pedido do Roger, 24/08/2026: os números devem manter-se consistentes
@@ -5058,7 +5060,7 @@ function _jogoCampoHtml(g){
     return `<g class="pitch-pl" data-aid="${aid}" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}')" onclick="pitchPlayerClick(event,'${g.id}','${aid}','${mode}')">
       <circle r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/>
       <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||i+1}</text>
-      ${showName?`<text text-anchor="middle" y="19" font-size="8.5" fill="rgba(255,255,255,.9)">${nm}</text>`:''}
+      ${showName?`<text text-anchor="middle" y="25" font-size="11" fill="rgba(255,255,255,.9)">${nm}</text>`:''}
       ${isCap?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ffd700" font-weight="bold">C</text>`:''}
       ${isVc?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ddd" font-weight="bold">VC</text>`:''}
       <title>${escHtml(a.name)}${task?' — '+escHtml(task):''}</title>
