@@ -6378,6 +6378,17 @@ function _jogoAoVivoHtml(g){
       ${_gdSubformHtml(g,_gdPendingType,onPitchAts,benchAts)}
     </div>`;
   }
+  // Etiquetas de equipa nas linhas de fundo — pedido do Roger, 07/09/2026: no campo Ao
+  // Vivo, golos/remates/cantos das DUAS equipas são registados no mesmo campo, sem
+  // nenhuma indicação de que lado é de quem. Por defeito a nossa equipa fica em baixo e
+  // ataca para cima (mesma convenção já documentada para os Quadros táticos, linha
+  // ~1142: 0%=linha de fundo adversária, 100%=baliza própria). Ficam FORA do <svg>, como
+  // overlay HTML dentro do .gd-pitch-wrap, para não mexer no viewBox nem nas coordenadas
+  // usadas por _gdPitchTap/marcadores/heatmaps. Só no campo Ao Vivo — pedido explícito do
+  // Roger, não nos Quadros táticos (aí só aparece uma equipa de cada vez, sem ambiguidade).
+  const _gdEndLbl=(txt,side)=>`<div style="position:absolute;${side}:3px;left:0;right:0;display:flex;justify-content:center;pointer-events:none${_gdCounterRot}">
+    <span style="background:rgba(0,0,0,.45);color:#fff;font-size:9px;font-weight:800;letter-spacing:.3px;padding:2px 8px;border-radius:6px;max-width:82%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(txt)}</span>
+  </div>`;
   const pitchSvg=`<div class="gd-pitch-wrap${_gdPitchRotated?' rotated':''}" style="position:relative;margin:0 auto">
     <svg id="gd-pitch-${g.id}" viewBox="0 0 300 420" style="width:100%;display:block;border-radius:10px;touch-action:none;cursor:${canTap?'crosshair':'default'}" onclick="${canTap?`_gdPitchTap(event,'${g.id}')`:''}">
       <rect width="300" height="420" fill="#0f3d24" rx="8"/>
@@ -6390,6 +6401,8 @@ function _jogoAoVivoHtml(g){
       <rect x="105" y="394" width="90" height="20" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.2"/>
       ${markers}
     </svg>
+    ${_gdEndLbl(g.opp||'Adversário','top')}
+    ${_gdEndLbl(teamName,'bottom')}
     ${popup}
     ${!canTap?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(12,15,20,.55);border-radius:10px;font-size:12px;color:var(--t2);text-align:center;padding:10px${_gdCounterRot}">${ls.phase==='pre'?'Toca em "Iniciar Jogo" para começar a registar':ls.phase==='penaltis'||ls.phase==='fim'?'':'Relógio parado — retoma para continuar a registar'}</div>`:''}
   </div>
