@@ -6168,6 +6168,28 @@ function _gdBuildTimeline(g){
   }
   return tl;
 }
+// _gdSyncPSEDuration(g): depois de lançar (ou relançar) um jogo, corrige a duração e a UA
+// dos PSE já registados desse jogo (ligados por eventId) com os minutos REAIS de cada
+// atleta — g.playerStats — em vez do tempo fixo do evento (g.djDurJogo, ex 105min para
+// toda a gente convocada). Com substituições e suplentes que não entraram, cada atleta
+// fica com um tempo diferente, como pedido pelo Roger (07/09/2026) — ver memória
+// project_sps_pse_tempo_real_jogo. Atleta sem entrada em playerStats (nunca entrou em
+// campo) fica com 0min — decisão confirmada com o Roger (AskUserQuestion), continua a
+// abrir o PSE do jogo mas com a duração a 0, editável. Sem cache: como a carga semanal/
+// ACWR lê sempre APP.pse em direto, corrigir aqui os registos já existentes propaga-se
+// sozinho a tudo o que depende deles (não precisa de recalcular nada mais).
+function _gdSyncPSEDuration(g){
+  if(!g.eventId)return;
+  const minsByAid={};
+  (g.playerStats||[]).forEach(st=>{if(st&&st.aid)minsByAid[st.aid]=st.mins||0;});
+  (APP.pse||[]).filter(p=>p.eventId===g.eventId).forEach(p=>{
+    const mins=minsByAid[p.athleteId]!=null?minsByAid[p.athleteId]:0;
+    if(p.duration===mins)return; // já correto — evita escritas/pushes desnecessários
+    p.duration=mins;
+    p.ua=Math.round((p.pse||0)*mins);
+    if(_sync)cloudUpsert('pse_records',{...p,athlete_id:p.athleteId,session_type:p.sessionType,club_id:_cid});
+  });
+}
 function _gdLaunch(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
   const ls=g.liveSession;
@@ -6182,6 +6204,7 @@ function _gdLaunch(gid){
     const i=g.playerStats.findIndex(x=>x.aid===st.aid);
     if(i>=0)g.playerStats[i]={...g.playerStats[i],...st};else g.playerStats.push(st);
   });
+  _gdSyncPSEDuration(g);
   g.fpfTimeline=_gdBuildTimeline(g);
   g.g1=ls.score.casa;g.g2=ls.score.fora;
   if(ls.penEvents&&ls.penEvents.length){
@@ -13485,6 +13508,22 @@ function _pseTypeBadge(t){
   if(t==='Ginásio')return `<span style="background:#7d3c9822;color:#8e44ad;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${t}</span>`;
   return t||'—';
 }
+// _pseRealMinutesFor(ev,athleteId): se a sessão pendente for um Jogo já lançado no
+// Gameday, devolve os minutos REAIS que esta atleta jogou (g.playerStats), para pré-
+// preencher a duração do PSE em vez do tempo fixo do evento (g.djDurJogo, igual para
+// toda a gente convocada). Devolve null se não for Jogo ou o jogo ainda não foi lançado
+// (nesse caso mantém-se o fallback ao ev.dur fixo, como antes). Devolve 0 para quem
+// nunca entrou em campo (não tem entrada em playerStats) — decisão do Roger, 07/09/2026:
+// o PSE continua a abrir, mas com a duração a 0 min, editável. Ver _gdSyncPSEDuration
+// (corrige retroativamente PSE já registados antes do jogo ser lançado) e a memória
+// project_sps_pse_tempo_real_jogo.
+function _pseRealMinutesFor(ev,athleteId){
+  if(!ev||!(ev.type||'').startsWith('Jogo'))return null;
+  const g=(APP.games||[]).find(x=>x.eventId===ev.id);
+  if(!g||!g.liveSession||!g.liveSession.launched)return null;
+  const st=(g.playerStats||[]).find(x=>x.aid===athleteId);
+  return st?(st.mins||0):0;
+}
 function renderAtPSE(){
   const td=today();
   const already=APP.pse.filter(p=>p.athleteId===AID&&p.date===td);
@@ -13565,8 +13604,14 @@ function renderAtPSE(){
   }
   // Pré-preenche a duração com a da sessão pendente atual, se a atleta ainda não tiver
   // escrito nada — reduz erro de preenchimento, mas continua editável (treinos
-  // individualizados ou sessões que corram mais/menos tempo do que o previsto).
-  if(!_psfDur&&_pCurrent.dur)_psfDur=String(_pCurrent.dur);
+  // individualizados ou sessões que corram mais/menos tempo do que o previsto). Para
+  // Jogo já lançado, os minutos reais (playerStats) substituem o tempo fixo do evento —
+  // ver _pseRealMinutesFor/_gdSyncPSEDuration (07/09/2026, project_sps_pse_tempo_real_jogo).
+  if(!_psfDur){
+    const realMin=_pseRealMinutesFor(_pCurrent,AID);
+    if(realMin!=null)_psfDur=String(realMin);
+    else if(_pCurrent.dur)_psfDur=String(_pCurrent.dur);
+  }
   const _pseTypeSel=_pCurrent.type==='Ginásio'?'Ginásio':(_pCurrent.type||'').startsWith('Jogo')?'Jogo':'Treino';
   const borgLabels={0:'Repouso',1:'Muito fácil',2:'Fácil',3:'Moderado',4:'Algo difícil',5:'Difícil',6:'',7:'Muito difícil',8:'',9:'Extremamente difícil',10:'Esforço máximo'};
   document.getElementById('atp-pse').innerHTML=`
