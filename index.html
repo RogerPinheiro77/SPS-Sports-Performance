@@ -147,6 +147,13 @@ ul{list-style:none}
    tamanhos fixos. */
 .gd-pitch-wrap{width:min(94vw,62vh*0.7143,480px);transition:transform .2s ease}
 .gd-pitch-wrap.rotated{transform:rotate(180deg)}
+/* Botão "Lançar" bem visível — pedido do Roger, 07/09/2026, depois de 2 jogos ficarem
+   por lançar dias seguidos (o botão era do mesmo tamanho/cor dos outros, fácil de
+   ignorar mesmo mesmo ao fim do jogo). Pulsar com sombra verde a crescer/desvanecer,
+   reaproveitado tanto no botão do cronómetro (fimReg/fim) como no aviso da lista de
+   Jogos — ver _gdGameRichness/_gdUnlaunchedGames e feedback_sps_gameday_pullcloud_overwrite. */
+@keyframes gdLaunchPulse{0%{box-shadow:0 0 0 0 rgba(46,204,113,.55)}70%{box-shadow:0 0 0 14px rgba(46,204,113,0)}100%{box-shadow:0 0 0 0 rgba(46,204,113,0)}}
+.gd-launch-pulse{animation:gdLaunchPulse 1.7s infinite}
 /* Campo Tático Interativo (separador "Campo" do Jogo — Tático/Cantos/Livre, mesmo
    separador na plataforma e dentro do Gameday) — pedido do Roger, 07/09/2026: estava
    preso a max-width:280px (viewBox 300x200, meio-campo), muito pequeno para arrastar
@@ -4117,9 +4124,31 @@ function renderJogos(){
   const vit=realizadosStats.filter(g=>g.g1!=null&&g.g1>g.g2).length,emp=realizadosStats.filter(g=>g.g1!=null&&g.g2!=null&&g.g1===g.g2).length,der=realizadosStats.filter(g=>g.g1!=null&&g.g1<g.g2).length;
   const gm=realizadosStats.reduce((s,g)=>s+(+g.g1||0),0),gs=realizadosStats.reduce((s,g)=>s+(+g.g2||0),0);
 
+  // Aviso "jogos por lançar" — pedido do Roger, 07/09/2026, depois de 2 jogos ficarem
+  // dias esquecidos por lançar (sessão ao vivo terminada mas 'Terminar e Lançar' nunca
+  // premido). Aparece sempre no topo da lista, em qualquer separador (Próximos/
+  // Realizados/Ranking/Classificação) e tanto na plataforma como no Gameday standalone
+  // (mesma renderJogos()) — usa _gdUnlaunchedGames(), sem limite de dias, ao contrário
+  // de _gdLiveGamesAtRisk (essa é só para decidir push-vs-pull em segundo plano). Ver
+  // feedback_sps_gameday_pullcloud_overwrite.
+  const unlaunched=typeof _gdUnlaunchedGames==='function'?_gdUnlaunchedGames():[];
+  const unlaunchedBanner=unlaunched.length?`<div class="ipanel gd-launch-pulse" style="background:rgba(231,76,60,.12);border:1.5px solid #e74c3c;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:24px">🚀</span>
+      <div style="flex:1;min-width:200px">
+        <div style="font-weight:800;font-size:13px">${unlaunched.length} jogo${unlaunched.length>1?'s':''} por lançar</div>
+        <div style="font-size:11px;color:var(--t2)">Tem sessão ao vivo registada mas nunca foi lançada para a plataforma — estatísticas e resultado ainda por publicar.</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${unlaunched.map(g=>`<button class="btn btn-sm btn-g" onclick="openJogo('${g.id}','aovivo')">${escHtml(g.opp||'Jogo')} · ${fmtDate(g.date)}</button>`).join('')}
+      </div>
+    </div>
+  </div>`:'';
+
   document.getElementById('pg-jogos').innerHTML=`
   <div class="sh"><div class="sh-t">⚽ Jogos</div>
   <button class="btn btn-g" onclick="_showJogoForm=!_showJogoForm;_editJogoId=null;renderJogos()">+ Novo Jogo</button></div>
+  ${unlaunchedBanner}
   ${formHtml}
   ${realizadosStats.length?`<div class="kpis" style="margin-bottom:16px">
     <div class="kpi grn"><div class="kpi-lbl">Vitórias</div><div class="kpi-val" style="color:#4ade80">${vit}</div></div>
@@ -6062,7 +6091,7 @@ function _gdPenaltisHtml(g){
       <button class="btn btn-gh btn-sm" onclick="_gdPenUndo('${g.id}')">↩️ Desfazer</button>
     </div>
     <div style="text-align:center;margin-bottom:10px">${dots||'<span style="font-size:11px;color:var(--t2)">Sem remates ainda</span>'}</div>
-    <button class="btn btn-g" style="width:100%;padding:12px" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar na Plataforma</button>
+    <button class="btn btn-g gd-launch-pulse" style="width:100%;padding:16px;font-size:15px;font-weight:800" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar na Plataforma</button>
   </div>`;
 }
 
@@ -6305,7 +6334,7 @@ function _jogoAoVivoHtml(g){
     const tied=ls.score.casa===ls.score.fora;
     controls=`<div style="display:flex;flex-direction:column;gap:6px">
       ${tied?`<button class="btn btn-gh" style="padding:9px;font-size:12px" onclick="_gdResume('${g.id}','ET1',5400)">⏱️ Prolongamento</button>`:''}
-      <button class="btn btn-g" style="padding:9px;font-size:12px" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar</button>
+      <button class="btn btn-g gd-launch-pulse" style="padding:14px;font-size:15px;font-weight:800" onclick="_gdLaunch('${g.id}')">🚀 Terminar e Lançar</button>
     </div>`;
   }else if(ls.phase==='ET1'){
     controls=`<div style="display:flex;flex-direction:column;gap:6px">
@@ -6322,7 +6351,7 @@ function _jogoAoVivoHtml(g){
   }else if(ls.phase==='penaltis'){
     controls='';
   }else if(ls.phase==='fim'){
-    controls=`<button class="btn btn-g" style="width:100%;padding:10px;font-size:13px" onclick="_gdLaunch('${g.id}')">🚀 ${ls.launched?'Relançar':'Lançar'}</button>`;
+    controls=`<button class="btn btn-g${ls.launched?'':' gd-launch-pulse'}" style="width:100%;padding:${ls.launched?'10px':'16px'};font-size:${ls.launched?'13px':'15px'};font-weight:800" onclick="_gdLaunch('${g.id}')">🚀 ${ls.launched?'Relançar':'Lançar'}</button>`;
   }
   // Reiniciar Jogo: passou do rodapé (link de texto ao lado do logótipo) para debaixo do
   // cronómetro, junto aos outros controlos — pedido do Roger, 01/09/2026, mesmo padrão de
@@ -14445,11 +14474,19 @@ function _doImport(){
 // do Gameday. Agora só protege sessões de jogos de hoje/ontem (cobre jogos tardios que
 // passam da meia-noite) — uma sessão presa num jogo de há vários dias deixa de bloquear
 // a sincronização. Ver feedback_sps_gameday_pullcloud_overwrite.
-function _gdIsLiveUnlaunched(g){
+// _gdHasLiveActivity(g): tem liveSession, ainda não foi lançado, e já tem sinais de
+// atividade real (eventos, fase avançada ou relógio a correr) — não basta ter
+// liveSession, porque TODOS os jogos têm uma liveSession em branco assim que a aba
+// Ao Vivo é aberta (_gdInit). Extraído de _gdIsLiveUnlaunched (07/09/2026) para
+// poder ser reaproveitado sem a janela de datas — ver _gdUnlaunchedGames abaixo e
+// o incidente "Parte 3" em feedback_sps_gameday_pullcloud_overwrite.
+function _gdHasLiveActivity(g){
   const ls=g&&g.liveSession;
   if(!ls||ls.launched)return false;
-  const hasActivity=(ls.events&&ls.events.length>0)||ls.phase!=='pre'||!!ls.runningSince;
-  if(!hasActivity)return false;
+  return (ls.events&&ls.events.length>0)||ls.phase!=='pre'||!!ls.runningSince;
+}
+function _gdIsLiveUnlaunched(g){
+  if(!_gdHasLiveActivity(g))return false;
   if(!g.date)return true; // sem data, mantém a proteção por segurança
   return Math.abs(diffDays(g.date,today()))<=1;
 }
@@ -14458,6 +14495,26 @@ function _gdIsLiveUnlaunched(g){
 // visibilitychange, para decidir se é seguro sincronizar em segundo plano.
 function _gdLiveGamesAtRisk(){
   return (APP.games||[]).filter(_gdIsLiveUnlaunched);
+}
+// _gdUnlaunchedGames(): TODOS os jogos com atividade real por lançar, sem limite de
+// dias (ao contrário de _gdLiveGamesAtRisk, pensada só para decidir push-vs-pull em
+// segundo plano) — usado no aviso "X jogo(s) por lançar" da lista de Jogos (pedido do
+// Roger, 07/09/2026, depois de 2 jogos ficarem esquecidos por lançar durante dias).
+function _gdUnlaunchedGames(){
+  return (APP.games||[]).filter(_gdHasLiveActivity);
+}
+// _gdGameRichness(g): quantifica quanta informação real de jogo ao vivo existe num
+// registo — usado para decidir, jogo a jogo, qual versão (local vs cloud) preservar
+// quando pushAppMeta funde por staleness (ver mais abaixo). 'launched' pesa muito mais
+// que qualquer rascunho em curso porque é um estado final e deliberado; eventos e
+// tempo decorrido desempatam dentro do mesmo estado (rascunho vs rascunho).
+function _gdGameRichness(g){
+  const ls=g&&g.liveSession;
+  if(!ls)return 0;
+  const nEvents=(ls.events&&ls.events.length)||0;
+  const launched=ls.launched?1:0;
+  const accum=ls.accumSec||0;
+  return launched*1e9+nEvents*1e6+accum;
 }
 async function pullCloud(){
   if(!_supa||!_cid)return;
@@ -14638,10 +14695,33 @@ async function pushAppMeta(_pushRetry){
           const local=_localSnap[key]||[];
           const localIds=new Set(local.filter(x=>x&&x.id).map(x=>x.id));
           const deletedIds=_pendingDeletes[key]||new Set();
-          // Um item da cloud só sobrevive ao merge se não tiver sido também editado
-          // (localIds — a versão local ganha) nem apagado (deletedIds) nesta sessão.
-          const keep=fresh.filter(f=>!f||!f.id||(!localIds.has(f.id)&&!deletedIds.has(f.id)));
-          APP[key]=[...keep,...local];
+          if(key==='games'){
+            // 'games' tem uma regra própria (07/09/2026) — "o local ganha sempre que existe
+            // em memória" apaga sessões ao vivo reais sempre que um dispositivo com uma cópia
+            // desatualizada de OUTRO jogo qualquer dispara esta fusão (TODOS os jogos da época
+            // estão sempre em APP.games, mesmo os que este dispositivo nunca abriu — não é
+            // sinal de edição real). Incidente: 2 jogos (30 eventos reais e resultado 1-5;
+            // resultado 0-3) voltaram a 'pre' em branco assim, 07/09/2026. Correção: por jogo,
+            // local só ganha se NÃO for claramente mais pobre que a versão fresca da cloud —
+            // usa _gdGameRichness (eventos/accumSec/launched). Em empate (nenhum dos dois tem
+            // liveSession com atividade, ou diferem só em campos como notas/convocatória),
+            // mantém-se o comportamento antigo — local ganha — para não perder edições
+            // concorrentes genuínas. Ver feedback_sps_gameday_pullcloud_overwrite.
+            const freshById={};fresh.forEach(f=>{if(f&&f.id)freshById[f.id]=f;});
+            const merged=local.filter(l=>!(l&&l.id&&deletedIds.has(l.id))).map(l=>{
+              const cloudVer=l&&l.id?freshById[l.id]:null;
+              if(!cloudVer)return l; // jogo só existe localmente (novo, ainda por sincronizar)
+              return _gdGameRichness(cloudVer)>_gdGameRichness(l)?cloudVer:l;
+            });
+            const localIdsAll=new Set(local.filter(x=>x&&x.id).map(x=>x.id));
+            const cloudOnly=fresh.filter(f=>!f||!f.id||(!localIdsAll.has(f.id)&&!deletedIds.has(f.id)));
+            APP.games=[...cloudOnly,...merged];
+          }else{
+            // Um item da cloud só sobrevive ao merge se não tiver sido também editado
+            // (localIds — a versão local ganha) nem apagado (deletedIds) nesta sessão.
+            const keep=fresh.filter(f=>!f||!f.id||(!localIds.has(f.id)&&!deletedIds.has(f.id)));
+            APP[key]=[...keep,...local];
+          }
         });
         saveData();
         if(!_pushRetry)return pushAppMeta(true);
