@@ -1,7 +1,7 @@
 // SPS Sports Performance — Service Worker
 // Cache estratégico: app shell + CDN assets
 
-const CACHE = 'sps-v137';
+const CACHE = 'sps-v138';
 const ASSETS = [
   './',
   './index.html',
@@ -18,6 +18,9 @@ const ASSETS = [
   './assets/icon_nutri_192.png',
   './assets/icon_nutri_512.png',
   './assets/icon_nutri_apple.png',
+  './assets/icon_ginasio_192.png',
+  './assets/icon_ginasio_512.png',
+  './assets/icon_ginasio_apple.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
   'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css',
