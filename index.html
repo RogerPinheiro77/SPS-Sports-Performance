@@ -13107,10 +13107,34 @@ function _atNavTo(page){
 // dependem só dela ficam sem hora fixa em vez de mostrar algo errado.
 // Pedido do Roger, 21/08/2026 — conteúdo é orientação geral de ciência do
 // desporto, não substitui indicação individualizada da fisio/nutricionista.
+//
+// Janela horária do card "Dia de Jogo!" (troféu vermelho a pulsar, estilo visual do
+// Gameday) na Home da atleta — pedido do Roger, 07/09/2026: antes disto, _atGameHoje/
+// _atGameHojeEquipa só comparavam DATAS (g.date===hoje), por isso o card substituía
+// "Convocatórias" logo à meia-noite do dia do jogo e só voltava ao normal na meia-noite
+// seguinte, mesmo horas depois do jogo já ter terminado. Não existe hora real de fim
+// guardada antes do jogo ser lançado no Gameday (só segundos decorridos, não hora de
+// relógio) — por isso assume-se uma duração de 2h (cobre 90min+intervalo+descontos com
+// margem) + 2h de tolerância a seguir, ou seja, a janela fecha 4h depois do pontapé de
+// saída (g.time). Sem hora marcada, assume-se meio-dia (12:00) para não ficar indefinida.
+function _atDiaJogoWindowActive(g){
+  if(!g||!g.date)return false;
+  const parts=g.date.split('-').map(Number);
+  const y=parts[0],m=parts[1],d=parts[2];
+  if(!y||!m||!d)return false;
+  const kt=(g.time||'12:00').split(':').map(Number);
+  const kh=Number.isFinite(kt[0])?kt[0]:12, km=Number.isFinite(kt[1])?kt[1]:0;
+  const start=new Date(y,m-1,d,1,0,0,0); // 01:00 do dia do jogo
+  const end=new Date(y,m-1,d,kh,km,0,0);
+  end.setHours(end.getHours()+4); // kickoff + 2h (duração assumida) + 2h (margem)
+  const now=new Date();
+  return now>=start&&now<=end;
+}
 function _atGameHoje(at){
   const td=today();
   const g=(APP.games||[]).find(x=>x.date===td&&(x.teamId===at.teamId||(!x.teamId&&!at.teamId)));
   if(!g)return null;
+  if(!_atDiaJogoWindowActive(g))return null;
   const c=(APP.convocatorias||[]).find(x=>x.gameId===g.id);
   if(!c||!c.athletes||!c.athletes.includes(AID))return null;
   if(!_convIsPublished(c))return null;
@@ -13119,10 +13143,13 @@ function _atGameHoje(at){
 // Jogo hoje da equipa da atleta, independentemente de ela estar ou não convocada —
 // já é visível a qualquer atleta na lista "Hoje" da Agenda, por isso não revela nada
 // de novo. Usado para o card neutro de quem não foi convocada (pedido do Roger,
-// 21/08/2026): sem mencionar a convocatória, para não pesar emocionalmente.
+// 21/08/2026): sem mencionar a convocatória, para não pesar emocionalmente. Mesma
+// janela horária de _atGameHoje acima (pedido do Roger, 07/09/2026).
 function _atGameHojeEquipa(at){
   const td=today();
-  return (APP.games||[]).find(x=>x.date===td&&(x.teamId===at.teamId||(!x.teamId&&!at.teamId)))||null;
+  const g=(APP.games||[]).find(x=>x.date===td&&(x.teamId===at.teamId||(!x.teamId&&!at.teamId)))||null;
+  if(g&&!_atDiaJogoWindowActive(g))return null;
+  return g;
 }
 function _atOpenGameDiaEquipa(gid){
   const g=(APP.games||[]).find(x=>x.id===gid);if(!g)return;
