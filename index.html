@@ -5873,6 +5873,32 @@ function _gdResetGame(gid){
   saveData();toast('Jogo reiniciado');
   _renderJogoDetailFull();
 }
+// Reset Total — pedido do Roger, 08/09/2026: o "↺ Reiniciar Jogo" acima recusa-se de
+// propósito a atuar depois de "Lançar" (ls.launched), para nunca arriscar apagar dados
+// já oficiais por engano a meio de um jogo ao vivo. Mas isso deixa sem solução o caso do
+// erro só ser notado DEPOIS de lançado (ex.: lançou o jogo errado, ou quer corrigir um
+// teste). Reset Total cobre esse caso: repõe o jogo por completo a "agendado", incluindo
+// resultado, estatísticas, linha do tempo, sessão ao vivo e notas de pós-jogo (escrito à
+// mão inclusive — confirmado explicitamente pelo Roger, ver feedback_sps_gameday_
+// pullcloud_overwrite Parte 6). Só existe fora do Gameday (`!_forceGamedayMode`, ver
+// renderização em _jogoAoVivoHtml) — o Roger pediu deliberadamente para NÃO estar
+// disponível durante o acompanhamento ao vivo, onde um toque apressado é mais provável;
+// fica só na plataforma principal, um contexto mais calmo para uma ação irreversível
+// deste peso. Reaproveita _gdForceLocalGameIds (ver mesma memória) para garantir que este
+// reset também sobrevive ao próximo push, exatamente como o Reiniciar Jogo normal.
+function _gdFullReset(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(g.status!=='realizado')return toast('Este jogo ainda não foi lançado — usa "Reiniciar Jogo" se for o caso','err');
+  if(!confirm('RESET TOTAL: apaga definitivamente o resultado, estatísticas, linha do tempo, sessão ao vivo e notas de pós-jogo deste jogo, voltando-o a "agendado". Esta ação não pode ser desfeita. Confirmas?'))return;
+  delete g.liveSession;
+  g.status='agendado';g.g1=null;g.g2=null;
+  g.playerStats=[];g.fpfTimeline=[];g.postGameNotes='';
+  _gdForceLocalGameIds.add(gid);
+  clearInterval(_gdClockInterval);_gdClockInterval=null;
+  _gdSubMode=false;_gdSubBenchSel=null;_gdPauseMenuOpen=false;
+  saveData();toast('Jogo reposto por completo a "agendado"');
+  _renderJogoDetailFull();
+}
 // Exportar backup do jogo — pedido do Roger, 31/08/2026, depois do incidente de
 // perda de dados do jogo vs Aldeia Nova (30/08): rede de segurança independente
 // da sincronização com a cloud. Descarrega um ficheiro .json com a sessão ao vivo
@@ -6505,6 +6531,11 @@ function _jogoAoVivoHtml(g){
   // (onde `controls` está vazio — este botão passa a ser o único conteúdo ali).
   if(canReset){
     controls+=`<button class="btn btn-gh" style="width:100%;padding:8px;font-size:11px;color:var(--t3);margin-top:6px" onclick="_gdResetGame('${g.id}')">↺ Reiniciar Jogo</button>`;
+  }
+  // Reset Total: só fora do Gameday (nunca durante o acompanhamento ao vivo, ver
+  // _gdFullReset) e só quando há algo para repor (jogo já lançado/realizado).
+  if(!_forceGamedayMode&&g.status==='realizado'){
+    controls+=`<button class="btn btn-gh" style="width:100%;padding:8px;font-size:11px;color:var(--danger,#c0392b);margin-top:6px" onclick="_gdFullReset('${g.id}')">⚠️ Reset Total (repõe "agendado")</button>`;
   }
   // Grandes penalidades tem o próprio ecrã completo (marcadora a marcadora) — não cabe
   // no espaço estreito por baixo do cronómetro, continua no corpo principal como antes.
