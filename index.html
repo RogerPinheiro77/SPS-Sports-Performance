@@ -1599,8 +1599,10 @@ function renderDashboard(){
     </div>
   </div>
 
-  <!-- Bottom row -->
-  <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-bottom:58px">
+  <!-- Bottom row (Carga Semanal/Top5 ACWR/Risco de Lesão + Classificação, sps-v147:
+       4 colunas em vez de 3, pedido do Roger — grelha ajustada p/ o gráfico de Carga
+       Semanal continuar legível apesar do card novo) -->
+  <div style="display:grid;grid-template-columns:1.6fr 0.85fr 0.85fr 1fr;gap:12px;margin-bottom:58px">
     <!-- Carga Semanal chart -->
     <div class="card">
       <div class="ch"><span class="ct">CARGA SEMANAL</span>
@@ -1669,6 +1671,14 @@ function renderDashboard(){
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Classificação (sps-v147, pedido do Roger) — tabela da competição do próximo
+         jogo, resolvida por _seasonBucketFor(nextGame); dados vêm de
+         APP.config.classificacoes, preenchidos em Jogos → Classificação -->
+    <div class="card">
+      <div class="ch"><span class="ct">🏆 CLASSIFICAÇÃO</span></div>
+      <div class="cb" style="padding:10px 12px">${_dashClassifCardHtml(nextGame)}</div>
     </div>
   </div>
 
@@ -3608,10 +3618,12 @@ const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 let _jogoView='list',_jogoDetailId=null,_jogoDetailTab='info';
 let _showJogoForm=false,_editJogoId=null,_jogoTab='proximos';
 // Classificação (Campeonato/Taça, sps-v133) — pedido do Roger: ver a posição na tabela e a
-// fase da Taça na Home do Gameday, ao lado de V/E/D/Golos. Sem tabela completa disponível
-// na app (só temos os nossos próprios jogos) — Campeonato importa-se da FPF (mesmo padrão
-// "cola o código-fonte" do resto da app, ver _fpfParseHtml); Taça é só um campo de texto
-// (a FPF mostra isso como eliminatória, não como tabela, não vale a pena scraper).
+// fase da Taça na Home do Gameday, ao lado de V/E/D/Golos. Campeonato importa-se da FPF
+// (mesmo padrão "cola o código-fonte" do resto da app, ver _fpfParseHtml); Taça é só um campo
+// de texto (a FPF mostra isso como eliminatória, não como tabela, não vale a pena scraper).
+// sps-v147 (08/09/2026): deixou de guardar só a linha própria — agora guarda a tabela
+// completa por competição (APP.config.classificacoes), para alimentar o card "Classificação"
+// do Dashboard (tabela da competição do próximo jogo) e o espaço Competições dentro de Jogos.
 let _showCampImport=false,_campImportRows=null;
 let _pitchDragging=null,_pitchWasDrag=false;
 
@@ -3975,9 +3987,21 @@ function parseCampPaste(){
   }
   renderJogos();
 }
+// sps-v147 (pedido do Roger, 08/09/2026): a tabela completa já era parseada por
+// _campParseHtml, mas só a linha própria era guardada. Agora guarda-se a tabela
+// inteira, por competição (APP.config.classificacoes[compName]) — necessário para
+// o card "Classificação" do Dashboard, que mostra a tabela da competição do
+// próximo jogo, não só a posição do Moreirense.
 function applyCampImport(){
-  const val=id=>{const el=document.getElementById(id);return el&&el.value!==''?+el.value:null;};
-  APP.config.campeonato={pos:val('camp-f-pos'),pts:val('camp-f-pts'),j:val('camp-f-j'),v:val('camp-f-v'),e:val('camp-f-e'),d:val('camp-f-d'),updatedAt:new Date().toISOString()};
+  if(!_campImportRows||!_campImportRows.length)return toast('Nada para guardar — interpreta a tabela primeiro','err');
+  const compSel=document.getElementById('camp-import-comp');
+  const compName=compSel?compSel.value:'';
+  if(!compName)return toast('Escolhe a competição antes de guardar','err');
+  const ownSel=document.getElementById('camp-own-select');
+  const ownEquipa=ownSel?ownSel.value:'';
+  if(!ownEquipa)return toast('Confirma qual é a tua equipa na tabela','err');
+  if(!APP.config.classificacoes)APP.config.classificacoes={};
+  APP.config.classificacoes[compName]={rows:_campImportRows,ownEquipa,updatedAt:new Date().toISOString()};
   saveData();
   if(_sync)pushAppMeta();
   _showCampImport=false;_campImportRows=null;
@@ -3991,22 +4015,69 @@ function _setTacaFase(){
   if(_sync)pushAppMeta();
   toast('Fase da Taça atualizada ✓');
 }
-function _campManualFormHtml(row){
-  row=row||{};
-  const f=(id,label,val)=>`<div class="form-g"><label class="fl">${label}</label><input class="fc" id="camp-f-${id}" type="number" value="${val!=null?val:''}"></div>`;
-  return `<div class="fr3" style="margin-top:8px">${f('pos','Posição',row.pos)}${f('pts','Pontos',row.pts)}${f('j','Jogos',row.j)}</div>
-  <div class="fr3">${f('v','Vitórias',row.v)}${f('e','Empates',row.e)}${f('d','Derrotas',row.d)}</div>
-  <button class="btn btn-g" style="margin-top:8px" onclick="applyCampImport()">💾 Guardar Classificação</button>`;
-}
+// Painel de pré-visualização depois de interpretar a página colada — mostra a
+// tabela inteira (não só a linha própria), com seletor de competição (a qual
+// fica associada) e seletor de equipa própria (auto-detetada por nome; se não
+// encontrar, o Roger escolhe da lista em vez de escrever números à mão).
 function _campImportPreviewHtml(){
   const own=_campFindOwnRow(_campImportRows);
-  if(!own){
-    return `<div class="al al-r" style="margin-top:10px">Não encontrei "${escHtml(APP.config.clubName||'')}" na tabela — confirma se colaste a página certa, ou preenche à mão abaixo.</div>${_campManualFormHtml({})}`;
+  const comps=_compList();
+  const compOptions=comps.length
+    ?comps.map(c=>`<option value="${escHtml(c.name)}">${c.icon} ${escHtml(c.name)}</option>`).join('')
+    :`<option value="">— sem competições configuradas —</option>`;
+  const teamOptions=_campImportRows.map(r=>`<option value="${escHtml(r.equipa)}" ${own&&own.equipa===r.equipa?'selected':''}>${escHtml(r.equipa)}</option>`).join('');
+  const rowsHtml=_campImportRows.map(r=>`<tr style="${own&&own.equipa===r.equipa?'font-weight:800;background:rgba(74,222,128,.08)':''}">
+    <td>${r.pos??'—'}</td><td>${escHtml(r.equipa)}</td><td style="text-align:center">${r.j??'—'}</td><td style="text-align:center">${r.v??'—'}</td><td style="text-align:center">${r.e??'—'}</td><td style="text-align:center">${r.d??'—'}</td><td style="text-align:center">${r.gm??'—'}</td><td style="text-align:center">${r.gs??'—'}</td><td style="text-align:center;font-weight:700">${r.pts??'—'}</td></tr>`).join('');
+  return `<div class="al ${own?'al-g':'al-r'}" style="margin-top:10px">${own?`Encontrado: <strong>${escHtml(own.equipa)}</strong> — confirma os campos abaixo antes de guardar:`:`Não encontrei "${escHtml(APP.config.clubName||'')}" na tabela automaticamente — escolhe a tua equipa na lista abaixo.`}</div>
+  <div class="fr" style="margin-top:8px">
+    <div class="form-g"><label class="fl">Competição</label><select class="fc" id="camp-import-comp">${compOptions}</select></div>
+    <div class="form-g"><label class="fl">A tua equipa</label><select class="fc" id="camp-own-select">${teamOptions}</select></div>
+  </div>
+  <div class="tw" style="margin-top:10px;max-height:220px;overflow:auto"><table><thead><tr><th>Pos</th><th>Equipa</th><th>J</th><th>V</th><th>E</th><th>D</th><th>GM</th><th>GS</th><th>Pts</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+  <button class="btn btn-g" style="margin-top:8px" onclick="applyCampImport()">💾 Guardar Classificação</button>`;
+}
+// Um card por competição (APP.config.competitions), com a tabela completa se já
+// houver dados importados, ou estado vazio + import se ainda não. Substitui o
+// antigo card único "Campeonato" (sps-v133, só guardava a linha própria) — agora
+// cobre qualquer competição, e alimenta também o card do Dashboard (sps-v147).
+function _classifCompCardHtml(comp){
+  const data=(APP.config.classificacoes||{})[comp.name];
+  if(!data){
+    return `<div class="card" style="margin-bottom:14px">
+      <div class="ch"><span class="ct">${comp.icon} ${escHtml(comp.name)}</span></div>
+      <div class="cb"><div class="empty" style="padding:16px"><div class="ei">🏆</div><p>Sem dados da classificação ainda</p><div class="esub">Importa da FPF para ver a tabela</div></div></div>
+    </div>`;
   }
-  return `<div class="al al-g" style="margin-top:10px">Encontrado: <strong>${escHtml(own.equipa)}</strong> — confirma os valores antes de guardar:</div>${_campManualFormHtml(own)}`;
+  const rowsHtml=data.rows.map(r=>`<tr style="${r.equipa===data.ownEquipa?'font-weight:800;background:rgba(74,222,128,.08)':''}">
+    <td>${r.pos??'—'}</td><td>${escHtml(r.equipa)}</td><td style="text-align:center">${r.j??'—'}</td><td style="text-align:center">${r.v??'—'}</td><td style="text-align:center">${r.e??'—'}</td><td style="text-align:center">${r.d??'—'}</td><td style="text-align:center">${r.gm??'—'}</td><td style="text-align:center">${r.gs??'—'}</td><td style="text-align:center;font-weight:700">${r.pts??'—'}</td></tr>`).join('');
+  return `<div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct">${comp.icon} ${escHtml(comp.name)}</span>
+    <span style="font-size:10px;color:var(--t2)">Atualizado em ${fmtDate((data.updatedAt||'').slice(0,10))}</span></div>
+    <div class="cb"><div class="tw"><table><thead><tr><th>Pos</th><th>Equipa</th><th>J</th><th>V</th><th>E</th><th>D</th><th>GM</th><th>GS</th><th>Pts</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></div>
+  </div>`;
+}
+// Mostra, para uma competição, os dados guardados em APP.config.classificacoes —
+// usado pelo card "Classificação" do Dashboard (sps-v147), resolvendo a competição
+// a partir do próximo jogo (_seasonBucketFor, mesma correspondência já usada no
+// Ranking/ícones). Tabela compacta, linha própria destacada.
+function _dashClassifCardHtml(nextGame){
+  if(!nextGame)return `<div style="color:var(--t2);font-size:11px;text-align:center;padding:20px">Sem próximo jogo agendado</div>`;
+  const bucket=_seasonBucketFor(nextGame);
+  if(!nextGame.comp||bucket.key==='outra'||bucket.key==='particular')
+    return `<div style="color:var(--t2);font-size:11px;text-align:center;padding:20px">Sem competição associada ao próximo jogo</div>`;
+  const data=(APP.config.classificacoes||{})[bucket.key];
+  if(!data)
+    return `<div class="empty" style="padding:12px"><div class="ei">🏆</div><p style="font-size:11px">Sem classificação de ${escHtml(bucket.label)}</p><div class="esub" style="font-size:10px">Importa em Jogos → Classificação</div></div>`;
+  const rowsHtml=data.rows.map(r=>`<tr style="${r.equipa===data.ownEquipa?'font-weight:800;background:rgba(74,222,128,.10)':''}">
+    <td style="padding:3px 4px">${r.pos??'—'}</td>
+    <td style="padding:3px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px" title="${escHtml(r.equipa)}">${escHtml(r.equipa)}</td>
+    <td style="padding:3px 4px;text-align:center">${r.j??'—'}</td>
+    <td style="padding:3px 4px;text-align:center;font-weight:700">${r.pts??'—'}</td>
+  </tr>`).join('');
+  return `<div style="font-size:9px;color:var(--t2);margin-bottom:6px">${bucket.icon} ${escHtml(bucket.label)} · atualizado ${fmtDate((data.updatedAt||'').slice(0,10))}</div>
+  <div style="max-height:190px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="color:var(--t2)"><th style="text-align:left;padding:3px 4px">#</th><th style="text-align:left;padding:3px 4px">Equipa</th><th style="padding:3px 4px">J</th><th style="padding:3px 4px">Pts</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
 }
 function _classificacaoTabHtml(){
-  const camp=APP.config.campeonato||null;
   const tacaFase=APP.config.tacaFase||'';
   const td=today();
   const realizados=APP.games.filter(g=>g.date<td||g.status==='realizado');
@@ -4016,27 +4087,18 @@ function _classificacaoTabHtml(){
         ad=amistosos.filter(g=>g.g1!=null&&g.g1<g.g2).length,
         agm=amistosos.reduce((s,g)=>s+(+g.g1||0),0),ags=amistosos.reduce((s,g)=>s+(+g.g2||0),0);
 
-  const campHtml=`<div class="card" style="margin-bottom:14px">
-    <div class="ch"><span class="ct">🏆 Campeonato</span>
-    <button class="btn btn-xs btn-gh" onclick="_showCampImport=!_showCampImport;renderJogos()">${_showCampImport?'✕ Fechar':'📥 Importar da FPF'}</button></div>
-    <div class="cb">
-    ${camp?`<div class="kpis">
-      <div class="kpi"><div class="kpi-lbl">Posição</div><div class="kpi-val">${camp.pos!=null?camp.pos+'º':'—'}</div></div>
-      <div class="kpi"><div class="kpi-lbl">Pontos</div><div class="kpi-val">${camp.pts!=null?camp.pts:'—'}</div></div>
-      <div class="kpi"><div class="kpi-lbl">V-E-D</div><div class="kpi-val" style="font-size:16px">${camp.v??'—'}-${camp.e??'—'}-${camp.d??'—'}</div></div>
-      <div class="kpi"><div class="kpi-lbl">Jogos</div><div class="kpi-val">${camp.j??'—'}</div></div>
-    </div>
-    <p style="font-size:10px;color:var(--t2);margin-top:6px">Atualizado em ${fmtDate((camp.updatedAt||'').slice(0,10))}</p>`
-    :`<div class="empty" style="padding:16px"><div class="ei">🏆</div><p>Sem dados da classificação ainda</p><div class="esub">Importa da FPF para ver a tua posição</div></div>`}
+  const comps=_compList();
+  const compsHtml=comps.length?comps.map(_classifCompCardHtml).join(''):`<div class="empty"><div class="ei">🏆</div><p>Sem competições configuradas</p><div class="esub">Adiciona em Jogos → Novo Jogo → Competição</div></div>`;
+  const campHtml=`<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <button class="btn btn-xs btn-gh" onclick="_showCampImport=!_showCampImport;renderJogos()">${_showCampImport?'✕ Fechar':'📥 Importar Classificação da FPF'}</button></div>
     ${_showCampImport?`
-    <div class="ipanel" style="margin-top:12px">
-      <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Abre a página da classificação do Campeonato no site da FPF, copia o código-fonte da página (Ctrl+U ou "Ver código fonte") e cola aqui.</p>
+    <div class="ipanel" style="margin-bottom:14px">
+      <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Abre a página da classificação da competição no site da FPF, copia o código-fonte da página (Ctrl+U ou "Ver código fonte") e cola aqui.</p>
       <textarea class="fc" id="camp-paste" rows="4" placeholder="Cola aqui o código-fonte da página..."></textarea>
       <button class="btn btn-g" style="margin-top:8px" onclick="parseCampPaste()">🔍 Interpretar</button>
       ${_campImportRows?_campImportPreviewHtml():''}
     </div>`:''}
-    </div>
-  </div>`;
+    ${compsHtml}`;
 
   const tacaHtml=`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">🥤 Taça</span></div>
   <div class="cb" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">

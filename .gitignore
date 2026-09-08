@@ -16,3 +16,5 @@ proposta_sistema_carga_wellness_ciclo.md
 qr_app_atleta.png
 screenshots_app_atleta/
 slide_qr_acesso_app.png
+node_modules/
+package-lock.json
