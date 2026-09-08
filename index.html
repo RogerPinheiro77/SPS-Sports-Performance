@@ -564,6 +564,20 @@ function _markDeleted(key,ids){
   if(!_pendingDeletes[key])_pendingDeletes[key]=new Set();
   (Array.isArray(ids)?ids:[ids]).forEach(id=>{if(id)_pendingDeletes[key].add(id);});
 }
+// _gdForceLocalGameIds: bug real (08/09/2026) — o Roger reiniciava um jogo por engano
+// (↺ Reiniciar Jogo, ver _gdResetGame), saía, recarregava a página, e o cronómetro
+// voltava a estar a correr. Causa: _gdMergeGamesForPush (proteção contra um dispositivo
+// desatualizado apagar em silêncio uma sessão ao vivo real, ver feedback_sps_gameday_
+// pullcloud_overwrite) decide local-vs-cloud por "riqueza" (_gdGameRichness) — mas apagar
+// liveSession de propósito faz a riqueza local cair para 0, sempre MENOR que a cópia da
+// cloud (que ainda tem o relógio a correr, se já tinha sido gravada antes do reset). A
+// mesma proteção pensada para NUNCA perder uma sessão ao vivo estava, sem querer, a
+// impedir que um reset genuíno alguma vez chegasse à cloud — o push escrevia de volta a
+// versão "mais rica" (a antiga, a correr), e o próximo pullCloud trazia-a de volta.
+// Fix: quando o Roger reinicia um jogo explicitamente, o id fica aqui — o merge por
+// riqueza passa a ignorar-se para esse jogo específico e o local (vazio) ganha sempre,
+// até o push seguinte confirmar que já chegou à cloud (ver fim de pushAppMeta).
+const _gdForceLocalGameIds=new Set();
 
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
@@ -5853,6 +5867,7 @@ function _gdResetGame(gid){
   if(g.liveSession.launched)return toast('Já foi lançado — não é possível reiniciar','err');
   if(!confirm('Reiniciar o jogo? Todo o registo ao vivo (eventos, cronómetro, substituições) será apagado. Esta ação não pode ser desfeita.'))return;
   delete g.liveSession;
+  _gdForceLocalGameIds.add(gid);
   clearInterval(_gdClockInterval);_gdClockInterval=null;
   _gdSubMode=false;_gdSubBenchSel=null;_gdPauseMenuOpen=false;
   saveData();toast('Jogo reiniciado');
@@ -14679,13 +14694,17 @@ function _gdGameRichness(g){
 // `meta.games` só com a cópia local, sem comparar nada. Agora esta mesma comparação corre
 // SEMPRE que se grava 'games' na cloud, não só quando a guarda deteta staleness — ver as
 // duas chamadas em pushAppMeta e feedback_sps_gameday_pullcloud_overwrite.
-function _gdMergeGamesForPush(local,cloudGames,deletedIds){
+function _gdMergeGamesForPush(local,cloudGames,deletedIds,forceLocalIds){
   deletedIds=deletedIds||new Set();
+  forceLocalIds=forceLocalIds||new Set();
   const cloudById={};(cloudGames||[]).forEach(f=>{if(f&&f.id)cloudById[f.id]=f;});
   const localIds=new Set((local||[]).filter(x=>x&&x.id).map(x=>x.id));
   const merged=(local||[]).filter(l=>!(l&&l.id&&deletedIds.has(l.id))).map(l=>{
     const cloudVer=l&&l.id?cloudById[l.id]:null;
     if(!cloudVer)return l; // jogo só existe localmente (novo, ainda por sincronizar)
+    // Reset explícito do Roger (_gdResetGame) — não comparar riqueza, o local (vazio)
+    // ganha sempre até este push confirmar que já chegou à cloud. Ver _gdForceLocalGameIds.
+    if(l&&l.id&&forceLocalIds.has(l.id))return l;
     return _gdGameRichness(cloudVer)>_gdGameRichness(l)?cloudVer:l;
   });
   const cloudOnly=(cloudGames||[]).filter(f=>!f||!f.id||(!localIds.has(f.id)&&!deletedIds.has(f.id)));
@@ -14879,7 +14898,7 @@ async function pushAppMeta(_pushRetry){
             // for claramente mais pobre que a versão fresca da cloud — ver essa função para o
             // histórico completo do incidente). Esta fusão aqui é só a 1ª camada — a 2ª e mais
             // importante corre sempre, no bloco final deste pushAppMeta (ver mais abaixo).
-            APP.games=_gdMergeGamesForPush(local,fresh,deletedIds);
+            APP.games=_gdMergeGamesForPush(local,fresh,deletedIds,_gdForceLocalGameIds);
           }else{
             // Um item da cloud só sobrevive ao merge se não tiver sido também editado
             // (localIds — a versão local ganha) nem apagado (deletedIds) nesta sessão.
@@ -14912,7 +14931,7 @@ async function pushAppMeta(_pushRetry){
     const meta={
       config:APP.config||{},
       teams:APP.teams||[],
-      games:_gdMergeGamesForPush(APP.games||[],_cloudMeta.games||[],_pendingDeletes.games||new Set()),
+      games:_gdMergeGamesForPush(APP.games||[],_cloudMeta.games||[],_pendingDeletes.games||new Set(),_gdForceLocalGameIds),
       evaluations:APP.evaluations||[],
       evalPeriods:APP.evalPeriods||[],
       evalResponses:APP.evalResponses||[],
@@ -14967,6 +14986,9 @@ async function pushAppMeta(_pushRetry){
     // A partir daqui a cloud já reflete as eliminações desta sessão — não é preciso
     // continuar a protegê-las no próximo merge.
     Object.keys(_pendingDeletes).forEach(k=>_pendingDeletes[k].clear());
+    // Idem para resets explícitos de jogo (ver _gdForceLocalGameIds) — a cloud já
+    // reflete o reset, a comparação por riqueza normal pode voltar a correr.
+    _gdForceLocalGameIds.clear();
   }catch(e){_warnSyncFailure('dados gerais (jogos/configuração/planeamento)',e);}
 }
 // Mapa das colunas REAIS de cada tabela no Supabase + renomeações de campos locais
