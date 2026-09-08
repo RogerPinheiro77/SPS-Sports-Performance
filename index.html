@@ -3935,10 +3935,20 @@ function exportRankingPDF(){
 // a tabela com mais colunas reconhecíveis (Pos/Equipa/J/V/E/D/Pts) e cai para heurísticas
 // posicionais se não encontrar cabeçalhos claros. Sempre com pré-visualização editável
 // antes de aplicar — se o parsing vier torto, o Roger corrige à mão em vez de ficar preso.
+// sps-v148 (08/09/2026): a página de classificação de resultados.fpf.pt (competição
+// atual, ex. Campeonato Nacional Feminino 2026-2027) NÃO usa <table> — usa uma grelha
+// Bootstrap de <div class="game classification"> (confirmado inspecionando o HTML real
+// da Série B em resultados.fpf.pt/Competition/Details?competitionId=28109&seasonId=105).
+// O parser original só procurava <table>, o que faria o import falhar sempre nesta
+// competição. Agora tenta tabela primeiro (páginas antigas/outras competições podem
+// mesmo usar <table>) e cai para a grelha de divs se não encontrar nenhuma.
 function _campParseHtml(raw){
   const doc=new DOMParser().parseFromString(raw,'text/html');
+  return _campParseTables(doc)||_campParseDivGrid(doc)||(()=>{throw new Error('não encontrei uma tabela nem uma grelha de classificação no conteúdo colado');})();
+}
+function _campParseTables(doc){
   const tables=[...doc.querySelectorAll('table')];
-  if(!tables.length)throw new Error('sem tabelas no conteúdo colado');
+  if(!tables.length)return null;
   const HEAD_RE={pos:/^(pos|#|nº|classif)/i,equipa:/equipa|clube|team/i,j:/^j$/i,v:/^v$/i,e:/^e$/i,d:/^d$/i,gm:/^(gm|m)$/i,gs:/^(gs|s)$/i,pts:/^(pts?|pontos)$/i};
   const rowsOf=t=>[...t.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll('th,td')].map(c=>c.textContent.replace(/\s+/g,' ').trim()));
   let best=null,bestScore=-1;
@@ -3950,7 +3960,7 @@ function _campParseHtml(raw){
     head.forEach(h=>{Object.values(HEAD_RE).forEach(re=>{if(re.test(h))score++;});});
     if(score>bestScore){bestScore=score;best=rows;}
   }
-  if(!best)throw new Error('não encontrei uma tabela com aspeto de classificação');
+  if(!best)return null;
   const head=best[0];
   const idx={};
   Object.entries(HEAD_RE).forEach(([k,re])=>{const i=head.findIndex(h=>re.test(h));if(i>=0)idx[k]=i;});
@@ -3964,13 +3974,40 @@ function _campParseHtml(raw){
     idx.equipa=li>=0?li:1;
   }
   const num=v=>{const n=parseInt((v||'').replace(/[^\d-]/g,''),10);return isNaN(n)?null:n;};
-  return best.slice(1).map(r=>({
+  const rows=best.slice(1).map(r=>({
     pos:num(r[idx.pos]),equipa:r[idx.equipa]||'',
     j:idx.j!==undefined?num(r[idx.j]):null,v:idx.v!==undefined?num(r[idx.v]):null,
     e:idx.e!==undefined?num(r[idx.e]):null,d:idx.d!==undefined?num(r[idx.d]):null,
     gm:idx.gm!==undefined?num(r[idx.gm]):null,gs:idx.gs!==undefined?num(r[idx.gs]):null,
     pts:idx.pts!==undefined?num(r[idx.pts]):null
   })).filter(r=>r.equipa&&r.pos!=null);
+  return rows.length?rows:null;
+}
+// Grelha de divs da FPF: várias <div id="classificationMatchSection_XXXXX"> na mesma
+// página (uma por série), cada uma com linhas <div class="game classification"> cujos
+// filhos são, por ordem, Pos/Equipa/J/V/E/D/GM/GS/Pts (mesma ordem do cabeçalho
+// .game-header). Como a página colada traz TODAS as séries, escolhe-se a secção cujas
+// equipas incluem o nome do próprio clube — evita misturar séries diferentes.
+function _campParseDivGrid(doc){
+  const sections=[...doc.querySelectorAll('[id^="classificationMatchSection_"]')];
+  if(!sections.length)return null;
+  const num=v=>{const n=parseInt((v||'').replace(/[^\d-]/g,''),10);return isNaN(n)?null:n;};
+  const parseSection=sec=>[...sec.querySelectorAll('.game.classification')].map(row=>{
+    const cols=[...row.children].map(c=>c.textContent.replace(/\s+/g,' ').trim());
+    return {pos:num(cols[0]),equipa:cols[1]||'',j:num(cols[2]),v:num(cols[3]),e:num(cols[4]),d:num(cols[5]),gm:num(cols[6]),gs:num(cols[7]),pts:num(cols[8])};
+  }).filter(r=>r.equipa&&r.pos!=null);
+  const own=_normName(APP.config.clubName||'');
+  if(own){
+    for(const sec of sections){
+      const rows=parseSection(sec);
+      if(rows.some(r=>{const rn=_normName(r.equipa);return rn&&(rn.includes(own)||own.includes(rn));}))return rows;
+    }
+  }
+  for(const sec of sections){
+    const rows=parseSection(sec);
+    if(rows.length)return rows;
+  }
+  return null;
 }
 function _campFindOwnRow(rows){
   const own=_normName(APP.config.clubName||'');
@@ -4093,7 +4130,7 @@ function _classificacaoTabHtml(){
     <button class="btn btn-xs btn-gh" onclick="_showCampImport=!_showCampImport;renderJogos()">${_showCampImport?'✕ Fechar':'📥 Importar Classificação da FPF'}</button></div>
     ${_showCampImport?`
     <div class="ipanel" style="margin-bottom:14px">
-      <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Abre a página da classificação da competição no site da FPF, copia o código-fonte da página (Ctrl+U ou "Ver código fonte") e cola aqui.</p>
+      <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Abre a página da competição no site da FPF, muda para a época atual e abre a Série/Grupo certo, clica em "Classificação" e copia o código-fonte da página (Ctrl+U ou "Ver código fonte") e cola aqui. Se a época não aparecer certa depois de colar (Ctrl+U às vezes não reflete a mudança de época feita por clique), usa em alternativa o Inspecionar do browser (F12) → clica com o botão direito na tag &lt;html&gt; → Copiar → Copiar outerHTML.</p>
       <textarea class="fc" id="camp-paste" rows="4" placeholder="Cola aqui o código-fonte da página..."></textarea>
       <button class="btn btn-g" style="margin-top:8px" onclick="parseCampPaste()">🔍 Interpretar</button>
       ${_campImportRows?_campImportPreviewHtml():''}
