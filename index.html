@@ -3949,7 +3949,7 @@ function _campParseHtml(raw){
 function _campParseTables(doc){
   const tables=[...doc.querySelectorAll('table')];
   if(!tables.length)return null;
-  const HEAD_RE={pos:/^(pos|#|nº|classif)/i,equipa:/equipa|clube|team/i,j:/^j$/i,v:/^v$/i,e:/^e$/i,d:/^d$/i,gm:/^(gm|m)$/i,gs:/^(gs|s)$/i,pts:/^(pts?|pontos)$/i};
+  const HEAD_RE={pos:/^(pos|#|nº|classif)/i,equipa:/equipa|clube|team/i,j:/^j$/i,v:/^v$/i,e:/^e$/i,d:/^d$/i,gm:/^(gm|m)$/i,gs:/^(gs|s)$/i,pts:/^(pts?|pontos|p)$/i};
   const rowsOf=t=>[...t.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll('th,td')].map(c=>c.textContent.replace(/\s+/g,' ').trim()));
   let best=null,bestScore=-1;
   for(const t of tables){
@@ -3964,6 +3964,7 @@ function _campParseTables(doc){
   const head=best[0];
   const idx={};
   Object.entries(HEAD_RE).forEach(([k,re])=>{const i=head.findIndex(h=>re.test(h));if(i>=0)idx[k]=i;});
+  const posFromHeader=idx.pos!==undefined;
   if(idx.pos===undefined)idx.pos=0;
   if(idx.equipa===undefined){
     let li=-1,lw=-1;
@@ -3974,8 +3975,15 @@ function _campParseTables(doc){
     idx.equipa=li>=0?li:1;
   }
   const num=v=>{const n=parseInt((v||'').replace(/[^\d-]/g,''),10);return isNaN(n)?null:n;};
-  const rows=best.slice(1).map(r=>({
-    pos:num(r[idx.pos]),equipa:r[idx.equipa]||'',
+  const rawRows=best.slice(1);
+  // Algumas fontes (ex.: ZeroZero) mostram a classificação num <table> real mas sem
+  // coluna de "Posição" visível — a ordem das linhas É a posição (a 1ª coluna serve só
+  // para o JS de ordenação da tabela, sem texto). Se não veio de um cabeçalho explícito
+  // e nenhuma linha tem valor numérico nessa coluna, assume-se posição = ordem da linha.
+  const posVals=rawRows.map(r=>num(r[idx.pos]));
+  const allPosMissing=!posFromHeader&&posVals.every(v=>v==null);
+  const rows=rawRows.map((r,i)=>({
+    pos:allPosMissing?i+1:num(r[idx.pos]),equipa:r[idx.equipa]||'',
     j:idx.j!==undefined?num(r[idx.j]):null,v:idx.v!==undefined?num(r[idx.v]):null,
     e:idx.e!==undefined?num(r[idx.e]):null,d:idx.d!==undefined?num(r[idx.d]):null,
     gm:idx.gm!==undefined?num(r[idx.gm]):null,gs:idx.gs!==undefined?num(r[idx.gs]):null,
@@ -4127,10 +4135,10 @@ function _classificacaoTabHtml(){
   const comps=_compList();
   const compsHtml=comps.length?comps.map(_classifCompCardHtml).join(''):`<div class="empty"><div class="ei">🏆</div><p>Sem competições configuradas</p><div class="esub">Adiciona em Jogos → Novo Jogo → Competição</div></div>`;
   const campHtml=`<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-    <button class="btn btn-xs btn-gh" onclick="_showCampImport=!_showCampImport;renderJogos()">${_showCampImport?'✕ Fechar':'📥 Importar Classificação da FPF'}</button></div>
+    <button class="btn btn-xs btn-gh" onclick="_showCampImport=!_showCampImport;renderJogos()">${_showCampImport?'✕ Fechar':'📥 Importar Classificação'}</button></div>
     ${_showCampImport?`
     <div class="ipanel" style="margin-bottom:14px">
-      <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Abre a página da competição no site da FPF, muda para a época atual e abre a Série/Grupo certo, clica em "Classificação" e copia o código-fonte da página (Ctrl+U ou "Ver código fonte") e cola aqui. Se a época não aparecer certa depois de colar (Ctrl+U às vezes não reflete a mudança de época feita por clique), usa em alternativa o Inspecionar do browser (F12) → clica com o botão direito na tag &lt;html&gt; → Copiar → Copiar outerHTML.</p>
+      <p style="font-size:11px;color:var(--t2);margin-bottom:8px"><b>Recomendado: ZeroZero.pt</b> — abre a página da edição/série certa (ex.: zerozero.pt/edicao/...), a URL já é fixa para a época e série (sem seletor por clique que possa enganar), clica com o botão direito → Inspecionar (F12), clica com o botão direito na tag &lt;html&gt; → Copiar → Copiar outerHTML, e cola aqui. Alternativa: site da FPF — mas o seletor de época ali é por clique (AJAX) e o "Ver código fonte" (Ctrl+U) pode não refletir a época escolhida; usa sempre o mesmo método do Inspecionar (F12) → outerHTML para teres a certeza da época/série corretas.</p>
       <textarea class="fc" id="camp-paste" rows="4" placeholder="Cola aqui o código-fonte da página..."></textarea>
       <button class="btn btn-g" style="margin-top:8px" onclick="parseCampPaste()">🔍 Interpretar</button>
       ${_campImportRows?_campImportPreviewHtml():''}
