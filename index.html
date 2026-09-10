@@ -2442,6 +2442,33 @@ function openAthleteModal(id){
   });
   Object.keys(gymTimeline).forEach(k=>gymTimeline[k].sort((a,b)=>b.date.localeCompare(a.date)));
   const gymExNames=Object.keys(gymTimeline).sort();
+  // ── Presenças & PSE — Ginásio / Treino Extra, últimos 28 dias (Fase 3) ──
+  // Pedido do Roger 10/09/2026: os dados de presença/PSE de Ginásio e Treino Extra
+  // (já agregados na página "Treinos Extra", separadores Diário/Semanal/Mensal —
+  // ver _peGymAttPeriod/_pePseAvg) também no relatório individual, com análise,
+  // feedback e recomendações — mesmo espírito do bloco "Estado da Atleta" acima,
+  // mas focado só em Ginásio/Extra.
+  const peGym28=_peGymAttPeriod(id,days28[0],days28[days28.length-1]);
+  const pePseGym28=_pePseAvg(id,days28[0],days28[days28.length-1],'Ginásio');
+  const peExtra28=_pePseAvg(id,days28[0],days28[days28.length-1],'Extra');
+  const peFeedback=[];
+  if(peGym28.total>0&&peGym28.pct!==null&&peGym28.pct<80)peFeedback.push('🟡 Assiduidade ao Ginásio abaixo do esperado — '+peGym28.pct+'% nos últimos 28 dias ('+peGym28.presente+'/'+(peGym28.presente+peGym28.ausente)+').');
+  if(peGym28.naoJustif>=2)peFeedback.push('🔴 '+peGym28.naoJustif+' falta'+(peGym28.naoJustif>1?'s':'')+' não justificada'+(peGym28.naoJustif>1?'s':'')+' ao Ginásio nos últimos 28 dias — conversar com a atleta.');
+  if(pePseGym28.avgPse!==null&&pePseGym28.avgPse>=8)peFeedback.push('🟡 PSE médio do Ginásio elevado ('+pePseGym28.avgPse+'/10) — validar se a carga prescrita está adequada.');
+  if(peExtra28.n>0&&peExtra28.avgPse!==null&&peExtra28.avgPse>=8)peFeedback.push('🟡 Treino Extra com PSE médio elevado ('+peExtra28.avgPse+'/10, '+peExtra28.n+' sessão'+(peExtra28.n>1?'ões':'')+') — é carga que se soma à do clube; confirmar se está a ser considerada no ACWR.');
+  if(peExtra28.n>=8)peFeedback.push('ℹ️ Volume elevado de Treino Extra autorreportado ('+peExtra28.n+' sessões em 28 dias) — recomenda-se validar tipo/intensidade diretamente com a atleta.');
+  if(peGym28.total===0&&peExtra28.n===0)peFeedback.push('ℹ️ Sem registos de Ginásio nem Treino Extra nos últimos 28 dias.');
+  if(!peFeedback.length)peFeedback.push('🟢 Sem alertas de presença/PSE em Ginásio ou Treino Extra nos últimos 28 dias.');
+  const peBlock='<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
+    +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">📋 Presenças & PSE (Ginásio/Extra)</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:6px;padding:6px 8px;text-align:center"><div style="font-size:15px;font-weight:800">'+(peGym28.pct!=null?peGym28.pct+'%':'—')+'</div><div style="font-size:9.5px;color:var(--t2)">Presença Ginásio (28d)</div></div>'
+      +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:6px;padding:6px 8px;text-align:center"><div style="font-size:15px;font-weight:800">'+(pePseGym28.avgPse??'—')+'</div><div style="font-size:9.5px;color:var(--t2)">PSE méd. Ginásio</div></div>'
+      +'<div style="flex:1;min-width:80px;background:var(--bg3);border-radius:6px;padding:6px 8px;text-align:center"><div style="font-size:15px;font-weight:800">'+peExtra28.n+'</div><div style="font-size:9.5px;color:var(--t2)">Sessões Extra (28d)</div></div>'
+    +'</div>'
+    +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Análise & Recomendações</div>'
+    +peFeedback.map(t=>'<div style="padding:5px 0;border-bottom:1px solid var(--brd);font-size:11px">'+t+'</div>').join('')
+  +'</div>';
   // Club history
   const clubHistory=at.clubHistory||[];
   // ── Estado da Atleta — alertas compostos (carga, wellness, ciclo, fisio, nutrição, presenças) ──
@@ -2572,8 +2599,8 @@ function openAthleteModal(id){
         +'<div style="position:relative;height:140px"><canvas id="prof-tec-ch"></canvas></div>'
       +'</div>'
     +'</div>'
-    // ── 3-col grid ──
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 16px 16px">'
+    // ── grid de cards (Fisio/Nutrição/Treino/Treino Extra/Ginásio/Presenças&PSE) ──
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:0 16px 16px">'
       // Physio
       +'<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
         +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏥 Fisioterapia</div>'
@@ -2607,6 +2634,8 @@ function openAthleteModal(id){
         +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">🏋️‍♀️ Progressão de Ginásio</div>'
         +(gymExNames.length?gymExNames.map(name=>'<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:700">'+escHtml(name)+'</div><div style="font-size:10.5px;color:var(--t2)">'+gymTimeline[name].slice(0,4).map(h=>escHtml(h.val)+' <span style="color:var(--t3)">('+fmtDateShort(h.date)+')</span>').join(' · ')+'</div></div>').join(''):'<div style="color:var(--t2);font-size:11px">Sem registos de ginásio ainda</div>')
       +'</div>'
+      // Presenças & PSE (Ginásio/Extra) — análise e recomendações
+      +peBlock
     +'</div>'
     // ── Club history ──
     +'<div style="margin:0 16px 32px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
@@ -8723,6 +8752,11 @@ function renderPSEWellness(){
 // continua a gerir-se em "Treinos Individualizados" (renderTreinosInd) — aqui só se
 // edita a avaliação (PSE/duração) de cada sessão já registada.
 let _teTeam='T1', _teExpand=new Set();
+// Presenças & PSE — Ginásio/Extra por dia/semana/mês (pedido do Roger, 10/09/2026:
+// "espaço para relatórios de treino extra e ginásio a nível de presenças diárias,
+// semanais e mensais e PSEs"). Sub-separador dentro desta mesma página, ao lado do
+// log "Registos" já existente — ver _teSubTab.
+let _teSubTab='registos', _teDay=today(), _teWeekStart=getMonday(today()), _teYm=today().slice(0,7);
 function _teToggle(aid){
   if(_teExpand.has(aid))_teExpand.delete(aid);else _teExpand.add(aid);
   renderTreinosExtra();
@@ -8777,7 +8811,81 @@ function _teDeleteExtra(id){
   if(_sync&&_supa){_supa.from('extra_training_records').delete().eq('id',id).catch(err=>_warnSyncFailure('extra_training_records (apagar)',err));}
   saveData();toast('Registo apagado');renderTreinosExtra();
 }
-function renderTreinosExtra(){
+// ── Presenças & PSE — Ginásio / Treino Extra num intervalo [start,end] ──────
+// Reaproveita o mesmo critério de assiduidade do Relatório Geral Mensal (_gmAttData),
+// mas restrito a eventos type==='Ginásio' (o Treino Extra é autorreportado, sem
+// evento agendado — não tem "presença", só sessões registadas). Usado pelos
+// separadores Diário/Semanal/Mensal desta página e pelo bloco "Presenças & PSE"
+// novo em openAthleteModal (mais acima no ficheiro).
+function _peGymAttPeriod(aid,start,end){
+  if(!APP.attendance)APP.attendance=[];
+  const a=APP.athletes.find(x=>x.id===aid);
+  if(!a)return {presente:0,ausente:0,naoJustif:0,total:0,pct:null};
+  const evs=APP.schedule.filter(e=>e.date>=start&&e.date<=end&&e.type==='Ginásio'&&((!e.teamId||e.teamId===a.teamId)||(e.guestIds||[]).includes(aid)));
+  const evIds=new Set(evs.map(e=>e.id));
+  const recs=APP.attendance.filter(x=>x.athleteId===aid&&evIds.has(x.eventId));
+  const presente=recs.filter(x=>x.status==='treino').length;
+  const ausRecs=recs.filter(x=>x.status==='ausente');
+  const naoJustif=ausRecs.filter(x=>x.reason==='nao_justificada').length;
+  const ausente=ausRecs.filter(x=>x.reason!=='ferias'&&x.reason!=='convocada').length;
+  const denom=presente+ausente;
+  return {presente,ausente,naoJustif,total:evs.length,pct:denom?Math.round(presente/denom*100):null};
+}
+// PSE/UA médios de uma atleta num intervalo, por origem: 'Ginásio' (PSE com
+// sessionType='Ginásio'), 'Extra' (APP.extraTrainings) ou undefined (ambos).
+function _pePseAvg(aid,start,end,origem){
+  const recs=[];
+  if(origem!=='Extra')APP.pse.filter(p=>p.athleteId===aid&&p.sessionType==='Ginásio'&&p.date>=start&&p.date<=end).forEach(p=>recs.push(p));
+  if(origem!=='Ginásio')(APP.extraTrainings||[]).filter(e=>e.athleteId===aid&&e.date>=start&&e.date<=end).forEach(e=>recs.push(e));
+  if(!recs.length)return {n:0,avgPse:null,totalUA:0};
+  const totalUA=recs.reduce((s,r)=>s+(+r.ua||0),0);
+  const avgPse=Math.round(recs.reduce((s,r)=>s+(+r.pse||0),0)/recs.length*10)/10;
+  return {n:recs.length,avgPse,totalUA};
+}
+function _peTeamStats(teamId,start,end){
+  return APP.athletes.filter(a=>a.teamId===teamId).sort((a,b)=>a.name.localeCompare(b.name)).map(a=>({
+    a,gymAtt:_peGymAttPeriod(a.id,start,end),gymPse:_pePseAvg(a.id,start,end,'Ginásio'),extraPse:_pePseAvg(a.id,start,end,'Extra')
+  }));
+}
+function _teRenderStatsTable(start,end,periodLabel){
+  const stats=_peTeamStats(_teTeam,start,end);
+  const rows=stats.map(({a,gymAtt,gymPse,extraPse})=>{
+    const totalUA=(gymPse.totalUA||0)+(extraPse.totalUA||0);
+    const gymCell=gymAtt.total?((gymAtt.pct!=null?gymAtt.pct+'%':'—')+' <span style="color:var(--t2);font-size:10px">('+gymAtt.presente+'/'+(gymAtt.presente+gymAtt.ausente)+')</span>'+(gymAtt.naoJustif?' <span style="color:#f87171;font-size:10px">· '+gymAtt.naoJustif+' NJ</span>':'')):'<span style="color:var(--t2)">Sem sessões</span>';
+    return `<tr><td><div style="display:flex;align-items:center;gap:7px" title="${escHtml(a.name)}">${_avHtml(a.name,a.photo,24)}<strong>${escHtml(_shortName(a))}</strong></div></td>
+    <td>${a.pos||'—'}</td>
+    <td style="text-align:center">${gymCell}</td>
+    <td style="text-align:center">${gymPse.avgPse??'—'}</td>
+    <td style="text-align:center">${extraPse.n}</td>
+    <td style="text-align:center">${extraPse.avgPse??'—'}</td>
+    <td style="text-align:center"><strong>${totalUA}</strong></td></tr>`;
+  }).join('');
+  return `<div class="card"><div class="cb"><div style="font-size:11px;color:var(--t2);margin-bottom:8px;text-transform:capitalize">${periodLabel}</div><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Presença Ginásio</th><th>PSE méd. Ginásio</th><th>Sessões Extra</th><th>PSE méd. Extra</th><th>UA total</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:20px">Sem atletas nesta equipa</td></tr>'}</tbody></table></div></div></div>`;
+}
+function _teRenderDiario(){
+  const d=_teDay||today();
+  const nav=`<div style="margin-bottom:10px"><input type="date" class="fc" style="width:auto" value="${d}" onchange="_teDay=this.value;renderTreinosExtra()"></div>`;
+  return nav+_teRenderStatsTable(d,d,fmtDate(d));
+}
+function _teRenderSemanal(){
+  const s=_teWeekStart||getMonday(today());
+  const e=addDaysStr(s,6);
+  const nav=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <button class="btn btn-xs btn-gh" onclick="_teWeekStart=addDaysStr('${s}',-7);renderTreinosExtra()">◀</button>
+    <span style="font-size:12px;font-weight:700">${fmtDateShort(s)} — ${fmtDateShort(e)}</span>
+    <button class="btn btn-xs btn-gh" onclick="_teWeekStart=addDaysStr('${s}',7);renderTreinosExtra()">▶</button>
+  </div>`;
+  return nav+_teRenderStatsTable(s,e,'Semana de '+fmtDateShort(s)+' a '+fmtDateShort(e));
+}
+function _teRenderMensal(){
+  const ym=_teYm||today().slice(0,7);
+  const {start,end}=_gmMonthBounds(ym);
+  const monthLabel=new Date(ym+'-01T00:00:00').toLocaleDateString('pt-PT',{month:'long',year:'numeric'});
+  const nav=`<div style="margin-bottom:10px"><input type="month" class="fc" style="width:auto" value="${ym}" onchange="_teYm=this.value;renderTreinosExtra()"></div>`;
+  return nav+_teRenderStatsTable(start,end,monthLabel);
+}
+function _teRenderRegistos(){
   const athletes=APP.athletes.filter(a=>a.teamId===_teTeam).sort((a,b)=>a.name.localeCompare(b.name));
   const rows=athletes.map(at=>{
     const recs=_teRows(at.id);
@@ -8810,14 +8918,26 @@ function renderTreinosExtra(){
     <td style="text-align:center">${recs.length}</td></tr>${histRow}`;
   }).join('');
 
+  return `<div style="font-size:11px;color:var(--t2);margin:0 0 12px">Junta Ginásio (pré-treino), Treino Extra (autorreportado) e Treino Individual concluído — tudo o que não é Unidade de Treino. Só mostra o que já tem PSE registado; expande cada atleta para editar ou apagar.</div>
+  <div class="card"><div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Ginásio</th><th>Extra</th><th>Individual</th><th title="Só a carga desta página — Ginásio+Extra+Individual. Não inclui Unidades de Treino.">UA Extra ⓘ</th><th>Registos</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:20px">Sem atletas nesta equipa</td></tr>'}</tbody></table></div></div></div>`;
+}
+// Página "Treinos Extra": separador "Registos" (log editável, original) + "Diário/
+// Semanal/Mensal" (presenças de Ginásio + PSE de Ginásio/Extra agregados — pedido
+// do Roger 10/09/2026). Mesmos dados também usados em openAthleteModal.
+function renderTreinosExtra(){
+  const subTabs=`<div class="tabs" style="margin:-6px 0 12px">${[['registos','📋 Registos'],['dia','📅 Diário'],['semana','🗓️ Semanal'],['mes','📆 Mensal']].map(([v,l])=>`<button class="tab-btn ${_teSubTab===v?'on':''}" onclick="_teSubTab='${v}';renderTreinosExtra()">${l}</button>`).join('')}</div>`;
+  let bodyHtml;
+  if(_teSubTab==='dia')bodyHtml=_teRenderDiario();
+  else if(_teSubTab==='semana')bodyHtml=_teRenderSemanal();
+  else if(_teSubTab==='mes')bodyHtml=_teRenderMensal();
+  else bodyHtml=_teRenderRegistos();
   document.getElementById('pg-treinos-extra').innerHTML=`
   <div class="sh"><div class="sh-t">🏃 Treinos Extra</div>
   <div class="sh-a">
     <select class="fc" style="width:auto;font-size:11px" onchange="_teTeam=this.value;renderTreinosExtra()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_teTeam?'selected':''}>${t.name}</option>`).join('')}</select>
   </div></div>
-  <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Junta Ginásio (pré-treino), Treino Extra (autorreportado) e Treino Individual concluído — tudo o que não é Unidade de Treino. Só mostra o que já tem PSE registado; expande cada atleta para editar ou apagar.</div>
-  <div class="card"><div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Ginásio</th><th>Extra</th><th>Individual</th><th title="Só a carga desta página — Ginásio+Extra+Individual. Não inclui Unidades de Treino.">UA Extra ⓘ</th><th>Registos</th></tr></thead>
-  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:20px">Sem atletas nesta equipa</td></tr>'}</tbody></table></div></div></div>`;
+  ${subTabs}${bodyHtml}`;
 }
 
 // ─── SCOUTING ─────────────────────────────────────────────
