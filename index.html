@@ -13040,7 +13040,13 @@ function showAthleteCredsModal(at,rawPwd){
   openMod('🔑 Credenciais de '+at.name,`<div style="font-size:13px;margin-bottom:14px">${isDefault?'Password inicial (fórmula do clube + nº de camisola) — a atleta terá de definir uma password própria no primeiro acesso.':'Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.'}</div><div class="cred-box"><div style="margin-bottom:6px">🔗 <strong>URL:</strong> ${url}</div><div style="margin-bottom:6px">👤 <strong>Utilizador:</strong> ${login}</div><div>🔑 <strong>Password:</strong> <span style="font-size:15px;letter-spacing:2px;color:var(--c1l)">${rawPwd}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-g" onclick="navigator.clipboard.writeText('URL: ${url}\nUtilizador: ${login}\nPassword: ${rawPwd}');toast('Copiado ✓')">📋 Copiar</button><a class="btn btn-gh" href="${gmailHref}" target="_blank">📧 Gmail</a><a class="btn btn-gh" href="${mailHref}" target="_blank">📨 Email</a><a class="btn btn-gh" href="${waHref}" target="_blank" style="color:#25d366;border-color:#25d366">💬 WhatsApp</a></div><div class="al al-b" style="margin-top:12px;font-size:11px">Se a atleta esquecer a password: Plantel → Perfil da atleta → 🔑 Repor Password (volta a MFC26@ + nº de camisola)</div>`);
 }
 function showUserCredsModal(user,rawPwd){
-  const url=window.location.href.split('?')[0];
+  // Para Fisioterapeuta/Nutricionista, o link partilhado já entra direto na app
+  // própria (SPS-Fisio/SPS-Nutri — ver _maybeEnterFisioMode/_maybeEnterNutriMode),
+  // mesmo padrão do ?atleta=1 já usado em showAthleteCredsModal. Pedido do Roger
+  // 11/09/2026: até agora só as atletas recebiam o link direto, staff recebia
+  // sempre o link genérico da plataforma.
+  const modeParam=user.role==='fisio'?'?fisio=1':user.role==='nutri'?'?nutri=1':'';
+  const url=window.location.href.split('?')[0]+modeParam;
   const club=APP.config.clubName||'Clube';
   const isDefault=rawPwd===_defaultStaffPwd();
   const introMsg=isDefault?'Password inicial (igual para todos os novos utilizadores) — vai ser pedido para definir uma password própria no primeiro acesso.':'Guarda estas credenciais — a password <strong>não volta a ser mostrada</strong>.';
