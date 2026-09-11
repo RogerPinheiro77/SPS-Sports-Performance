@@ -2459,6 +2459,17 @@ function openAthleteModal(id){
   if(peExtra28.n>=8)peFeedback.push('ℹ️ Volume elevado de Treino Extra autorreportado ('+peExtra28.n+' sessões em 28 dias) — recomenda-se validar tipo/intensidade diretamente com a atleta.');
   if(peGym28.total===0&&peExtra28.n===0)peFeedback.push('ℹ️ Sem registos de Ginásio nem Treino Extra nos últimos 28 dias.');
   if(!peFeedback.length)peFeedback.push('🟢 Sem alertas de presença/PSE em Ginásio ou Treino Extra nos últimos 28 dias.');
+  // Histórico recente (Ginásio+Extra, sem Individual) — reaproveita _teRows, já usado
+  // na página Treinos Extra, já ordenado do mais recente para o mais antigo. Mostra só
+  // os últimos 8; o histórico completo continua a viver em Treinos Extra > Registos
+  // (não duplicamos essa vista aqui — link direto para lá).
+  const peHistAll=_teRows(id).filter(r=>r.origem!=='Individual');
+  const peHistRows=peHistAll.slice(0,8);
+  const peHistBlock=peHistRows.length
+    ?('<div style="font-size:11px;font-weight:700;color:var(--t2);margin:10px 0 6px">Histórico recente</div>'
+      +peHistRows.map(r=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--brd);font-size:11px"><span><span class="bdg" style="background:'+_TE_ORIGEM_COLOR[r.origem]+'22;color:'+_TE_ORIGEM_COLOR[r.origem]+';margin-right:6px">'+r.origem+'</span>'+escHtml(r.tipo)+' · '+r.duracao+'min · PSE '+r.pse+'</span><span style="color:var(--t2)">'+fmtDate(r.date)+'</span></div>').join('')
+      +'<div style="text-align:right;margin-top:6px"><button class="btn btn-xs btn-gh" onclick="document.getElementById(\'athlete-profile-ov\').remove();_teTeam=\''+at.teamId+'\';_teSubTab=\'registos\';_teExpand.add(\''+id+'\');navTo(\'treinos-extra\')">Ver histórico completo ('+peHistAll.length+') →</button></div>')
+    :'';
   const peBlock='<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px">'
     +'<div style="font-size:12px;font-weight:800;margin-bottom:10px">📋 Presenças & PSE (Ginásio/Extra)</div>'
     +'<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'
@@ -2468,6 +2479,7 @@ function openAthleteModal(id){
     +'</div>'
     +'<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Análise & Recomendações</div>'
     +peFeedback.map(t=>'<div style="padding:5px 0;border-bottom:1px solid var(--brd);font-size:11px">'+t+'</div>').join('')
+    +peHistBlock
   +'</div>';
   // Club history
   const clubHistory=at.clubHistory||[];
@@ -8863,10 +8875,44 @@ function _teRenderStatsTable(start,end,periodLabel){
   return `<div class="card"><div class="cb"><div style="font-size:11px;color:var(--t2);margin-bottom:8px;text-transform:capitalize">${periodLabel}</div><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Presença Ginásio</th><th>PSE méd. Ginásio</th><th>Sessões Extra</th><th>PSE méd. Extra</th><th>UA total</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:20px">Sem atletas nesta equipa</td></tr>'}</tbody></table></div></div></div>`;
 }
+// Impressão A4 (mesmo mecanismo de _printWin usado em todo o resto da app —
+// abre a janela de imprimir do browser, sem biblioteca de PDF) da tabela de
+// Presenças & PSE de um período. Reaproveita _peTeamStats — mesmos dados do ecrã.
+function _tePrintPeriodo(start,end,periodLabel){
+  const stats=_peTeamStats(_teTeam,start,end);
+  const withGym=stats.filter(s=>s.gymAtt.total>0);
+  const squadGymPct=withGym.length?Math.round(withGym.reduce((s,x)=>s+(x.gymAtt.pct||0),0)/withGym.length):null;
+  const totalExtraSessoes=stats.reduce((s,x)=>s+x.extraPse.n,0);
+  const totalUA=stats.reduce((s,x)=>s+(x.gymPse.totalUA||0)+(x.extraPse.totalUA||0),0);
+  const kpiHtml=`<div class="kpi-row">
+    <div class="kpi"><div class="kpi-v">${squadGymPct!=null?squadGymPct+'%':'—'}</div><div class="kpi-l">Presença Média Ginásio</div></div>
+    <div class="kpi"><div class="kpi-v">${totalExtraSessoes}</div><div class="kpi-l">Sessões Treino Extra</div></div>
+    <div class="kpi"><div class="kpi-v">${totalUA}</div><div class="kpi-l">UA Total (Ginásio+Extra)</div></div>
+  </div>`;
+  const rows=stats.map(({a,gymAtt,gymPse,extraPse})=>{
+    const totalUAa=(gymPse.totalUA||0)+(extraPse.totalUA||0);
+    const gymCell=gymAtt.total?`<span class="badge ${gymAtt.pct>=80?'bg-g':gymAtt.pct>=50?'bg-y':'bg-r'}">${gymAtt.pct}% (${gymAtt.presente}/${gymAtt.presente+gymAtt.ausente})</span>`:'<span style="color:#999">Sem sessões</span>';
+    return `<tr><td>${escHtml(a.name)}</td><td>${a.pos||'—'}</td><td>${gymCell}</td><td>${gymPse.avgPse??'—'}</td><td>${extraPse.n}</td><td>${extraPse.avgPse??'—'}</td><td><strong>${totalUAa}</strong></td></tr>`;
+  }).join('');
+  const teamName=APP.teams.find(t=>t.id===_teTeam);
+  const body=`<div class="pr-title">Presenças & PSE — Ginásio / Treino Extra</div>
+  <div style="font-size:9pt;color:#666;margin:-8px 0 12px;text-transform:capitalize">${escHtml(periodLabel)}${teamName?' · '+escHtml(teamName.name):''}</div>
+  ${kpiHtml}
+  <table><thead><tr><th>Atleta</th><th>Pos</th><th>Presença Ginásio</th><th>PSE méd. Ginásio</th><th>Sessões Extra</th><th>PSE méd. Extra</th><th>UA total</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#999">Sem atletas nesta equipa</td></tr>'}</tbody></table>`;
+  _printWin('Presenças & PSE — '+periodLabel,body);
+}
 function _teRenderDiario(){
   const d=_teDay||today();
-  const nav=`<div style="margin-bottom:10px"><input type="date" class="fc" style="width:auto" value="${d}" onchange="_teDay=this.value;renderTreinosExtra()"></div>`;
+  const nav=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <input type="date" class="fc" style="width:auto" value="${d}" onchange="_teDay=this.value;renderTreinosExtra()">
+    <button class="btn btn-sm btn-gh" onclick="_tePrintDia()">🖨️ Imprimir</button>
+  </div>`;
   return nav+_teRenderStatsTable(d,d,fmtDate(d));
+}
+function _tePrintDia(){
+  const d=_teDay||today();
+  _tePrintPeriodo(d,d,fmtDate(d));
 }
 function _teRenderSemanal(){
   const s=_teWeekStart||getMonday(today());
@@ -8875,15 +8921,30 @@ function _teRenderSemanal(){
     <button class="btn btn-xs btn-gh" onclick="_teWeekStart=addDaysStr('${s}',-7);renderTreinosExtra()">◀</button>
     <span style="font-size:12px;font-weight:700">${fmtDateShort(s)} — ${fmtDateShort(e)}</span>
     <button class="btn btn-xs btn-gh" onclick="_teWeekStart=addDaysStr('${s}',7);renderTreinosExtra()">▶</button>
+    <button class="btn btn-sm btn-gh" onclick="_tePrintSemana()">🖨️ Imprimir</button>
   </div>`;
   return nav+_teRenderStatsTable(s,e,'Semana de '+fmtDateShort(s)+' a '+fmtDateShort(e));
+}
+function _tePrintSemana(){
+  const s=_teWeekStart||getMonday(today());
+  const e=addDaysStr(s,6);
+  _tePrintPeriodo(s,e,'Semana de '+fmtDateShort(s)+' a '+fmtDateShort(e));
 }
 function _teRenderMensal(){
   const ym=_teYm||today().slice(0,7);
   const {start,end}=_gmMonthBounds(ym);
   const monthLabel=new Date(ym+'-01T00:00:00').toLocaleDateString('pt-PT',{month:'long',year:'numeric'});
-  const nav=`<div style="margin-bottom:10px"><input type="month" class="fc" style="width:auto" value="${ym}" onchange="_teYm=this.value;renderTreinosExtra()"></div>`;
+  const nav=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <input type="month" class="fc" style="width:auto" value="${ym}" onchange="_teYm=this.value;renderTreinosExtra()">
+    <button class="btn btn-sm btn-gh" onclick="_tePrintMes()">🖨️ Imprimir</button>
+  </div>`;
   return nav+_teRenderStatsTable(start,end,monthLabel);
+}
+function _tePrintMes(){
+  const ym=_teYm||today().slice(0,7);
+  const {start,end}=_gmMonthBounds(ym);
+  const monthLabel=new Date(ym+'-01T00:00:00').toLocaleDateString('pt-PT',{month:'long',year:'numeric'});
+  _tePrintPeriodo(start,end,monthLabel);
 }
 function _teRenderRegistos(){
   const athletes=APP.athletes.filter(a=>a.teamId===_teTeam).sort((a,b)=>a.name.localeCompare(b.name));
