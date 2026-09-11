@@ -72,3 +72,51 @@ memória `reference_sps_github_push_token.md` para o fluxo de push). Antes de
 publicar qualquer alteração a `index.html`/`sw.js`: validar sintaxe
 (`node --check`), testar a lógica nova com um harness `vm` extraindo as
 funções reais do ficheiro, e só depois `git add`/commit/push.
+
+## Bloqueio conhecido: `git push` direto a partir da sandbox cloud
+
+A sandbox cloud onde o Claude corre (não o PC do Roger) está bloqueada de
+fazer `git push` diretamente para este repositório: o proxy de git interno
+da Anthropic recusa com `access denied by the git proxy:
+RogerPinheiro77/SPS-Sports-Performance is not in this session's authorized
+repository set`. Confirmado (10/09/2026) como bug conhecido e não resolvido
+do lado da Anthropic (GitHub issue `anthropics/claude-code#76248`), não
+relacionado com credenciais/tokens — não há fix do lado do utilizador nem
+do Claude.
+
+A alternativa seria o Claude correr `git am`/`git push` diretamente no PC
+do Roger via `device_bash` (ligação ao PC "fabrica"), mas esse canal está,
+desde o início desta sessão e confirmado de novo a 11/09/2026, também
+bloqueado: `sandbox-helper: no Plan9 drive shares mounted`. A mensagem de
+erro do próprio Claude confirma a causa: uma atualização do Windows
+lançada a 8/09/2026 impede o acesso da sandbox aos ficheiros do PC; é um
+problema já identificado e a ser acompanhado pela Anthropic (não afeta o
+Claude Code CLI, só este modo). Pode resolver-se sozinho numa atualização
+futura, sem nada a fazer aqui — vale a pena testar `device_bash` de vez em
+quando para ver se já voltou.
+
+**Enquanto os dois bloqueios acima persistirem**, o fluxo de trabalho é:
+1. Claude faz commit local na sandbox cloud (`git add`/`commit`, nunca
+   `push`).
+2. Claude gera um patch (`git format-patch -1 HEAD --stdout`) e envia-o
+   via `SendUserFile` + `device_commit_files` para a pasta do clone no PC
+   do Roger.
+3. Roger corre, na pasta do clone:
+   ```
+   git fetch origin
+   git status                 # confirmar alinhado com origin/main antes de aplicar
+   git am <ficheiro>.patch
+   git push origin main
+   ```
+4. Depois do push, a sandbox cloud fica com um commit local de hash
+   diferente do que ficou no GitHub (mesmo conteúdo, objeto de commit
+   diferente por causa do `git am`) — resincronizar com
+   `git fetch origin && git diff origin/main -- index.html` (confirmar
+   vazio) e depois `git reset --hard origin/main`.
+
+Nota cosmética: no PC "fabrica" aparece quase sempre, depois de
+fetch/am/push, o prompt `Deletion of directory '.git/objects/xx' failed.
+Should I try again? (y/n)` — é inofensivo (contenção de lock do
+OneDrive/antivírus na pasta `.git/objects`), resolve-se com Ctrl+C. Pode
+ser eliminado à partida correndo `git config gc.auto 0` uma vez nesse
+clone (desativa o garbage-collection automático que dispara essa limpeza).
