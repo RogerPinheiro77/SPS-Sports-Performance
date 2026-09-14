@@ -3403,36 +3403,122 @@ function _mcResolveDayType(mc,dt,gameDate){
   const isCustom=!!(override&&override.typeId===null&&override.custom);
   const defaultTypeId=_mcDefaultTypeId(dt,gameDate,_mcTeam);
   const resolvedTypeId=isCustom?null:((override&&override.typeId)||defaultTypeId);
-  return {resolvedTypeId,isCustom,customLabel:isCustom?(override.custom.label||''):'',customText:isCustom?(override.custom.text||''):'',hasOverride:!!override};
+  const hasOverride=!!(override&&(override.typeId||isCustom));
+  const contentOverride=(override&&override.contentOverride)||null;
+  return {resolvedTypeId,isCustom,customLabel:isCustom?(override.custom.label||''):'',customText:isCustom?(override.custom.text||''):'',hasOverride,contentOverride};
 }
+// As 4 funções seguintes preservam sempre um eventual contentOverride já
+// guardado (edição de conteúdo só desse dia) — mudar a tipologia não apaga
+// o RPE/intensidade/blocos ajustados manualmente para esse dia específico.
 function _mcSetDayType(dt,typeId){
   const mc=_mcEnsureMc();
-  mc.dayTypes[dt]={typeId,custom:null};
+  const existing=mc.dayTypes[dt]||{};
+  mc.dayTypes[dt]={...existing,typeId,custom:null};
   saveData();_renderMcSemana();
 }
 function _mcActivateCustomDay(dt){
   const mc=_mcEnsureMc();
-  if(!mc.dayTypes[dt]||mc.dayTypes[dt].typeId!==null)mc.dayTypes[dt]={typeId:null,custom:{label:'',text:''}};
+  const existing=mc.dayTypes[dt];
+  if(!existing||existing.typeId!==null)mc.dayTypes[dt]={...(existing||{}),typeId:null,custom:{label:'',text:''}};
   saveData();_renderMcSemana();
 }
 function _mcSetDayCustomLabel(dt,label){
   const mc=_mcEnsureMc();
-  const cur=(mc.dayTypes[dt]&&mc.dayTypes[dt].custom)||{label:'',text:''};
-  mc.dayTypes[dt]={typeId:null,custom:{label,text:cur.text}};
+  const existing=mc.dayTypes[dt]||{};
+  const cur=existing.custom||{label:'',text:''};
+  mc.dayTypes[dt]={...existing,typeId:null,custom:{label,text:cur.text}};
   saveData();_renderMcSemana();
 }
 function _mcSetDayCustomText(dt,text){
   const mc=_mcEnsureMc();
-  const cur=(mc.dayTypes[dt]&&mc.dayTypes[dt].custom)||{label:'',text:''};
-  mc.dayTypes[dt]={typeId:null,custom:{label:cur.label,text}};
+  const existing=mc.dayTypes[dt]||{};
+  const cur=existing.custom||{label:'',text:''};
+  mc.dayTypes[dt]={...existing,typeId:null,custom:{label:cur.label,text}};
   saveData();_renderMcSemana();
 }
+// Repõe a TIPOLOGIA automática, mas mantém um eventual conteúdo (RPE/blocos)
+// editado à parte para este dia — para apagar esse conteúdo usa-se
+// _mcClearDayContentOverride (botão dentro do editor de conteúdo do dia).
 function _mcResetDayType(dt){
   const mc=_mcEnsureMc();
-  delete mc.dayTypes[dt];
+  if(mc.dayTypes[dt]){
+    delete mc.dayTypes[dt].typeId;
+    delete mc.dayTypes[dt].custom;
+    if(!mc.dayTypes[dt].contentOverride)delete mc.dayTypes[dt];
+  }
   saveData();_renderMcSemana();
 }
-function _mcDayTypeSelectHtml(dt,resolvedTypeId,isCustom,hasOverride){
+// ─── Conteúdo do dia, só para esta semana (14/09/2026, pedido do Roger) ───
+// Além de escolher a tipologia, o Roger pode ajustar o RPE/intensidade e os
+// blocos (Auditório/Campo/etc.) de um dia concreto sem alterar o molde
+// partilhado por todas as semanas — guardado em mc.dayTypes[dt].contentOverride.
+let _mcDayContentDraft=null,_mcDayContentDt=null,_mcDayContentHadOverride=false;
+function _mcOpenDayContentEditor(dt){
+  const weekDates=Array.from({length:7},(_,i)=>addDaysStr(_mcWeek,i));
+  const gameDate=_mcAnchorGameDate(weekDates,_mcTeam);
+  const mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam)||{objective:'',dayTypes:{}};
+  const info=_mcResolveDayType(mc,dt,gameDate);
+  const tpl=_mcGetTemplate(_mcTeam);
+  const base=(tpl.days&&tpl.days[info.resolvedTypeId])||{rpeMin:null,rpeMax:null,intensity:'',blocks:[]};
+  _mcDayContentDt=dt;
+  _mcDayContentHadOverride=!!info.contentOverride;
+  _mcDayContentDraft=JSON.parse(JSON.stringify(info.contentOverride||{rpeMin:base.rpeMin??null,rpeMax:base.rpeMax??null,intensity:base.intensity||'',blocks:base.blocks||[]}));
+  openMod('Editar conteúdo — '+fmtDateShort(dt)+' ('+(MC_TYPE_LABELS[info.resolvedTypeId]||'')+')',_mcDayContentEditorHtml(),'xl');
+}
+function _mcRefreshDayContentEditor(){const b=document.getElementById('modal-body');if(b)b.innerHTML=_mcDayContentEditorHtml();}
+function _mcDayContentEditorHtml(){
+  const d=_mcDayContentDraft;
+  const blocksHtml=(d.blocks||[]).map((b,bi)=>`
+    <div class="card" style="margin-bottom:8px;padding:10px">
+      <div class="fr" style="margin-bottom:6px;align-items:flex-end">
+        <div class="form-g" style="flex:1"><label class="fl">Título do bloco</label><input class="fc" value="${escHtml(b.title||'')}" onchange="_mcDayContentBlockField(${bi},'title',this.value)"></div>
+        <div class="form-g"><label class="fl">Tipo</label><select class="fc" onchange="_mcDayContentBlockField(${bi},'type',this.value)">
+          <option value="list" ${b.type!=='tags'?'selected':''}>Lista</option>
+          <option value="tags" ${b.type==='tags'?'selected':''}>Etiquetas</option>
+        </select></div>
+        <button class="btn btn-r btn-sm" onclick="_mcDayContentRemoveBlock(${bi})">🗑️</button>
+      </div>
+      <label class="fl">Itens (um por linha)</label>
+      <textarea class="fc" rows="3" onchange="_mcDayContentBlockItems(${bi},this.value)">${escHtml((b.items||[]).join('\n'))}</textarea>
+    </div>`).join('');
+  return `
+  <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Só afeta este dia, nesta semana — não altera o modelo partilhado por todas as semanas (isso faz-se em "⚙️ Editar Modelo").</div>
+  <div class="fr" style="margin-bottom:12px">
+    <div class="form-g"><label class="fl">RPE mín</label><input class="fc" type="number" min="1" max="10" value="${d.rpeMin??''}" onchange="_mcDayContentField('rpeMin',this.value?+this.value:null)"></div>
+    <div class="form-g"><label class="fl">RPE máx</label><input class="fc" type="number" min="1" max="10" value="${d.rpeMax??''}" onchange="_mcDayContentField('rpeMax',this.value?+this.value:null)"></div>
+    <div class="form-g" style="flex:1"><label class="fl">Intensidade</label><select class="fc" onchange="_mcDayContentField('intensity',this.value)">
+      ${['','Baixa','Média','Média-alta','Alta','Muito alta'].map(v=>`<option value="${v}" ${d.intensity===v?'selected':''}>${v||'—'}</option>`).join('')}
+    </select></div>
+  </div>
+  <div style="margin-bottom:8px;font-weight:700;font-size:12px">Blocos de conteúdo</div>
+  ${blocksHtml||'<div style="color:var(--t2);font-size:12px;margin-bottom:8px">Sem blocos ainda.</div>'}
+  <button class="btn btn-gh btn-sm" onclick="_mcDayContentAddBlock()">＋ Bloco</button>
+  <div style="display:flex;gap:8px;margin-top:16px;border-top:1px solid var(--brd);padding-top:12px">
+    <button class="btn btn-g" onclick="_mcSaveDayContent()">💾 Guardar (só este dia)</button>
+    ${_mcDayContentHadOverride?`<button class="btn btn-r" onclick="_mcClearDayContentOverride('${_mcDayContentDt}')">🗑️ Repor conteúdo do modelo</button>`:''}
+    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+  </div>`;
+}
+function _mcDayContentField(k,v){_mcDayContentDraft[k]=v;}
+function _mcDayContentAddBlock(){if(!_mcDayContentDraft.blocks)_mcDayContentDraft.blocks=[];_mcDayContentDraft.blocks.push({title:'',type:'list',items:[]});_mcRefreshDayContentEditor();}
+function _mcDayContentRemoveBlock(bi){_mcDayContentDraft.blocks.splice(bi,1);_mcRefreshDayContentEditor();}
+function _mcDayContentBlockField(bi,k,v){_mcDayContentDraft.blocks[bi][k]=v;}
+function _mcDayContentBlockItems(bi,v){_mcDayContentDraft.blocks[bi].items=v.split('\n').map(x=>x.trim()).filter(Boolean);}
+function _mcSaveDayContent(){
+  const mc=_mcEnsureMc();
+  const existing=mc.dayTypes[_mcDayContentDt]||{};
+  mc.dayTypes[_mcDayContentDt]={...existing,contentOverride:_mcDayContentDraft};
+  saveData();closeMod();toast('Conteúdo do dia guardado ✓');_renderMcSemana();
+}
+function _mcClearDayContentOverride(dt){
+  const mc=_mcEnsureMc();
+  if(mc.dayTypes[dt]){
+    delete mc.dayTypes[dt].contentOverride;
+    if(!mc.dayTypes[dt].typeId&&!mc.dayTypes[dt].custom)delete mc.dayTypes[dt];
+  }
+  saveData();closeMod();toast('Conteúdo reposto ao modelo ✓');_renderMcSemana();
+}
+function _mcDayTypeSelectHtml(dt,resolvedTypeId,isCustom,hasOverride,hasContentOverride){
   const opts=MC_TYPE_ORDER.map(id=>`<option value="${id}" ${(!isCustom&&resolvedTypeId===id)?'selected':''}>${MC_TYPE_LABELS[id]}</option>`).join('');
   return `<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px">
     <select class="fc" style="font-size:10px;padding:3px 4px;flex:1" onchange="this.value==='__custom__'?_mcActivateCustomDay('${dt}'):_mcSetDayType('${dt}',this.value)">
@@ -3440,13 +3526,15 @@ function _mcDayTypeSelectHtml(dt,resolvedTypeId,isCustom,hasOverride){
       <option value="__custom__" ${isCustom?'selected':''}>✎ Personalizado…</option>
     </select>
     ${hasOverride?`<button class="btn btn-gh btn-sm" style="padding:2px 6px" title="Repor sugestão automática (a partir do Planeamento)" onclick="_mcResetDayType('${dt}')">↺</button>`:''}
+    ${!isCustom?`<button class="btn btn-gh btn-sm" style="padding:2px 6px" title="${hasContentOverride?'Conteúdo editado só para este dia — clica para ajustar':'Editar RPE/blocos só para este dia'}" onclick="_mcOpenDayContentEditor('${dt}')">${hasContentOverride?'✎•':'✎'}</button>`:''}
   </div>`;
 }
 function _mcDayCardHtml(dt,dayName,dayInfo,tpl,isToday){
-  const {resolvedTypeId,isCustom,customLabel,customText,hasOverride}=dayInfo;
+  const {resolvedTypeId,isCustom,customLabel,customText,hasOverride,contentOverride}=dayInfo;
+  const base=(tpl.days&&tpl.days[resolvedTypeId])||{label:MC_TYPE_LABELS[resolvedTypeId]||'',blocks:[]};
   const d=isCustom
     ?{label:customLabel||'Personalizado',color:'#8e44ad',blocks:[]}
-    :((tpl.days&&tpl.days[resolvedTypeId])||{label:MC_TYPE_LABELS[resolvedTypeId]||'',blocks:[]});
+    :(contentOverride?{...base,...contentOverride}:base);
   const c=d.color||MC_TYPE_COLORS[resolvedTypeId]||'#27a34a';
   const rpeTxt=(d.rpeMin||d.rpeMax)?`RPE ${d.rpeMin??'?'}-${d.rpeMax??'?'}`:'';
   const blocksHtml=isCustom
@@ -3465,7 +3553,7 @@ function _mcDayCardHtml(dt,dayName,dayInfo,tpl,isToday){
   return `<div class="card" style="overflow:hidden;${isToday?'border-color:'+c:''}">
     <div style="background:${c}22;color:${c};padding:6px 10px;font-weight:800;font-size:11px">${dayName} · ${fmtDateShort(dt)}${d.label?' · '+escHtml(d.label):''}</div>
     <div class="cb" style="padding:8px 10px">
-      ${_mcDayTypeSelectHtml(dt,resolvedTypeId,isCustom,hasOverride)}
+      ${_mcDayTypeSelectHtml(dt,resolvedTypeId,isCustom,hasOverride,!!contentOverride)}
       ${rpeTxt||d.intensity?`<div style="font-size:10px;color:var(--t2);margin-bottom:6px">${rpeTxt}${d.intensity?' · Intensidade '+escHtml(d.intensity):''}</div>`:''}
       ${blocksHtml}
       ${evHtml?`<div style="margin-top:6px;border-top:1px dashed var(--brd);padding-top:6px">${evHtml}</div>`:''}
@@ -3734,10 +3822,11 @@ function _deleteMacro(id){
 // referência do Roger (03/09/2026). Não repete a listagem de eventos do
 // Planeamento (o objetivo aqui é o molde metodológico, não a agenda).
 function _mcPrintCardHtml(dt,dayName,dayInfo,tpl){
-  const {resolvedTypeId,isCustom,customLabel,customText}=dayInfo;
+  const {resolvedTypeId,isCustom,customLabel,customText,contentOverride}=dayInfo;
+  const base=(tpl.days&&tpl.days[resolvedTypeId])||{label:MC_TYPE_LABELS[resolvedTypeId]||'',blocks:[]};
   const d=isCustom
     ?{label:customLabel||'Personalizado',color:'#8e44ad',blocks:customText?[{title:'Notas',type:'list',items:[customText]}]:[]}
-    :((tpl.days&&tpl.days[resolvedTypeId])||{label:MC_TYPE_LABELS[resolvedTypeId]||'',blocks:[]});
+    :(contentOverride?{...base,...contentOverride}:base);
   const c=d.color||MC_TYPE_COLORS[resolvedTypeId]||'#27a34a';
   const rpeTxt=(d.rpeMin||d.rpeMax)?`RPE ${d.rpeMin??'?'}-${d.rpeMax??'?'}`:'';
   const blocksHtml=(d.blocks||[]).map(b=>{
