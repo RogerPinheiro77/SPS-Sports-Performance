@@ -3605,7 +3605,7 @@ function _renderMcSemana(){
       <span style="font-size:13px;font-weight:800;min-width:220px;text-align:center">Semana ${fmtDate(_mcWeek)} — ${fmtDate(weekEnd)}</span>
       <button class="btn btn-gh btn-sm" onclick="mcNav(1)">›</button>
     </div>
-    <div class="sh-a"><button class="btn btn-gh btn-sm" onclick="_mcOpenTplEditor()">⚙️ Editar Modelo</button><button class="btn btn-gh btn-sm" onclick="exportMicrociclosPDF()">🖨️ PDF</button><button class="btn btn-g btn-sm" onclick="mcNav(0)">Semana Atual</button></div>
+    <div class="sh-a"><button class="btn btn-gh btn-sm" onclick="_mcOpenTplEditor()">⚙️ Editar Modelo</button><button class="btn btn-gh btn-sm" onclick="exportMicrociclosPDF()">🖨️ PDF</button><button class="btn btn-gh btn-sm" onclick="exportMicrocicloAnaliseReport()">📊 Relatório da Semana</button><button class="btn btn-g btn-sm" onclick="mcNav(0)">Semana Atual</button></div>
   </div>
   <div class="card" style="margin-bottom:16px">
     <div class="cb" style="padding:12px 16px">
@@ -3891,6 +3891,174 @@ function exportMicrociclosPDF(){
     const html=`${hdr}<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2mm">${cells}</div>${_mcPrintSummaryHtml(tpl)}`;
     _printWin('Microciclo — '+teamName+' — Semana '+fmtDateShort(_mcWeek)+' a '+fmtDateShort(weekEnd),html,null,false,true);
   }
+}
+
+// ─── Relatório do Microciclo (análise semanal completa) ───────────────────
+// Pedido do Roger (14/09/2026): um relatório que compile tudo sobre a semana
+// do microciclo — tipologia real de cada dia, resumo de cada Unidade de
+// Treino realizada (reaproveitando a Análise da Sessão já existente em vez
+// de recalcular do zero), médias de wellness/PSE/ACWR da equipa nesta semana,
+// e o jogo da semana. A secção do jogo fica resumida de propósito (resultado,
+// notas) — o detalhe tático completo (estatísticas individuais, mapas de
+// golo/remate, mapas de calor, linha do tempo) já tem o seu próprio
+// "Relatório Completo" em Jogos → Exportar (exportJogoPDF('full')); duplicá-lo
+// aqui só tornaria este relatório mais lento de gerar e mais difícil de ler.
+// Termina com um texto de conclusão gerado automaticamente a partir dos
+// próprios números, no mesmo espírito descritivo dos "Destaques" já usados
+// na Análise da Sessão (_trDestaques) — apoio à leitura da semana, não
+// substitui a avaliação da equipa técnica.
+function _mcWeekGameRecord(weekDates,teamId){
+  const evDate=weekDates.find(dt=>(APP.schedule||[]).some(e=>e.date===dt&&e.teamId===teamId&&e.type==='Jogo'));
+  if(!evDate)return null;
+  return (APP.games||[]).find(g=>g.date===evDate&&g.teamId===teamId)||null;
+}
+function _mcWeekTrainingUnits(weekDates,teamId){
+  return (APP.trainings||[]).filter(tr=>weekDates.includes(tr.date)&&(tr.teamId||'T1')===teamId)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+}
+// Médias/riscos da equipa nesta semana — reaproveita as mesmas funções da Fase 2
+// (_acwrAt/_monotoniaStrain) já usadas na Análise da Sessão e no perfil da
+// atleta, só que agregadas ao nível da equipa em vez de por atleta.
+function _mcWeekSquadStats(weekDates,teamId){
+  const ats=(APP.athletes||[]).filter(a=>a.teamId===teamId);
+  const weekEnd=weekDates[6];
+  const wellVals=[],pseVals=[],uaVals=[];
+  ats.forEach(at=>{
+    weekDates.forEach(dt=>{
+      const w=(APP.wellness||[]).find(x=>x.athleteId===at.id&&x.date===dt);
+      if(w&&w.score!=null&&!isNaN(+w.score))wellVals.push(+w.score);
+    });
+    (APP.pse||[]).filter(p=>p.athleteId===at.id&&weekDates.includes(p.date)).forEach(p=>{
+      if(p.pse!=null&&!isNaN(+p.pse))pseVals.push(+p.pse);
+      if(p.ua!=null&&!isNaN(+p.ua))uaVals.push(+p.ua);
+    });
+  });
+  const avg=arr=>arr.length?Math.round(arr.reduce((s,v)=>s+v,0)/arr.length*10)/10:null;
+  const acwrRisk=ats.filter(at=>{const v=_acwrAt(at.id,weekEnd);return v!==null&&(v>1.5||v<0.8);});
+  const monVals=ats.map(at=>_monotoniaStrain(at.id,weekEnd).monotonia).filter(v=>v!==null&&v!==undefined);
+  return {ats,wellAvg:avg(wellVals),pseAvg:avg(pseVals),uaAvg:avg(uaVals),
+    uaTotal:uaVals.length?Math.round(uaVals.reduce((s,v)=>s+v,0)):null,
+    acwrRisk,monAvg:avg(monVals)};
+}
+// Resumo de UMA Unidade de Treino para a linha da tabela do relatório —
+// reaproveita _trAnaliseCompute/_trDestaques (mesmos números já usados na
+// Análise da Sessão dessa UT), não recalcula PSE/wellness/ACWR de outra forma.
+function _mcTrSummaryRow(tr){
+  const {rows}=_trAnaliseCompute(tr);
+  const pseVals=rows.filter(r=>r.pse).map(r=>+r.pse.pse||0);
+  const pseAvg=pseVals.length?Math.round(pseVals.reduce((s,v)=>s+v,0)/pseVals.length*10)/10:null;
+  const uaVals=rows.filter(r=>r.pse).map(r=>+r.pse.ua||0);
+  const uaAvg=uaVals.length?Math.round(uaVals.reduce((s,v)=>s+v,0)/uaVals.length):null;
+  const presentes=rows.filter(r=>r.att&&r.att.status==='treino').length;
+  const destaque=_trDestaques(rows)[0]||null;
+  return {tr,pseAvg,uaAvg,presentes,total:rows.length,destaque};
+}
+// Texto de conclusão da semana (3-5 linhas), gerado a partir dos números já
+// calculados acima.
+function _mcConclusaoTxt(macro,mc,squad,uts,game,gameDate){
+  const lines=[];
+  const treinosN=uts.length;
+  lines.push(`Semana com ${treinosN} unidade${treinosN!==1?'s':''} de treino registada${treinosN!==1?'s':''}${macro?` na fase "${escHtml(macro.name)}"`:''}${mc.objective?`, com objetivo de "${escHtml(mc.objective)}"`:''}.`);
+  if(squad.pseAvg!=null||squad.wellAvg!=null){
+    lines.push(`PSE médio da semana: ${squad.pseAvg??'—'}/10${squad.uaAvg!=null?`, UA médio: ${squad.uaAvg}`:''}${squad.wellAvg!=null?` · Wellness médio: ${squad.wellAvg}`:''}.`);
+  }
+  if(squad.acwrRisk.length)lines.push(`⚠️ ${squad.acwrRisk.length} atleta${squad.acwrRisk.length>1?'s':''} terminou${squad.acwrRisk.length>1?'ram':''} a semana em zona de risco de ACWR: ${squad.acwrRisk.map(a=>escHtml(_shortName(a))).join(', ')}.`);
+  if(game){
+    const res=game.g1!=null&&game.g2!=null?`${game.g1}–${game.g2}`:'—';
+    lines.push(`Jogo da semana: ${escHtml(game.opp||'?')} (${res})${game.postGameNotes?' — ver notas pós-jogo.':'.'}`);
+  }else if(gameDate){
+    lines.push(`Jogo identificado para ${fmtDate(gameDate)}, ainda sem registo de resultado.`);
+  }else{
+    lines.push('Semana sem jogo identificado no Planeamento.');
+  }
+  return lines;
+}
+function _mcAnaliseReportHtml(){
+  const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const weekDates=Array.from({length:7},(_,i)=>addDaysStr(_mcWeek,i));
+  const weekEnd=weekDates[6];
+  const mc=APP.microcycles.find(m=>m.week===_mcWeek&&m.teamId===_mcTeam)||{objective:'',dayTypes:{}};
+  const macro=_macroForWeek(_mcWeek,weekEnd,_mcTeam);
+  const gameDate=_mcAnchorGameDate(weekDates,_mcTeam);
+  const team=APP.teams.find(t=>t.id===_mcTeam);
+  const club=APP.config.clubName||'Equipa';
+
+  // 1) Grelha da semana (tipologia real de cada dia, já resolvida pelo Microciclo)
+  const gridRows=weekDates.map((dt,i)=>{
+    const info=_mcResolveDayType(mc,dt,gameDate);
+    const label=info.isCustom?(info.customLabel||'Personalizado'):(MC_TYPE_LABELS[info.resolvedTypeId]||info.resolvedTypeId);
+    const color=info.isCustom?'#6b46c1':(MC_TYPE_COLORS[info.resolvedTypeId]||'#5a6582');
+    const dayEvs=(APP.schedule||[]).filter(e=>e.date===dt&&e.teamId===_mcTeam);
+    const dur=dayEvs.reduce((s,e)=>s+(+e.dur||0),0);
+    return `<tr><td style="border-left:4px solid ${color};font-weight:700">${days[i]} ${fmtDateShort(dt)}</td>
+      <td>${escHtml(label)}</td>
+      <td style="text-align:center">${dur?dur+' min':'—'}</td>
+      <td>${dayEvs.map(e=>e.type).join(', ')||'—'}</td></tr>`;
+  }).join('');
+
+  // 2) Unidades de Treino da semana (reaproveita a Análise da Sessão de cada uma)
+  const uts=_mcWeekTrainingUnits(weekDates,_mcTeam);
+  const utRows=uts.map(tr=>{
+    const s=_mcTrSummaryRow(tr);
+    return `<tr><td>${fmtDate(tr.date)}</td><td>${escHtml(tr.title||'Unidade de Treino')}</td>
+      <td style="text-align:center">${s.pseAvg??'—'}</td>
+      <td style="text-align:center">${s.uaAvg??'—'}</td>
+      <td style="text-align:center">${s.presentes}/${s.total}</td>
+      <td style="font-size:8pt">${s.destaque?escHtml(s.destaque.leitura.txt):'—'}</td></tr>`;
+  }).join('');
+
+  // 3) Wellness/PSE/ACWR da equipa nesta semana
+  const squad=_mcWeekSquadStats(weekDates,_mcTeam);
+
+  // 4) Jogo da semana — resumo (o detalhe tático completo fica no Relatório
+  // Completo do Jogo já existente em Jogos → Exportar).
+  const game=_mcWeekGameRecord(weekDates,_mcTeam);
+  const gameHtml=game?`
+    <p><b>Adversário:</b> ${escHtml(game.opp||'?')}${game.loc?' — '+escHtml(game.loc):''}</p>
+    <p><b>Resultado:</b> ${escHtml(club)} ${game.g1!=null&&game.g2!=null?`${game.g1} – ${game.g2}`:'—'} ${escHtml(game.opp||'')}</p>
+    ${game.preGameNotes?`<p><b>Notas pré-jogo:</b> ${escHtml(game.preGameNotes)}</p>`:''}
+    ${game.postGameNotes?`<p><b>Notas pós-jogo:</b> ${escHtml(game.postGameNotes)}</p>`:''}
+    <p style="font-size:8pt;color:#888">Detalhe tático completo (estatísticas individuais, mapas de golo/remate, mapas de calor, linha do tempo) disponível em Jogos → Exportar → Relatório Completo.</p>
+  `:(gameDate?`<p>Jogo identificado para ${fmtDate(gameDate)}, ainda sem resultado registado.</p>`:`<p>Sem jogo identificado no Planeamento para esta semana.</p>`);
+
+  // 5) Conclusão automática
+  const conclusao=_mcConclusaoTxt(macro,mc,squad,uts,game,gameDate);
+
+  return `
+    <div class="pr-title">Relatório do Microciclo — ${escHtml(team?team.name:'')} — Semana ${fmtDate(_mcWeek)} a ${fmtDate(weekEnd)}</div>
+    ${mc.objective?`<p style="font-size:9pt;margin-bottom:4px"><b>Objetivo do Microciclo:</b> ${escHtml(mc.objective)}</p>`:''}
+    <p style="font-size:9pt;margin-bottom:10px"><b>Fase da Época:</b> ${macro?escHtml(macro.name):'—'}</p>
+
+    <h3>📅 Semana — tipologia real por dia</h3>
+    <table><thead><tr><th>Dia</th><th>Tipologia</th><th>Duração</th><th>Eventos do Planeamento</th></tr></thead>
+    <tbody>${gridRows}</tbody></table>
+
+    <h3>🗒️ Unidades de Treino realizadas</h3>
+    ${uts.length?`<table><thead><tr><th>Data</th><th>Unidade</th><th>PSE médio</th><th>UA médio</th><th>Presentes</th><th>Destaque</th></tr></thead>
+    <tbody>${utRows}</tbody></table>`:`<p style="color:#666;font-size:9pt">Sem Unidades de Treino registadas nesta semana.</p>`}
+
+    <h3>💊 Wellness, PSE e carga da equipa (semana)</h3>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-v">${squad.wellAvg??'—'}</div><div class="kpi-l">Wellness médio</div></div>
+      <div class="kpi"><div class="kpi-v">${squad.pseAvg??'—'}</div><div class="kpi-l">PSE médio /10</div></div>
+      <div class="kpi"><div class="kpi-v">${squad.uaAvg??'—'}</div><div class="kpi-l">UA médio</div></div>
+      <div class="kpi"><div class="kpi-v">${squad.uaTotal??'—'}</div><div class="kpi-l">UA total semana</div></div>
+      <div class="kpi"><div class="kpi-v">${squad.acwrRisk.length}</div><div class="kpi-l">Em risco ACWR</div></div>
+    </div>
+    ${squad.acwrRisk.length?`<p style="font-size:9pt">Atletas em zona de risco de ACWR (fim da semana): ${squad.acwrRisk.map(a=>escHtml(_shortName(a))).join(', ')}.</p>`:''}
+
+    <h3>⚽ Jogo da semana</h3>
+    ${gameHtml}
+
+    <h3>✅ Conclusão da semana</h3>
+    ${conclusao.map(l=>`<p style="font-size:9.5pt;margin:3px 0">${l}</p>`).join('')}
+    <p style="font-size:7.5pt;color:#999;margin-top:10px">Relatório de apoio à análise do microciclo — compila dados já registados na app (Planeamento, Unidades de Treino, Wellness, PSE e Jogos); não substitui a avaliação da equipa técnica.</p>
+  `;
+}
+function exportMicrocicloAnaliseReport(){
+  const team=APP.teams.find(t=>t.id===_mcTeam);
+  const weekDates=Array.from({length:7},(_,i)=>addDaysStr(_mcWeek,i));
+  _printWin(`Relatório do Microciclo — ${team?team.name:''} — Semana ${fmtDateShort(_mcWeek)} a ${fmtDateShort(weekDates[6])}`,_mcAnaliseReportHtml(),null,false,true);
 }
 
 // ─── JOGOS ────────────────────────────────────────────────
