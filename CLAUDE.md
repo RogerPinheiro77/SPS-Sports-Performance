@@ -120,3 +120,29 @@ Should I try again? (y/n)` — é inofensivo (contenção de lock do
 OneDrive/antivírus na pasta `.git/objects`), resolve-se com Ctrl+C. Pode
 ser eliminado à partida correndo `git config gc.auto 0` uma vez nesse
 clone (desativa o garbage-collection automático que dispara essa limpeza).
+
+## Atualização (14/09/2026): Claude Code CLI local configurado na "fabrica"
+
+Instalado e confirmado o Claude Code CLI (`npm install -g @anthropic-ai/claude-code`,
+v2.1.270) diretamente no PC "fabrica", a correr nesta mesma pasta do clone
+(`C:\Users\Utilizador\Documents\Claude\Projects\APP COACH RP`). Testado com
+sucesso, a partir dessa CLI local:
+- `git remote -v` — `origin` aponta corretamente para este repositório.
+- `git fetch origin` — sem pedir credenciais.
+- `git push origin main` — autenticação funciona, push chega ao GitHub sem
+  erro (testado com working tree alinhada, "Everything up-to-date").
+
+Isto dá um caminho de push direto que **não depende do `device_bash` nem do
+bloqueio do proxy de git da sandbox cloud** descritos acima — esse
+bloqueio é específico de sessões a correr no ambiente cloud da Anthropic
+(Cowork), não afeta o Claude Code CLI a correr localmente no PC do Roger.
+
+**A partir de agora**: para trabalho de edição de código com necessidade de
+commit/push, o caminho preferido é abrir o Claude Code CLI diretamente
+nesta pasta, no PC "fabrica" (ou no outro PC, depois de instalado da mesma
+forma: `npm install -g @anthropic-ai/claude-code`, depois `claude` dentro
+da pasta do clone). O fluxo de patch (`git format-patch` → `SendUserFile`
+→ `device_commit_files` → `git am`) descrito acima passa a ser só o
+fallback para sessões Cowork/cloud sem esta CLI disponível no momento, ou
+enquanto o bloqueio de `device_bash` (mount Plan9, ver secção acima) não
+for resolvido.
