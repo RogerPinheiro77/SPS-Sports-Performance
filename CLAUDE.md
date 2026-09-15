@@ -173,10 +173,18 @@ coisa, o merge "local ganha por id" faz o dispositivo reescrever esses
 mesmos jogos com a versão antiga que tinha em memória — apagando
 silenciosamente a alteração feita por SQL.
 
-**Ainda por fazer (risco continua a existir):** o `oppLogo` dos 7 jogos
-(emblemas dos adversários, pesquisados manualmente em 08/09) também se
-perdeu neste revert e ainda não foi reposto — a repor quando o Roger
-confirmar que quer isso feito agora. A correção estrutural (mover `games`
+**Atualização (15/09/2026):** o `oppLogo` dos 7 jogos (emblemas dos
+adversários) foi reposto por SQL direto, a pedido do Roger ("trata dos
+emblemas"), reusando os mesmos 6 URLs já conhecidos (5 via Claude in Chrome
+em zerozero.pt — busca correta é `https://www.zerozero.pt/pesquisa?search_txt=NOME`,
+não `pesquisa.php?search=`; FC Ferreirense já vinha da memória) e encontrando
+o 7º (Rio Ave FC - SAD "B") do mesmo modo — emblema do clube principal
+(`https://cdn-img.staticzz.com/img/logos/equipas/31_imgbank_1682584600.png`),
+confirmado via a página da equipa feminina em zerozero.pt. Os 7 jogos da 1ª
+Fase têm agora `opp`/`loc`/`ha`/`oppLogo` completos e verificados por SQL.
+
+**Ainda por fazer (risco estrutural continua a existir):** o risco de
+`clubs.meta.games` reverter sozinho persiste — a correção estrutural (mover `games`
 para tabela dedicada, mesmo padrão já usado para `athletes`/`staff_users`,
 opção "(b)" já listada em `feedback_sps_full_meta_blob_overwrite_risk`)
 continua por fazer — é a única forma de eliminar este risco na raiz para
