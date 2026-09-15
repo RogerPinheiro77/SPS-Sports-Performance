@@ -1146,6 +1146,22 @@ function fmtDateShort(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');retu
 function fmtHora(iso){if(!iso)return'—';const dt=new Date(iso);if(isNaN(dt))return'—';return dt.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});}
 function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/(86400000));}
 function ageYears(dob){if(!dob)return'';const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;}
+// Aniversário — compara só mês/dia (não o ano) da data de nascimento com hoje.
+// Split manual da string (não new Date(dob)) para evitar o mesmo tipo de bug de
+// fuso horário já visto noutras comparações de data neste ficheiro (ver
+// _atDiaJogoWindowActive). Em anos não bissextos, quem nasceu a 29 de fevereiro
+// é celebrada a 1 de março (nunca fica sem o dia).
+function _isBirthdayToday(dob){
+  if(!dob)return false;
+  const p=String(dob).split('-').map(Number);
+  const bMonth=p[1]-1,bDay=p[2];
+  if(!Number.isFinite(bMonth)||!Number.isFinite(bDay))return false;
+  const n=new Date();
+  const leap=y=>(y%4===0&&y%100!==0)||y%400===0;
+  let m=bMonth,d=bDay;
+  if(m===1&&d===29&&!leap(n.getFullYear())){m=2;d=1;}
+  return n.getMonth()===m&&n.getDate()===d;
+}
 function initials(name){return name?name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase():'?';}
 // Alcunha vs nome completo — a modalidade identifica as atletas mais pela alcunha do que
 // pelo nome próprio (ex: "Barbara Martins" é conhecida por "Lisa"). Duas funções centrais
@@ -1437,7 +1453,7 @@ function renderDashboard(){
       <td style="padding:5px 8px">
         <div style="display:flex;align-items:center;gap:8px">
           <div class="at-av" style="width:28px;height:28px;font-size:10px;flex-shrink:0">${at.photo?`<img src="${at.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:initials(at.name)}</div>
-          <div title="${escHtml(at.name)}"><div style="font-size:12px;font-weight:700;white-space:nowrap">${escHtml(_shortName(at))}</div><div style="font-size:10px;color:var(--t3)">${at.pos||'—'} | ${ageYears(at.dob)||'?'}</div></div>
+          <div title="${escHtml(at.name)}"><div style="font-size:12px;font-weight:700;white-space:nowrap">${escHtml(_shortName(at))}${_isBirthdayToday(at.dob)?' 🎂':''}</div><div style="font-size:10px;color:var(--t3)">${at.pos||'—'} | ${ageYears(at.dob)||'?'}</div></div>
         </div>
       </td>
       <td style="padding:5px 8px;text-align:center;white-space:nowrap"><span style="font-size:10px;font-weight:700;color:${stC}">● ${stLbl}</span></td>
@@ -1478,6 +1494,12 @@ function renderDashboard(){
 
   // Alerts
   const alts=[];
+  // Aniversários de hoje — verificados em TODO o plantel (todas as equipas), não só
+  // mainAts/selTeam, para não passar em claro quando o Dashboard está aberto noutra
+  // equipa; pedido do Roger, 15/09/2026, junto com o emoji 🎂 na Estado do Plantel.
+  (APP.athletes||[]).filter(a=>_isBirthdayToday(a.dob)).forEach(a=>{
+    alts.unshift(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg" style="font-size:9px;background:#f472b6;color:#fff">🎂</span> <strong>${escHtml(_shortName(a))}</strong> faz anos hoje!</span>`);
+  });
   if(highAcwr)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-r" style="font-size:9px">${highAcwr}</span> Atletas com carga elevada</span>`);
   const lowSlp=wkW.filter(w=>+w.sleep<=2).length;if(lowSlp)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-y" style="font-size:9px">${lowSlp}</span> Atletas com sono abaixo do ideal</span>`);
   const hiPain=wkW.filter(w=>+w.pain>=7).length;if(hiPain)alts.push(`<span style="display:flex;align-items:center;gap:4px"><span class="bdg bg-y" style="font-size:9px">${hiPain}</span> Atletas com dor reportada</span>`);
@@ -14131,6 +14153,11 @@ function renderAtHome(){
       <div style="font-size:10px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
     </div>
   </div>
+  ${_isBirthdayToday(at.dob)?`<div style="background:linear-gradient(135deg,rgba(244,114,182,.22),rgba(251,191,36,.22));border:1.5px solid rgba(244,114,182,.55);border-radius:14px;padding:16px;margin-bottom:14px;text-align:center">
+    <div style="font-size:30px;line-height:1;margin-bottom:6px">🎉🎂🎉</div>
+    <div style="font-size:16px;font-weight:900">Parabéns, ${escHtml(at.name.split(' ')[0])}!</div>
+    <div style="font-size:12px;color:var(--t2);margin-top:3px">Fazes ${ageYears(at.dob)} anos hoje. Toda a equipa técnica deseja-te um grande dia! 💚</div>
+  </div>`:''}
   ${inj?`<div class="al al-r" style="margin-bottom:10px"><i class="ti ti-stethoscope" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px">${cards.join('')}</div>
   ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct"><i class="ti ti-calendar-event" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd);cursor:pointer" onclick="atOpenEventDetail('${e.id}')"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}
