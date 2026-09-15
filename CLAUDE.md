@@ -188,8 +188,84 @@ Fase têm agora `opp`/`loc`/`ha`/`oppLogo` completos e verificados por SQL.
 para tabela dedicada, mesmo padrão já usado para `athletes`/`staff_users`,
 opção "(b)" já listada em `feedback_sps_full_meta_blob_overwrite_risk`)
 continua por fazer — é a única forma de eliminar este risco na raiz para
-`games` (e os outros campos do blob `meta`: `evaluations`, `trainings`,
-`convocatorias`, `scouting`, `microcycles`, `sessions`).
+`games` (e os outros campos do blob `meta`: `evaluations`, `convocatorias`,
+`scouting`, `microcycles`, `sessions`). `trainings` já saiu do blob — ver
+incidente #2 abaixo.
+
+## Incidente #2 confirmado a 15/09/2026: `clubs.meta.trainings` (Unidades de Treino) dessincronizado do Planeamento
+
+O Roger reportou "as unidades de treino deixaram outra vez de coincidir com
+o planeamento" e pediu um check profundo. Confirmado por SQL, mesma classe
+de bug do incidente #1 acima, mas em forma **parcial** (não um revert total):
+
+- 121 das 135 Unidades de Treino tinham o campo `title` (ex. "UT57") **um
+  número acima** do que o evento ligado (`eventId`) mostra em
+  `schedule_events`/Planeamento (ex. treino ligado ao evento "UT56"). Delta
+  constante de +1 em todos os 121 casos (`mc1t_ut16` a `mc1t_ut136`).
+- `mc1t_ut11` estava em falta do array (não é perda de dados real — o
+  conteúdo dessa UT existe, só ficou com o id `mc1t_ut12` e título "UT11").
+- `mc1t_ut16` tinha também a própria `date` errada (17/09 em vez do 16/09
+  real do evento ligado).
+- Ao verificar "outras partes" (pedido do Roger): o mesmo tipo de
+  desalinhamento existia em `clubs.meta.games` — os 7 jogos reais da 1ª
+  Fase sem `time` preenchido (ficou a dever-se esse campo na reposição do
+  incidente #1), e as 16 datas placeholder da 2ª Fase (ainda por sortear)
+  desalinhadas da sua contraparte em `schedule_events`. Mais grave: o jogo
+  particular real contra o **Leixões Sport Club** (`mtfqrhbhd9lm`) tem
+  data/hora diferentes entre `clubs.meta.games` (domingo 20/09 17:00) e
+  `schedule_events` (sábado 19/09 14:00) — **por confirmar com o Roger qual
+  está certo antes de tocar**, ainda não foi mexido.
+
+**Causa mais provável:** a mesma classe do incidente #1 — alguém apagou uma
+Unidade de Treino antiga e as seguintes foram renumeradas uma a uma; a meio
+desse processo, um separador desatualizado fez `saveData()` e reescreveu o
+blob `meta` inteiro com a versão antiga de `APP.trainings` que tinha em
+memória — só as primeiras ~4 UTs já tinham chegado à cloud antes disso, o
+resto ficou preso na numeração antiga. `schedule_events`, por ser tabela
+dedicada com upsert por linha, nunca é afetada por este tipo de
+sobrescrita — por isso ficou sempre com a numeração certa e serviu de novo
+como fonte fiável para a reposição.
+
+**Reposto (15/09/2026):** SQL direto sincronizando `title`+`date` de
+`clubs.meta.trainings`, e `date`+`time` de `clubs.meta.games` (exceto o
+jogo do Leixões), a partir de `schedule_events`. Confirmado por SQL: 0
+divergências entre as 135 Unidades de Treino e os respetivos eventos.
+
+**Correção estrutural (feita no mesmo dia, a pedido explícito do Roger —
+"avança"):** `trainings` saiu do blob `meta` e passou a ter tabela
+dedicada própria (`public.trainings`, RLS `anon_all` igual às outras),
+exatamente o mesmo padrão já usado para `athletes`/`staff_users`/
+`schedule_events`/`exercises`/`gym_sheets`:
+- Tabela criada e os 135 registos existentes migrados por SQL a partir do
+  `clubs.meta.trainings` antigo (já corrigido nesse momento).
+- `pullCloud()`: nova entrada no array `pulls` a puxar de `trainings`;
+  deixou de ler `m.trainings` do blob `meta`.
+- `pushAppMeta()`: `trainings` removido do objeto `meta` construído (deixa
+  de ser enviado) e do `_localSnap` da fusão de staleness — como bónus, os
+  esquemas (`drawing`) dos exercícios deixam de ser cortados para caber no
+  blob (cada UT é agora a sua própria linha, sem limite partilhado).
+- `_CLOUD_TABLE_SCHEMA`: nova entrada `trainings` com as colunas/renomeações
+  (camelCase → snake_case).
+- Todos os pontos que gravam uma Unidade de Treino passaram a chamar
+  também `cloudUpsert('trainings', tr)`: criar (`openTrainingUnit`,
+  `_createNewUT`), guardar (`saveTreinoPatch`), importar PDF
+  (`handleImportTreinoPDF`), e os editores de exercício (adicionar/editar/
+  apagar exercício, esquema/drawing, link de vídeo). `deleteTreino` passou
+  a `async` e apaga diretamente na cloud (mesmo padrão de `deleteUser`),
+  já não precisa de `_markDeleted`. `forceSyncAll()` (sincronização
+  forçada) ganhou também `upsertAll('trainings', APP.trainings)`.
+- SW bump para `sps-v158` (a mudança não é só de dados, é lógica nova de
+  sync — forçar atualização em todos os dispositivos).
+- Testado: `node --check` ao ficheiro inteiro, teste isolado da nova
+  entrada de `_CLOUD_TABLE_SCHEMA` (round-trip camelCase→snake_case→
+  camelCase incluindo `exercises[].drawing`), e um upsert/select/delete
+  real contra a tabela nova na Supabase antes de publicar.
+
+**Ainda por fazer:** o mesmo continua pendente para `games` — é o próximo
+candidato mais urgente a sair do blob (grande volume de escrita: Gameday
+ao vivo, convocatórias, resultados). `evaluations`/`convocatorias`/
+`scouting`/`microcycles`/`sessions` continuam no blob, risco menor por
+escreverem com menos frequência.
 
 **Nota sobre o "link de calendário":** o preenchimento de adversário/local a
 partir do link da FPF (`resultados.fpf.pt/Competition/Details`) **não é

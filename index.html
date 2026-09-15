@@ -7715,6 +7715,7 @@ function openTrainingUnit(eventId,eventDate){
         horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]},
         teamId:ev?.teamId||'T1',guestIds:[...(ev?.guestIds||[])]};
     APP.trainings.push(tr);saveData();
+    if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);
   }
   _trId=tr.id;_trView='detail';_trExTab='aquecimento';
   navTo('treinos');
@@ -7773,6 +7774,7 @@ function _createNewUT(){
   if(!APP.trainings)APP.trainings=[];
   const tr={id:_TUID(),eventId:null,date:today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]},teamId:'T1',guestIds:[]};
   APP.trainings.push(tr);saveData();
+  if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);
   _trId=tr.id;_trView='detail';_trExTab='aquecimento';renderTreinos();
 }
 
@@ -7788,12 +7790,16 @@ function _autoHoraFim(){
   const total=((h*60+m+dur)%1440+1440)%1440;
   hf.value=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
 }
-function deleteTreino(id){
+async function deleteTreino(id){
   if(!confirm('Apagar esta unidade de treino?'))return;
-  _markDeleted('trainings',id);
   APP.trainings=APP.trainings.filter(t=>t.id!==id);
   if(_trId===id){_trId=null;_trView='list';}
-  saveData();toast('Unidade apagada');renderTreinos();
+  saveData();
+  // Tabela dedicada (ver CLAUDE.md, incidente #2) — eliminação direta na cloud,
+  // mesmo padrão de deleteUser/staff_users. Já não precisa de _markDeleted:
+  // 'trainings' saiu do merge de staleness em pushAppMeta (não está no _localSnap).
+  if(_sync&&_supa&&_cid){try{await _supa.from('trainings').delete().eq('id',id);}catch(err){_warnSyncFailure('trainings (apagar)',err);}}
+  toast('Unidade apagada');renderTreinos();
 }
 
 function _getTr(){return APP.trainings.find(t=>t.id===_trId);}
@@ -8387,7 +8393,7 @@ function handleExImgUpload(trId,phase,idx,input){
       const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
       if(!tr.exercises[phase])tr.exercises[phase]=[];
       if(tr.exercises[phase][idx])tr.exercises[phase][idx].drawing=compressed;
-      saveData();toast('Imagem importada ✓');_renderTrDetail();
+      saveData();if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);toast('Imagem importada ✓');_renderTrDetail();
     };
     img.src=e.target.result;
   };
@@ -8400,7 +8406,7 @@ function setVideoUrl(trId,phase,idx){
   const url=prompt('URL do vídeo (YouTube, Google Drive, Vimeo):',ex.videoUrl||'');
   if(url===null)return;
   ex.videoUrl=url.trim();
-  saveData();toast('Link de vídeo guardado ✓');_renderTrDetail();
+  saveData();if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);toast('Link de vídeo guardado ✓');_renderTrDetail();
 }
 
 function addExercicioUT(trId,phase){
@@ -8453,7 +8459,7 @@ function deleteExercicioUT(trId,phase,idx){
   if(!confirm('Apagar este exercício?'))return;
   const tr=APP.trainings.find(t=>t.id===trId);if(!tr)return;
   tr.exercises[phase].splice(idx,1);
-  saveData();toast('Exercício apagado');_renderTrDetail();
+  saveData();if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);toast('Exercício apagado');_renderTrDetail();
 }
 
 function _openExModal(trId,phase,idx,ex){
@@ -8499,7 +8505,7 @@ function _saveExModal(trId,phase,idx){
   window._pendingExDrawing='';
   if(idx<0)tr.exercises[phase].push(ex);
   else tr.exercises[phase][idx]=ex;
-  saveData();closeMod();toast(idx<0?'Exercício adicionado ✓':'Exercício actualizado ✓');_renderTrDetail();
+  saveData();if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);closeMod();toast(idx<0?'Exercício adicionado ✓':'Exercício actualizado ✓');_renderTrDetail();
 }
 
 async function saveTreinoPatch(trId){
@@ -8562,7 +8568,9 @@ async function saveTreinoPatch(trId){
       }
     }
   }
-  saveData();toast('Unidade de Treino guardada ✓');
+  saveData();
+  if(_sync&&_supa&&_cid)await cloudUpsert('trainings',tr);
+  toast('Unidade de Treino guardada ✓');
 }
 
 function exportTreinoPDF(trId){
@@ -8684,6 +8692,7 @@ async function handleImportTreinoPDF(input,trId){
       if(tr){
         tr.pdfImported=true;tr.pdfImportedName=dlName;tr.pdfImportedAt=today();
         saveData();
+        if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);
         if(_trId===trId&&_trView==='detail')_renderTrDetail();
       }
     }
@@ -15184,6 +15193,7 @@ async function forceSyncAll(){
     await upsertAll('physio_appointments',APP.fisioAppointments);
     await upsertAll('schedule_events',APP.schedule);
     await upsertAll('training_plans',APP.trainingPlans);
+    await upsertAll('trainings',APP.trainings);
     await pushAppMeta();
     toast('✅ Sincronização completa!');
   }catch(e){console.error(e);toast('Erro na sincronização: '+e.message,'err');}
@@ -15383,7 +15393,14 @@ async function pullCloud(){
       // feedback_sps_biblioteca_exercicios_wipe). Fora do meta blob, um pushAppMeta()
       // de um separador desatualizado nunca mais consegue tocar nestes dados.
       ['exercises','exercises',(d)=>APP.exercises=d.map(r=>({id:r.id,cat:r.cat,name:r.name,muscles:r.muscles,diff:r.diff,equip:r.equip,desc:r.desc,img:r.img}))],
-      ['gym_sheets','gymSheets',(d)=>APP.gymSheets=d.map(r=>({id:r.id,title:r.title,phase:r.phase,notes:r.notes,exercises:r.exercises||[],createdAt:r.created_at}))]
+      ['gym_sheets','gymSheets',(d)=>APP.gymSheets=d.map(r=>({id:r.id,title:r.title,phase:r.phase,notes:r.notes,exercises:r.exercises||[],createdAt:r.created_at}))],
+      // Unidades de Treino: tabela dedicada própria desde 15/09/2026 (antes viviam em
+      // clubs.meta.trainings e dessincronizavam do Planeamento sempre que uma edição
+      // em lote coincidia com um dispositivo desatualizado a gravar — ver CLAUDE.md
+      // do projeto, incidente #2). Mesmo padrão de athletes/staff_users/
+      // schedule_events: upsert linha a linha, imune ao overwrite do blob `meta`
+      // inteiro.
+      ['trainings','trainings',(d)=>APP.trainings=d.map(r=>({...r,eventId:r.event_id,localConcentracao:r.local_concentracao,horaConcentracao:r.hora_concentracao,horaInicio:r.hora_inicio,horaFim:r.hora_fim,teamId:r.team_id,guestIds:r.guest_ids||[],exercises:r.exercises||{aquecimento:[],principal:[],jogo:[],retorno:[]},pdfImported:r.pdf_imported,pdfImportedAt:r.pdf_imported_at,pdfImportedName:r.pdf_imported_name}))]
     ];
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
@@ -15425,7 +15442,12 @@ async function pullCloud(){
       if(m.evaluations)APP.evaluations=m.evaluations;
       if(m.evalPeriods)APP.evalPeriods=m.evalPeriods;
       if(m.evalResponses){APP.evalResponses=m.evalResponses;console.log('[pullCloud] evalResponses=',m.evalResponses.length);}
-      if(m.trainings)APP.trainings=m.trainings;
+      // NOTA: trainings NÃO é lido daqui de propósito (15/09/2026) — tem tabela
+      // dedicada própria (ver array `pulls` acima), mesmo padrão de 'users'
+      // (feedback_sps_full_meta_blob_overwrite_risk). pushAppMeta() deixou de enviar
+      // 'trainings' no payload do blob — este campo só continua a aparecer em clubs
+      // já sincronizados antes desta migração, como resíduo morto que nunca mais é
+      // escrito nem lido. Ver CLAUDE.md, incidente #2.
       // NOTA: schedule NÃO é lido daqui de propósito — schedule_events (tabela dedicada,
       // já puxada acima) é a fonte de verdade. meta.schedule é só um backup legado escrito
       // por pushAppMeta; deixá-lo sobrepor aqui fazia o pull reverter para dados desatualizados
@@ -15514,11 +15536,12 @@ async function pushAppMeta(_pushRetry){
         // meter-lhe aqui a lógica "registo inteiro local ganha" desfaria essa fusão.
         const _localSnap={
           games:APP.games||[], evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
-          evalResponses:APP.evalResponses||[], trainings:APP.trainings||[],
+          evalResponses:APP.evalResponses||[],
           scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[],
           macrocycles:APP.macrocycles||[], mcTemplates:APP.mcTemplates||[]
-          // exercises/gymSheets removidos daqui (01/09/2026) — já não fazem parte
-          // do meta blob, têm tabelas dedicadas com o seu próprio cloudUpsert.
+          // exercises/gymSheets removidos daqui (01/09/2026), trainings removido daqui
+          // (15/09/2026) — já não fazem parte do meta blob, têm tabelas dedicadas com
+          // o seu próprio cloudUpsert. Ver CLAUDE.md, incidente #2.
         };
         const _convSnap=APP.convocatorias;
         await pullCloud();
@@ -15574,19 +15597,16 @@ async function pushAppMeta(_pushRetry){
       evaluations:APP.evaluations||[],
       evalPeriods:APP.evalPeriods||[],
       evalResponses:APP.evalResponses||[],
-      trainings:(APP.trainings||[]).map(t=>{
-        const c={...t};
-        // Strip exercise drawings to save space — importante: construir um objeto `exercises`
-        // NOVO (não mutar c.exercises in-place), porque `{...t}` é cópia rasa e c.exercises
-        // ainda aponta para o MESMO objeto que t.exercises (o array vivo em APP.trainings).
-        // Mutar c.exercises[k] apagava o campo 'drawing' também nos dados locais reais.
-        if(c.exercises){
-          const exCopy={};
-          Object.keys(c.exercises).forEach(k=>{exCopy[k]=(c.exercises[k]||[]).map(e=>{const e2={...e};delete e2.drawing;return e2;});});
-          c.exercises=exCopy;
-        }
-        return c;
-      }),
+      // 'trainings' deixou de fazer parte deste blob a partir de 15/09/2026 — tem
+      // tabela dedicada própria ('trainings', upsert linha a linha via cloudUpsert
+      // em cada ponto de gravação da Unidade de Treino), mesmo padrão de 'users'
+      // (ver feedback_sps_full_meta_blob_overwrite_risk) e 'exercises'/'gymSheets'.
+      // Motivo: 121 das 135 Unidades de Treino ficaram com o número (título)
+      // dessincronizado do Planeamento porque uma renumeração em lote foi
+      // parcialmente sobrescrita por um dispositivo desatualizado a gravar o blob
+      // inteiro — ver CLAUDE.md, incidente #2. Como bónus, os esquemas (drawing)
+      // dos exercícios deixam de precisar de ser cortados para caber no blob —
+      // cada Unidade de Treino é agora a sua própria linha, sem limite partilhado.
       convocatorias:APP.convocatorias||[],
       schedule:APP.schedule||[],
       scouting:APP.scouting||[],
@@ -15672,7 +15692,12 @@ const _CLOUD_TABLE_SCHEMA={
   // linha por exercício/ficha, mesmo padrão de cloudUpsert por id que todas as
   // outras tabelas aqui já usam, em vez de gravação do array inteiro.
   exercises:{cols:['id','cat','name','muscles','diff','equip','desc','img'],rename:{}},
-  gym_sheets:{cols:['id','title','phase','notes','exercises','created_at'],rename:{createdAt:'created_at'}}
+  gym_sheets:{cols:['id','title','phase','notes','exercises','created_at'],rename:{createdAt:'created_at'}},
+  // Unidades de Treino: tabela dedicada desde 15/09/2026 (ver notas em pullCloud/
+  // pushAppMeta e CLAUDE.md, incidente #2). Uma linha por UT, upsert por id em cada
+  // ponto de gravação — 'exercises' vai completo (com 'drawing'), já não é cortado.
+  trainings:{cols:['id','event_id','date','title','objetivo','local','local_concentracao','hora_concentracao','hora_inicio','hora_fim','duracao','jogadoras','notes','team_id','guest_ids','exercises','pdf_imported','pdf_imported_at','pdf_imported_name'],
+    rename:{eventId:'event_id',localConcentracao:'local_concentracao',horaConcentracao:'hora_concentracao',horaInicio:'hora_inicio',horaFim:'hora_fim',teamId:'team_id',guestIds:'guest_ids',pdfImported:'pdf_imported',pdfImportedAt:'pdf_imported_at',pdfImportedName:'pdf_imported_name'}}
 };
 // Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
 // console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud
