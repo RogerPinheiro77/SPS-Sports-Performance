@@ -14155,7 +14155,7 @@ function renderAtHome(){
   </div>
   ${_isBirthdayToday(at.dob)?`<div style="background:linear-gradient(135deg,rgba(244,114,182,.22),rgba(251,191,36,.22));border:1.5px solid rgba(244,114,182,.55);border-radius:14px;padding:16px;margin-bottom:14px;text-align:center">
     <div style="font-size:30px;line-height:1;margin-bottom:6px">🎉🎂🎉</div>
-    <div style="font-size:16px;font-weight:900">Parabéns, ${escHtml(at.name.split(' ')[0])}!</div>
+    <div style="font-size:16px;font-weight:900">Parabéns, ${escHtml(_shortName(at))}!</div>
     <div style="font-size:12px;color:var(--t2);margin-top:3px">Fazes ${ageYears(at.dob)} anos hoje. Toda a equipa técnica deseja-te um grande dia! 💚</div>
   </div>`:''}
   ${inj?`<div class="al al-r" style="margin-bottom:10px"><i class="ti ti-stethoscope" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}

@@ -146,3 +146,49 @@ da pasta do clone). O fluxo de patch (`git format-patch` → `SendUserFile`
 fallback para sessões Cowork/cloud sem esta CLI disponível no momento, ou
 enquanto o bloqueio de `device_bash` (mount Plan9, ver secção acima) não
 for resolvido.
+
+## Risco recorrente: `clubs.meta.games` (e outros campos do blob `meta`) pode reverter sozinho
+
+**Incidente confirmado a 15/09/2026:** os 7 jogos reais da 1ª Fase (Série B)
+do Campeonato — preenchidos por SQL direto a 08/09/2026 com adversário/local
+reais (ver memória `project_sps_calendario_serie_b_2026_27`) — voltaram a
+aparecer como `"Adversário a sortear"` / local vazio na aba Jogos, e as 3
+jornadas extra (`g_cnf_1_f_j8`/`j9`/`j10`) que tinham sido apagadas
+voltaram a aparecer também. Confirmado por SQL que `schedule_events`
+(Planeamento) manteve sempre os dados corretos — só `clubs.meta.games`
+reverteu. Reposto por SQL direto a partir de `schedule_events` (mesmo
+processo do incidente de 18/08, ver `feedback_sps_meta_staleness_guard` /
+`feedback_sps_full_meta_blob_overwrite_risk` na memória).
+
+**Causa:** é a mesma classe de bug já documentada nesses dois incidentes
+anteriores — `pushAppMeta()` continua a gravar o campo `games` (entre
+outros) como parte do blob `meta` inteiro, e a guarda de staleness (sps-v18)
+faz *merge por id* entre o que está em memória no dispositivo que está a
+gravar e o que vem da cloud. Isso protege bem contra duas sessões da APP a
+escrever ao mesmo tempo, mas **não protege contra uma alteração feita por
+fora da app** (SQL direto, como o preenchimento do calendário): se algum
+separador tiver `APP.games` desatualizado em memória (aberto antes da
+alteração SQL, sem ter feito `pullCloud()` entretanto) e gravar qualquer
+coisa, o merge "local ganha por id" faz o dispositivo reescrever esses
+mesmos jogos com a versão antiga que tinha em memória — apagando
+silenciosamente a alteração feita por SQL.
+
+**Ainda por fazer (risco continua a existir):** o `oppLogo` dos 7 jogos
+(emblemas dos adversários, pesquisados manualmente em 08/09) também se
+perdeu neste revert e ainda não foi reposto — a repor quando o Roger
+confirmar que quer isso feito agora. A correção estrutural (mover `games`
+para tabela dedicada, mesmo padrão já usado para `athletes`/`staff_users`,
+opção "(b)" já listada em `feedback_sps_full_meta_blob_overwrite_risk`)
+continua por fazer — é a única forma de eliminar este risco na raiz para
+`games` (e os outros campos do blob `meta`: `evaluations`, `trainings`,
+`convocatorias`, `scouting`, `microcycles`, `sessions`).
+
+**Nota sobre o "link de calendário":** o preenchimento de adversário/local a
+partir do link da FPF (`resultados.fpf.pt/Competition/Details`) **não é
+automático** — não há nenhum botão/sincronização na app que faça isto
+sozinho (bloqueio de CORS+WAF da FPF a pedidos automáticos, ver
+`project_sps_fpf_calendario_import` na memória). É sempre um processo
+manual: o Roger envia o link/calendário quando sai um sorteio novo, e uma
+sessão do Claude navega lá (Claude in Chrome) e atualiza os Jogos — por
+isso o link em si não tem "bug", o que falhou foi a gravação ficar
+persistida depois de atualizada.
