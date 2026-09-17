@@ -503,3 +503,43 @@ nome, ícone, tipo (Liga/Campeonato, Taça, Particulares), e 2 links opcionais
 evolução futura, se o Roger achar útil mais tarde: mover também o link
 `fpfUrl` de cada Jogo para ficar associado à competição em vez de a cada
 jogo individual — não fez parte deste pedido, por isso não foi mexido.
+
+## sps-v161 (17/09/2026): numeração de Microciclos e Macrociclos, a partir do 1º treino
+
+Pedido do Roger: "consegues identificar numericamente os microciclos e
+macrociclos, a iniciar da data do primeiro treino?". Até aqui, ambos só
+eram identificados por intervalo de datas (ex. "Semana 08/09 — 14/09",
+"Pré-Época — 01/08 a 31/08") — sem nenhum número sequencial.
+
+**Cálculo, sempre derivado (nunca guardado como campo próprio) — mesmo
+espírito de `_macroForWeek`, já existente:**
+- `_firstTrainingDate(teamId)`: primeiro treino real da equipa — o mais
+  antigo de `APP.schedule` cujo `type` está em `MC_TRAINING_EV_TYPES`
+  (`Treino`/`Ativação`/`Recuperação`/`Ginásio`, a mesma lista já usada para
+  decidir se um dia "conta como treino" no resto dos Microciclos).
+- `_microcicloNumFor(weekStart,teamId)`: nº de semanas de calendário
+  (Segunda-Domingo) entre a semana do 1º treino (essa é a nº 1) e a semana
+  pedida. `null` sem treinos ainda registados, ou para uma semana anterior
+  à do 1º treino (não há microciclo antes da época começar).
+- `_macroNumFor(macro,teamId)`: posição cronológica da fase entre as fases
+  da própria equipa, ordenadas por `startDate` — a mesma ordem em que já
+  apareciam na lista/timeline de "Época (Macrociclos)".
+
+**Onde passou a aparecer:** cabeçalho da semana em Microciclos ("Microciclo
+N — Semana ..."), badge da Fase da Época na mesma página ("Macrociclo N —
+Nome da Fase"), lista de fases em "Época (Macrociclos)" ("Macrociclo N —
+Nome"), e todos os exports que já existiam (PDF de Microciclo/Macrociclo,
+Relatório do Microciclo) — sem criar nenhum export novo, só a numeração
+nos títulos/cabeçalhos já existentes.
+
+Como o número é sempre calculado a partir dos dados reais do Planeamento e
+das Fases já configuradas, nunca é preciso corrigir manualmente se um
+treino for movido/apagado ou se uma fase for inserida antes de outra já
+existente — recalcula sozinho na próxima vez que a página é aberta.
+
+SW bump para `sps-v161`. Testado: `node --check` ao ficheiro inteiro; teste
+isolado em Node de `_firstTrainingDate`/`_microcicloNumFor`/`_macroNumFor`
+extraídas do próprio ficheiro, com uma equipa com treinos (1ª semana = nº1,
+semanas seguintes incrementam corretamente, semana anterior ao 1º treino
+dá `null`) e uma equipa sem nenhum treino ainda (`null` em vez de crashar),
+e 3 fases fora de ordem de inserção a ordenar corretamente por `startDate`.
