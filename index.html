@@ -463,6 +463,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-presencas"></div>
       <div class="pg" id="pg-microciclos"></div>
       <div class="pg" id="pg-jogos"></div>
+      <div class="pg" id="pg-competicoes"></div>
       <div class="pg" id="pg-treinos"></div>
       <div class="pg" id="pg-condicao-plantel"></div>
       <div class="pg" id="pg-pse-wellness"></div>
@@ -943,6 +944,7 @@ const ALL_PAGES=[
   {id:'presencas',icon:'✅',label:'Presenças'},
   {id:'microciclos',icon:'🔄',label:'Microciclos'},
   {id:'jogos',icon:'⚽',label:'Jogos'},
+  {id:'competicoes',icon:'🏆',label:'Competições'},
   {id:'treinos',icon:'📋',label:'Unidades de Treino'},
   {id:'formacao',icon:'🌱',label:'Formação'},
   {sec:'Análise'},
@@ -986,8 +988,8 @@ const ROLE_DEFS={
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-dash'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-agenda-geral','nutri-consultas','nutri-dash'],readOnly:false,manageUsers:false},
-  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
-  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos'],readOnly:true,manageUsers:false}
+  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
+  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes'],readOnly:true,manageUsers:false}
 };
 // SPS-Gameday standalone (?gameday=1, sps-v78) — só faz sentido entrar direto no Gameday
 // para cargos que têm acesso a Jogos E podem registar eventos (não os só-consulta, ex.
@@ -1073,7 +1075,7 @@ function _maybeEnterNutriMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1149,7 +1151,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -1737,7 +1739,7 @@ function renderDashboard(){
 
     <!-- Classificação (sps-v147, pedido do Roger) — tabela da competição do próximo
          jogo, resolvida por _seasonBucketFor(nextGame); dados vêm de
-         APP.config.classificacoes, preenchidos em Jogos → Classificação -->
+         APP.config.classificacoes, preenchidos na aba Competições (sps-v160) -->
     <div class="card">
       <div class="ch"><span class="ct">🏆 CLASSIFICAÇÃO</span></div>
       <div class="cb" style="padding:10px 12px">${_dashClassifCardHtml(nextGame)}</div>
@@ -4253,11 +4255,17 @@ function _purgeAthleteRefs(id){
 
 // ─── Tipo de Jogo + Competição (dropdown ligado às competições da época) ──
 const JOGO_TIPOS={oficial:'🏆 Oficial',treino:'🎽 Treino',particular:'🤝 Particular / Amigável'};
-// Competições da época guardam-se como {name,icon} — _compObj normaliza entradas
-// antigas (só string) para o mesmo formato, para nunca partir com dados legados.
+// Competições da época guardam-se como {name,icon,tipo,calendarUrl,resultsUrl} —
+// _compObj normaliza entradas antigas (só string, ou {name,icon} de antes da aba
+// Competições — sps-v160, 17/09/2026) para o mesmo formato, para nunca partir com
+// dados legados nem obrigar a re-configurar competições já criadas.
 const COMP_ICON_PRESETS=['🏆','⚽','🥇','🎯','🏅','🎖️'];
+const COMP_TIPOS={liga:'🏆 Liga / Campeonato',taca:'🥤 Taça',particulares:'🤝 Particulares'};
 let _newCompIcon=COMP_ICON_PRESETS[0];
-function _compObj(c){return typeof c==='string'?{name:c,icon:'🏅'}:c;}
+function _compObj(c){
+  if(typeof c==='string')c={name:c,icon:'🏅'};
+  return {name:c.name,icon:c.icon||'🏅',tipo:c.tipo||'liga',calendarUrl:c.calendarUrl||'',resultsUrl:c.resultsUrl||''};
+}
 function _compList(){return (APP.config.competitions||[]).map(_compObj);}
 function _compIconFor(name){
   if(!name)return '';
@@ -4578,26 +4586,56 @@ function _campImportPreviewHtml(){
   <div class="tw" style="margin-top:10px;max-height:220px;overflow:auto"><table><thead><tr><th>Pos</th><th>Equipa</th><th>J</th><th>V</th><th>E</th><th>D</th><th>GM</th><th>GS</th><th>Pts</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
   <button class="btn btn-g" style="margin-top:8px" onclick="applyCampImport()">💾 Guardar Classificação</button>`;
 }
-// Um card por competição (APP.config.competitions), com a tabela completa se já
-// houver dados importados, ou estado vazio + import se ainda não. Substitui o
-// antigo card único "Campeonato" (sps-v133, só guardava a linha própria) — agora
-// cobre qualquer competição, e alimenta também o card do Dashboard (sps-v147).
+// Jogos associados a uma competição — mesma correspondência por nome/prefixo já
+// usada em _jogoIcon() (g.comp costuma ser "Nome da Competição — Fase — Jornada X"),
+// para a aba Competições poder listar os jogos de cada uma sem duplicar nenhum dado.
+function _compGamesFor(name){
+  return (APP.games||[]).filter(g=>g.comp&&(g.comp===name||g.comp.startsWith(name+' —')||g.comp.startsWith(name+' -')))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+}
+// Um card por competição (APP.config.competitions, sps-v160 17/09/2026): cabeçalho
+// com tipo + links de acesso (Calendário/Resultados, pedido do Roger) e ações de
+// editar/remover, classificação completa se já houver dados importados (ou estado
+// vazio + import), e a lista de Jogos associados. Substitui o antigo card só de
+// classificação (sps-v147/133) — agora é o registo completo da competição, não só
+// a tabela; alimenta também o card do Dashboard (_dashClassifCardHtml, inalterado).
 function _classifCompCardHtml(comp){
   const data=(APP.config.classificacoes||{})[comp.name];
-  if(!data){
-    return `<div class="card" style="margin-bottom:14px">
-      <div class="ch"><span class="ct">${comp.icon} ${escHtml(comp.name)}</span></div>
-      <div class="cb"><div class="empty" style="padding:16px"><div class="ei">🏆</div><p>Sem dados da classificação ainda</p><div class="esub">Importa da FPF para ver a tabela</div></div></div>
-    </div>`;
-  }
-  const rowsHtml=data.rows.map(r=>`<tr style="${r.equipa===data.ownEquipa?'font-weight:800;background:rgba(74,222,128,.08)':''}">
-    <td>${r.pos??'—'}</td><td>${escHtml(r.equipa)}</td><td style="text-align:center">${r.j??'—'}</td><td style="text-align:center">${r.v??'—'}</td><td style="text-align:center">${r.e??'—'}</td><td style="text-align:center">${r.d??'—'}</td><td style="text-align:center">${r.gm??'—'}</td><td style="text-align:center">${r.gs??'—'}</td><td style="text-align:center;font-weight:700">${r.pts??'—'}</td></tr>`).join('');
-  return `<div class="card" style="margin-bottom:14px">
-    <div class="ch"><span class="ct">${comp.icon} ${escHtml(comp.name)}</span>
-    <span style="font-size:10px;color:var(--t2)">Atualizado em ${fmtDate((data.updatedAt||'').slice(0,10))}</span></div>
-    <div class="cb"><div class="tw"><table><thead><tr><th>Pos</th><th>Equipa</th><th>J</th><th>V</th><th>E</th><th>D</th><th>GM</th><th>GS</th><th>Pts</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></div>
-  </div>`;
+  const tipoLabel=COMP_TIPOS[comp.tipo]||COMP_TIPOS.liga;
+  const linkBtn=(url,icon,label)=>url
+    ?`<a href="${escHtml(url)}" target="_blank" rel="noopener" class="btn btn-xs btn-gh">${icon} ${label}</a>`
+    :`<span class="btn btn-xs btn-gh" style="opacity:.5;cursor:default" title="Sem link definido — usa Editar Links">${icon} ${label}</span>`;
+  const headerHtml=`<div class="ch" style="flex-wrap:wrap;gap:8px">
+    <span class="ct">${comp.icon} ${escHtml(comp.name)} <span class="bdg" style="background:var(--bg4);color:var(--t2);margin-left:4px;font-weight:400">${tipoLabel}</span></span>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${linkBtn(comp.calendarUrl,'📅','Calendário')}
+      ${linkBtn(comp.resultsUrl,'📊','Resultados')}
+      <button class="btn btn-xs btn-gh" onclick="editCompetitionLinks('${escHtml(comp.name).replace(/'/g,"\\'")}')">✏️ Links</button>
+      <button class="btn btn-xs btn-r" onclick="removeCompetition('${escHtml(comp.name).replace(/'/g,"\\'")}')">🗑️</button>
+    </div></div>`;
+  const classifHtml=!data
+    ?`<div class="empty" style="padding:16px"><div class="ei">🏆</div><p>Sem dados da classificação ainda</p><div class="esub">Importa da FPF/ZeroZero acima para ver a tabela</div></div>`
+    :(()=>{
+      const rowsHtml=data.rows.map(r=>`<tr style="${r.equipa===data.ownEquipa?'font-weight:800;background:rgba(74,222,128,.08)':''}">
+        <td>${r.pos??'—'}</td><td>${escHtml(r.equipa)}</td><td style="text-align:center">${r.j??'—'}</td><td style="text-align:center">${r.v??'—'}</td><td style="text-align:center">${r.e??'—'}</td><td style="text-align:center">${r.d??'—'}</td><td style="text-align:center">${r.gm??'—'}</td><td style="text-align:center">${r.gs??'—'}</td><td style="text-align:center;font-weight:700">${r.pts??'—'}</td></tr>`).join('');
+      return `<div style="font-size:10px;color:var(--t2);margin-bottom:6px">Atualizado em ${fmtDate((data.updatedAt||'').slice(0,10))}</div>
+      <div class="tw"><table><thead><tr><th>Pos</th><th>Equipa</th><th>J</th><th>V</th><th>E</th><th>D</th><th>GM</th><th>GS</th><th>Pts</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+    })();
+  const games=_compGamesFor(comp.name);
+  const gamesHtml=games.length?`<div style="margin-top:12px"><div class="fl" style="margin-bottom:6px">Jogos desta competição (${games.length})</div>
+    <div class="tw" style="max-height:220px;overflow:auto"><table><thead><tr><th>Data</th><th>Adversário</th><th>Resultado</th><th></th></tr></thead><tbody>
+    ${games.map(g=>{
+      const res=g.g1!=null&&g.g2!=null?`<strong>${g.g1}–${g.g2}</strong>`:'—';
+      return `<tr><td>${fmtDate(g.date)}</td><td>${_jogoIcon(g)} ${escHtml(g.opp)}</td><td style="text-align:center">${res}</td>
+      <td><button class="btn btn-xs btn-gh" onclick="_abrirJogoDeCompeticao('${g.id}')">📂 Abrir</button></td></tr>`;
+    }).join('')}
+    </tbody></table></div></div>`:'';
+  return `<div class="card" style="margin-bottom:14px">${headerHtml}<div class="cb">${classifHtml}${gamesHtml}</div></div>`;
 }
+// Atalho para abrir um Jogo a partir da aba Competições — muda primeiro para a
+// página Jogos (navTo) e só depois abre o detalhe, porque openJogo() por si só só
+// re-renderiza o container #pg-jogos, sem trocar a página visível.
+function _abrirJogoDeCompeticao(id){navTo('jogos');openJogo(id);}
 // Mostra, para uma competição, os dados guardados em APP.config.classificacoes —
 // usado pelo card "Classificação" do Dashboard (sps-v147), resolvendo a competição
 // a partir do próximo jogo (_seasonBucketFor, mesma correspondência já usada no
@@ -4609,7 +4647,7 @@ function _dashClassifCardHtml(nextGame){
     return `<div style="color:var(--t2);font-size:11px;text-align:center;padding:20px">Sem competição associada ao próximo jogo</div>`;
   const data=(APP.config.classificacoes||{})[bucket.key];
   if(!data)
-    return `<div class="empty" style="padding:12px"><div class="ei">🏆</div><p style="font-size:11px">Sem classificação de ${escHtml(bucket.label)}</p><div class="esub" style="font-size:10px">Importa em Jogos → Classificação</div></div>`;
+    return `<div class="empty" style="padding:12px"><div class="ei">🏆</div><p style="font-size:11px">Sem classificação de ${escHtml(bucket.label)}</p><div class="esub" style="font-size:10px">Importa em Competições</div></div>`;
   const rowsHtml=data.rows.map(r=>`<tr style="${r.equipa===data.ownEquipa?'font-weight:800;background:rgba(74,222,128,.10)':''}">
     <td style="padding:3px 4px">${r.pos??'—'}</td>
     <td style="padding:3px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px" title="${escHtml(r.equipa)}">${escHtml(r.equipa)}</td>
@@ -4619,7 +4657,14 @@ function _dashClassifCardHtml(nextGame){
   return `<div style="font-size:9px;color:var(--t2);margin-bottom:6px">${bucket.icon} ${escHtml(bucket.label)} · atualizado ${fmtDate((data.updatedAt||'').slice(0,10))}</div>
   <div style="max-height:190px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="color:var(--t2)"><th style="text-align:left;padding:3px 4px">#</th><th style="text-align:left;padding:3px 4px">Equipa</th><th style="padding:3px 4px">J</th><th style="padding:3px 4px">Pts</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
 }
-function _classificacaoTabHtml(){
+// Página própria "Competições" (sps-v160, 17/09/2026) — pedido do Roger: "criar
+// uma aba competições, local onde coloco as competições onde a equipa participa, e
+// os links de acesso ao calendário, resultados, etc". Antes disto, "competição" era
+// só uma etiqueta {name,icon} escondida em Configurações, sem nenhum link e sem
+// nenhuma vista própria — a Classificação (import FPF/ZeroZero) vivia misturada
+// dentro de Jogos. Agora cada competição é um registo completo (tipo + links +
+// classificação + jogos associados), nesta página dedicada.
+function renderCompeticoes(){
   const tacaFase=APP.config.tacaFase||'';
   const td=today();
   const realizados=APP.games.filter(g=>g.date<td||g.status==='realizado');
@@ -4630,9 +4675,27 @@ function _classificacaoTabHtml(){
         agm=amistosos.reduce((s,g)=>s+(+g.g1||0),0),ags=amistosos.reduce((s,g)=>s+(+g.g2||0),0);
 
   const comps=_compList();
-  const compsHtml=comps.length?comps.map(_classifCompCardHtml).join(''):`<div class="empty"><div class="ei">🏆</div><p>Sem competições configuradas</p><div class="esub">Adiciona em Jogos → Novo Jogo → Competição</div></div>`;
+
+  const addFormHtml=`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">➕ Nova Competição</span></div>
+  <div class="cb">
+    <div class="fr">
+      <div class="form-g" style="flex:2"><label class="fl">Nome</label><input class="fc" id="comp-new-name" placeholder="Ex: Campeonato Nacional Feminino" onkeydown="if(event.key==='Enter'){event.preventDefault();addCompetition();}"></div>
+      <div class="form-g"><label class="fl">Tipo</label><select class="fc" id="comp-new-tipo">${Object.entries(COMP_TIPOS).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Link do Calendário</label><input class="fc" id="comp-new-cal" placeholder="https://..."></div>
+      <div class="form-g"><label class="fl">Link dos Resultados/Classificação</label><input class="fc" id="comp-new-res" placeholder="https://..."></div>
+    </div>
+    <div class="fl" style="margin-bottom:6px">Ícone</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      ${COMP_ICON_PRESETS.map(ic=>`<button type="button" onclick="_newCompIcon='${ic}';renderCompeticoes()" title="Usar este ícone" style="width:34px;height:34px;border-radius:8px;border:2px solid ${_newCompIcon===ic?'var(--acc)':'var(--brd)'};background:var(--bg3);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">${ic}</button>`).join('')}
+    </div>
+    <button class="btn btn-g btn-sm" onclick="addCompetition()">${_newCompIcon} Adicionar Competição</button>
+  </div></div>`;
+
+  const compsHtml=comps.length?comps.map(_classifCompCardHtml).join(''):`<div class="empty"><div class="ei">🏆</div><p>Sem competições configuradas</p><div class="esub">Usa o formulário acima para adicionar a 1ª</div></div>`;
   const campHtml=`<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-    <button class="btn btn-xs btn-gh" onclick="_showCampImport=!_showCampImport;renderJogos()">${_showCampImport?'✕ Fechar':'📥 Importar Classificação'}</button></div>
+    <button class="btn btn-xs btn-gh" onclick="_showCampImport=!_showCampImport;renderCompeticoes()">${_showCampImport?'✕ Fechar':'📥 Importar Classificação'}</button></div>
     ${_showCampImport?`
     <div class="ipanel" style="margin-bottom:14px">
       <p style="font-size:11px;color:var(--t2);margin-bottom:8px"><b>Recomendado: ZeroZero.pt</b> — abre a página da edição/série certa (ex.: zerozero.pt/edicao/...), a URL já é fixa para a época e série (sem seletor por clique que possa enganar), clica com o botão direito → Inspecionar (F12), clica com o botão direito na tag &lt;html&gt; → Copiar → Copiar outerHTML, e cola aqui. Alternativa: site da FPF — mas o seletor de época ali é por clique (AJAX) e o "Ver código fonte" (Ctrl+U) pode não refletir a época escolhida; usa sempre o mesmo método do Inspecionar (F12) → outerHTML para teres a certeza da época/série corretas.</p>
@@ -4642,7 +4705,7 @@ function _classificacaoTabHtml(){
     </div>`:''}
     ${compsHtml}`;
 
-  const tacaHtml=`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">🥤 Taça</span></div>
+  const tacaHtml=`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">🥤 Taça — Fase Atual</span></div>
   <div class="cb" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <input class="fc" id="taca-fase-input" style="flex:1;min-width:180px" placeholder="Ex: Oitavos de Final" value="${escHtml(tacaFase)}">
     <button class="btn btn-g btn-sm" onclick="_setTacaFase()">💾 Guardar</button>
@@ -4656,7 +4719,9 @@ function _classificacaoTabHtml(){
     <div class="kpi"><div class="kpi-lbl">Golos</div><div class="kpi-val">${agm}–${ags}</div></div>
   </div></div></div>`:`<div class="empty"><div class="ei">🤝</div><p>Sem amistosos realizados</p></div>`;
 
-  return campHtml+tacaHtml+amistososHtml;
+  document.getElementById('pg-competicoes').innerHTML=`
+  <div class="sh"><div class="sh-t">🏆 Competições</div></div>
+  ${addFormHtml}${campHtml}${tacaHtml}${amistososHtml}`;
 }
 function openJogo(id,tab='info'){
   const g=APP.games.find(x=>x.id===id);
@@ -4703,7 +4768,11 @@ function renderJogos(){
 
   const proximos=APP.games.filter(g=>g.date>=td&&g.status!=='cancelado').sort((a,b)=>a.date.localeCompare(b.date));
   const realizados=APP.games.filter(g=>g.date<td||g.status==='realizado').sort((a,b)=>b.date.localeCompare(a.date));
-  const tabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button><button class="tab-btn ${_jogoTab==='ranking'?'on':''}" onclick="_jogoTab='ranking';renderJogos()">🏆 Ranking</button><button class="tab-btn ${_jogoTab==='classificacao'?'on':''}" onclick="_jogoTab='classificacao';renderJogos()">🏆 Classificação</button></div>`;
+  // Classificação saiu daqui para a aba própria Competições (sps-v160, 17/09/2026) —
+  // fazia mais sentido ficar junto do resto dos dados de cada competição (links de
+  // Calendário/Resultados, jogos associados) do que misturada com a lista de Jogos.
+  if(_jogoTab==='classificacao')_jogoTab='proximos';
+  const tabHtml=`<div class="tabs"><button class="tab-btn ${_jogoTab==='proximos'?'on':''}" onclick="_jogoTab='proximos';renderJogos()">Próximos (${proximos.length})</button><button class="tab-btn ${_jogoTab==='realizados'?'on':''}" onclick="_jogoTab='realizados';renderJogos()">Realizados (${realizados.length})</button><button class="tab-btn ${_jogoTab==='ranking'?'on':''}" onclick="_jogoTab='ranking';renderJogos()">🏆 Ranking</button></div>`;
 
   const makeRow=g=>{
     const ha={casa:'🏠',fora:'✈️',neutro:'⚖️'}[g.ha]||'';
@@ -4725,7 +4794,7 @@ function renderJogos(){
   };
 
   const list=_jogoTab==='proximos'?proximos:realizados;
-  const tableHtml=_jogoTab==='ranking'?_rankingPlantelHtml():_jogoTab==='classificacao'?_classificacaoTabHtml():(list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Equipa</th><th>Resultado</th><th></th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`);
+  const tableHtml=_jogoTab==='ranking'?_rankingPlantelHtml():(list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Adversário</th><th>Local</th><th>Equipa</th><th>Resultado</th><th></th></tr></thead><tbody>${list.map(makeRow).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">⚽</div><p>${_jogoTab==='proximos'?'Sem jogos agendados':'Sem jogos realizados'}</p></div>`);
 
   // Estatísticas competitivas (V/E/D/Golos) só com jogos Oficiais — Amistosos (particular) e
   // Treino têm o seu próprio bloco na aba Classificação (pedido do Roger, sps-v133).
@@ -13729,18 +13798,8 @@ function renderConfig(){
       <button class="btn btn-g btn-sm" onclick="saveConfig()">💾 Guardar</button>
     </div></div>
     <div class="card"><div class="ch"><span class="ct">🏆 Competições da Época</span></div><div class="cb">
-      <div class="al al-b" style="margin-bottom:12px;font-size:11px">Define aqui as competições em que a equipa está inscrita, cada uma com um ícone à escolha — esse ícone aparece depois na lista de Jogos e no Planeamento, para distinguires de relance Taça, Campeonato, etc.</div>
-      <div id="cfg-comps-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-        ${_compList().length?_compList().map(c=>`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--brd);border-radius:20px;padding:4px 6px 4px 12px;font-size:11px">${c.icon} ${escHtml(c.name)}<button onclick="removeCompetition('${escHtml(c.name).replace(/'/g,"\\'")}')" style="border:none;background:var(--bg4);color:var(--t2);width:16px;height:16px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">✕</button></span>`).join(''):'<span style="font-size:11px;color:var(--t2)">Ainda sem competições definidas</span>'}
-      </div>
-      <div class="fl" style="margin-bottom:6px">Ícone da nova competição</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-        ${COMP_ICON_PRESETS.map(ic=>`<button type="button" onclick="_newCompIcon='${ic}';renderConfig()" title="Usar este ícone" style="width:34px;height:34px;border-radius:8px;border:2px solid ${_newCompIcon===ic?'var(--acc)':'var(--brd)'};background:var(--bg3);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">${ic}</button>`).join('')}
-      </div>
-      <div style="display:flex;gap:8px">
-        <input class="fc" id="cfg-new-comp" placeholder="Ex: Campeonato Nacional Feminino" onkeydown="if(event.key==='Enter'){event.preventDefault();addCompetition();}">
-        <button class="btn btn-gh btn-sm" onclick="addCompetition()">${_newCompIcon} Adicionar</button>
-      </div>
+      <div class="al al-b" style="font-size:11px">A gestão de competições (nome, ícone, tipo, links de Calendário/Resultados) passou a ter página própria — <b>Competições</b>, no menu principal (sps-v160). ${_compList().length?`Atualmente ${_compList().length} competição(ões) definida(s).`:'Ainda sem competições definidas.'}</div>
+      <button class="btn btn-g btn-sm" style="margin-top:10px" onclick="navTo('competicoes')">🏆 Ir para Competições</button>
     </div></div>
     <div class="card"><div class="ch"><span class="ct">👥 Utilizadores</span></div><div class="cb">
       <div class="al al-b" style="margin-bottom:12px;font-size:11px">Cada utilizador tem acesso independente com email e password.</div>
@@ -13876,19 +13935,42 @@ function saveConfig(){
   updateSidebarLogo();
   toast('Configurações guardadas ✓');
 }
+// addCompetition/removeCompetition/editCompetitionLinks: geridos na aba própria
+// Competições (sps-v160, 17/09/2026) — antes viviam em Configurações, como uma
+// lista simples {name,icon}; passaram a ter também tipo + links de acesso
+// (Calendário/Resultados), pedido do Roger ("os links de acesso ao calendário,
+// resultados, etc"). _compObj (acima) normaliza entradas antigas automaticamente.
 function addCompetition(){
-  const el=document.getElementById('cfg-new-comp');
-  const name=(el.value||'').trim();
-  if(!name)return;
+  const nameEl=document.getElementById('comp-new-name');
+  const name=(nameEl.value||'').trim();
+  if(!name)return toast('Indica o nome da competição','err');
   if(!APP.config.competitions)APP.config.competitions=[];
   if(_compList().some(c=>c.name===name))return toast('Essa competição já existe','err');
-  APP.config.competitions.push({name,icon:_newCompIcon});
-  saveData();el.value='';_newCompIcon=COMP_ICON_PRESETS[0];renderConfig();toast('Competição adicionada ✓');
+  const tipo=document.getElementById('comp-new-tipo').value||'liga';
+  const calendarUrl=(document.getElementById('comp-new-cal').value||'').trim();
+  const resultsUrl=(document.getElementById('comp-new-res').value||'').trim();
+  APP.config.competitions.push({name,icon:_newCompIcon,tipo,calendarUrl,resultsUrl});
+  saveData();_newCompIcon=COMP_ICON_PRESETS[0];renderCompeticoes();toast('Competição adicionada ✓');
 }
 function removeCompetition(name){
-  if(!confirm('Remover "'+name+'" da lista de competições?'))return;
+  if(!confirm('Remover "'+name+'" da lista de competições? (a classificação guardada e os jogos não são apagados)'))return;
   APP.config.competitions=(APP.config.competitions||[]).filter(c=>_compObj(c).name!==name);
-  saveData();renderConfig();toast('Competição removida');
+  saveData();renderCompeticoes();toast('Competição removida');
+}
+// Edição rápida por prompt() — mesmo padrão já usado em _onCompChange() para criar
+// competições a partir do formulário de Jogo; evita construir um formulário de
+// edição completo só para 2 campos de texto que raramente mudam.
+function editCompetitionLinks(name){
+  const comp=_compList().find(c=>c.name===name);
+  if(!comp)return;
+  const cal=prompt('Link do Calendário desta competição (em branco para remover):',comp.calendarUrl||'');
+  if(cal===null)return;
+  const res=prompt('Link dos Resultados/Classificação desta competição (em branco para remover):',comp.resultsUrl||'');
+  if(res===null)return;
+  const idx=(APP.config.competitions||[]).findIndex(c=>_compObj(c).name===name);
+  if(idx<0)return;
+  APP.config.competitions[idx]={...comp,calendarUrl:cal.trim(),resultsUrl:res.trim()};
+  saveData();renderCompeticoes();toast('Links atualizados ✓');
 }
 function updateSidebarLogo(){
   const el=document.getElementById('sb-logo');

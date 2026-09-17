@@ -435,3 +435,71 @@ que causava a reversão já não existe (`games` é tabela dedicada desde o
 Incidente #3). Se o Roger voltar a reportar emblemas em falta, o mais
 provável é serem jogos NOVOS (ex. 2ª Fase, ainda por sortear) que nunca
 tiveram `oppLogo` preenchido — não uma reversão dos 7 acima.
+
+## sps-v160 (17/09/2026): aba "Competições" própria — registo completo por competição + links de Calendário/Resultados
+
+Na mesma mensagem do incidente #4 (emblemas), o Roger pediu também: "que te
+parece criar uma aba competições, local onde coloco as competições onde a
+equipa participa, e os links de acesso ao calendário, resultados, etc.
+Analisa, investiga, propõem" — pedido explícito de análise+proposta antes
+de implementar (ver `feedback_sps_confirm_before_major_changes` na
+memória). Investigado o modelo de dados atual antes de propor: até aqui
+"competição" era só uma etiqueta `{name,icon}` dentro de Configurações
+(`APP.config.competitions`), sem nenhum link; a Classificação (import
+manual FPF/ZeroZero, sps-v133/147) vivia numa aba dentro de Jogos, separada
+da lista de competições; e não existia nenhum sítio com o link direto para
+o calendário/resultados de uma competição — era tudo manual, jogo a jogo
+(`g.fpfUrl` é por Jogo, não por competição).
+
+**Proposta apresentada e aprovada pelo Roger** ("podemos avançar tudo junto
+criando as competições como propões?"): página própria "Competições" no
+menu principal, com cada competição a passar a ser um registo completo —
+nome, ícone, tipo (Liga/Campeonato, Taça, Particulares), e 2 links opcionais
+(Calendário, Resultados/Classificação) — e não só uma etiqueta.
+
+**Implementado:**
+- `APP.config.competitions[]` ganhou `tipo`/`calendarUrl`/`resultsUrl` (além
+  de `name`/`icon` já existentes); `_compObj()` normaliza entradas antigas
+  (string, ou `{name,icon}` de antes desta versão) com valores por omissão
+  (`tipo:'liga'`, urls `''`) — nunca obriga a re-configurar competições já
+  criadas.
+- Página nova `competicoes` registada em `ALL_PAGES`/`_NAV_TITLES`/`renders`
+  (dentro de `navTo()`), com o mesmo ícone 🏆 usado nos Jogos; acrescentada
+  a `ROLE_DEFS` de `team_manager`/`diretor` (os outros cargos com acesso
+  total via `_ALL_PAGE_IDS` ganham-na automaticamente).
+- `renderCompeticoes()` (substitui `_classificacaoTabHtml()`, que foi
+  removida): formulário "Nova Competição" (nome/tipo/ícone/links), painel
+  de importação da Classificação (igual ao que já existia, só mudou de
+  página), um card por competição (`_classifCompCardHtml()`, reescrita) com
+  cabeçalho (tipo + botões 📅 Calendário/📊 Resultados, cinzentos se sem
+  link definido + botão ✏️ Links para editar) e, dentro do mesmo card, a
+  tabela de classificação (se importada) e a lista de Jogos associados a
+  essa competição (`_compGamesFor()`, nova — mesma correspondência por
+  nome/prefixo já usada em `_jogoIcon()`, sem duplicar nenhum dado de
+  `APP.games`), com atalho "📂 Abrir" (`_abrirJogoDeCompeticao()` — muda de
+  página com `navTo('jogos')` e só depois chama `openJogo()`, porque este
+  não troca de página sozinho). Ficaram também nesta página, tal como já
+  estavam antes (só mudaram de sítio): o campo manual da fase da Taça e o
+  resumo de Amistosos.
+- A aba "Classificação" foi removida da lista de separadores de Jogos
+  (`renderJogos()`) — só ficaram Próximos/Realizados/Ranking; um separador
+  antigo `_jogoTab==='classificacao'` guardado em memória (não deve
+  acontecer, mas por segurança) cai para "Próximos".
+- O card "Competições da Época" que existia em Configurações foi reduzido a
+  um aviso + botão a apontar para a nova página (evita duas UIs a gerir a
+  mesma lista); `addCompetition()`/`removeCompetition()` passaram a ler os
+  campos da página nova; `editCompetitionLinks()` (nova, por `prompt()`,
+  mesmo padrão simples já usado em `_onCompChange()`) edita os 2 links de
+  uma competição já criada sem precisar de um formulário de edição inteiro.
+- SW bump para `sps-v160`.
+- Testado: `node --check` ao ficheiro inteiro; teste isolado em Node de
+  `_compObj`/`_compList`/`_compGamesFor`/`_classifCompCardHtml` extraídas do
+  próprio ficheiro, contra uma competição legada (sem `tipo`/links, migrada
+  automaticamente) e uma nova (com links), confirmando a normalização, a
+  correspondência correta dos Jogos por competição, e a geração de HTML sem
+  exceções em ambos os casos (com e sem classificação importada).
+
+**Ainda por fazer:** nada pendente para esta funcionalidade em si. Possível
+evolução futura, se o Roger achar útil mais tarde: mover também o link
+`fpfUrl` de cada Jogo para ficar associado à competição em vez de a cada
+jogo individual — não fez parte deste pedido, por isso não foi mexido.
