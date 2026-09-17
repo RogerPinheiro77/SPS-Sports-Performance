@@ -680,3 +680,79 @@ corretamente nos dois sentidos (10d = mesmo período, 11d = novo início).
 disponibilidade energética/RED-S de forma mais ampla, o caminho mais
 seguro é a nutricionista avaliar isso clinicamente via Anamnese (já
 existe) — não um questionário automático sem validação para futebol.
+
+## sps-v164 (17/09/2026): Carga Planeada vs. Realizada — Microciclo/Macrociclo
+
+Pedido do Roger: "Microciclo e Macrociclo comparação carga planeada e carga
+realizada, nos relatórios, analisa, investiga e aconselha" — outra vez
+análise/proposta antes de código. A proposta (documentada na doc "SPS vs
+Mercado", secção 1.1, que já tinha esta ideia apontada como "única evolução
+que faria sentido" na comparação inicial com o mercado) foi confirmada com
+"avança" sem alterações.
+
+**Grounding usado antes de desenhar:** duas fontes de ciência do desporto —
+uma meta-análise (Sports Medicine Open, 2022, 725 atletas, vários desportos
+coletivos) que mostra boa concordância geral entre RPE planeado pelo
+treinador e RPE percebido pelo atleta, EXCETO em sessões fáceis/recuperação,
+onde o atleta reporta sistematicamente menos do que o planeado (efeito
+moderado); e um estudo de 2026 em basquetebol profissional (carga externa
+por GPS) que confirma o mesmo padrão mesmo em elite (~5% abaixo do planeado
+em média, mais acentuado em dias de carga alta/véspera de jogo), com os
+autores a dizerem explicitamente que "algum desalinhamento é inevitável".
+Conclusão usada no desenho: banda de tolerância em vez de alvo exato, e
+nunca alarme isolado em dias de baixa intensidade.
+
+**O que foi construído — tudo derivado, sem tabela nova (mesmo padrão da
+Regularidade do Ciclo, sps-v163):**
+- `CARGA_TOLERANCIA` (±15%) e `CARGA_PLAN_EV_TYPES` (Treino/Ativação/
+  Recuperação/Ginásio + Jogo — fora ficam Reunião/Consulta Nutri/Fisio, sem
+  exigência física própria) — constantes novas.
+- `_mcPlannedUaForDay(dt,teamId,mc,gameDate)`: carga planeada de um dia =
+  duração agendada (Planeamento) × ponto médio do RPE-alvo da tipologia
+  resolvida desse dia (override de conteúdo do dia, se existir, senão o
+  molde partilhado da equipa) — mesma fórmula duração×RPE (Foster) já usada
+  na carga realizada. Nota importante deixada no código: reaproveita
+  `_mcResolveDayType`, que já antes desta alteração resolve a tipologia a
+  partir da variável global `_mcTeam` (não de um parâmetro) — por isso só dá
+  resultado correto com `teamId===_mcTeam`, sempre o caso nos 3 pontos que a
+  chamam (não é um problema introduzido agora, só documentado).
+- `_mcRealizedUaForDay(dt,teamId)`: média do UA (PSE×duração) das atletas da
+  equipa que registaram PSE nesse dia — `null` (nunca 0) se ninguém
+  registou, para distinguir "sem carga" de "sem dados".
+- `_mcCargaStatus(plannedUa,realizedUa)`: `'sem-alvo'` / `'sem-registo'` /
+  `'ok'` (dentro de ±15%) / `'acima'` / `'abaixo'`.
+- `_mcDayLoadCompliance`, `_mcWeekLoadCompliance` (rollup semanal, usado na
+  vista semanal e no Relatório da Semana) e `_macroLoadWeeks` (rollup semana
+  a semana dentro de uma fase, para o gráfico da Época).
+- **Vista semanal do Microciclo** (📅 Semana): novo cartão "🎯 Carga Planeada
+  vs. Realizada" — planeado/realizado por dia + badge de estado, e total da
+  semana com % de cumprimento.
+- **Relatório da Semana** (📊, já existente): a tabela "Semana — tipologia
+  real por dia" ganhou coluna de carga planeada/realizada por dia; os KPIs
+  ganharam "UA planeado total" e "% Cumprimento da carga"; a conclusão
+  automática (`_mcConclusaoTxt`) passou a incluir uma linha sobre o
+  cumprimento da semana.
+- **Época (Macrociclos)**: cada fase ganhou um gráfico (Chart.js, barras
+  planeado + linha realizado, uma semana por ponto) da tendência de carga ao
+  longo da fase — esta vista não tinha nenhum dado de carga antes. Estado
+  vazio ("Ainda sem dados de carga nesta fase") quando não há treinos/PSE no
+  período, em vez de gráfico vazio.
+- Badge de estado (`_cargaStatusBadge`) partilhado: dias de baixa
+  intensidade (intensidade "Baixa" no molde, ou sem RPE-alvo definido) fora
+  da banda mostram o número mas sem cor/seta de alerta — desvio esperado, não
+  é sinal de sub/sobrecarga a corrigir, conforme a literatura acima.
+
+SW bump para `sps-v164`. Testado: `node --check` ao ficheiro inteiro; 20
+testes isolados em Node das funções novas extraídas do próprio ficheiro
+(`_mcPlannedUaForDay`/`_mcRealizedUaForDay`/`_mcCargaStatus`/
+`_mcDayLoadCompliance`/`_mcWeekLoadCompliance`/`_macroLoadWeeks`) — dia
+normal dentro da banda, fora da banda com alerta, dia de baixa intensidade
+fora da banda sem alerta, folga sem alvo, dia com alvo sem PSE ainda,
+override de RPE do dia a ter prioridade sobre o molde, limite exato de
+±15% dos dois lados, rollup semanal a somar só os dias com alvo/registo, e
+nº de semanas cobertas por um macrociclo.
+
+**Ainda por fazer:** nada pendente para este pedido em si. A doc "SPS vs
+Mercado" (secção 1.1) tem o desenho completo, incluindo as decisões
+conscientes de granularidade (planeado só ao nível da equipa, não por
+atleta — para não pedir mais introdução manual de dados).

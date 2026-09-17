@@ -3706,6 +3706,7 @@ function _renderMcSemana(){
   </div>
   ${!gameDate?`<div class="al al-b" style="margin-bottom:10px">Jogo não identificado perto desta semana — as sugestões automáticas de tipologia ficam mais genéricas (qualquer dia com treino agendado sugere "Recuperação Ativa"); ajusta manualmente onde fizer sentido.</div>`:''}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">${cardsHtml}</div>
+  ${_mcCargaWeekPanelHtml(weekDates,_mcTeam)}
   ${_mcSummaryPanelsHtml(tpl)}`;
 }
 function mcNav(dir){if(dir===0){_mcWeek=getMonday(today());} else {_mcWeek=addDaysStr(_mcWeek,dir*7);}_renderMcSemana();}
@@ -3805,19 +3806,34 @@ function _renderMacrociclosEpoca(){
   const list=(APP.macrocycles||[]).filter(m=>m.teamId===_mcTeam).sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||''));
   const formHtml=_showMacroForm?_macroFormHtml():'';
   const timelineHtml=list.length?_macroTimelineHtml(list):'';
+  // Carga por fase (sps-v164) — calculada uma vez aqui para decidir o estado
+  // vazio de cada cartão e para alimentar o gráfico depois de inserido no DOM.
+  const loadByMacro={};
+  list.forEach(m=>{loadByMacro[m.id]=_macroLoadWeeks(m,_mcTeam);});
   const rowsHtml=list.length?list.map((m,i)=>{
     const c=m.color||MACRO_COLORS[i%MACRO_COLORS.length];
+    const weeks=loadByMacro[m.id]||[];
+    const hasLoad=weeks.some(w=>w.totalPlanned!=null||w.totalRealized!=null);
+    const cargaHtml=hasLoad
+      ?`<div style="margin-top:10px;border-top:1px solid var(--brd);padding-top:8px">
+          <canvas id="ch-macro-carga-${m.id}" height="70"></canvas>
+          <div style="font-size:10px;color:var(--t2);margin-top:4px">Carga planeada vs. realizada por semana (UA) · banda de tolerância ±15%</div>
+        </div>`
+      :`<div style="margin-top:10px;border-top:1px solid var(--brd);padding-top:8px;font-size:11px;color:var(--t2)">Ainda sem dados de carga nesta fase (sem treinos agendados/PSE registado no período).</div>`;
     return `<div class="card" style="margin-bottom:10px;border-left:4px solid ${c}">
-      <div class="cb" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-        <div>
-          <div style="font-weight:800;font-size:13px;color:${c}">Macrociclo ${i+1} — ${escHtml(m.name)}</div>
-          <div style="font-size:11px;color:var(--t2)">${fmtDate(m.startDate)} — ${fmtDate(m.endDate)}</div>
-          ${m.objective?`<div style="font-size:11.5px;margin-top:4px">${escHtml(m.objective)}</div>`:''}
+      <div class="cb" style="padding:10px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:800;font-size:13px;color:${c}">Macrociclo ${i+1} — ${escHtml(m.name)}</div>
+            <div style="font-size:11px;color:var(--t2)">${fmtDate(m.startDate)} — ${fmtDate(m.endDate)}</div>
+            ${m.objective?`<div style="font-size:11.5px;margin-top:4px">${escHtml(m.objective)}</div>`:''}
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-gh btn-sm" onclick="_editMacro('${m.id}')">✏️</button>
+            <button class="btn btn-r btn-sm" onclick="_deleteMacro('${m.id}')">🗑️</button>
+          </div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-gh btn-sm" onclick="_editMacro('${m.id}')">✏️</button>
-          <button class="btn btn-r btn-sm" onclick="_deleteMacro('${m.id}')">🗑️</button>
-        </div>
+        ${cargaHtml}
       </div>
     </div>`;
   }).join(''):`<div class="al al-b">Ainda não há fases definidas para esta equipa. Cria a primeira fase — podes usar uma das sugestões abaixo.</div>`;
@@ -3830,6 +3846,23 @@ function _renderMacrociclosEpoca(){
   ${formHtml}
   ${timelineHtml}
   ${rowsHtml}`;
+  // Gráficos depois do HTML estar no DOM (canvas só existe a partir daqui) —
+  // mesmo padrão já usado no Dashboard (buildChart/ch-carga-sem).
+  setTimeout(()=>{
+    list.forEach(m=>{
+      const weeks=loadByMacro[m.id]||[];
+      if(!weeks.some(w=>w.totalPlanned!=null||w.totalRealized!=null))return;
+      const cv=document.getElementById('ch-macro-carga-'+m.id);
+      if(!cv)return;
+      if(cv._chart)cv._chart.destroy();
+      const labels=weeks.map(w=>w.mcNum?'MC'+w.mcNum:fmtDateShort(w.weekStart));
+      cv._chart=new Chart(cv,{data:{labels,datasets:[
+        {type:'bar',label:'Planeado',data:weeks.map(w=>w.totalPlanned),backgroundColor:'rgba(148,163,184,.55)',borderRadius:3,order:2},
+        {type:'line',label:'Realizado',data:weeks.map(w=>w.totalRealized),borderColor:'#2f9e57',backgroundColor:'rgba(47,158,87,.12)',tension:.3,pointRadius:3,fill:false,order:1,spanGaps:true}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10}}}},
+        scales:{y:{min:0,grid:{color:'rgba(0,0,0,.06)'},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:9}}}}}});
+    });
+  },80);
 }
 function _macroTimelineHtml(list){
   const start=list.reduce((s,m)=>!s||m.startDate<s?m.startDate:s,null);
@@ -4027,6 +4060,137 @@ function _mcWeekSquadStats(weekDates,teamId){
     uaTotal:uaVals.length?Math.round(uaVals.reduce((s,v)=>s+v,0)):null,
     acwrRisk,monAvg:avg(monVals)};
 }
+// ─── Carga Planeada vs. Realizada (Microciclo/Macrociclo) ──────────────────
+// Pedido do Roger (17/09/2026): cruzar a carga planeada (Planeamento + RPE-alvo
+// do Modelo da Semana) com a carga realizada (PSE já registado) — hoje vivem em
+// ecrãs separados (ver doc "SPS vs Mercado", secção 1.1 — análise/proposta
+// aprovada antes de código). Tudo derivado, sem tabela nova, mesmo espírito da
+// Regularidade do Ciclo (sps-v163): nunca guardado, recalculado sempre a partir
+// de APP.schedule/APP.microcycles/APP.pse.
+//
+// Banda de tolerância (±15%) em vez de alvo exato, e nunca alerta isolado em
+// dias de baixa intensidade — dois estudos (meta-análise Sports Medicine Open
+// 2022, 725 atletas; basquetebol profissional, Frontiers Psychology 2026)
+// mostram que "real abaixo do planeado" em dias fáceis/recuperação é o padrão
+// normal esperado, não sinal de sub/sobrecarga a corrigir.
+const CARGA_TOLERANCIA=0.15;
+// Tipos de evento que contam para a duração planeada de um dia: treino real
+// (mesma lista de MC_TRAINING_EV_TYPES) + Jogo (tem sempre "dur" preenchido,
+// ver _syncJogoSchedule). Fica de fora Reunião/Consulta Nutri/Fisio — não têm
+// exigência física própria nem PSE associado, incluí-los inflacionaria a
+// carga planeada sem correspondência real no realizado.
+const CARGA_PLAN_EV_TYPES=[...MC_TRAINING_EV_TYPES,'Jogo'];
+// Carga planeada de UM dia = duração agendada × ponto médio do RPE-alvo da
+// tipologia resolvida desse dia (override de conteúdo do dia, se existir,
+// senão o molde partilhado da equipa) — mesma fórmula duração×RPE (Foster) já
+// usada na carga realizada, só que com o RPE-alvo em vez do PSE reportado.
+function _mcPlannedUaForDay(dt,teamId,mc,gameDate){
+  // Nota: _mcResolveDayType (já existente) resolve a tipologia sugerida a
+  // partir da variável global _mcTeam, não de um parâmetro — por isso esta
+  // função só dá resultados corretos quando chamada com teamId===_mcTeam
+  // (é sempre o caso nos 3 pontos que a chamam: vista semanal, Relatório da
+  // Semana e Época/Macrociclos, todos sobre a equipa atualmente selecionada).
+  const info=_mcResolveDayType(mc,dt,gameDate);
+  const tpl=_mcGetTemplate(teamId);
+  const base=(tpl.days&&info.resolvedTypeId!=null)?tpl.days[info.resolvedTypeId]:null;
+  const src=info.contentOverride||base;
+  const rpeMin=src?src.rpeMin:null, rpeMax=src?src.rpeMax:null;
+  const rpeMid=(rpeMin!=null&&rpeMax!=null)?(rpeMin+rpeMax)/2:(rpeMin!=null?rpeMin:(rpeMax!=null?rpeMax:null));
+  const dur=(APP.schedule||[]).filter(e=>e.date===dt&&e.teamId===teamId&&CARGA_PLAN_EV_TYPES.includes(e.type)).reduce((s,e)=>s+(+e.dur||0),0);
+  const plannedUa=(rpeMid!=null&&dur>0)?Math.round(rpeMid*dur):null;
+  const lowIntensity=(src&&src.intensity==='Baixa')||rpeMid==null;
+  const label=info.isCustom?(info.customLabel||'Personalizado'):(MC_TYPE_LABELS[info.resolvedTypeId]||info.resolvedTypeId||'—');
+  return {dt,label,rpeMid,dur,plannedUa,lowIntensity};
+}
+// Carga realizada de UM dia = média do UA (PSE×duração) das atletas da equipa
+// que registaram PSE nesse dia — null (nunca 0) quando ninguém registou, para
+// distinguir "sem carga" de "sem dados".
+function _mcRealizedUaForDay(dt,teamId){
+  const ats=(APP.athletes||[]).filter(a=>a.teamId===teamId);
+  const uaVals=[];
+  ats.forEach(at=>{
+    (APP.pse||[]).filter(p=>p.athleteId===at.id&&p.date===dt).forEach(p=>{if(p.ua!=null&&!isNaN(+p.ua))uaVals.push(+p.ua);});
+  });
+  return uaVals.length?Math.round(uaVals.reduce((s,v)=>s+v,0)/uaVals.length):null;
+}
+// Estado do cumprimento face à banda de tolerância: 'sem-alvo' (dia sem
+// RPE-alvo/duração planeada, ex. folga sem treino), 'sem-registo' (havia alvo,
+// ainda sem PSE — normal em dias futuros/muito recentes), 'ok' (dentro de
+// ±15%), 'acima'/'abaixo' (fora da banda).
+function _mcCargaStatus(plannedUa,realizedUa){
+  if(plannedUa==null)return{status:'sem-alvo',pct:null};
+  if(realizedUa==null)return{status:'sem-registo',pct:null};
+  const pct=Math.round(realizedUa/plannedUa*100);
+  const dev=realizedUa/plannedUa-1;
+  if(Math.abs(dev)<=CARGA_TOLERANCIA)return{status:'ok',pct};
+  return{status:dev>0?'acima':'abaixo',pct};
+}
+function _mcDayLoadCompliance(dt,teamId,mc,gameDate){
+  const p=_mcPlannedUaForDay(dt,teamId,mc,gameDate);
+  const realizedUa=_mcRealizedUaForDay(dt,teamId);
+  const st=_mcCargaStatus(p.plannedUa,realizedUa);
+  return {...p,realizedUa,...st};
+}
+// Semana inteira — usado na vista semanal do Microciclo e no Relatório da
+// Semana. mc lido por leitura direta (nunca _mcEnsureMc) para não criar
+// registos vazios só por visualizar, mesmo padrão já usado em
+// _mcAnaliseReportHtml.
+function _mcWeekLoadCompliance(weekDates,teamId){
+  const mc=APP.microcycles.find(m=>m.week===weekDates[0]&&m.teamId===teamId)||{objective:'',dayTypes:{}};
+  const gameDate=_mcAnchorGameDate(weekDates,teamId);
+  const days=weekDates.map(dt=>_mcDayLoadCompliance(dt,teamId,mc,gameDate));
+  const withPlan=days.filter(d=>d.plannedUa!=null);
+  const totalPlanned=withPlan.length?withPlan.reduce((s,d)=>s+d.plannedUa,0):null;
+  const withReal=days.filter(d=>d.realizedUa!=null);
+  const totalRealized=withReal.length?withReal.reduce((s,d)=>s+d.realizedUa,0):null;
+  const week=_mcCargaStatus(totalPlanned,totalRealized);
+  return {days,totalPlanned,totalRealized,...week};
+}
+// Fase da época (Macrociclo) — tendência semana a semana, para o gráfico em
+// "📈 Época (Macrociclos)" (hoje essa vista não tem nenhum dado de carga, só
+// nomes/datas das fases).
+function _macroLoadWeeks(macro,teamId){
+  const weeks=[];
+  let ws=getMonday(macro.startDate);
+  while(ws<=macro.endDate){
+    const weekDates=Array.from({length:7},(_,i)=>addDaysStr(ws,i));
+    weeks.push({weekStart:ws,mcNum:_microcicloNumFor(ws,teamId),...(_mcWeekLoadCompliance(weekDates,teamId))});
+    ws=addDaysStr(ws,7);
+  }
+  return weeks;
+}
+// Badge de estado — usado na vista semanal do Microciclo. 'baixa intensidade'
+// fora da banda mostra o número mas sem cor de alerta (ver nota acima).
+function _cargaStatusBadge(d){
+  if(d.status==='sem-alvo')return `<span style="color:var(--t2);font-size:10px">—</span>`;
+  if(d.status==='sem-registo')return `<span class="bdg" style="background:#8884;color:var(--t2)">Sem registo</span>`;
+  if(d.status==='ok')return `<span class="bdg" style="background:#2f9e5722;color:#2f9e57;font-weight:700">${d.pct}% ✓</span>`;
+  if(d.lowIntensity)return `<span class="bdg" style="background:#8884;color:var(--t2)" title="Dia de baixa intensidade — desvio esperado, não é alerta">${d.pct}%</span>`;
+  const c=d.status==='acima'?'#c0392b':'#c9971f';
+  return `<span class="bdg" style="background:${c}22;color:${c};font-weight:700">${d.pct}% ${d.status==='acima'?'▲':'▼'}</span>`;
+}
+// Painel "🎯 Carga Planeada vs. Realizada" da vista semanal do Microciclo.
+function _mcCargaWeekPanelHtml(weekDates,teamId){
+  const wl=_mcWeekLoadCompliance(weekDates,teamId);
+  const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const rows=wl.days.map((d,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--brd);flex-wrap:wrap">
+      <span style="width:32px;font-size:10.5px;color:var(--t2)">${days[i]}</span>
+      <span style="flex:1;min-width:90px;font-size:11px">${escHtml(d.label)}</span>
+      <span style="font-size:11px;color:var(--t2);min-width:78px;text-align:right">${d.plannedUa!=null?d.plannedUa+' UA plan.':'—'}</span>
+      <span style="font-size:11px;min-width:78px;text-align:right">${d.realizedUa!=null?d.realizedUa+' UA real':'—'}</span>
+      <span style="min-width:74px;text-align:right">${_cargaStatusBadge(d)}</span>
+    </div>`).join('');
+  const weekBadge=wl.totalPlanned!=null?_cargaStatusBadge(wl):'<span style="color:var(--t2);font-size:11px">Sem alvo de carga definido esta semana</span>';
+  return `<div class="card" style="margin-bottom:16px"><div class="ch"><span class="ct">🎯 Carga Planeada vs. Realizada</span></div><div class="cb" style="padding:10px 16px">
+    ${rows}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:2px solid var(--brd);flex-wrap:wrap;gap:6px">
+      <span style="font-weight:700;font-size:12px">Total da semana: ${wl.totalPlanned??'—'} UA planeado · ${wl.totalRealized??'—'} UA realizado</span>
+      ${weekBadge}
+    </div>
+    <div style="font-size:10px;color:var(--t2);margin-top:6px">Banda de tolerância ±15% · dias de baixa intensidade não são sinalizados como alerta (desvio esperado) · carga planeada = duração agendada × RPE-alvo do dia (Modelo da Semana)</div>
+  </div></div>`;
+}
 // Resumo de UMA Unidade de Treino para a linha da tabela do relatório —
 // reaproveita _trAnaliseCompute/_trDestaques (mesmos números já usados na
 // Análise da Sessão dessa UT), não recalcula PSE/wellness/ACWR de outra forma.
@@ -4042,12 +4206,17 @@ function _mcTrSummaryRow(tr){
 }
 // Texto de conclusão da semana (3-5 linhas), gerado a partir dos números já
 // calculados acima.
-function _mcConclusaoTxt(macro,mc,squad,uts,game,gameDate){
+function _mcConclusaoTxt(macro,mc,squad,uts,game,gameDate,wl){
   const lines=[];
   const treinosN=uts.length;
   lines.push(`Semana com ${treinosN} unidade${treinosN!==1?'s':''} de treino registada${treinosN!==1?'s':''}${macro?` na fase "${escHtml(macro.name)}"`:''}${mc.objective?`, com objetivo de "${escHtml(mc.objective)}"`:''}.`);
   if(squad.pseAvg!=null||squad.wellAvg!=null){
     lines.push(`PSE médio da semana: ${squad.pseAvg??'—'}/10${squad.uaAvg!=null?`, UA médio: ${squad.uaAvg}`:''}${squad.wellAvg!=null?` · Wellness médio: ${squad.wellAvg}`:''}.`);
+  }
+  if(wl&&wl.pct!=null){
+    lines.push(wl.status==='ok'
+      ?`Cumprimento da carga planeada: ${wl.pct}% — dentro da banda de tolerância (±15%).`
+      :`⚠️ Cumprimento da carga planeada: ${wl.pct}% — fora da banda de tolerância (±15%), carga real ${wl.status==='acima'?'acima':'abaixo'} do planeado.`);
   }
   if(squad.acwrRisk.length)lines.push(`⚠️ ${squad.acwrRisk.length} atleta${squad.acwrRisk.length>1?'s':''} terminou${squad.acwrRisk.length>1?'ram':''} a semana em zona de risco de ACWR: ${squad.acwrRisk.map(a=>escHtml(_shortName(a))).join(', ')}.`);
   if(game){
@@ -4073,6 +4242,14 @@ function _mcAnaliseReportHtml(){
   const club=APP.config.clubName||'Equipa';
 
   // 1) Grelha da semana (tipologia real de cada dia, já resolvida pelo Microciclo)
+  //    + carga planeada vs. realizada por dia (sps-v164, ver _mcWeekLoadCompliance).
+  const wl=_mcWeekLoadCompliance(weekDates,_mcTeam);
+  const cargaTxt=d=>{
+    if(d.status==='sem-alvo')return '—';
+    if(d.status==='sem-registo')return `${d.plannedUa} plan. / sem registo`;
+    const marca=d.status==='ok'?'✓':(d.lowIntensity?'':(d.status==='acima'?'▲':'▼'));
+    return `${d.plannedUa} plan. / ${d.realizedUa} real (${d.pct}%${marca?' '+marca:''})`;
+  };
   const gridRows=weekDates.map((dt,i)=>{
     const info=_mcResolveDayType(mc,dt,gameDate);
     const label=info.isCustom?(info.customLabel||'Personalizado'):(MC_TYPE_LABELS[info.resolvedTypeId]||info.resolvedTypeId);
@@ -4082,7 +4259,8 @@ function _mcAnaliseReportHtml(){
     return `<tr><td style="border-left:4px solid ${color};font-weight:700">${days[i]} ${fmtDateShort(dt)}</td>
       <td>${escHtml(label)}</td>
       <td style="text-align:center">${dur?dur+' min':'—'}</td>
-      <td>${dayEvs.map(e=>e.type).join(', ')||'—'}</td></tr>`;
+      <td>${dayEvs.map(e=>e.type).join(', ')||'—'}</td>
+      <td style="font-size:8pt">${cargaTxt(wl.days[i])}</td></tr>`;
   }).join('');
 
   // 2) Unidades de Treino da semana (reaproveita a Análise da Sessão de cada uma)
@@ -4111,7 +4289,7 @@ function _mcAnaliseReportHtml(){
   `:(gameDate?`<p>Jogo identificado para ${fmtDate(gameDate)}, ainda sem resultado registado.</p>`:`<p>Sem jogo identificado no Planeamento para esta semana.</p>`);
 
   // 5) Conclusão automática
-  const conclusao=_mcConclusaoTxt(macro,mc,squad,uts,game,gameDate);
+  const conclusao=_mcConclusaoTxt(macro,mc,squad,uts,game,gameDate,wl);
 
   return `
     <div class="pr-title">Relatório do ${mcNum?'Microciclo '+mcNum:'Microciclo'} — ${escHtml(team?team.name:'')} — Semana ${fmtDate(_mcWeek)} a ${fmtDate(weekEnd)}</div>
@@ -4119,8 +4297,9 @@ function _mcAnaliseReportHtml(){
     <p style="font-size:9pt;margin-bottom:10px"><b>Fase da Época:</b> ${macro?(macroNum?'Macrociclo '+macroNum+' — ':'')+escHtml(macro.name):'—'}</p>
 
     <h3>📅 Semana — tipologia real por dia</h3>
-    <table><thead><tr><th>Dia</th><th>Tipologia</th><th>Duração</th><th>Eventos do Planeamento</th></tr></thead>
+    <table><thead><tr><th>Dia</th><th>Tipologia</th><th>Duração</th><th>Eventos do Planeamento</th><th>Carga planeada / realizada</th></tr></thead>
     <tbody>${gridRows}</tbody></table>
+    <p style="font-size:7.5pt;color:#999;margin:2px 0 0">Carga planeada = duração agendada × RPE-alvo do dia (Modelo da Semana) · banda de tolerância ±15% · dias de baixa intensidade não mostram ▲/▼ mesmo fora da banda (desvio esperado, não é alerta).</p>
 
     <h3>🗒️ Unidades de Treino realizadas</h3>
     ${uts.length?`<table><thead><tr><th>Data</th><th>Unidade</th><th>PSE médio</th><th>UA médio</th><th>Presentes</th><th>Destaque</th></tr></thead>
@@ -4133,6 +4312,8 @@ function _mcAnaliseReportHtml(){
       <div class="kpi"><div class="kpi-v">${squad.uaAvg??'—'}</div><div class="kpi-l">UA médio</div></div>
       <div class="kpi"><div class="kpi-v">${squad.uaTotal??'—'}</div><div class="kpi-l">UA total semana</div></div>
       <div class="kpi"><div class="kpi-v">${squad.acwrRisk.length}</div><div class="kpi-l">Em risco ACWR</div></div>
+      <div class="kpi"><div class="kpi-v">${wl.totalPlanned??'—'}</div><div class="kpi-l">UA planeado total</div></div>
+      <div class="kpi"><div class="kpi-v">${wl.pct!=null?wl.pct+'%':'—'}</div><div class="kpi-l">Cumprimento da carga</div></div>
     </div>
     ${squad.acwrRisk.length?`<p style="font-size:9pt">Atletas em zona de risco de ACWR (fim da semana): ${squad.acwrRisk.map(a=>escHtml(_shortName(a))).join(', ')}.</p>`:''}
 
