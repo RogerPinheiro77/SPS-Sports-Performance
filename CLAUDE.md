@@ -392,3 +392,46 @@ corrida em Node contra linhas reais da tabela) antes e depois da correção.
 **Ainda por fazer:** `evaluations`/`convocatorias`/`scouting`/
 `microcycles`/`sessions` continuam no blob `meta` — risco menor por
 escreverem com muito menos frequência que `games`/`trainings`.
+
+## Incidente #4 (17/09/2026): emblemas (`oppLogo`) da 1ª Fase reverteram pela 3ª vez — causa raiz confirmada e URLs finais registados
+
+O Roger reportou outra vez "continua a não ter os emblemas dos clubes a
+aparecer" (já tinha sido "corrigido" a 08/09 e a 15/09 — ver nota de
+14/09/2026 acima, dentro do Incidente #1). Confirmado por SQL: os 7 jogos
+da 1ª Fase (`g_cnf_1_f_j1`...`j7`) tinham `opp_logo` vazio **tanto na
+tabela nova `public.games` como no blob antigo `clubs.meta.games`** — ou
+seja, os emblemas já tinham sido revertidos outra vez antes da migração do
+Incidente #3 correr, e essa migração só copiou fielmente o estado (já
+corrompido) do blob para a tabela nova.
+
+**Causa raiz confirmada:** as duas correções anteriores (08/09 e 15/09)
+foram sempre aplicadas por SQL direto contra `clubs.meta.games` (o blob
+partilhado) — nunca durável contra o padrão "dispositivo desatualizado
+sobrescreve o blob inteiro" que é precisamente o bug que os Incidentes #1-3
+documentam. A partir de agora isto deixa de poder acontecer: os emblemas
+foram reaplicados diretamente na tabela dedicada `public.games` (upsert por
+linha, imune a esse overwrite), o mesmo motivo pelo qual `games` saiu do
+blob no Incidente #3.
+
+**Investigação/recolha (Claude in Chrome, zerozero.pt):** dos 7 clubes, 2
+URLs já eram conhecidos do histórico (Rio Ave FC "B" e FC Ferreirense); os
+outros 5 foram pesquisados de novo (`https://www.zerozero.pt/pesquisa?search_txt=NOME`
+→ link "Equipas" → página da equipa → `meta[property="og:image"]`, mais
+fiável do que percorrer `<img>` da página). Todos os 7 URLs foram
+confirmados com `fetch` (200, `image/type: image/png`) antes de aplicar.
+
+**URLs finais aplicados a `public.games.opp_logo` (registo definitivo —
+para nunca mais ser preciso repetir esta pesquisa manual):**
+- `g_cnf_1_f_j1` (Destreza Aventura): `https://cdn-img.staticzz.com/img/logos/equipas/264723_imgbank_1762218757.png`
+- `g_cnf_1_f_j2` (U.D.S. Roriz): `https://cdn-img.staticzz.com/img/logos/equipas/12000_imgbank.png`
+- `g_cnf_1_f_j3` (FC Tadim): `https://cdn-img.staticzz.com/img/logos/equipas/10930_imgbank.png`
+- `g_cnf_1_f_j4` (Rio Ave FC - SAD "B"): `https://cdn-img.staticzz.com/img/logos/equipas/31_imgbank_1682584600.png`
+- `g_cnf_1_f_j5` (Águias Negras Tabuadelo): `https://cdn-img.staticzz.com/img/logos/equipas/8024_imgbank.png`
+- `g_cnf_1_f_j6` (FC Ferreirense): `https://cdn-img.staticzz.com/img/logos/equipas/84/33684_logo_fc_ferreirense_20260422160127.png`
+- `g_cnf_1_f_j7` (A.D. Várzea FC): `https://cdn-img.staticzz.com/img/logos/equipas/14963_imgbank.png`
+
+**Ainda por fazer:** nenhuma ação de código pendente — o risco estrutural
+que causava a reversão já não existe (`games` é tabela dedicada desde o
+Incidente #3). Se o Roger voltar a reportar emblemas em falta, o mais
+provável é serem jogos NOVOS (ex. 2ª Fase, ainda por sortear) que nunca
+tiveram `oppLogo` preenchido — não uma reversão dos 7 acima.
