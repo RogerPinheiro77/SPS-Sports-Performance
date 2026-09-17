@@ -577,6 +577,12 @@ function _markDeleted(key,ids){
 // Fix: quando o Roger reinicia um jogo explicitamente, o id fica aqui — o merge por
 // riqueza passa a ignorar-se para esse jogo específico e o local (vazio) ganha sempre,
 // até o push seguinte confirmar que já chegou à cloud (ver fim de pushAppMeta).
+// ATUALIZAÇÃO (15/09/2026): 'games' passou a ter tabela dedicada própria (upsert por
+// jogo, ver saveData()/CLAUDE.md incidente #3) — a fusão por riqueza que este Set
+// protegia (_gdMergeGamesForPush) já não é chamada por pushAppMeta. Fica declarado e
+// ainda é preenchido por _gdResetGame/_gdFullReset (inofensivo — nada volta a lê-lo),
+// não removido, para não arriscar mexer mais do que o necessário numa área tão
+// sensível (Gameday ao vivo) na mesma alteração que já muda onde 'games' é gravado.
 const _gdForceLocalGameIds=new Set();
 
 // ─── DEFAULT DATA ─────────────────────────────────────────
@@ -621,7 +627,27 @@ function loadData(){
   // migração: cargo antigo 'tecnico' (acesso total único) passa a 'treinador'
   APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});
 }
-function saveData(){localStorage.setItem(DK,JSON.stringify(APP));if(_sync&&_supa&&_cid)pushAppMeta();}
+function saveData(){
+  localStorage.setItem(DK,JSON.stringify(APP));
+  if(_sync&&_supa&&_cid){
+    pushAppMeta();
+    // Jogos: tabela dedicada própria desde 15/09/2026 (ver CLAUDE.md, incidente #3).
+    // saveData() é chamado a cada ação dentro do ecrã de detalhe de um Jogo (Gameday,
+    // Campo Tático, Pré-Jogo, Resultado, Bolas Paradas...) — _jogoDetailId identifica
+    // sempre qual é o jogo "em vista" nesses casos (ver openJogo/_renderJogoDetailFull,
+    // todos os onclick desses ecrãs usam o mesmo g.id===_jogoDetailId). Sincronizar
+    // aqui, num único sítio central, cobre todos esses pontos de gravação (dezenas de
+    // funções _gd*/_opp*/_pitch*) sem ter de tocar em cada um deles à mão — e evita
+    // repetir o erro do incidente #2 (Unidades de Treino), onde só ALGUNS sítios de
+    // gravação tinham sido convertidos. Criação/edição pelo formulário (saveJogo) e
+    // eliminação (deleteJogo) fazem o seu próprio cloudUpsert/delete explícito, porque
+    // aí _jogoDetailId pode ainda não estar definido (jogo novo) ou já ter sido limpo.
+    if(_jogoDetailId){
+      const _hotGame=(APP.games||[]).find(x=>x.id===_jogoDetailId);
+      if(_hotGame)cloudUpsert('games',_hotGame);
+    }
+  }
+}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 // Formata uma data para YYYY-MM-DD usando os campos LOCAIS (ano/mês/dia), não UTC.
 // Bug corrigido 2026-08-11: `.toISOString().slice(0,10)` converte sempre para UTC — em
@@ -4635,12 +4661,17 @@ function _classificacaoTabHtml(){
 function openJogo(id,tab='info'){
   const g=APP.games.find(x=>x.id===id);
   if(!g)return;
+  // _jogoDetailId definido ANTES do primeiro saveData() (15/09/2026) — o hook de sync
+  // de 'games' dentro de saveData() só sincroniza o jogo cujo id está em _jogoDetailId;
+  // definir isto antes garante que mesmo o _initG() de abertura (que pode acrescentar
+  // campos em falta a jogos antigos) chega à tabela dedicada, não só as edições seguintes.
+  _jogoDetailId=id;
   _initG(g);saveData();
   // Em modo SPS-Gameday standalone (sps-v78), "Abrir" salta logo para o Ao Vivo em vez do
   // separador Info — é o único motivo de estar nesta app dedicada. Só quando o chamador
   // não pediu já um separador específico (ex. o botão "Convocatória" continua a abrir Pré-Jogo).
   if(tab==='info'&&typeof _forceGamedayMode!=='undefined'&&_forceGamedayMode)tab='aovivo';
-  _jogoDetailId=id;_jogoView='detail';_jogoDetailTab=tab;
+  _jogoView='detail';_jogoDetailTab=tab;
   renderJogos();
 }
 
@@ -7672,12 +7703,19 @@ async function saveJogo(){
       const prevDate=g.date,prevTeamId=g.teamId;
       g.opp=opp;g.date=date;g.time=document.getElementById('jf-time').value;g.ha=document.getElementById('jf-ha').value;g.loc=document.getElementById('jf-loc').value;g.tipo=tipo;g.comp=comp;if(oppLogo)g.oppLogo=oppLogo;
       await _syncJogoSchedule(g,prevDate,prevTeamId);
+      saveData();if(_sync&&_supa&&_cid)await cloudUpsert('games',g);
     }
-    saveData();_showJogoForm=false;_editJogoId=null;toast('Jogo atualizado ✓');renderJogos();
+    _showJogoForm=false;_editJogoId=null;toast('Jogo atualizado ✓');renderJogos();
   }else{
     const id=uid();
     const g={id,teamId:document.getElementById('jf-team').value,opp,date,time:document.getElementById('jf-time').value,ha:document.getElementById('jf-ha').value,loc:document.getElementById('jf-loc').value,tipo,comp,status:'agendado',g1:null,g2:null,notes:'',oppLogo};
-    _initG(g);await _syncJogoSchedule(g);APP.games.push(g);saveData();_showJogoForm=false;toast('Jogo criado ✓');openJogo(id);
+    _initG(g);await _syncJogoSchedule(g);APP.games.push(g);saveData();
+    // Jogo novo: _jogoDetailId ainda não aponta para este id quando saveData() correu
+    // acima (só openJogo(id), já a seguir, o define) — cloudUpsert explícito garante
+    // que o jogo chega à tabela dedicada mesmo que o pull da app seguinte aconteça
+    // antes de qualquer outra ação dentro do detalhe (ver saveData()/incidente #3).
+    if(_sync&&_supa&&_cid)await cloudUpsert('games',g);
+    _showJogoForm=false;toast('Jogo criado ✓');openJogo(id);
   }
 }
 
@@ -7685,13 +7723,21 @@ function editJogo(id){openJogo(id);}
 async function deleteJogo(id){
   if(!confirm('Apagar este jogo e todos os seus dados?'))return;
   const eventId=APP.games.find(x=>x.id===id)?.eventId;
-  _markDeleted('games',id);
+  // _markDeleted('games',id) já não é preciso (15/09/2026) — 'games' tem tabela
+  // dedicada própria, sem o merge por staleness do meta blob que precisava desta
+  // lista para não ressuscitar um item apagado (mesmo motivo de deleteTreino/
+  // incidente #2). O DELETE direto na tabela, abaixo, já remove definitivamente.
+  _jogoDetailId=null; // limpa ANTES do filter/saveData — o hook de sync de saveData()
+  // não deve tentar reescrever um jogo que estamos mesmo agora a apagar.
   APP.games=APP.games.filter(x=>x.id!==id);
   if(eventId)APP.schedule=APP.schedule.filter(e=>e.id!==eventId);
   saveData();
-  if(_sync&&_supa&&eventId){try{await _supa.from('schedule_events').delete().eq('id',eventId);}catch(err){_warnSyncFailure('schedule_events (apagar)',err);}}
+  if(_sync&&_supa){
+    try{await _supa.from('games').delete().eq('id',id);}catch(err){_warnSyncFailure('games (apagar)',err);}
+    if(eventId){try{await _supa.from('schedule_events').delete().eq('id',eventId);}catch(err){_warnSyncFailure('schedule_events (apagar)',err);}}
+  }
   toast('Jogo apagado');
-  _jogoView='list';_jogoDetailId=null;renderJogos();
+  _jogoView='list';renderJogos();
 }
 // ─── TREINOS (UNIDADES DE TREINO) ─────────────────────────
 const _PHASES=[
@@ -15332,6 +15378,10 @@ function _gdGameRichness(g){
   const accum=ls.accumSec||0;
   return launched*1e9+nEvents*1e6+accum;
 }
+// ATUALIZAÇÃO (15/09/2026): já não é chamada por pushAppMeta — 'games' passou a tabela
+// dedicada própria (upsert por jogo), o que torna esta fusão por riqueza desnecessária
+// para esse caminho (ver CLAUDE.md, incidente #3). Deixada por não ter mais chamadores
+// nem risco em o fazer, não porque ainda proteja alguma coisa.
 // _gdMergeGamesForPush(local,cloudGames,deletedIds): fusão por riqueza de 'games' entre a
 // cópia local e uma cópia da cloud — por jogo, o mais rico (_gdGameRichness) ganha; em
 // empate, local ganha (protege edições concorrentes genuínas: notas, convocatória, etc.).
@@ -15400,7 +15450,48 @@ async function pullCloud(){
       // do projeto, incidente #2). Mesmo padrão de athletes/staff_users/
       // schedule_events: upsert linha a linha, imune ao overwrite do blob `meta`
       // inteiro.
-      ['trainings','trainings',(d)=>APP.trainings=d.map(r=>({...r,eventId:r.event_id,localConcentracao:r.local_concentracao,horaConcentracao:r.hora_concentracao,horaInicio:r.hora_inicio,horaFim:r.hora_fim,teamId:r.team_id,guestIds:r.guest_ids||[],exercises:r.exercises||{aquecimento:[],principal:[],jogo:[],retorno:[]},pdfImported:r.pdf_imported,pdfImportedAt:r.pdf_imported_at,pdfImportedName:r.pdf_imported_name}))]
+      ['trainings','trainings',(d)=>APP.trainings=d.map(r=>({...r,eventId:r.event_id,localConcentracao:r.local_concentracao,horaConcentracao:r.hora_concentracao,horaInicio:r.hora_inicio,horaFim:r.hora_fim,teamId:r.team_id,guestIds:r.guest_ids||[],exercises:r.exercises||{aquecimento:[],principal:[],jogo:[],retorno:[]},pdfImported:r.pdf_imported,pdfImportedAt:r.pdf_imported_at,pdfImportedName:r.pdf_imported_name}))],
+      // Jogos: tabela dedicada própria desde 15/09/2026 (ver CLAUDE.md, incidente #3 —
+      // mesmo padrão de trainings/athletes). IMPORTANTE: os campos jsonb (liveSession,
+      // playerPositions, etc.) mapeiam para `undefined` quando a coluna vem null/ausente
+      // — NÃO para {}/[] — porque _gdInit() e várias funções _gd*/_opp*/_pitch* usam
+      // "if(!g.liveSession)"/"if(!g.oppTactical)" etc. para decidir se inicializam a
+      // estrutura pela 1ª vez; um objeto vazio TRUTHY em vez de ausente fazia essas
+      // inicializações serem saltadas e a Gameday partir a meio (ex: ls.events.push
+      // numa liveSession sem 'events'). A fusão final com _gdLiveGamesAtRisk (ver
+      // _gdIsLiveUnlaunched) preserva exatamente a mesma proteção que já existia —
+      // nunca sobrepor um jogo com sessão ao vivo em risco neste dispositivo.
+      ['games','games',(d)=>{
+        const fresh=d.map(r=>({
+          id:r.id,teamId:r.team_id,opp:r.opp,date:r.date,time:r.time,ha:r.ha,loc:r.loc,tipo:r.tipo,comp:r.comp,
+          status:r.status,g1:r.g1,g2:r.g2,notes:r.notes,oppLogo:r.opp_logo,eventId:r.event_id,
+          formation:r.formation,captain:r.captain,viceCaptain:r.vice_captain,
+          oppFormation:r.opp_formation,oppStrengths:r.opp_strengths,oppWeaknesses:r.opp_weaknesses,
+          oppSetPieces:r.opp_set_pieces,oppScoutLink:r.opp_scout_link,
+          preGameNotes:r.pre_game_notes,postGameNotes:r.post_game_notes,fpfUrl:r.fpf_url,
+          concentracaoLocal:r.concentracao_local,concentracaoHora:r.concentracao_hora,transporte:r.transporte,
+          refeicaoAntes:r.refeicao_antes,refeicaoApos:r.refeicao_apos,
+          convocatoriaPublishAt:r.convocatoria_publish_at,convocatoriaLaunched:!!r.convocatoria_launched,
+          djOffMeal:r.dj_off_meal,djOffSnack:r.dj_off_snack,djOffWarmup:r.dj_off_warmup,djOffFocus:r.dj_off_focus,
+          djDurJogo:r.dj_dur_jogo,djNota:r.dj_nota,
+          convocatoria:r.convocatoria||undefined,lineup:r.lineup||undefined,subs:r.subs||undefined,
+          playerPositions:r.player_positions||undefined,playerTasks:r.player_tasks||undefined,
+          setpiecePositions:r.setpiece_positions||undefined,setpieceTasks:r.setpiece_tasks||undefined,
+          pitchNotes:r.pitch_notes||undefined,setpieces:r.setpieces||undefined,
+          oppTactical:r.opp_tactical||undefined,oppSPBoards:r.opp_sp_boards||undefined,oppRoster:r.opp_roster||undefined,
+          tacticoSnapshots:r.tactico_snapshots||undefined,setpieceSnapshots:r.setpiece_snapshots||undefined,
+          liveSession:r.live_session||undefined,playerStats:r.player_stats||undefined,
+          fpfTimeline:r.fpf_timeline||undefined,noShow:r.no_show||undefined
+        }));
+        const atRisk=_gdLiveGamesAtRisk();
+        if(atRisk.length){
+          const atRiskIds=new Set(atRisk.map(g=>g.id));
+          console.warn('[pullCloud] '+atRisk.length+' jogo(s) com sessão ao vivo em risco — a preservar localmente:',[...atRiskIds]);
+          APP.games=[...fresh.filter(g=>!atRiskIds.has(g.id)),...atRisk];
+        } else {
+          APP.games=fresh;
+        }
+      }]
     ];
     for(const [tbl,,setter] of pulls){
       const {data}=await _supa.from(tbl).select('*').eq('club_id',_cid);
@@ -15425,20 +15516,12 @@ async function pullCloud(){
       // 'users' já não vem daqui — tem tabela própria (staff_users, ver pulls acima).
       if(m.config)APP.config=Object.assign(APP.config||{},m.config);
       if(m.teams&&m.teams.length)APP.teams=m.teams;
-      if(m.games&&m.games.length){
-        // Nunca sobrepor um jogo com sessão ao vivo em risco (ver _gdIsLiveUnlaunched
-        // acima) — mantém a versão local desse(s) jogo(s) e só aceita a versão da
-        // cloud para todos os outros. Protege qualquer chamada a pullCloud (login,
-        // visibilitychange, botão Sincronizar), não só o caso que causou o incidente.
-        const atRisk=_gdLiveGamesAtRisk();
-        if(atRisk.length){
-          const atRiskIds=new Set(atRisk.map(g=>g.id));
-          console.warn('[pullCloud] '+atRisk.length+' jogo(s) com sessão ao vivo em risco — a preservar localmente:',[...atRiskIds]);
-          APP.games=[...m.games.filter(g=>!atRiskIds.has(g.id)),...atRisk];
-        } else {
-          APP.games=m.games;
-        }
-      }
+      // NOTA: games NÃO é lido daqui de propósito (15/09/2026) — tem tabela dedicada
+      // própria (ver array `pulls` acima, com a mesma proteção _gdLiveGamesAtRisk já
+      // aplicada aí), mesmo padrão de 'trainings'/'users'. pushAppMeta() deixou de
+      // enviar 'games' no payload do blob — este campo só continua a aparecer em
+      // clubs já sincronizados antes desta migração, como resíduo morto que nunca
+      // mais é escrito nem lido. Ver CLAUDE.md, incidente #3.
       if(m.evaluations)APP.evaluations=m.evaluations;
       if(m.evalPeriods)APP.evalPeriods=m.evalPeriods;
       if(m.evalResponses){APP.evalResponses=m.evalResponses;console.log('[pullCloud] evalResponses=',m.evalResponses.length);}
@@ -15535,13 +15618,19 @@ async function pushAppMeta(_pushRetry){
         // 'convocatorias' fica de fora deste snapshot — já foi fundida campo-a-campo acima,
         // meter-lhe aqui a lógica "registo inteiro local ganha" desfaria essa fusão.
         const _localSnap={
-          games:APP.games||[], evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
+          evaluations:APP.evaluations||[], evalPeriods:APP.evalPeriods||[],
           evalResponses:APP.evalResponses||[],
           scouting:APP.scouting||[], microcycles:APP.microcycles||[], sessions:APP.sessions||[],
           macrocycles:APP.macrocycles||[], mcTemplates:APP.mcTemplates||[]
           // exercises/gymSheets removidos daqui (01/09/2026), trainings removido daqui
-          // (15/09/2026) — já não fazem parte do meta blob, têm tabelas dedicadas com
-          // o seu próprio cloudUpsert. Ver CLAUDE.md, incidente #2.
+          // (15/09/2026), games removido daqui (15/09/2026) — já não fazem parte do
+          // meta blob, têm tabelas dedicadas com o seu próprio cloudUpsert por linha.
+          // 'games' em particular tinha aqui uma fusão por riqueza própria
+          // (_gdMergeGamesForPush) só necessária porque o array inteiro vivia num
+          // blob partilhado — com upsert por jogo (ver saveData()/saveJogo()) esse
+          // risco de um dispositivo desatualizado apagar OUTROS jogos deixa de
+          // existir: cada escrita só toca na linha do jogo em edição. Ver CLAUDE.md,
+          // incidentes #2 e #3.
         };
         const _convSnap=APP.convocatorias;
         await pullCloud();
@@ -15551,22 +15640,10 @@ async function pushAppMeta(_pushRetry){
           const local=_localSnap[key]||[];
           const localIds=new Set(local.filter(x=>x&&x.id).map(x=>x.id));
           const deletedIds=_pendingDeletes[key]||new Set();
-          if(key==='games'){
-            // 'games' tem uma regra própria (07/09/2026) — "o local ganha sempre que existe
-            // em memória" apaga sessões ao vivo reais sempre que um dispositivo com uma cópia
-            // desatualizada de OUTRO jogo qualquer dispara esta fusão (TODOS os jogos da época
-            // estão sempre em APP.games, mesmo os que este dispositivo nunca abriu — não é
-            // sinal de edição real). Usa _gdMergeGamesForPush (por jogo, local só ganha se NÃO
-            // for claramente mais pobre que a versão fresca da cloud — ver essa função para o
-            // histórico completo do incidente). Esta fusão aqui é só a 1ª camada — a 2ª e mais
-            // importante corre sempre, no bloco final deste pushAppMeta (ver mais abaixo).
-            APP.games=_gdMergeGamesForPush(local,fresh,deletedIds,_gdForceLocalGameIds);
-          }else{
-            // Um item da cloud só sobrevive ao merge se não tiver sido também editado
-            // (localIds — a versão local ganha) nem apagado (deletedIds) nesta sessão.
-            const keep=fresh.filter(f=>!f||!f.id||(!localIds.has(f.id)&&!deletedIds.has(f.id)));
-            APP[key]=[...keep,...local];
-          }
+          // Um item da cloud só sobrevive ao merge se não tiver sido também editado
+          // (localIds — a versão local ganha) nem apagado (deletedIds) nesta sessão.
+          const keep=fresh.filter(f=>!f||!f.id||(!localIds.has(f.id)&&!deletedIds.has(f.id)));
+          APP[key]=[...keep,...local];
         });
         saveData();
         if(!_pushRetry)return pushAppMeta(true);
@@ -15574,14 +15651,6 @@ async function pushAppMeta(_pushRetry){
       }
     }catch(e){console.warn('[pushAppMeta] staleness check falhou, a prosseguir mesmo assim',e);}
     console.log('[pushAppMeta] pushing for club_id=',_cid,'evalResponses=',((APP.evalResponses||[]).length));
-    // Lido AQUI (antes de construir `meta`), não só mais abaixo para o merge raso de chaves
-    // em falta — 07/09/2026, "Parte 5": a proteção de 'games' por riqueza (_gdMergeGamesForPush)
-    // só corria dentro do bloco de staleness acima, que só dispara quando `_metaSyncAt` já
-    // está definido E a cloud está >2s mais recente. Uma sessão nova (sem pull completo feito
-    // ainda, `_metaSyncAt` ainda null) passava direto por aqui e reescrevia games só com a
-    // cópia local, sem comparar nada — foi o que continuou a apagar o Rio Ave/Esposende mesmo
-    // depois do sps-v143 estar publicado. Agora a mesma fusão por riqueza corre SEMPRE, usando
-    // o estado da cloud mesmo antes deste push. Ver feedback_sps_gameday_pullcloud_overwrite.
     const {data:_curRow}=await _supa.from('clubs').select('meta').eq('id',_cid).maybeSingle();
     const _cloudMeta=(_curRow&&_curRow.meta)||{};
     // NOTA (2026-08-18): 'users' deixou de fazer parte deste blob — tem tabela própria
@@ -15593,7 +15662,6 @@ async function pushAppMeta(_pushRetry){
     const meta={
       config:APP.config||{},
       teams:APP.teams||[],
-      games:_gdMergeGamesForPush(APP.games||[],_cloudMeta.games||[],_pendingDeletes.games||new Set(),_gdForceLocalGameIds),
       evaluations:APP.evaluations||[],
       evalPeriods:APP.evalPeriods||[],
       evalResponses:APP.evalResponses||[],
@@ -15607,6 +15675,14 @@ async function pushAppMeta(_pushRetry){
       // inteiro — ver CLAUDE.md, incidente #2. Como bónus, os esquemas (drawing)
       // dos exercícios deixam de precisar de ser cortados para caber no blob —
       // cada Unidade de Treino é agora a sua própria linha, sem limite partilhado.
+      // 'games' deixou de fazer parte deste blob a partir de 15/09/2026 — tem tabela
+      // dedicada própria (upsert por jogo disparado de dentro de saveData(), ver
+      // essa função). Motivo: mesmo com a fusão por riqueza (_gdMergeGamesForPush,
+      // agora só histórica/sem chamadores), o array inteiro continuava a viver num
+      // blob partilhado — qualquer separador desatualizado que gravasse QUALQUER
+      // outra coisa (config, avaliações, scouting...) reescrevia 'games' por cima,
+      // e só a comparação de riqueza evitava perder dados, não impedia a escrita em
+      // si. Ver CLAUDE.md, incidente #3.
       convocatorias:APP.convocatorias||[],
       schedule:APP.schedule||[],
       scouting:APP.scouting||[],
@@ -15632,8 +15708,7 @@ async function pushAppMeta(_pushRetry){
     // construir desaparecia da cloud em silêncio, mesmo com a guarda de staleness
     // acima (que só existe NO código novo — uma sessão com código antigo não a tem).
     // Foi assim que os 6 exercícios de Ginásio desapareceram da Biblioteca. Correção:
-    // `_cloudMeta` já foi lido mais acima (antes de construir `meta`, para o merge por
-    // riqueza de 'games') — reaproveita-se aqui para o mesmo merge raso: qualquer chave
+    // `_cloudMeta` já foi lido mais acima — reaproveita-se aqui para o mesmo merge raso: qualquer chave
     // que este `meta` local não tenha (código desatualizado) mantém o valor que já
     // estava na cloud, em vez de desaparecer. Uma chave que o código atual gere sempre
     // substitui (mesmo vazia — array vazio é um estado válido e intencional).
@@ -15645,9 +15720,11 @@ async function pushAppMeta(_pushRetry){
     // A partir daqui a cloud já reflete as eliminações desta sessão — não é preciso
     // continuar a protegê-las no próximo merge.
     Object.keys(_pendingDeletes).forEach(k=>_pendingDeletes[k].clear());
-    // Idem para resets explícitos de jogo (ver _gdForceLocalGameIds) — a cloud já
-    // reflete o reset, a comparação por riqueza normal pode voltar a correr.
-    _gdForceLocalGameIds.clear();
+    // _gdForceLocalGameIds.clear() removido daqui (15/09/2026) — já não faz sentido: a
+    // proteção que essa lista alimentava (_gdMergeGamesForPush) só existia porque
+    // 'games' vivia num array partilhado; com upsert por jogo (ver saveData()) um
+    // Reiniciar Jogo/Reset Total é escrito na hora, sem comparação por riqueza a
+    // desfazer. Ver _gdResetGame/_gdFullReset e CLAUDE.md, incidente #3.
   }catch(e){_warnSyncFailure('dados gerais (jogos/configuração/planeamento)',e);}
 }
 // Mapa das colunas REAIS de cada tabela no Supabase + renomeações de campos locais
@@ -15697,7 +15774,28 @@ const _CLOUD_TABLE_SCHEMA={
   // pushAppMeta e CLAUDE.md, incidente #2). Uma linha por UT, upsert por id em cada
   // ponto de gravação — 'exercises' vai completo (com 'drawing'), já não é cortado.
   trainings:{cols:['id','event_id','date','title','objetivo','local','local_concentracao','hora_concentracao','hora_inicio','hora_fim','duracao','jogadoras','notes','team_id','guest_ids','exercises','pdf_imported','pdf_imported_at','pdf_imported_name'],
-    rename:{eventId:'event_id',localConcentracao:'local_concentracao',horaConcentracao:'hora_concentracao',horaInicio:'hora_inicio',horaFim:'hora_fim',teamId:'team_id',guestIds:'guest_ids',pdfImported:'pdf_imported',pdfImportedAt:'pdf_imported_at',pdfImportedName:'pdf_imported_name'}}
+    rename:{eventId:'event_id',localConcentracao:'local_concentracao',horaConcentracao:'hora_concentracao',horaInicio:'hora_inicio',horaFim:'hora_fim',teamId:'team_id',guestIds:'guest_ids',pdfImported:'pdf_imported',pdfImportedAt:'pdf_imported_at',pdfImportedName:'pdf_imported_name'}},
+  // Jogos: tabela dedicada própria desde 15/09/2026 (ver CLAUDE.md, incidente #3 —
+  // mesmo padrão de trainings/athletes/schedule_events). Uma linha por Jogo, upsert
+  // por id disparado a partir de saveData() sempre que há um jogo "em vista"
+  // (_jogoDetailId — Gameday, Campo Tático, Pré-Jogo, Resultado, tudo o que se edita
+  // dentro do ecrã de detalhe do Jogo) + chamada explícita em saveJogo()/deleteJogo().
+  games:{cols:['id','team_id','opp','date','time','ha','loc','tipo','comp','status','g1','g2','notes','opp_logo','event_id',
+    'formation','captain','vice_captain','opp_formation','opp_strengths','opp_weaknesses','opp_set_pieces','opp_scout_link',
+    'pre_game_notes','post_game_notes','fpf_url','concentracao_local','concentracao_hora','transporte','refeicao_antes','refeicao_apos',
+    'convocatoria_publish_at','convocatoria_launched','dj_off_meal','dj_off_snack','dj_off_warmup','dj_off_focus','dj_dur_jogo','dj_nota',
+    'convocatoria','lineup','subs','player_positions','player_tasks','setpiece_positions','setpiece_tasks','pitch_notes','setpieces',
+    'opp_tactical','opp_sp_boards','opp_roster','tactico_snapshots','setpiece_snapshots','live_session','player_stats','fpf_timeline','no_show'],
+    rename:{teamId:'team_id',oppLogo:'opp_logo',eventId:'event_id',viceCaptain:'vice_captain',oppFormation:'opp_formation',
+      oppStrengths:'opp_strengths',oppWeaknesses:'opp_weaknesses',oppSetPieces:'opp_set_pieces',oppScoutLink:'opp_scout_link',
+      preGameNotes:'pre_game_notes',postGameNotes:'post_game_notes',fpfUrl:'fpf_url',concentracaoLocal:'concentracao_local',
+      concentracaoHora:'concentracao_hora',refeicaoAntes:'refeicao_antes',refeicaoApos:'refeicao_apos',
+      convocatoriaPublishAt:'convocatoria_publish_at',convocatoriaLaunched:'convocatoria_launched',djOffMeal:'dj_off_meal',
+      djOffSnack:'dj_off_snack',djOffWarmup:'dj_off_warmup',djOffFocus:'dj_off_focus',djDurJogo:'dj_dur_jogo',djNota:'dj_nota',
+      playerPositions:'player_positions',playerTasks:'player_tasks',setpiecePositions:'setpiece_positions',setpieceTasks:'setpiece_tasks',
+      pitchNotes:'pitch_notes',oppTactical:'opp_tactical',oppSPBoards:'opp_sp_boards',oppRoster:'opp_roster',
+      tacticoSnapshots:'tactico_snapshots',setpieceSnapshots:'setpiece_snapshots',liveSession:'live_session',
+      playerStats:'player_stats',fpfTimeline:'fpf_timeline',noShow:'no_show'}}
 };
 // Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
 // console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud

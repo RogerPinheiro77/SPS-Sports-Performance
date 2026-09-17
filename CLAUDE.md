@@ -261,11 +261,10 @@ exatamente o mesmo padrão já usado para `athletes`/`staff_users`/
   camelCase incluindo `exercises[].drawing`), e um upsert/select/delete
   real contra a tabela nova na Supabase antes de publicar.
 
-**Ainda por fazer:** o mesmo continua pendente para `games` — é o próximo
-candidato mais urgente a sair do blob (grande volume de escrita: Gameday
-ao vivo, convocatórias, resultados). `evaluations`/`convocatorias`/
-`scouting`/`microcycles`/`sessions` continuam no blob, risco menor por
-escreverem com menos frequência.
+**Ainda por fazer:** `games` já saiu do blob também — ver incidente #3
+abaixo (mesmo dia). `evaluations`/`convocatorias`/`scouting`/`microcycles`/
+`sessions` continuam no blob, risco menor por escreverem com menos
+frequência.
 
 **Nota sobre o "link de calendário":** o preenchimento de adversário/local a
 partir do link da FPF (`resultados.fpf.pt/Competition/Details`) **não é
@@ -276,3 +275,120 @@ manual: o Roger envia o link/calendário quando sai um sorteio novo, e uma
 sessão do Claude navega lá (Claude in Chrome) e atualiza os Jogos — por
 isso o link em si não tem "bug", o que falhou foi a gravação ficar
 persistida depois de atualizada.
+
+## Incidente #3 (mesmo dia, 15/09/2026): `games` saiu do blob `meta`, mesmo padrão de `trainings`
+
+Depois de reportar o incidente #2 (acima) e da correção estrutural das
+Unidades de Treino, o Roger pediu explicitamente para resolver também o
+risco pendente de `games`: **"trata disso, assim fica já tudo resolvido"**,
+em resposta à nota que listava `games` como próximo candidato.
+
+`games` era, de longe, o campo do blob com mais pontos de escrita da app
+inteira — dezenas de funções `_gd*` (SPS-Gameday: cronómetro, eventos ao
+vivo, substituições, cartões, penáltis), `_opp*`/`_pitch*` (Campo Tático,
+4 quadros de bolas paradas), Pré-Jogo, Resultado, Convocatória — todas a
+mutar um jogo (`g`) e chamar `saveData()`. Precisamente por isso já tinha
+proteções bespoke que `trainings` nunca teve: `_gdIsLiveUnlaunched` (nunca
+deixar um `pullCloud()` sobrepor uma sessão ao vivo em risco neste
+dispositivo) e `_gdMergeGamesForPush`/`_gdGameRichness` (fusão por
+"riqueza" — o jogo mais completo ganha — dentro de `pushAppMeta()`,
+criada a 07/09/2026 depois de 2 incidentes reais: jogo vs Aldeia Nova a
+30/08 e Rio Ave/Esposende a 04-07/09, ver memória
+`feedback_sps_gameday_pullcloud_overwrite`). Essas proteções resolviam os
+sintomas mas não a causa: o array inteiro continuava a viver num blob
+partilhado, por isso qualquer separador desatualizado que gravasse
+QUALQUER outra coisa (config, avaliações, scouting...) continuava a
+reescrever `games` por cima — só a comparação de riqueza é que evitava
+perder dados, não impedia a escrita em si.
+
+**Desafio específico de `games` (vs. `trainings`):** não dava para simplesmente
+copiar o padrão "cada função de escrita chama `cloudUpsert` explicitamente" —
+são dezenas de sítios, muitos deles no meio de um jogo ao vivo real, e
+esquecer um só deles teria o mesmo efeito do incidente #2 (só que a acontecer
+a meio de uma partida). Solução: `saveData()` passou a sincronizar
+centralmente o jogo "em vista" — todas essas dezenas de funções (`_gd*`/
+`_opp*`/`_pitch*`) só correm com um Jogo aberto no ecrã de detalhe
+(`_jogoDetailId`, definido por `openJogo()`), e `_renderJogoDetailFull()`/
+todos os `onclick` desses ecrãs usam sempre `g.id===_jogoDetailId`. Por
+isso `saveData()` agora faz, sempre que `_jogoDetailId` está definido:
+```js
+const _hotGame=(APP.games||[]).find(x=>x.id===_jogoDetailId);
+if(_hotGame)cloudUpsert('games',_hotGame);
+```
+um único sítio central cobre todos os pontos de gravação do Gameday/Campo
+Tático/Pré-Jogo/Resultado, sem precisar de tocar em cada função. Os dois
+casos que não têm `_jogoDetailId` definido no momento do `saveData()` —
+criar um Jogo novo e apagar um Jogo — ganharam `cloudUpsert`/`delete`
+explícitos em `saveJogo()`/`deleteJogo()`.
+
+**Trade-off aceite conscientemente:** ao passar para upsert por linha, a
+fusão por riqueza (`_gdMergeGamesForPush`) deixou de ser chamada — já não
+é precisa para o problema que resolvia (um dispositivo desatualizado a
+apagar OUTROS jogos ao gravar o array inteiro), porque cada escrita agora
+só toca na linha do jogo em edição. Fica uma proteção mais estreita por
+resolver: dois dispositivos a editar exatamente o MESMO jogo ao mesmo
+tempo (ex: dois telemóveis no Gameday do mesmo jogo) passam a ter
+"última escrita ganha" nessa linha, sem comparação de riqueza — cenário
+raro (só um dispositivo corre o Gameday ao vivo de cada jogo, na prática)
+e já é o comportamento normal de todas as outras tabelas dedicadas
+(`athletes`, `trainings`, etc.). A proteção mais importante — nunca deixar
+um `pullCloud()` sobrepor a sessão ao vivo deste dispositivo com uma cópia
+antiga da cloud a meio de um jogo — continua intacta (`_gdIsLiveUnlaunched`,
+agora a correr sobre os dados vindos da tabela `games` em vez do blob).
+As funções antigas (`_gdMergeGamesForPush`, `_gdGameRichness`,
+`_gdForceLocalGameIds`) ficaram no código, sem chamadores, por não haver
+necessidade de as remover na mesma alteração que já mexe numa área tão
+sensível.
+
+**Cuidado técnico importante (bug apanhado antes de publicar, não chegou a
+produção):** a 1ª tentativa de migração usava `coalesce(campo,'{}'::jsonb)`
+no SQL para os campos jsonb sem valor (ex: `liveSession` de um jogo que
+nunca teve a aba Ao Vivo aberta). Isso transformava uma chave AUSENTE no
+blob original (`undefined`/falsy) num objeto vazio `{}` — TRUTHY — na
+tabela nova. `_gdInit(g)` e várias funções `_gd*`/`_opp*`/`_pitch*` decidem
+se inicializam uma estrutura pela 1ª vez com `if(!g.liveSession)`/
+`if(!g.oppTactical)` etc.; um `{}` truthy fazia essas inicializações serem
+saltadas, e código como `ls.events.push(...)` partia com "Cannot read
+properties of undefined" na 1ª ação de um jogo nunca aberto no Gameday.
+Corrigido antes de publicar: colunas jsonb sem `default`, migração sem
+`coalesce` (NULL fica NULL, exatamente como no blob original), e
+`pullCloud()` mapeia cada campo jsonb com `||undefined` (nunca `||{}`/
+`||[]`) para preservar o mesmo falsy-check que o resto do código espera.
+Verificado com um teste isolado (função `pulls` de `games` extraída e
+corrida em Node contra linhas reais da tabela) antes e depois da correção.
+
+**Feito (15/09/2026):**
+- Tabela `public.games` criada (RLS `anon_all`), os 41 jogos existentes
+  migrados por SQL a partir de `clubs.meta.games` (sem `coalesce` para
+  jsonb, ver acima) — confirmado 41/41, incluindo os 3 jogos com sessão
+  ao vivo real (Aldeia Nova completo, Rio Ave e Vitória SC Sub-19 em
+  rascunho) com todos os eventos/estatísticas intactos.
+- `pullCloud()`: nova entrada no array `pulls` para `games`, com a mesma
+  proteção `_gdLiveGamesAtRisk` que já existia (nunca sobrepor uma sessão
+  ao vivo em risco neste dispositivo); deixou de ler `m.games` do blob.
+- `pushAppMeta()`: `games` removido do objeto `meta` construído e do
+  `_localSnap`/fusão de staleness; as duas chamadas a
+  `_gdMergeGamesForPush` removidas (ficou só a função, sem chamadores).
+- `_CLOUD_TABLE_SCHEMA`: nova entrada `games`, 57 colunas (a maioria dos
+  campos de um Jogo — Pré-Jogo, Campo Tático, bolas paradas, Gameday ao
+  vivo — como colunas jsonb ou texto simples, mesmo padrão de `trainings`).
+- `saveData()` passou a sincronizar o jogo em `_jogoDetailId` (ver acima);
+  `openJogo()` define `_jogoDetailId` ANTES do 1º `saveData()`;
+  `saveJogo()`/`deleteJogo()` ganharam `cloudUpsert`/`delete` explícitos;
+  `deleteJogo()` já não precisa de `_markDeleted` (mesmo motivo do
+  `deleteTreino` no incidente #2).
+- SW bump para `sps-v159`.
+- Testado: `node --check` ao ficheiro inteiro; simulação em Node do
+  payload real que `cloudUpsert('games',g)` envia (57 colunas, renomeação
+  camelCase→snake_case) contra a tabela real via `execute_sql`
+  (`jsonb_populate_record`, o mais próximo possível de um upsert real sem
+  acesso direto à REST API da Supabase a partir desta sandbox); teste
+  isolado da função de pull de `games` (extraída do próprio ficheiro,
+  corrida em Node) contra linhas reais, incluindo o caso do jogo sem
+  sessão ao vivo (confirma `undefined`, não `{}`) e o caso da proteção
+  "sessão ao vivo em risco" (confirma que a versão local com eventos reais
+  sobrevive a um pull com uma cópia fresca mas mais pobre da cloud).
+
+**Ainda por fazer:** `evaluations`/`convocatorias`/`scouting`/
+`microcycles`/`sessions` continuam no blob `meta` — risco menor por
+escreverem com muito menos frequência que `games`/`trainings`.
