@@ -604,3 +604,79 @@ por não ter sido pedido (mencionado como bónus opcional na proposta, sem
 confirmação do Roger): um resumo persistente deste plano na aba "Nutrição"
 da atleta fora do contexto de jogo — hoje só aparece dentro do ecrã "Dia de
 Jogo" de cada jogo, como já acontecia antes.
+
+## sps-v163 (17/09/2026): Regularidade do ciclo menstrual — Condição do Plantel
+
+Sequência do pedido: análise comparativa com o mercado (plataformas de
+sports performance/athlete management), da qual saiu "tracking de ciclo
+menstrual mais estruturado" como prioridade #1 — pedido explícito do Roger
+para analisar/estudar/propor antes de implementar. A proposta inicial
+sugeria um novo "Diário do Ciclo" (tabela dedicada, a atleta regista o 1º
+dia de cada período). O Roger sugeriu algo mais simples: já recolhemos a
+fase do ciclo todos os dias no wellness — dava para partir daí, sem pedir
+nada de novo à atleta. Concordámos, e essa é a versão implementada: **sem
+tabela nova**, tudo derivado de `APP.wellness` (mesmo padrão "derivado,
+nunca guardado" da numeração de Microciclos).
+
+**Sobre o LEAF-Q** (questionário validado para risco de baixa
+disponibilidade energética/RED-S, também sugerido inicialmente pelo Roger
+como algo a incluir já): investigação adicional encontrou um estudo de
+2023 (Sports Medicine Open) que testou especificamente a sua validade em
+futebolistas femininas e concluiu que **não é recomendado nesta
+modalidade** — foi desenhado para atletas de resistência, e a subescala de
+lesões fica sistematicamente enviesada em desportos de impacto (68% das
+atletas ficavam acima do limiar de risco só por seleção, sem risco real).
+A única parte do LEAF-Q com bom desempenho no estudo foi precisamente a
+deteção de estado menstrual — que é o que esta funcionalidade já cobre.
+Por isso o LEAF-Q ficou fora desta fase (documentado na análise
+comparativa, não implementado).
+
+**O que foi construído — alinhado de propósito com o "minimum standard" do
+consenso UEFA 2025 sobre tracking do ciclo em futebol feminino**, que é
+explícito: *"bleeding tracking cannot and should not be used to predict
+menstrual phases"* (só tiras de LH diárias dão fase real). Por isso nada
+aqui tenta prever fase — só regularidade/saúde:
+
+- `_cycleStartsFor(athleteId, atDate)`: olha só para os dias de wellness
+  marcados `cycle==='Menstruação'` e conta um novo início de período
+  sempre que passam mais de 10 dias desde o último dia marcado assim
+  (limite escolhido por ser seguro face à duração típica de hemorragia,
+  3-7 dias — robusto a dias sem preenchimento de wellness entre períodos,
+  que é o caso mais comum na prática, em vez de depender de a atleta picar
+  ativamente outra fase nos dias "off").
+- `_cycleRegularityAt(athleteId, atDate)`: com ≥3 inícios detetados,
+  calcula a duração de cada ciclo e sinaliza: fora do intervalo típico
+  (21-35 dias) → risco; variabilidade >7 dias entre o ciclo mais curto e o
+  mais longo → atenção; caso contrário → regular. Com menos de 3 inícios,
+  devolve "dados insuficientes" (não arrisca sinalizar sem base). Sinaliza
+  também, independentemente da quantidade de dados, ausência de novo
+  início há mais de 90 dias (possível amenorreia).
+- Integrado em `_condicaoJogoCompute()` como `cycleReg` por atleta — mas
+  **de propósito fora do semáforo diário** (`overallLvl`) da Condição do
+  Plantel: é um sinal de saúde de médio prazo que não muda de um dia para
+  o outro, ao contrário de ACWR/wellness/faltas: misturá-lo no mesmo
+  pior-vence diluiria os alertas de prontidão para treinar hoje.
+- `renderCondicaoPlantel()` e `printCondicaoPlantel()` (PDF): nova coluna
+  "Regularidade" na tabela principal, e uma caixa de destaques própria
+  "🩸 Sinais de regularidade do ciclo" (separada da caixa "🔍 Destaques —
+  atletas em risco" já existente, mesmo motivo acima). `printAnaliseCumulativa`
+  (o PDF de pré-jogo ligado a uma Unidade de Treino específica) não foi
+  alterado — é um relatório de prontidão aguda, não o sítio certo para um
+  sinal de saúde de médio prazo.
+
+O campo diário "Fase do Ciclo" + "Impacto" (já existente) não foi alterado
+— continua a mesma UI, mesmo comportamento.
+
+SW bump para `sps-v163`. Testado: `node --check` ao ficheiro inteiro; 9
+testes isolados em Node de `_cycleStartsFor`/`_cycleRegularityAt`
+extraídas do próprio ficheiro — sem dados, dados insuficientes (1 e 2
+inícios), ciclo regular (28/28 dias), ciclo fora do intervalo (28/40
+dias), variabilidade alta (22/34 dias), amenorreia possível (139 dias sem
+registo, mesmo com só 1 início), dias consecutivos marcados "Menstruação"
+a contar como um único início, e o limite de 10 dias a funcionar
+corretamente nos dois sentidos (10d = mesmo período, 11d = novo início).
+
+**Ainda por fazer:** nada pendente. Se mais tarde o Roger quiser rastrear
+disponibilidade energética/RED-S de forma mais ampla, o caminho mais
+seguro é a nutricionista avaliar isso clinicamente via Anamnese (já
+existe) — não um questionário automático sem validação para futebol.

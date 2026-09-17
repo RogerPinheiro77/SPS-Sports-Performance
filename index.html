@@ -8210,6 +8210,68 @@ function printAnaliseSessao(trId){
   `;
   _printWin(title,body);
 }
+// ─── REGULARIDADE DO CICLO MENSTRUAL ────────────────────────────────────────
+// Prioridade #1 da análise comparativa com o mercado (17/09/2026) — alinhada de
+// propósito com o "minimum standard" do consenso UEFA 2025 sobre tracking do ciclo
+// em futebol feminino: a UEFA é explícita ("bleeding tracking cannot and should not
+// be used to predict menstrual phases" — só tiras de LH diárias dão fase real), por
+// isso isto NÃO tenta prever a fase de ninguém. Deteta apenas o início de cada
+// período a partir das transições para 'Menstruação' que já existem no wellness
+// diário (ideia do Roger, 17/09/2026 — sem tabela nova, sem pedir novo registo à
+// atleta) e sinaliza só regularidade/saúde: ciclo fora do intervalo típico,
+// variabilidade alta entre ciclos, ou ausência de novo registo prolongada (possível
+// amenorreia). Fica de propósito FORA do semáforo diário de Condição do Plantel — é
+// um sinal de saúde de médio prazo, não de prontidão para treinar hoje, por isso é
+// mostrado à parte (ver renderCondicaoPlantel) para não diluir os alertas do dia a
+// dia com algo que não muda de um dia para o outro. LEAF-Q ficou de fora desta
+// fase — estudo de 2023 (Sports Medicine Open) não recomenda o seu uso em
+// futebolistas (desenhado para atletas de resistência, subescala de lesões
+// enviesada em desportos de impacto).
+function _cycleStartsFor(athleteId,atDate){
+  // Só olha para os dias marcados 'Menstruação' (ignora os outros valores de fase —
+  // são irrelevantes para detetar início de período) e conta um novo início sempre
+  // que passam mais de 10 dias desde o último dia marcado 'Menstruação'. Usar um
+  // intervalo de dias em vez de "a fase anterior era diferente" torna isto robusto a
+  // dias sem preenchimento de wellness entre períodos (falta de registo, não só
+  // mudança de fase, é o caso mais comum na prática) — 10 dias é seguro porque a
+  // duração típica de hemorragia é 3-7 dias.
+  const recs=(APP.wellness||[]).filter(w=>w.athleteId===athleteId&&w.date<=atDate&&w.cycle==='Menstruação').sort((a,b)=>a.date.localeCompare(b.date));
+  const starts=[];
+  let prevDate=null;
+  recs.forEach(w=>{
+    const gap=prevDate?Math.round((new Date(w.date+'T00:00:00')-new Date(prevDate+'T00:00:00'))/86400000):null;
+    if(gap===null||gap>10)starts.push(w.date);
+    prevDate=w.date;
+  });
+  return starts;
+}
+function _cycleRegularityAt(athleteId,atDate){
+  const starts=_cycleStartsFor(athleteId,atDate);
+  if(!starts.length)return {lvl:null,label:null,detail:null,lengths:[],daysSinceLast:null};
+  const lastStart=starts[starts.length-1];
+  const daysSinceLast=Math.round((new Date(atDate+'T00:00:00')-new Date(lastStart+'T00:00:00'))/86400000);
+  const lengths=[];
+  for(let i=1;i<starts.length;i++)lengths.push(Math.round((new Date(starts[i]+'T00:00:00')-new Date(starts[i-1]+'T00:00:00'))/86400000));
+  // Ausência de novo início há >90 dias — sinal relevante mesmo com poucos dados
+  // (possível amenorreia), conforme UEFA 2025.
+  if(daysSinceLast>90){
+    return {lvl:'r',label:'Sem registo há '+daysSinceLast+'d',detail:'Possível amenorreia — sem registo de novo período há mais de 90 dias.',lengths,daysSinceLast};
+  }
+  // Precisa de pelo menos 2 intervalos (3 inícios registados) para falar de
+  // regularidade — com menos que isso, dados insuficientes, não arriscar sinalizar.
+  if(lengths.length<2){
+    return {lvl:null,label:'Dados insuficientes',detail:'Menos de 3 períodos registados — ainda sem base para avaliar regularidade.',lengths,daysSinceLast};
+  }
+  const outOfRange=lengths.some(l=>l<21||l>35);
+  const variability=Math.max(...lengths)-Math.min(...lengths);
+  if(outOfRange){
+    return {lvl:'r',label:'Fora do intervalo típico',detail:'Duração de ciclo fora de 21–35 dias em pelo menos um dos registos recentes ('+lengths.join('/')+' dias).',lengths,daysSinceLast};
+  }
+  if(variability>7){
+    return {lvl:'y',label:'Variabilidade alta',detail:'Diferença de '+variability+' dias entre o ciclo mais curto e o mais longo registados ('+lengths.join('/')+' dias).',lengths,daysSinceLast};
+  }
+  return {lvl:'g',label:'Regular',detail:'Ciclos dentro do intervalo típico e sem grande variação ('+lengths.join('/')+' dias).',lengths,daysSinceLast};
+}
 // ─── CONDIÇÃO PARA O JOGO ────────────────────────────────────────────────────
 // Semáforo por atleta (não um número único, para não passar falsa precisão): pior
 // dos 4 fatores vence, mesmo princípio do painel "Estado da Atleta" (ver openAthleteModal).
@@ -8267,11 +8329,16 @@ function _condicaoJogoCompute(tr){
     const cycleImpact=cycleRec?(+cycleRec.cycleImpact||0):0;
     const cyclePhase=cycleRec&&cycleRec.cycle&&cycleRec.cycle!=='N/A'?cycleRec.cycle:null;
     const cycleLvl=cycleImpact>=3?'r':cycleImpact===2?'y':null;
+    // Regularidade do ciclo (ver _cycleRegularityAt) — sinal de saúde de médio prazo,
+    // não entra no pior-vence do semáforo diário de propósito (não muda dia a dia,
+    // diluiria os alertas de prontidão para treinar). Mostrado à parte em
+    // renderCondicaoPlantel.
+    const cycleReg=_cycleRegularityAt(at.id,dt);
 
     const lvls=[acwrLvl,wellLvl,faltasLvl,minsInfo?minsLvl:null,cycleLvl,extraLvl].filter(Boolean);
     const overallLvl=lvls.includes('r')?'r':(lvls.includes('y')?'y':'g');
     const overallLabel=overallLvl==='r'?'Risco':overallLvl==='y'?'Atenção':'Ótima';
-    return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,cyclePhase,cycleImpact,cycleLvl,extraCount,extraMin,extraLvl,overallLvl,overallLabel};
+    return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,cyclePhase,cycleImpact,cycleLvl,cycleReg,extraCount,extraMin,extraLvl,overallLvl,overallLabel};
   });
   return {dt,rows,nextGame,lastGame};
 }
@@ -8322,9 +8389,25 @@ function renderCondicaoPlantel(){
     ${destaquesRisco.map(x=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--brd)"><strong>${escHtml(x.r.at.name)}</strong>: ${x.txt}.</div>`).join('')}
   </div>`:'';
 
+  // Destaques de regularidade do ciclo — caixa própria, separada da de "atletas em
+  // risco" acima de propósito: é um sinal de saúde de médio prazo (não muda dia a
+  // dia como ACWR/wellness), por isso não deve competir por atenção com os alertas
+  // de prontidão para treinar hoje. Ver _cycleRegularityAt.
+  const destaquesCiclo=rows.filter(r=>!r.gate&&r.cycleReg&&(r.cycleReg.lvl==='r'||r.cycleReg.lvl==='y'));
+  const destaquesCicloHtml=destaquesCiclo.length?`<div style="margin:0 0 12px;background:var(--bg2);border:1px solid #a855f755;border-left:3px solid #a855f7;border-radius:10px;padding:12px 14px">
+    <div style="font-size:12px;font-weight:800;margin-bottom:6px">🩸 Sinais de regularidade do ciclo</div>
+    ${destaquesCiclo.map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--brd)"><strong>${escHtml(r.at.name)}</strong>: ${escHtml(r.cycleReg.detail)}</div>`).join('')}
+    <div style="font-size:10px;color:var(--t2);margin-top:6px">Baseado no autorrelato diário de fase no wellness — não prevê fase, só regularidade. Apoio à decisão, não substitui avaliação clínica.</div>
+  </div>`:'';
+
   const lvlBadge=(lvl,label)=>`<span class="bdg bg-${lvl}" style="font-size:10px">${label}</span>`;
+  const cycleRegTxt=(cr)=>{
+    if(!cr||!cr.label)return '<span style="color:var(--t2)">—</span>';
+    if(!cr.lvl)return `<span style="font-size:10px;color:var(--t2)">${cr.label}</span>`;
+    return `<span class="bdg bg-${cr.lvl}" style="font-size:10px" title="${escHtml(cr.detail||'')}">${cr.label}</span>`;
+  };
   const rowsHtml=sorted.map(r=>{
-    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="6" style="text-align:center;color:var(--t2)">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
+    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="7" style="text-align:center;color:var(--t2)">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
     const minsTxt=r.minsInfo?`${r.minsInfo.mins}min (há ${r.minsInfo.daysSince}d)`:'—';
     const cycleTxt=r.cyclePhase?escHtml(r.cyclePhase)+(r.cycleImpact?' ('+r.cycleImpact+')':''):'—';
     return `<tr>
@@ -8332,6 +8415,7 @@ function renderCondicaoPlantel(){
       <td style="text-align:center">${r.acwr!==null?r.acwr:'—'}</td>
       <td style="text-align:center">${r.wellAvg!==null?r.wellAvg:'—'}</td>
       <td style="text-align:center">${cycleTxt}</td>
+      <td style="text-align:center">${cycleRegTxt(r.cycleReg)}</td>
       <td style="text-align:center">${r.faltas}</td>
       <td style="text-align:center">${minsTxt}</td>
       <td style="text-align:center">${lvlBadge(r.overallLvl,r.overallLabel)}</td>
@@ -8352,13 +8436,14 @@ function renderCondicaoPlantel(){
         ${gameNote}
         ${kpiHtml}
         ${destaquesHtml}
+        ${destaquesCicloHtml}
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. último jogo</th><th>Estado</th><th>Recomendação</th></tr></thead>
-            <tbody>${rowsHtml||`<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--t2)">Sem atletas</td></tr>`}</tbody>
+            <thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness</th><th>Ciclo</th><th>Regularidade</th><th>Faltas 7d</th><th>Min. último jogo</th><th>Estado</th><th>Recomendação</th></tr></thead>
+            <tbody>${rowsHtml||`<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--t2)">Sem atletas</td></tr>`}</tbody>
           </table>
         </div>
-        <div style="font-size:10px;color:var(--t2);margin-top:8px">Semáforo por atleta: pior dos 6 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo, treino extra autorreportado nos últimos 7 dias). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</div>
+        <div style="font-size:10px;color:var(--t2);margin-top:8px">Semáforo por atleta: pior dos 6 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo, treino extra autorreportado nos últimos 7 dias). A coluna "Regularidade" é informativa e não entra neste semáforo — é um sinal de saúde de médio prazo (deteta o início de cada período a partir do autorrelato diário de fase no wellness, nunca prevê fase — ver nota acima). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</div>
       </div>
     </div>
   `;
@@ -8379,8 +8464,13 @@ function printCondicaoPlantel(){
   const indispCount=rows.filter(r=>r.gate).length;
 
   const lvlBadge=(lvl,label)=>`<span class="badge bg-${lvl}">${label}</span>`;
+  const cycleRegTxt=(cr)=>{
+    if(!cr||!cr.label)return '—';
+    if(!cr.lvl)return cr.label;
+    return `<span class="badge bg-${cr.lvl}">${cr.label}</span>`;
+  };
   const rowsHtml=sorted.map(r=>{
-    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="6" style="text-align:center;color:#999">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
+    if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="7" style="text-align:center;color:#999">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
     const minsTxt=r.minsInfo?`${r.minsInfo.mins}min (há ${r.minsInfo.daysSince}d)`:'—';
     const cycleTxt=r.cyclePhase?escHtml(r.cyclePhase)+(r.cycleImpact?' ('+r.cycleImpact+')':''):'—';
     return `<tr>
@@ -8388,6 +8478,7 @@ function printCondicaoPlantel(){
       <td style="text-align:center">${r.acwr!==null?r.acwr:'—'}</td>
       <td style="text-align:center">${r.wellAvg!==null?r.wellAvg:'—'}</td>
       <td style="text-align:center">${cycleTxt}</td>
+      <td style="text-align:center">${cycleRegTxt(r.cycleReg)}</td>
       <td style="text-align:center">${r.faltas}</td>
       <td style="text-align:center">${minsTxt}</td>
       <td style="text-align:center">${lvlBadge(r.overallLvl,r.overallLabel)}</td>
@@ -8410,6 +8501,15 @@ function printCondicaoPlantel(){
     ${destaquesRisco.map(x=>`<p style="font-size:8.5pt;margin:2px 0"><strong>${escHtml(x.r.at.name)}</strong>: ${x.txt}.</p>`).join('')}
   `:'';
 
+  // Destaques de regularidade do ciclo — bloco próprio no PDF também, mesmo motivo
+  // da versão interativa (renderCondicaoPlantel): sinal de saúde de médio prazo,
+  // não deve misturar-se com os alertas de prontidão do dia.
+  const destaquesCiclo=rows.filter(r=>!r.gate&&r.cycleReg&&(r.cycleReg.lvl==='r'||r.cycleReg.lvl==='y'));
+  const destaquesCicloHtml=destaquesCiclo.length?`
+    <div style="font-size:9pt;font-weight:700;margin:8px 0 4px">🩸 Sinais de regularidade do ciclo</div>
+    ${destaquesCiclo.map(r=>`<p style="font-size:8.5pt;margin:2px 0"><strong>${escHtml(r.at.name)}</strong>: ${escHtml(r.cycleReg.detail)}</p>`).join('')}
+  `:'';
+
   const gameNote=nextGame?`<p style="font-size:9pt;color:#666;margin-bottom:4px">Próximo jogo: <strong>${fmtDate(nextGame.date)}</strong>${nextGame.opp?' vs '+escHtml(nextGame.opp):''}</p>`:'';
   const kpiHtml=`<div class="kpi-row">
     <div class="kpi"><div class="kpi-v">${riscoCount}</div><div class="kpi-l">Em risco</div></div>
@@ -8424,8 +8524,9 @@ function printCondicaoPlantel(){
     ${gameNote}
     ${kpiHtml}
     ${destaquesHtml}
-    <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Estado</th><th>Recomendação</th></tr></thead><tbody>${rowsHtml}</tbody></table>
-    <p style="font-size:8pt;color:#666;margin-top:6px">Semáforo por atleta: pior dos 6 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo, treino extra autorreportado nos últimos 7 dias). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
+    ${destaquesCicloHtml}
+    <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness</th><th>Ciclo</th><th>Regularidade</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Estado</th><th>Recomendação</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+    <p style="font-size:8pt;color:#666;margin-top:6px">Semáforo por atleta: pior dos 6 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo, treino extra autorreportado nos últimos 7 dias). A coluna "Regularidade" é informativa e não entra neste semáforo. Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
   `;
   _printWin(title,body);
 }
