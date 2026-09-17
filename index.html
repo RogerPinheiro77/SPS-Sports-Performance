@@ -486,6 +486,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-dash"></div>
       <div class="pg" id="pg-nutri-aval"></div>
       <div class="pg" id="pg-nutri-planos"></div>
+      <div class="pg" id="pg-nutri-gameday"></div>
       <div class="pg" id="pg-nutri-agenda-geral"></div>
       <div class="pg" id="pg-nutri-consultas"></div>
       <div class="pg" id="pg-config"></div>
@@ -595,6 +596,7 @@ function defApp(){
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],nutritionAppointments:[],fisioAppointments:[],
+    nutritionGameDayPlan:null,
     anamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     mcTemplates:[],
     users:[]
@@ -972,6 +974,7 @@ const ALL_PAGES=[
   {id:'nutri-home',icon:'🏠',label:'Home'},
   {id:'nutri-aval',icon:'📏',label:'Avaliações'},
   {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
+  {id:'nutri-gameday',icon:'🏆',label:'Plano Dia de Jogo'},
   {id:'nutri-agenda-geral',icon:'🗓️',label:'Agenda Geral'},
   {id:'nutri-consultas',icon:'📅',label:'Consultas'},
   {id:'nutri-dash',icon:'📊',label:'Dashboard Completo'},
@@ -987,7 +990,7 @@ const ROLE_DEFS={
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-dash'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-agenda-geral','nutri-consultas','nutri-dash'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-agenda-geral','nutri-consultas','nutri-dash'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes'],readOnly:true,manageUsers:false}
 };
@@ -1075,7 +1078,7 @@ function _maybeEnterNutriMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1151,7 +1154,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -12042,6 +12045,9 @@ function renderNutriHome(){
     _card('nutri-planos','salad','#4ade80','Planos',
       semPlano?`${semPlano} sem plano ativo`:'Todas com plano ✓',
       semPlano?'#f87171':'#4ade80', _bdg(semPlano||'','#dc2626'),'22,163,74'),
+    _card('nutri-gameday','trophy','#fb923c','Plano Dia de Jogo',
+      APP.nutritionGameDayPlan?'Definido — válido para toda a equipa':'Ainda não definido (a usar texto genérico)',
+      APP.nutritionGameDayPlan?'#fb923c':'#f87171', APP.nutritionGameDayPlan?'':_bdg('!','#dc2626'),'251,146,60'),
     _card('nutri-agenda-geral','calendar','#a78bfa','Agenda Geral',
       todayEvs?`${todayEvs} evento${todayEvs>1?'s':''} hoje`:'Sem eventos hoje',
       todayEvs?'#a78bfa':'var(--t2)', _bdg(todayEvs||'','#7c3aed'),'124,58,237'),
@@ -12238,6 +12244,73 @@ function editNutriPlano(id){
 }
 function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;if(_sync)cloudUpsert('nutrition_plans',p);saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
+
+// ─── PLANO NUTRICIONAL — DIA DE JOGO ───────────────────────────────────
+// Pedido do Roger (17/09/2026): o texto do timeline "Dia de Jogo" que a atleta vê
+// (_diaJogoTimeline) era fixo no código, igual para todas as atletas e todos os jogos —
+// apesar do próprio ecrã já dizer "ajusta com a fisio/nutricionista se tiveres indicação
+// diferente", não havia forma de a nutricionista o definir. Isto cria um plano ÚNICO,
+// comum a toda a equipa (não por atleta — nutritionPlans acima é individual e não serve
+// este caso, foi confirmado com o Roger antes de implementar), com 5 campos que espelham
+// os 5 momentos nutricionais já existentes no timeline. Guardado numa tabela dedicada
+// própria de 1 linha por clube (nutrition_gameday_plan), mesmo padrão de upsert por id
+// das restantes tabelas — nunca no blob clubs.meta. Enquanto a nutricionista não definir
+// nada (ou deixar um campo em branco), _diaJogoTimeline() usa o texto genérico
+// (_DJ_NUTRI_DEFAULTS) que já existia antes — nunca fica vazio.
+const _DJ_NUTRI_DEFAULTS={
+  wake:'Hidrata bem (± 500 ml de água) e faz um pequeno-almoço equilibrado — hidratos de carbono + proteína, sem exageros em gordura.',
+  preGameMeal:'3-4h antes do jogo: prato rico em hidratos de carbono de fácil digestão, proteína moderada, pouca gordura e fibra.',
+  hydration:'Bebe água regularmente, em pequenas quantidades — não deixes tudo para a última hora.',
+  snack:'Fruta, barrita ou lanche leve de fácil digestão, com água — evita algo pesado tão perto do jogo.',
+  postGame:'Nos primeiros 30-60 min: hidrata e come algo com hidratos + proteína para começar a recuperar.'
+};
+const _DJ_NUTRI_FIELDS=[
+  {key:'wake',label:'Ao acordar'},
+  {key:'preGameMeal',label:'Refeição pré-jogo'},
+  {key:'hydration',label:'Hidratação ao longo da manhã'},
+  {key:'snack',label:'Snack ligeiro (se precisares)'},
+  {key:'postGame',label:'Recuperação pós-jogo'}
+];
+function _djNutriText(key){
+  const p=APP.nutritionGameDayPlan;
+  const v=p&&p[key];
+  return (v&&v.trim())?v:_DJ_NUTRI_DEFAULTS[key];
+}
+function renderNutriGameday(){
+  const p=APP.nutritionGameDayPlan;
+  const fieldsHtml=_DJ_NUTRI_FIELDS.map(f=>`
+    <div class="form-g">
+      <label class="fl">${f.label}</label>
+      <textarea class="fc" id="ndj-${f.key}" rows="2" placeholder="${escHtml(_DJ_NUTRI_DEFAULTS[f.key])}">${escHtml((p&&p[f.key])||'')}</textarea>
+    </div>`).join('');
+  const metaHtml=p&&p.updatedAt?`<div style="font-size:10.5px;color:var(--t2);margin-bottom:10px">Última atualização: ${fmtDate(p.updatedAt.slice(0,10))}${p.updatedBy?' por '+escHtml(p.updatedBy):''}</div>`:'';
+  document.getElementById('pg-nutri-gameday').innerHTML=`
+  <div class="card">
+    <div class="ch"><span class="ct">🏆 Plano Dia de Jogo</span></div>
+    <div class="cb">
+      <div style="font-size:11.5px;color:var(--t2);margin-bottom:12px;line-height:1.5">
+        Este plano é <strong>único e comum a toda a equipa</strong> (não é por atleta). Assim que guardares, passa a substituir
+        o texto genérico que aparece hoje no ecrã "Dia de Jogo" da app da atleta, em todos os jogos. Deixa um campo em branco
+        para manter o texto genérico nesse momento em concreto.
+      </div>
+      ${metaHtml}
+      ${fieldsHtml}
+      <button class="btn btn-g" onclick="saveNutriGameday()">💾 Guardar Plano</button>
+    </div>
+  </div>`;
+}
+function saveNutriGameday(){
+  const sess=getSession();
+  const g=(k)=>{const el=document.getElementById('ndj-'+k);return el?el.value.trim():'';};
+  const p={
+    id:(APP.nutritionGameDayPlan&&APP.nutritionGameDayPlan.id)||('gameday-'+(_cid||'default')),
+    wake:g('wake'),preGameMeal:g('preGameMeal'),hydration:g('hydration'),snack:g('snack'),postGame:g('postGame'),
+    updatedAt:new Date().toISOString(),updatedBy:sess?sess.name:'',updatedById:sess?sess.userId:null
+  };
+  APP.nutritionGameDayPlan=p;
+  if(_sync)cloudUpsert('nutrition_gameday_plan',p);
+  saveData();toast('Plano Dia de Jogo guardado ✓');renderNutriGameday();
+}
 
 // ─── CONSULTAS DE NUTRIÇÃO ──────────────────────────────────────────────
 // Pedido do Roger (02/09/2026): a nutri agenda consultas por atleta na app SPS-Nutri e
@@ -14178,18 +14251,18 @@ function _djOff(g,field,def){const v=parseInt(g[field],10);return isNaN(v)?def:v
 function _diaJogoTimeline(g){
   const kickoff=_dj_toMin(g.time),conc=_dj_toMin(g.concentracaoHora);
   const items=[];
-  items.push({time:null,dom:'nutri',icon:'coffee',title:'Ao acordar',desc:'Hidrata bem (± 500 ml de água) e faz um pequeno-almoço equilibrado — hidratos de carbono + proteína, sem exageros em gordura.'});
+  items.push({time:null,dom:'nutri',icon:'coffee',title:'Ao acordar',desc:_djNutriText('wake')});
   items.push({time:null,dom:'mental',icon:'brain',title:'Ativação mental',desc:'Reserva uns minutos para visualizar o jogo: o teu papel, os pontos fortes a explorar, como queres sentir-te em campo.'});
-  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffMeal',210)),dom:'nutri',icon:'salad',title:'Refeição pré-jogo',desc:'3-4h antes do jogo: prato rico em hidratos de carbono de fácil digestão, proteína moderada, pouca gordura e fibra.'});
-  items.push({time:null,dom:'nutri',icon:'droplet',title:'Hidratação ao longo da manhã',desc:'Bebe água regularmente, em pequenas quantidades — não deixes tudo para a última hora.'});
-  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffSnack',90)),dom:'nutri',icon:'droplet',title:'Snack ligeiro (se precisares)',desc:'Fruta, barrita ou lanche leve de fácil digestão, com água — evita algo pesado tão perto do jogo.'});
+  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffMeal',210)),dom:'nutri',icon:'salad',title:'Refeição pré-jogo',desc:_djNutriText('preGameMeal')});
+  items.push({time:null,dom:'nutri',icon:'droplet',title:'Hidratação ao longo da manhã',desc:_djNutriText('hydration')});
+  if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffSnack',90)),dom:'nutri',icon:'droplet',title:'Snack ligeiro (se precisares)',desc:_djNutriText('snack')});
   if(conc!=null)items.push({time:_dj_toHHMM(conc),dom:'log',icon:'map-pin',title:'Concentração',desc:`Chegada ao local${g.concentracaoLocal?': '+g.concentracaoLocal:''}. Equipamento, avaliação com a fisio se precisares, ambiente de equipa.`});
   const warm=kickoff!=null?kickoff-_djOff(g,'djOffWarmup',45):(conc!=null?conc+30:null);
   if(warm!=null)items.push({time:_dj_toHHMM(warm),dom:'fisico',icon:'run',title:'Ativação / Aquecimento',desc:'Mobilidade, ativação neuromuscular progressiva, exercícios com bola — segue o protocolo do treinador.'});
   if(kickoff!=null){
     items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffFocus',15)),dom:'mental',icon:'target',title:'Foco final',desc:'Respiração, foco no presente, confiança no trabalho feito. Última hidratação, em pequenos goles.'});
     items.push({time:_dj_toHHMM(kickoff),dom:'jogo',icon:'ball-football',title:'Apito inicial',desc:'Boa sorte! ⚽'});
-    items.push({time:_dj_toHHMM(kickoff+_djOff(g,'djDurJogo',105)),dom:'nutri',icon:'droplet',title:'Recuperação pós-jogo',desc:'Nos primeiros 30-60 min: hidrata e come algo com hidratos + proteína para começar a recuperar.'});
+    items.push({time:_dj_toHHMM(kickoff+_djOff(g,'djDurJogo',105)),dom:'nutri',icon:'droplet',title:'Recuperação pós-jogo',desc:_djNutriText('postGame')});
   }
   items.push({time:null,dom:'fisico',icon:'activity',title:'Alongamentos e mobilidade',desc:'Rotina de retorno à calma — ajuda na recuperação para o dia seguinte.'});
   items.push({time:null,dom:'reg',icon:'clipboard-check',title:'Registar PSE',desc:'Assim que possível depois do jogo, regista a tua perceção de esforço na app.',action:'pse'});
@@ -15540,6 +15613,7 @@ async function pullCloud(){
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
+      ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
       ['physio_appointments','fisioAppointments',(d)=>APP.fisioAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null,rsvp:r.rsvp||{}}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
@@ -15867,6 +15941,10 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at',registeredBy:'registered_by',registeredById:'registered_by_id',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
   nutrition_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],
     rename:{athleteId:'athlete_id',registeredBy:'registered_by',registeredById:'registered_by_id',registeredAt:'registered_at',responsavelId:'responsavel_id',responsavelName:'responsavel_name',rsvpStatus:'rsvp_status',rsvpReason:'rsvp_reason',rsvpRespondedAt:'rsvp_responded_at'}},
+  // Plano Dia de Jogo (Nutrição): singleton por clube (1 linha, id='gameday-'+club_id) —
+  // ver saveNutriGameday/_djNutriText/_diaJogoTimeline. Pedido do Roger, 17/09/2026.
+  nutrition_gameday_plan:{cols:['id','wake','pre_game_meal','hydration','snack','post_game','updated_at','updated_by','updated_by_id'],
+    rename:{preGameMeal:'pre_game_meal',postGame:'post_game',updatedAt:'updated_at',updatedBy:'updated_by',updatedById:'updated_by_id'}},
   physio_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],
     rename:{athleteId:'athlete_id',registeredBy:'registered_by',registeredById:'registered_by_id',registeredAt:'registered_at',responsavelId:'responsavel_id',responsavelName:'responsavel_name',rsvpStatus:'rsvp_status',rsvpReason:'rsvp_reason',rsvpRespondedAt:'rsvp_responded_at'}},
   schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet','rsvp'],

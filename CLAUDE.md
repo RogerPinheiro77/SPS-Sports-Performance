@@ -543,3 +543,64 @@ extraídas do próprio ficheiro, com uma equipa com treinos (1ª semana = nº1,
 semanas seguintes incrementam corretamente, semana anterior ao 1º treino
 dá `null`) e uma equipa sem nenhum treino ainda (`null` em vez de crashar),
 e 3 fases fora de ordem de inserção a ordenar corretamente por `startDate`.
+
+## sps-v162 (17/09/2026): Plano Nutricional — Dia de Jogo (comum a toda a equipa)
+
+Pedido do Roger: na parte da Nutrição, um espaço para um "Plano para Dia de
+Jogo", comum a todas as atletas (não individualizado), definido pela
+nutricionista na sua app, e refletido na app da atleta. Pedido feito como
+"analisa, investiga, sugere" — antes de implementar, foi feita uma proposta
+(3 pontos: plano único para toda a equipa; substitui o texto genérico que
+já existia no timeline "Dia de Jogo"; default genérico se ainda não houver
+nada definido) e confirmada pelo Roger antes de qualquer código.
+
+**Contexto encontrado na investigação:** já existia um timeline "Dia de
+Jogo" (`_diaJogoTimeline`/`_atOpenDiaJogo`) que a atleta usa em cada jogo,
+com 5 momentos de domínio nutricional (ao acordar, refeição pré-jogo,
+hidratação, snack, recuperação pós-jogo) — mas o texto de cada um estava
+fixo no código, igual para todas as atletas e todos os jogos, apesar do
+próprio ecrã já dizer "ajusta com a fisio/nutricionista se tiveres
+indicação diferente". Não havia forma de a nutricionista definir esse
+texto. `nutritionPlans` (Planos Nutricionais) já existia mas é um conceito
+diferente — plano individual por atleta, para o dia a dia, não para dia de
+jogo — por isso não serve este pedido (confirmado com o Roger antes de
+avançar).
+
+**O que foi construído:**
+- Tabela nova dedicada `nutrition_gameday_plan` (Supabase), 1 única linha
+  por clube (`id='gameday-'+club_id`) — mesmo padrão de upsert-por-id das
+  restantes tabelas dedicadas, nunca no blob `clubs.meta`. Campos:
+  `wake`/`pre_game_meal`/`hydration`/`snack`/`post_game` (texto de cada
+  momento) + `updated_at`/`updated_by`/`updated_by_id`.
+- Página nova `nutri-gameday` ("Plano Dia de Jogo") na app da Nutri —
+  registada em `ALL_PAGES`/`ROLE_DEFS.nutri`/`_NAV_TITLES`/`renders`
+  (dentro de `navTo()`); os cargos com acesso total via `_ALL_PAGE_IDS`
+  (treinador/treinador_adj) ganham-na automaticamente. Card novo em
+  `renderNutriHome()` a apontar para lá, com estado (definido / a usar
+  texto genérico).
+- `renderNutriGameday()`: formulário com 5 campos de texto (um por
+  momento), pré-preenchidos com o que já estiver guardado; campo em branco
+  = mantém o texto genérico só nesse momento (não obriga a preencher tudo
+  de uma vez). `saveNutriGameday()` grava em `APP.nutritionGameDayPlan` +
+  `cloudUpsert('nutrition_gameday_plan', ...)`.
+- `_djNutriText(key)` (nova): devolve o texto definido pela nutricionista
+  para esse momento, ou o texto genérico original (`_DJ_NUTRI_DEFAULTS`) se
+  ainda não houver nada guardado ou o campo estiver vazio — nunca fica sem
+  texto. `_diaJogoTimeline()` passou a chamar esta função nos 5 itens de
+  domínio `nutri`, em vez de ter o texto escrito diretamente no código —
+  é o mesmo ecrã que a atleta já usa (Dia de Jogo, com checklist), não foi
+  criado nenhum ecrã novo do lado da atleta.
+- `pullCloud`/`_CLOUD_TABLE_SCHEMA` atualizados com a tabela nova, mesmo
+  padrão das restantes (RLS "allow all" igual a `nutrition_plans`/
+  `nutrition_appointments`, únicas tabelas deste projeto Supabase).
+
+SW bump para `sps-v162`. Testado: `node --check` ao ficheiro inteiro; teste
+isolado em Node de `_djNutriText` confirmando fallback para o texto
+genérico quando não há plano, quando um campo está vazio/só espaços, e
+override correto quando o campo está preenchido.
+
+**Ainda por fazer:** nada pendente para este pedido em si. Ficou de fora
+por não ter sido pedido (mencionado como bónus opcional na proposta, sem
+confirmação do Roger): um resumo persistente deste plano na aba "Nutrição"
+da atleta fora do contexto de jogo — hoje só aparece dentro do ecrã "Dia de
+Jogo" de cada jogo, como já acontecia antes.
