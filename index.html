@@ -12430,6 +12430,7 @@ function renderNutriAval(){
       <div class="form-g"><label class="fl">Rácio Cintura-Ancas (auto)</label><input class="fc" id="na-whr" readonly placeholder="—"></div>
     </div>
     <div class="form-g" style="margin-top:9px"><label class="fl">Notas</label><textarea class="fc" id="na-notes" rows="2"></textarea></div>
+    <div class="form-g" style="margin-top:9px"><label class="fl">💬 Nota para a Atleta <span style="font-weight:400;color:var(--t2)">(opcional — aparece na app dela, em vez de números)</span></label><textarea class="fc" id="na-athnote" rows="2" placeholder="Ex: Continuas a evoluir bem na força, boa consistência nas últimas semanas."></textarea></div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveNutriAval()">💾 Guardar</button><button class="btn btn-gh" onclick="_showNaForm=false;renderNutriAval()">Cancelar</button></div>
   </div>`:'';
 
@@ -12546,7 +12547,7 @@ function saveNutriAval(){
     abdominal:g('na-abd'),supraespinal:g('na-spe'),crural:g('na-cru'),geminal:g('na-gem'),
     sumSkinfolds:g('na-sumpregas'),
     armCirc:g('na-braco'),thighCirc:g('na-coxa'),calfCirc:g('na-pgem'),waistCirc:g('na-cint'),hipCirc:g('na-anc'),whr:g('na-whr'),
-    notes:g('na-notes'),registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
+    notes:g('na-notes'),athleteNote:g('na-athnote'),registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
   APP.nutritionAssessments.push(a);
   if(_sync)cloudUpsert('nutrition_records',a);
   saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
@@ -15557,12 +15558,54 @@ function renderAtNutri(){
     <div class="kpi"><div class="kpi-lbl">Peso</div><div class="kpi-val" style="font-size:20px">${lastA.weight||'—'}<span style="font-size:12px"> kg</span></div><div class="kpi-sub">${lastA.date}</div></div>
     <div class="kpi"><div class="kpi-lbl">IMC</div><div class="kpi-val" style="font-size:20px">${lastA.bmi||'—'}</div><div class="kpi-sub">${lastA.hydration?'Hidratação: '+lastA.hydration:''}</div></div>
   </div>`:''}
+  ${_naEvolutionCardHtml(avals)}
   ${plan?`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">${plan.name}</span></div><div class="cb" style="padding:12px">
     <div class="macros" style="margin-bottom:12px">${plan.kcal?`<span class="mac">🔥 ${plan.kcal} kcal</span>`:''}${plan.protein?`<span class="mac">🥩 ${plan.protein}g prot</span>`:''}${plan.carbs?`<span class="mac">🍞 ${plan.carbs}g HC</span>`:''}${plan.fat?`<span class="mac">🧈 ${plan.fat}g gord</span>`:''}</div>
     ${(plan.meals||[]).map(m=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?`<span style="font-size:10px;color:var(--t2)">${m.time}</span>`:''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div>${m.foods?`<div class="meal-f">${m.foods}</div>`:''}</div>`).join('')}
   </div></div>`:
   `<div class="empty" style="margin-bottom:14px"><div class="ei"><i class="ti ti-salad" aria-hidden="true"></i></div><p>Sem plano nutricional ativo</p><div class="esub">O teu nutricionista ainda não definiu um plano</div></div>`}
   ${_atNutriGamedayCardHtml()}`;
+}
+// "A tua Evolução" — card motivador na aba Nutrição da app da atleta (sps-v167), pensado
+// para NÃO expor dados de composição corporal diretamente. Proposto e discutido com o
+// Roger na doc "SPS vs Mercado" secção 5.3: fui à literatura de ciência do desporto antes
+// de desenhar isto, e a orientação mais recente e mais forte (subgrupo REDs do COI, 2023)
+// desaconselha mostrar %gordura/soma de pregas/gráficos de composição corporal diretamente
+// à própria atleta — associado a maior risco de insatisfação corporal e restrição alimentar
+// em mulheres atletas, mesma área de cautela já usada para o LEAF-Q (sps-v163). Por isso
+// este card mostra só duas coisas seguras: consistência de acompanhamento (uma linha do
+// tempo de pontos — quantas avaliações, desde quando — nunca um valor de peso/gordura) e a
+// Nota da Nutricionista mais recente (texto livre, enquadrado por ela, nunca um número
+// cru nem uma conclusão automática tipo a que existe no PDF do staff, _naEvolutionFindings).
+function _naEvolutionCardHtml(avalsDesc){
+  if(!avalsDesc||!avalsDesc.length)return '';
+  const avals=[...avalsDesc].sort((a,b)=>a.date.localeCompare(b.date)); // ascendente p/ a linha do tempo
+  const MAX_DOTS=12;
+  const shown=avals.slice(-MAX_DOTS);
+  const hiddenCount=avals.length-shown.length;
+  const dotsHtml=shown.map((a,i)=>{
+    const isLast=i===shown.length-1;
+    const size=isLast?16:10;
+    return `<div title="${fmtDate(a.date)}" style="width:${size}px;height:${size}px;border-radius:50%;background:${isLast?'#1d6f3b':'#1d6f3b99'};${isLast?'box-shadow:0 0 0 3px #1d6f3b33':''};flex-shrink:0"></div>`;
+  }).join('<div style="flex:1;height:2px;background:#1d6f3b33;min-width:6px"></div>');
+  const first=avals[0],last=avals[avals.length-1];
+  const countTxt=avals.length===1
+    ?`1ª avaliação em ${fmtDate(first.date)}`
+    :`${avals.length} avaliações · acompanhada desde ${fmtDate(first.date)}`;
+  const latestNote=(last.athleteNote||'').trim();
+  const noteHtml=latestNote?`<div style="margin-top:12px;padding:10px 12px;background:var(--bg2);border-left:3px solid #1d6f3b;border-radius:6px">
+    <div style="font-size:10px;color:var(--t2);margin-bottom:2px">💬 Nota da tua nutricionista</div>
+    <div style="font-size:12.5px;line-height:1.4">${escHtml(latestNote)}</div>
+  </div>`:'';
+  return `<div class="card" style="margin-bottom:14px;padding:14px">
+    <div style="font-size:13px;font-weight:800;margin-bottom:12px"><i class="ti ti-trending-up" style="margin-right:6px;vertical-align:-2px;color:#1d6f3b" aria-hidden="true"></i>A tua Evolução</div>
+    <div style="display:flex;align-items:center;gap:2px;margin-bottom:8px">
+      ${hiddenCount>0?`<div style="font-size:9px;color:var(--t2);margin-right:4px;white-space:nowrap">+${hiddenCount}</div>`:''}
+      ${dotsHtml}
+    </div>
+    <div style="font-size:11px;color:var(--t2)">${countTxt}</div>
+    ${noteHtml}
+  </div>`;
 }
 // Plano Dia de Jogo — vive de forma persistente aqui na aba Nutrição (consulta em
 // qualquer dia), além de continuar ativo automaticamente dentro do ecrã "Dia de Jogo"
@@ -16201,7 +16244,7 @@ async function pullCloud(){
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at,registeredById:r.registered_by_id,phaseHistory:r.phase_history||[],responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name,professionalId:r.professional_id,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,
-        sumSkinfolds:r.sum_skinfolds,armCirc:r.arm_circ,thighCirc:r.thigh_circ,calfCirc:r.calf_circ,waistCirc:r.waist_circ,hipCirc:r.hip_circ,muscleKg:r.muscle_kg}))],
+        sumSkinfolds:r.sum_skinfolds,armCirc:r.arm_circ,thighCirc:r.thigh_circ,calfCirc:r.calf_circ,waistCirc:r.waist_circ,hipCirc:r.hip_circ,muscleKg:r.muscle_kg,athleteNote:r.athlete_note}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
@@ -16531,9 +16574,9 @@ const _CLOUD_TABLE_SCHEMA={
   // saveNutriAval). `muscle` fica na tabela só para não perder o histórico já gravado.
   nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle','registered_by','registered_by_id',
       'bicipital','subescapular','abdominal','supraespinal','crural','geminal','sum_skinfolds',
-      'arm_circ','thigh_circ','calf_circ','waist_circ','hip_circ','whr','muscle_kg'],
+      'arm_circ','thigh_circ','calf_circ','waist_circ','hip_circ','whr','muscle_kg','athlete_note'],
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id',
-      sumSkinfolds:'sum_skinfolds',armCirc:'arm_circ',thighCirc:'thigh_circ',calfCirc:'calf_circ',waistCirc:'waist_circ',hipCirc:'hip_circ',muscleKg:'muscle_kg'}},
+      sumSkinfolds:'sum_skinfolds',armCirc:'arm_circ',thighCirc:'thigh_circ',calfCirc:'calf_circ',waistCirc:'waist_circ',hipCirc:'hip_circ',muscleKg:'muscle_kg',athleteNote:'athlete_note'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at','registered_by','registered_by_id','responsavel_id','responsavel_name'],
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at',registeredBy:'registered_by',registeredById:'registered_by_id',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
   nutrition_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],

@@ -937,3 +937,69 @@ Roger para confirmar visualmente no primeiro PDF gerado a sério.
 **Ainda por fazer:** nada pendente para este pedido. Se um dia fizer
 sentido, a vista "equipa toda por mês" da folha de referência do Roger fica
 registada na doc (5.2) como possível extensão futura, não pedida agora.
+
+## sps-v167 (18/09/2026): "A tua Evolução" — card motivador na Nutrição da app da atleta
+
+Pedido do Roger: dar à atleta acesso à própria evolução antropométrica na
+aba Nutrição da sua app, "algo motivador para ela ir vendo". Antes de
+desenhar, fui à literatura de ciência do desporto (proposto na doc "SPS vs
+Mercado", secção 5.3) — e a orientação mais recente e mais forte que
+encontrei vai **contra** a leitura mais literal do pedido.
+
+**Grounding usado antes de desenhar:** revisão crítica + inquérito do
+subgrupo REDs do COI (2023, 125 profissionais, 61 desportos, 26 países) —
+recomenda tratar dados de composição corporal como informação confidencial
+com acesso restrito da própria atleta, mostra que a tendência da prática é
+para menos exposição direta (não mais), com interpretação cada vez mais
+feita por um nutricionista/dietista, nunca autosservida; a mesma fonte
+mostra a preocupação de que o foco em composição corporal cause distress
+alimentar/RED-S a subir de 69% para 78% dos profissionais inquiridos numa
+década. Uma revisão sistemática de 2024 (27 estudos, amostras só de
+mulheres atletas) encontrou associação consistente entre %massa gorda/IMC e
+insatisfação corporal, e nota que pesagens de equipa já foram associadas a
+mais restrição alimentar. Um estudo qualitativo de 2026 mostra que quando o
+staff comunica sobre o corpo em termos de função/desempenho em vez de
+números, o dano psicológico é menor. Esta é exatamente a mesma área de
+risco do LEAF-Q (sps-v163, mulheres atletas + dados corporais/energéticos)
+onde já se tinha decidido não avançar como pedido inicialmente pela mesma
+razão. Recomendei ao Roger não dar à atleta acesso direto ao gráfico/tabela
+de %Gordura/Massa Muscular/Soma das Pregas nem à conclusão automática
+construída para o PDF do staff (`_naEvolutionFindings`, sps-v166) — ele
+concordou com a abordagem, pedindo só que ficasse "algo simples e gráfico
+que seja motivador" dentro dela.
+
+**O que foi construído:**
+- Novo campo `athleteNote` em `nutritionAssessments` — texto curto,
+  opcional, escrito pela nutricionista no formulário de avaliação ("💬 Nota
+  para a Atleta"), com enquadramento dela (ex.: "Continuas a evoluir bem na
+  força"), nunca um número cru nem uma conclusão automática. Coluna
+  `athlete_note` (text, a condizer com `notes`) adicionada a
+  `nutrition_records` no Supabase; `_CLOUD_TABLE_SCHEMA` e `pullCloud()`
+  atualizados em conjunto (mesma disciplina de sps-v165, para não deixar o
+  campo desaparecer num refresh da cloud).
+- `_naEvolutionCardHtml(avalsDesc)`: card "📈 A tua Evolução" na aba
+  Nutrição da app da atleta (`renderAtNutri()`), com duas coisas só —
+  **nunca** um valor de peso/gordura/massa muscular:
+  - Uma linha do tempo gráfica de pontos (um por avaliação, até 12
+    visíveis + indicador "+N" para avaliações mais antigas), o mais recente
+    maior e destacado — visual, simples, motivador por mostrar consistência
+    de acompanhamento, sem expor nenhum número de composição corporal.
+  - A Nota da Nutricionista mais recente, se existir, num cartão com
+    citação — nunca notas antigas, só a mais recente.
+  - Sem avaliações registadas, o card não aparece (não força um estado
+    vazio a pedir à atleta para "começar a acompanhar o peso").
+- Peso e IMC continuam exatamente como já estavam (KPI da última
+  avaliação) — não foi adicionado nenhum gráfico de tendência a essas
+  métricas nem a nenhuma métrica de composição corporal na app da atleta.
+
+SW bump para `sps-v167`. Testado: `node --check` ao ficheiro inteiro; 12
+testes isolados em Node de `_naEvolutionCardHtml` — sem avaliações não
+mostra card, singular vs. plural na contagem, data "desde" correta,
+**nenhum número de peso/%gordura/massa muscular escapa para o HTML** (teste
+central de segurança desta funcionalidade), só a nota mais recente aparece
+(nunca uma antiga), sem nota não mostra o bloco, texto da nota escapado
+(HTML), e o indicador "+N" com mais de 12 avaliações. Verificação visual ao
+vivo não foi feita nesta sessão (funcionalidade nova, ainda não publicada).
+
+**Ainda por fazer:** nada pendente para este pedido. Combinado com o Roger:
+confirmar visualmente com uma atleta real assim que estiver no ar.
