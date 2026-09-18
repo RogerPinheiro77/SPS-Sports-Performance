@@ -1152,3 +1152,41 @@ simulado) confirmando 8 secções geradas, ids todos únicos, e o parâmetro
 
 **Ainda por fazer:** o PDF `Manual_SPS_Nutricao.pdf` (screenshots + ReportLab)
 fica para entrega em separado — não é parte deste commit.
+
+## Manual_SPS_Nutricao.pdf (18/09/2026): entregue ao Roger
+
+Concluído o PDF de 13 páginas (`/home/claude/nutri_manual/build_manual_nutricao.py`,
+fora do git — mesmo padrão do `Manual_SPS_Ginasio.pdf`, ver `.gitignore`),
+com screenshots reais de todas as páginas da SPS-Nutri (capturados via Claude
+in Chrome, login do próprio Roger) e os dois PDFs de exemplo (Individual +
+Evolução) gerados a sério pela app com dados de uma atleta fictícia "Teste"
+(2 avaliações, 15/08→18/09/2026, evolução favorável) — o Roger gerou-os
+localmente ("Guardar como PDF") porque `_printWin` chama `window.print()`
+automaticamente e a caixa de diálogo nativa bloqueia a automação do browser
+sem alternativa limpa.
+
+**Bugs apanhados na revisão visual (`pdftoppm`, página a página) antes de
+entregar — nenhum chegou a ser visto pelo Roger:**
+- Tabela do capítulo 5 (comparação PDF Individual vs. Evolução): células
+  com string simples em vez de `Paragraph` — texto mais longo não fazia
+  wrap e extravasava para fora da tabela. Corrigido com estilos novos
+  `TableCell`/`TableCellBold`/`TableCellHead` (`Paragraph` em cada célula).
+- Três emojis literais (🖨️ no cabeçalho da mesma tabela, ⋮ no capítulo 2,
+  ✅/❌ no capítulo 9) renderizavam como caixas tofu — mesmo bug já
+  documentado no `bullet()` do próprio ficheiro (Helvetica sem esses
+  glifos), mas escrito diretamente em `Paragraph`s fora desse helper.
+  Substituídos por texto/bullets coloridos (`bullet()` ou palavras).
+- Imagem do PDF de Evolução (`pdf_evolucao_sample.png`) começou por ser um
+  composite das 2 páginas do PDF real (tabela+4 gráficos+conclusão)
+  empilhadas verticalmente — ficava demasiado pequena a 95mm de altura
+  máxima. Trocado para só a 1ª página (tabela+2 gráficos principais) com
+  `max_h` aumentado para 125mm nas duas imagens deste capítulo — legível.
+
+Nome das atletas reais na tabela do Dashboard Completo (`dashboard.png`)
+foi desfocado (Gaussian blur, PIL) antes de entregar — decisão minha, não
+pedida explicitamente pelo Roger para este screenshot em concreto, dado
+não ser viável montar um plantel fictício completo de 26 atletas só para
+esta captura (as colunas de nutrição em si estavam vazias, sem dado
+sensível associado ao nome).
+
+Entregue via SendUserFile. Nada pendente.
