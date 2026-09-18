@@ -489,6 +489,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-gameday"></div>
       <div class="pg" id="pg-nutri-agenda-geral"></div>
       <div class="pg" id="pg-nutri-consultas"></div>
+      <div class="pg" id="pg-nutri-manual"></div>
       <div class="pg" id="pg-config"></div>
       <div class="pg" id="pg-relatorios"></div>
     </div>
@@ -978,6 +979,7 @@ const ALL_PAGES=[
   {id:'nutri-agenda-geral',icon:'🗓️',label:'Agenda Geral'},
   {id:'nutri-consultas',icon:'📅',label:'Consultas'},
   {id:'nutri-dash',icon:'📊',label:'Dashboard Completo'},
+  {id:'nutri-manual',icon:'📖',label:'Manual de Utilização'},
 ];
 const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 // Cargos: cada um define que páginas vê (pages), se só pode consultar (readOnly)
@@ -990,7 +992,7 @@ const ROLE_DEFS={
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-dash'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-agenda-geral','nutri-consultas','nutri-dash'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-manual'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes'],readOnly:true,manageUsers:false}
 };
@@ -1078,7 +1080,7 @@ function _maybeEnterNutriMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1154,7 +1156,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -13251,6 +13253,60 @@ function _ncRsvpBlockHtml(c){
     ${c.rsvpStatus==='yes'?'✅ Confirmaste presença':'❌ Avisaste que não vais'+(c.rsvpReason?' — '+escHtml(ATT_REASONS[c.rsvpReason]||c.rsvpReason):'')}
     ${!passed?`<a href="#" onclick="event.preventDefault();atNcRsvpReset('${c.id}')" style="color:var(--pri);margin-left:6px">mudar resposta</a>`:''}
   </div>`;
+}
+
+// ─── MANUAL DE UTILIZAÇÃO (lado Nutri) ─────────────────────────────────────
+// Pedido do Roger (18/09/2026): manual da app SPS-Nutri em PDF para enviar à
+// nutricionista + uma aba dentro da própria app. Discutido e proposto na doc
+// "SPS vs Mercado" secção 5.5 antes de codar — dois precedentes já existentes
+// no projeto foram reaproveitados: o Manual_SPS_Ginasio.pdf (mesmo conteúdo,
+// versão PDF avulsa para enviar) e o "📖 Manual da App" da Atleta (mesmo
+// mecanismo: secções colapsáveis <details>/<summary>, conteúdo embutido no
+// index.html, disponível offline via Service Worker). Diferença face à Atleta:
+// o Roger pediu uma ABA a sério (a SPS-Nutri já tem menu lateral próprio),
+// não só um ícone/modal — por isso isto é uma página normal (renderNutriManual,
+// pg-nutri-manual, item nutri-manual em ALL_PAGES), não um openMod().
+const _NUTRI_MANUAL_SECOES=[
+  {id:'home',icon:'ti-home',title:'Home',html:`
+    <p>O teu resumo do dia ao entrar na app: nº de avaliações registadas, atletas sem plano ativo, se o Plano Dia de Jogo já está definido, eventos de hoje na Agenda Geral e a próxima consulta marcada. Cada cartão é um atalho direto para essa página.</p>
+    <p style="margin-top:8px">No topo, sempre que houver algo pendente (ex: atleta sem avaliação ou sem plano), aparece um aviso com atalho direto para resolver.</p>`},
+  {id:'aval',icon:'ti-ruler',title:'Avaliações Antropométricas',html:`
+    <p>Ficha completa por atleta, protocolo ISAK de <b>8 pregas cutâneas</b> (tricipital, bicipital, subescapular, suprailíaca, abdominal, supraespinal, crural, geminal). Peso, altura, IMC e % de hidratação também aqui.</p>
+    <p style="margin-top:8px"><b>Cálculo automático:</b> soma das pregas, % de gordura e massa muscular calculam-se sozinhos a partir dos valores introduzidos — mas podes sempre sobrescrever manualmente qualquer um dos três; a edição manual passa a prevalecer sobre o cálculo automático até a apagares.</p>
+    <p style="margin-top:8px">Não precisas de medir as 8 pregas em todas as avaliações — a soma e a % de gordura calculam-se com as que tiveres. As que faltarem ficam simplesmente em branco.</p>
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>Botão</th><th>O que gera</th></tr></thead><tbody>
+    <tr><td>🖨️ (na linha da avaliação)</td><td><b>PDF Individual</b> — essa avaliação isolada, com código de cores e um ✓ junto a cada prega que foi de facto medida nesse dia (as não medidas ficam com —).</td></tr>
+    <tr><td>🖨️ PDF Evolução</td><td>Escolhe uma atleta no topo da página — gera um PDF com <b>todas as avaliações dela ao longo do tempo</b>, gráficos de evolução e uma leitura automática (melhorou/piorou/estável) por métrica.</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:8px">Campo <b>Nota para a Atleta</b> (opcional): texto que ela vê no lugar de números, no card "A tua Evolução" da app dela — ver secção "O que a Atleta Vê" abaixo.</p>`},
+  {id:'guias',icon:'ti-palette',title:'Guias de Referência por Cor',html:`
+    <p>No Dashboard Completo encontras o editor de <b>Guias de Referência</b> — define os limiares que decidem se cada valor aparece verde (dentro do ideal), amarelo (atenção) ou vermelho (fora do ideal) nos PDFs de avaliação.</p>
+    <p style="margin-top:8px">Só <b>% de Gordura</b> e <b>Rácio Cintura-Anca (WHR)</b> têm código de cor — são as únicas métricas com referência científica universal por género. Massa Muscular e Soma das Pregas variam demasiado por atleta/desporto para ter um limiar absoluto, por isso aparecem sempre sem cor (mas comparadas com a avaliação anterior no PDF de Evolução).</p>
+    <p style="margin-top:8px">Vêm predefinidos com valores com suporte científico (ACE, OMS), separados por Feminino/Masculino — mas <b>a tua edição prevalece sempre</b>. Deixa um campo em branco para voltar a usar o valor por defeito nesse campo específico.</p>`},
+  {id:'planos',icon:'ti-salad',title:'Planos Nutricionais',html:`
+    <p>Um plano por atleta: objetivo, kcal totais, macros (proteína/hidratos/gordura) e as 5 refeições do dia (hora, kcal e alimentos de cada uma).</p>
+    <p style="margin-top:8px">Só o plano marcado como <b>Ativo</b> é que a atleta vê na app dela. Podes ter vários planos guardados por atleta (histórico) e ativar/desativar sem apagar.</p>`},
+  {id:'gameday',icon:'ti-trophy',title:'Plano Dia de Jogo',html:`
+    <p><b>Um único plano, comum a toda a equipa</b> — não é por atleta. Cobre 5 momentos: ao acordar, refeição pré-jogo, hidratação, snack ligeiro e recuperação pós-jogo.</p>
+    <p style="margin-top:8px">Assim que guardares, substitui automaticamente o texto genérico que a atleta via até agora no ecrã "Dia de Jogo" da app dela, em todos os jogos. Deixa um campo em branco para manter o texto genérico só nesse campo.</p>`},
+  {id:'agenda-consultas',icon:'ti-calendar-event',title:'Agenda Geral & Consultas',html:`
+    <p><b>Agenda Geral:</b> vista de calendário com todos os eventos da equipa (treinos, jogos, etc.) — só de consulta.</p>
+    <p style="margin-top:8px"><b>Consultas:</b> aqui é que agendas consultas individuais 1-para-1 com cada atleta (data, hora, duração, local, notas). A atleta vê a próxima consulta marcada na app dela e pode confirmar presença (RSVP) — o estado (Agendada/Realizada/Faltou) atualiza-se automaticamente ou manualmente com os botões ✅/❌.</p>`},
+  {id:'dash',icon:'ti-chart-bar',title:'Dashboard Completo',html:`
+    <p>Visão de todo o plantel numa tabela só: última avaliação, plano ativo, próxima consulta de cada atleta. Ponto de partida rápido para veres quem precisa de atenção.</p>
+    <p style="margin-top:8px">É também aqui que fica o editor de <b>Guias de Referência</b> (ver secção acima) e o seletor do <b>Responsável</b> pelo plantel (quem aparece como "Avaliado por" nos PDFs, por defeito).</p>`},
+  {id:'atleta',icon:'ti-eye',title:'O que a Atleta Vê',html:`
+    <p>Na aba Nutrição da app dela, a atleta vê: a próxima consulta marcada, Peso/IMC da última avaliação, o plano ativo (refeições e macros) e o Plano Dia de Jogo.</p>
+    <p style="margin-top:8px">Não vê números de composição corporal (% gordura, massa muscular, soma de pregas) nem gráficos de evolução com valores — decisão tomada com base na literatura de ciência do desporto (risco de insatisfação corporal em atletas femininas ao expor esses dados diretamente). Em vez disso vê um card <b>"A tua Evolução"</b>: uma linha do tempo simples (quantas avaliações, desde quando) e, se preencheres o campo Nota para a Atleta numa avaliação, a tua mensagem mais recente aparece aí — enquadrada por ti, nunca um número cru.</p>`},
+];
+function renderNutriManual(openId){
+  document.getElementById('pg-nutri-manual').innerHTML=`
+  <div class="sh"><div class="sh-t">📖 Manual de Utilização</div></div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir. Fica sempre disponível aqui, mesmo offline.</div>
+  ${_NUTRI_MANUAL_SECOES.map(s=>`<details ${openId===s.id?'open':''} style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
+    <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
+    <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
+  </details>`).join('')}`;
 }
 
 // ─── RELATÓRIOS ──────────────────────────────────────────────

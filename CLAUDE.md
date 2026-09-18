@@ -1111,3 +1111,44 @@ campos ausentes do registo (não só vazios) tratados como não medidos, e o
 caso de fronteira do valor `0` a contar como medição real.
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v170 (18/09/2026): Aba "Manual de Utilização" na SPS-Nutri
+
+Pedido do Roger: manual em PDF de toda a app de Nutrição para enviar à
+nutricionista + uma aba "Manual de Utilização" dentro da própria app. Antes
+de codar, propus o plano na doc "SPS vs Mercado" (secção 5.5) e ele confirmou
+("AVANÇA"). Esta é a parte da aba dentro da app — o PDF é entregue à parte,
+fora do fluxo do site (ver `Manual_SPS_Ginasio.pdf`/`Guia_App_Atleta_SPS.pdf`
+no `.gitignore` para o mesmo padrão de entrega).
+
+Reaproveitei dois precedentes já existentes no projeto em vez de inventar
+mecanismo novo: o `Manual_SPS_Ginasio.pdf` (mesmo conteúdo, versão PDF) e o
+"📖 Manual da App" da Atleta (sps-v31) — mesmo mecanismo de secções
+colapsáveis `<details>`/`<summary>`, conteúdo embutido no `index.html`,
+disponível offline via Service Worker. Diferença: o Roger pediu desta vez uma
+ABA a sério (a SPS-Nutri já tem menu lateral próprio com 7 páginas), não só
+um ícone/modal como na Atleta — por isso é uma página normal
+(`renderNutriManual`/`pg-nutri-manual`), não um `openMod()`.
+
+**O que foi construído:**
+- `_NUTRI_MANUAL_SECOES`: 8 secções (Home, Avaliações Antropométricas, Guias
+  de Referência por Cor, Planos Nutricionais, Plano Dia de Jogo, Agenda
+  Geral & Consultas, Dashboard Completo, O que a Atleta Vê) — cada uma
+  explica o que a página faz e como usar, incluindo os botões de PDF
+  (Evolução vs Individual), o editor de Guias de Referência e o que muda
+  do lado da atleta.
+- `renderNutriManual(openId)`: monta as secções em `<details>` colapsáveis
+  (mesmo padrão do `atOpenManual`).
+- Novo item `nutri-manual` (📖) em `ALL_PAGES`, adicionado a
+  `ROLE_DEFS.nutri.pages`, `_NAV_TITLES` e ao mapa de renders do `navTo` —
+  aparece automaticamente no menu lateral da Nutri (a sidebar é gerada a
+  partir de `ALL_PAGES`, não precisou de HTML novo aí).
+- Novo container `<div class="pg" id="pg-nutri-manual">`.
+
+SW bump para `sps-v170`. Testado: `node --check` ao ficheiro inteiro; teste
+isolado em Node de `renderNutriManual` (harness com `document.getElementById`
+simulado) confirmando 8 secções geradas, ids todos únicos, e o parâmetro
+`openId` a abrir a secção certa.
+
+**Ainda por fazer:** o PDF `Manual_SPS_Nutricao.pdf` (screenshots + ReportLab)
+fica para entrega em separado — não é parte deste commit.
