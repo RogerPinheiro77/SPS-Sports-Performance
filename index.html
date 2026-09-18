@@ -2591,7 +2591,7 @@ function openAthleteModal(id){
     const bmi=lastAnthro.weight&&at.height?Math.round(lastAnthro.weight/Math.pow(+at.height/100,2)*10)/10:'—';
     return '<div style="font-size:11px">'
       +(lastAnthro.weight?'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--brd)"><span>Peso</span><strong>'+lastAnthro.weight+' kg</strong></div>':'')
-      +(lastAnthro.fatPct?'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--brd)"><span>% Massa Gorda</span><strong>'+lastAnthro.fatPct+'%</strong></div>':'')
+      +(lastAnthro.bodyFat?'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--brd)"><span>% Massa Gorda</span><strong>'+lastAnthro.bodyFat+'%</strong></div>':'')
       +(bmi!=='—'?'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--brd)"><span>IMC</span><strong>'+bmi+'</strong></div>':'')
       +'<div style="color:var(--t2);font-size:10px;margin-top:4px">'+fmtDate(lastAnthro.date)+'</div></div>';
   })();
@@ -12381,31 +12381,67 @@ function renderNutriDash(){
 }
 
 let _naAtId=null, _showNaForm=false;
+// Protocolo de 8 pregas (ISAK) — pedido da nutricionista (18/09/2026, conversa colada
+// pelo Roger): 4 pontos de tronco (subescapular, suprailíaca, supraespinal, abdominal)
+// + 4 de membros (tricipital, bicipital, crural=coxa, geminal=gemelar), confirmado como
+// o protocolo padrão ISAK numa revisão de 2026 sobre protocolos de pregas — ver
+// CLAUDE.md/doc "SPS vs Mercado" secção 5.1. `na-sup` já existia para suprailíaca antes
+// desta versão (nome mantido para não partir nada); os restantes 6 IDs são novos.
+const _NA_SKINFOLD_IDS=['na-tri','na-bic','na-sub','na-sup','na-abd','na-spe','na-cru','na-gem'];
 function renderNutriAval(){
   const formHtml=_showNaForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">Nova Avaliação ${_naAtId?'— '+APP.athletes.find(a=>a.id===_naAtId)?.name:''}</div><button class="btn btn-sm btn-gh" onclick="_showNaForm=false;renderNutriAval()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="na-at" onchange="_naAtId=this.value">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_naAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
-    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="na-date" type="date" value="${today()}"></div></div>
-    <div class="fr3"><div class="form-g"><label class="fl">Peso (kg)</label><input class="fc" id="na-wt" type="number" step="0.1" oninput="calcBMI()"></div>
-    <div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="na-ht" type="number" oninput="calcBMI()"></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="na-at" onchange="_naAtId=this.value;_naAutoMuscle()">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_naAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="na-date" type="date" value="${today()}" onchange="_naAutoMuscle()"></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Peso (kg)</label><input class="fc" id="na-wt" type="number" step="0.1" oninput="calcBMI();_naAutoMuscle()"></div>
+    <div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="na-ht" type="number" oninput="calcBMI();_naAutoMuscle()"></div>
     <div class="form-g"><label class="fl">IMC (auto)</label><input class="fc" id="na-bmi" readonly placeholder="—"></div></div>
-    <div class="fr3"><div class="form-g"><label class="fl">% Gordura</label><input class="fc" id="na-fat" type="number" step="0.1"></div>
-    <div class="form-g"><label class="fl">% Massa Muscular</label><input class="fc" id="na-mus" type="number" step="0.1"></div>
-    <div class="form-g"><label class="fl">Hidratação</label><select class="fc" id="na-hyd"><option value="">—</option><option>Boa</option><option>Moderada</option><option>Fraca</option></select></div></div>
-    <div class="fr"><div class="form-g"><label class="fl">Prega Tricipital (mm)</label><input class="fc" id="na-tri" type="number" step="0.1"></div>
-    <div class="form-g"><label class="fl">Prega Supra-ilíaca (mm)</label><input class="fc" id="na-sup" type="number" step="0.1"></div></div>
-    <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="na-notes" rows="2"></textarea></div>
+    <div class="fr3">
+      <div class="form-g"><label class="fl">% Gordura <span style="font-weight:400;color:var(--t2)">(auto, editável)</span></label>
+        <div style="display:flex;gap:4px"><input class="fc" id="na-fat" type="number" step="0.1"><button type="button" class="btn btn-xs btn-gh" title="Recalcular a partir das pregas" onclick="_naAutoFat(true)">🧮</button></div></div>
+      <div class="form-g"><label class="fl">Massa Muscular (kg) <span style="font-weight:400;color:var(--t2)">(auto, editável)</span></label>
+        <div style="display:flex;gap:4px"><input class="fc" id="na-mus" type="number" step="0.1"><button type="button" class="btn btn-xs btn-gh" title="Recalcular" onclick="_naAutoMuscle(true)">🧮</button></div></div>
+      <div class="form-g"><label class="fl">Hidratação</label><select class="fc" id="na-hyd"><option value="">—</option><option>Boa</option><option>Moderada</option><option>Fraca</option></select></div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--t2);margin:10px 0 6px;text-transform:uppercase;letter-spacing:.4px">Pregas cutâneas (mm) — protocolo ISAK 8 pontos</div>
+    <div class="fr4">
+      <div class="form-g"><label class="fl">Tricipital</label><input class="fc" id="na-tri" type="number" step="0.1" oninput="_naSkinfSum()"></div>
+      <div class="form-g"><label class="fl">Bicipital</label><input class="fc" id="na-bic" type="number" step="0.1" oninput="_naSkinfSum()"></div>
+      <div class="form-g"><label class="fl">Subescapular</label><input class="fc" id="na-sub" type="number" step="0.1" oninput="_naSkinfSum()"></div>
+      <div class="form-g"><label class="fl">Suprailíaca</label><input class="fc" id="na-sup" type="number" step="0.1" oninput="_naSkinfSum()"></div>
+    </div>
+    <div class="fr4" style="margin-top:9px">
+      <div class="form-g"><label class="fl">Abdominal</label><input class="fc" id="na-abd" type="number" step="0.1" oninput="_naSkinfSum()"></div>
+      <div class="form-g"><label class="fl">Supraespinal</label><input class="fc" id="na-spe" type="number" step="0.1" oninput="_naSkinfSum()"></div>
+      <div class="form-g"><label class="fl">Crural</label><input class="fc" id="na-cru" type="number" step="0.1" oninput="_naSkinfSum()"></div>
+      <div class="form-g"><label class="fl">Geminal</label><input class="fc" id="na-gem" type="number" step="0.1" oninput="_naSkinfSum()"></div>
+    </div>
+    <div class="form-g" style="margin-top:9px;max-width:220px"><label class="fl">Soma das 8 Pregas (auto)</label><input class="fc" id="na-sumpregas" readonly placeholder="—"></div>
+    <div style="font-size:11px;font-weight:700;color:var(--t2);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.4px">Perímetros (cm)</div>
+    <div class="fr4">
+      <div class="form-g"><label class="fl">Braço</label><input class="fc" id="na-braco" type="number" step="0.1"></div>
+      <div class="form-g"><label class="fl">Coxa</label><input class="fc" id="na-coxa" type="number" step="0.1"></div>
+      <div class="form-g"><label class="fl">Gémeo</label><input class="fc" id="na-pgem" type="number" step="0.1"></div>
+      <div class="form-g"><label class="fl">Cintura</label><input class="fc" id="na-cint" type="number" step="0.1" oninput="_naWHR()"></div>
+    </div>
+    <div class="fr" style="margin-top:9px;max-width:460px">
+      <div class="form-g"><label class="fl">Ancas</label><input class="fc" id="na-anc" type="number" step="0.1" oninput="_naWHR()"></div>
+      <div class="form-g"><label class="fl">Rácio Cintura-Ancas (auto)</label><input class="fc" id="na-whr" readonly placeholder="—"></div>
+    </div>
+    <div class="form-g" style="margin-top:9px"><label class="fl">Notas</label><textarea class="fc" id="na-notes" rows="2"></textarea></div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveNutriAval()">💾 Guardar</button><button class="btn btn-gh" onclick="_showNaForm=false;renderNutriAval()">Cancelar</button></div>
   </div>`:'';
 
   const list=APP.nutritionAssessments.sort((a,b)=>b.date.localeCompare(a.date));
-  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Atleta</th><th>Peso</th><th>Altura</th><th>IMC</th><th>% Gordo</th><th>% Músculo</th><th>Hidratação</th><th>Registado por</th><th>Ações</th></tr></thead>
+  const tableHtml=list.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Atleta</th><th>Peso</th><th>Altura</th><th>IMC</th><th>% Gordo</th><th>Massa Musc.</th><th>Soma Pregas</th><th>Hidratação</th><th>Registado por</th><th>Ações</th></tr></thead>
   <tbody>${list.map(a=>{const at=APP.athletes.find(x=>x.id===a.athleteId);const bmi=+a.bmi||0;const bc=bmi<18.5?'bg-y':bmi<25?'bg-g':bmi<30?'bg-y':'bg-r';
   return`<tr><td>${fmtDate(a.date)}</td><td><strong>${at?.name||'?'}</strong></td>
   <td>${a.weight?a.weight+'kg':'—'}</td><td>${a.height?a.height+'cm':'—'}</td>
   <td>${bmi?`<span class="bdg ${bc}">${bmi}</span>`:'—'}</td>
-  <td>${a.bodyFat?a.bodyFat+'%':'—'}</td><td>${a.muscle?a.muscle+'%':'—'}</td>
+  <td>${a.bodyFat?a.bodyFat+'%':'—'}</td>
+  <td>${a.muscleKg?a.muscleKg+'kg':(a.muscle?a.muscle+'% (antigo)':'—')}</td>
+  <td>${a.sumSkinfolds?a.sumSkinfolds+'mm':'—'}</td>
   <td>${a.hydration||'—'}</td>
   <td style="font-size:10px;color:var(--t2)">${escHtml(a.registeredBy||'—')}</td>
   <td><button class="btn btn-xs btn-r" onclick="deleteNutriAval('${a.id}')">🗑️</button></td></tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">📏</div><p>Sem avaliações</p></div>`;
@@ -12420,14 +12456,84 @@ function calcBMI(){
   const ht=+document.getElementById('na-ht').value;
   if(wt&&ht){const bmi=Math.round(wt/((ht/100)**2)*10)/10;document.getElementById('na-bmi').value=bmi;}
 }
+// Soma das 8 pregas — só calcula quando as 8 estão preenchidas (uma soma parcial não é
+// uma "Σ8SF" válida para comparar com as curvas de referência da literatura); dispara
+// também a sugestão automática de % Gordura, que só precisa de 3 destas 8.
+function _naSkinfSum(){
+  const out=document.getElementById('na-sumpregas');
+  if(!out)return;
+  const els=_NA_SKINFOLD_IDS.map(id=>document.getElementById(id));
+  const allFilled=els.every(el=>el&&el.value!=='');
+  out.value=allFilled?Math.round(els.reduce((s,el)=>s+(+el.value||0),0)*10)/10:'';
+  _naAutoFat();
+}
+// % Gordura — equação de Evans et al. (2005), a que teve melhor desempenho (R²=0,70-0,83
+// vs. DXA, sem viés significativo) num estudo de 2026 validado especificamente em
+// futebolistas femininas de elite (ver CLAUDE.md/doc "SPS vs Mercado" 5.1). Termo de sexo
+// fixo em feminino; termo racial/étnico OMITIDO de propósito — não é recolhido nesta app
+// (dado sensível, RGPD) e nem foi pedido. Isto equivale a assumir a categoria de
+// referência do estudo — uma simplificação consciente, não um erro, mas fica documentada
+// aqui para quem for rever isto no futuro. Auto = só preenche se o campo estiver vazio;
+// force=true (botão 🧮) recalcula sempre, mesmo por cima de um valor já escrito.
+function _naAutoFat(force){
+  const el=document.getElementById('na-fat');if(!el)return;
+  if(!force&&el.value!=='')return;
+  const tri=+((document.getElementById('na-tri')||{}).value||'');
+  const abd=+((document.getElementById('na-abd')||{}).value||'');
+  const cru=+((document.getElementById('na-cru')||{}).value||'');
+  if(!tri||!abd||!cru)return;
+  const fat=8.997+0.24658*(tri+abd+cru);
+  el.value=Math.round(fat*10)/10;
+}
+// Massa Muscular (kg) — equação de Lee et al. (2000), versão simplificada sem
+// circunferências ("Lee-2": peso+altura+idade+sexo). Mesma nota do termo racial/étnico
+// omitido acima. Precisa da idade da atleta na data da avaliação (a partir da data de
+// nascimento já guardada no Plantel) — por isso recalcula também ao mudar de atleta/data,
+// não só peso/altura.
+function _naAutoMuscle(force){
+  const el=document.getElementById('na-mus');if(!el)return;
+  if(!force&&el.value!=='')return;
+  const wt=+((document.getElementById('na-wt')||{}).value||'');
+  const ht=+((document.getElementById('na-ht')||{}).value||'');
+  const at=APP.athletes.find(a=>a.id===(document.getElementById('na-at')||{}).value);
+  const dt=(document.getElementById('na-date')||{}).value;
+  if(!wt||!ht||!at||!at.dob||!dt)return;
+  const age=_ageAtDate(at.dob,dt);
+  if(age==null)return;
+  const kg=0.244*wt+7.80*(ht/100)-0.098*age-3.3;
+  el.value=Math.round(kg*10)/10;
+}
+function _ageAtDate(dob,atDate){
+  if(!dob||!atDate)return null;
+  const d=new Date(dob+'T00:00:00'), a=new Date(atDate+'T00:00:00');
+  let age=a.getFullYear()-d.getFullYear();
+  if(a.getMonth()<d.getMonth()||(a.getMonth()===d.getMonth()&&a.getDate()<d.getDate()))age--;
+  return (age>=0&&age<100)?age:null;
+}
+function _naWHR(){
+  const w=+((document.getElementById('na-cint')||{}).value||'');
+  const h=+((document.getElementById('na-anc')||{}).value||'');
+  const out=document.getElementById('na-whr');if(!out)return;
+  out.value=(w&&h)?Math.round(w/h*100)/100:'';
+}
 function saveNutriAval(){
   const aid=document.getElementById('na-at').value;
   const date=document.getElementById('na-date').value;
   if(!aid||!date)return toast('Atleta e data obrigatórios','err');
   const sess=getSession();
+  const g=id=>document.getElementById(id)?.value||'';
   // Autoria automática (project_sps_nutri_autoria) — cada avaliação regista quem a fez
   // (sessão logada), mesmo padrão da Fase 1 do Fisio (tratamentos).
-  const a={id:uid(),athleteId:aid,date,weight:document.getElementById('na-wt').value,height:document.getElementById('na-ht').value,bmi:document.getElementById('na-bmi').value,bodyFat:document.getElementById('na-fat').value,muscle:document.getElementById('na-mus').value,hydration:document.getElementById('na-hyd').value,tricipital:document.getElementById('na-tri').value,suprailiaca:document.getElementById('na-sup').value,notes:document.getElementById('na-notes').value,registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
+  // Nota sobre `muscle` vs `muscleKg` (sps-v165): `muscle` guardava % em avaliações
+  // antigas — nunca mais escrito a partir de agora, para não reinterpretar dados
+  // históricos; `muscleKg` é o campo novo, em kg, só escrito daqui em diante.
+  const a={id:uid(),athleteId:aid,date,weight:g('na-wt'),height:g('na-ht'),bmi:g('na-bmi'),
+    bodyFat:g('na-fat'),muscleKg:g('na-mus'),hydration:g('na-hyd'),
+    tricipital:g('na-tri'),bicipital:g('na-bic'),subescapular:g('na-sub'),suprailiaca:g('na-sup'),
+    abdominal:g('na-abd'),supraespinal:g('na-spe'),crural:g('na-cru'),geminal:g('na-gem'),
+    sumSkinfolds:g('na-sumpregas'),
+    armCirc:g('na-braco'),thighCirc:g('na-coxa'),calfCirc:g('na-pgem'),waistCirc:g('na-cint'),hipCirc:g('na-anc'),whr:g('na-whr'),
+    notes:g('na-notes'),registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
   APP.nutritionAssessments.push(a);
   if(_sync)cloudUpsert('nutrition_records',a);
   saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
@@ -15271,11 +15377,33 @@ function renderAtNutri(){
     <div class="kpi"><div class="kpi-lbl">Peso</div><div class="kpi-val" style="font-size:20px">${lastA.weight||'—'}<span style="font-size:12px"> kg</span></div><div class="kpi-sub">${lastA.date}</div></div>
     <div class="kpi"><div class="kpi-lbl">IMC</div><div class="kpi-val" style="font-size:20px">${lastA.bmi||'—'}</div><div class="kpi-sub">${lastA.hydration?'Hidratação: '+lastA.hydration:''}</div></div>
   </div>`:''}
-  ${plan?`<div class="card"><div class="ch"><span class="ct">${plan.name}</span></div><div class="cb" style="padding:12px">
+  ${plan?`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">${plan.name}</span></div><div class="cb" style="padding:12px">
     <div class="macros" style="margin-bottom:12px">${plan.kcal?`<span class="mac">🔥 ${plan.kcal} kcal</span>`:''}${plan.protein?`<span class="mac">🥩 ${plan.protein}g prot</span>`:''}${plan.carbs?`<span class="mac">🍞 ${plan.carbs}g HC</span>`:''}${plan.fat?`<span class="mac">🧈 ${plan.fat}g gord</span>`:''}</div>
     ${(plan.meals||[]).map(m=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?`<span style="font-size:10px;color:var(--t2)">${m.time}</span>`:''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div>${m.foods?`<div class="meal-f">${m.foods}</div>`:''}</div>`).join('')}
   </div></div>`:
-  `<div class="empty"><div class="ei"><i class="ti ti-salad" aria-hidden="true"></i></div><p>Sem plano nutricional ativo</p><div class="esub">O teu nutricionista ainda não definiu um plano</div></div>`}`;
+  `<div class="empty" style="margin-bottom:14px"><div class="ei"><i class="ti ti-salad" aria-hidden="true"></i></div><p>Sem plano nutricional ativo</p><div class="esub">O teu nutricionista ainda não definiu um plano</div></div>`}
+  ${_atNutriGamedayCardHtml()}`;
+}
+// Plano Dia de Jogo — vive de forma persistente aqui na aba Nutrição (consulta em
+// qualquer dia), além de continuar ativo automaticamente dentro do ecrã "Dia de Jogo"
+// num dia de jogo real (_diaJogoTimeline, que já usa _djNutriText). Mesma fonte de
+// dados (APP.nutritionGameDayPlan), sem duplicação — pedido do Roger, 18/09/2026.
+function _atNutriGamedayCardHtml(){
+  const p=APP.nutritionGameDayPlan;
+  const rows=_DJ_NUTRI_FIELDS.map(f=>`
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2)">${f.label}</div>
+      <div style="font-size:12.5px;line-height:1.4">${escHtml(_djNutriText(f.key))}</div>
+    </div>`).join('');
+  const metaHtml=p&&p.updatedAt?`<div style="font-size:10px;color:var(--t2);margin-top:4px">Atualizado em ${fmtDate(p.updatedAt.slice(0,10))}</div>`:'';
+  return `<details class="card" style="padding:14px">
+    <summary style="cursor:pointer;font-size:13px;font-weight:800">🏆 Plano Dia de Jogo</summary>
+    <div style="margin-top:10px">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Estas indicações aplicam-se sempre que tiveres um jogo — consulta aqui em qualquer altura, mesmo fora do dia de jogo.</div>
+      ${rows}
+      ${metaHtml}
+    </div>
+  </details>`;
 }
 // ── Histórico Clínico (Anamnese) — lado atleta ──────────────────────────────
 function _anamneseSummaryCard(){
@@ -15892,7 +16020,8 @@ async function pullCloud(){
       ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at,eventId:r.event_id}))],
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at,registeredById:r.registered_by_id,phaseHistory:r.phase_history||[],responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name,professionalId:r.professional_id,registeredAt:r.registered_at}))],
-      ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id}))],
+      ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,
+        sumSkinfolds:r.sum_skinfolds,armCirc:r.arm_circ,thighCirc:r.thigh_circ,calfCirc:r.calf_circ,waistCirc:r.waist_circ,hipCirc:r.hip_circ,muscleKg:r.muscle_kg}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
@@ -16217,8 +16346,14 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',returnDate:'return_date',bodyPart:'body_part',phaseDesc:'phase_desc',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id',phaseHistory:'phase_history',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
   treatments:{cols:['id','injury_id','athlete_id','date','type','description','response','professional_name','professional_id','registered_at'],
     rename:{injuryId:'injury_id',athleteId:'athlete_id',professional:'professional_name',professionalId:'professional_id',registeredAt:'registered_at'}},
-  nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle','registered_by','registered_by_id'],
-    rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id'}},
+  // sps-v165: protocolo de 8 pregas (ISAK) + 5 perímetros + massa muscular em kg (campo
+  // novo `muscle_kg`, distinto do antigo `muscle` em % — nunca reinterpretado, ver
+  // saveNutriAval). `muscle` fica na tabela só para não perder o histórico já gravado.
+  nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle','registered_by','registered_by_id',
+      'bicipital','subescapular','abdominal','supraespinal','crural','geminal','sum_skinfolds',
+      'arm_circ','thigh_circ','calf_circ','waist_circ','hip_circ','whr','muscle_kg'],
+    rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id',
+      sumSkinfolds:'sum_skinfolds',armCirc:'arm_circ',thighCirc:'thigh_circ',calfCirc:'calf_circ',waistCirc:'waist_circ',hipCirc:'hip_circ',muscleKg:'muscle_kg'}},
   nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at','registered_by','registered_by_id','responsavel_id','responsavel_name'],
     rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at',registeredBy:'registered_by',registeredById:'registered_by_id',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
   nutrition_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],

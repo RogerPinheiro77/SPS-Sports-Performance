@@ -756,3 +756,118 @@ nº de semanas cobertas por um macrociclo.
 Mercado" (secção 1.1) tem o desenho completo, incluindo as decisões
 conscientes de granularidade (planeado só ao nível da equipa, não por
 atleta — para não pedir mais introdução manual de dados).
+
+## sps-v165 (18/09/2026): Avaliação Antropométrica completa + Plano Dia de Jogo na aba Nutrição
+
+Pedido veio de uma conversa por WhatsApp com a nutricionista, colada pelo
+Roger, sobre upgrade da aba Nutrição. Dois pedidos distintos, ambos
+"analisa, investiga, propõe" primeiro (proposta na doc "SPS vs Mercado",
+secção 5.1), depois confirmados por partes: a estrutura da avaliação
+antropométrica foi pedida logo para já; o cálculo automático de % Gordura e
+Massa Muscular — inicialmente proposto como ideia para "mais tarde" — foi
+depois pedido também para já, com uma condição explícita do Roger: "com
+calculo automatico, mas que permita edição da parte da nutricionista, ou
+seja por defeito automático e editável, e se a nutri quiser ela edita".
+
+**1. Avaliação Antropométrica — protocolo ISAK de 8 pregas + perímetros:**
+- Novos campos de pregas cutâneas (mm): Tricipital, Bicipital, Subescapular,
+  Suprailíaca, Abdominal, Supraespinal, Crural, Geminal — os 8 pontos do
+  protocolo ISAK completo, conforme pedido pela nutricionista.
+- Novo campo automático "Soma das 8 Pregas" (`_naSkinfSum`) — só calcula
+  quando as 8 estão preenchidas (uma soma parcial não é uma Σ8SF válida
+  para comparar com curvas de referência da literatura); fica vazio
+  enquanto faltar alguma.
+- Novos perímetros (cm): Braço, Coxa, Gémeo, Cintura, Ancas — e um novo
+  campo automático "Rácio Cintura-Ancas" (`_naWHR`, Cintura/Ancas).
+- % Gordura mantido (pedido do Roger: "podemos manter"); Massa Muscular
+  passou de % para kg (pedido explícito). Como o campo antigo `muscle`
+  guardava %, foi criado um campo novo `muscleKg` em vez de reinterpretar o
+  antigo — os registos antigos continuam a mostrar-se corretamente
+  identificados como "% (antigo)" no histórico, nunca reinterpretados como
+  kg. Corrigido de caminho um bug pré-existente no cartão do Plantel
+  (`anthroBlock`): lia `lastAnthro.fatPct`, campo que nunca existiu com
+  esse nome nos dados guardados (era `bodyFat`) — por isso "% Massa Gorda"
+  nunca aparecia ali; agora lê o campo certo.
+
+**2. Cálculo automático de % Gordura e Massa Muscular (kg) — editável:**
+
+Padrão de UI novo (distinto do IMC, que é só leitura): o campo vem
+pré-preenchido automaticamente, mas continua a ser um `<input>` normal —
+a nutricionista pode sempre escrever por cima. Um botão 🧮 ao lado força
+o recálculo mesmo que já exista um valor (útil se ela quiser voltar ao
+valor sugerido depois de editar). Nunca sobrescreve silenciosamente um
+valor já escrito, exceto com o botão.
+
+Antes de escolher as equações, pesquisa dedicada em fontes de ciência do
+desporto (mesmo padrão de grounding do sps-v163/sps-v164, não confiar em
+memória de treino):
+- **% Gordura — Evans et al. (2005).** Equação de pregas cutâneas escolhida
+  por ter sido validada especificamente numa população equivalente à do
+  SPS: um estudo de 2026 comparou-a com DXA em futebolistas femininas de
+  elite e obteve R²=0,70–0,83 sem viés significativo, o melhor desempenho
+  entre as equações testadas nesse estudo para este desporto/sexo — melhor
+  do que usar uma equação genérica "para atletas" sem validação no futebol
+  feminino. Usa 3 das 8 pregas (Tricipital+Abdominal+Crural).
+- **Massa Muscular (kg) — Lee et al. (2000), versão simplificada "Lee-2".**
+  Só peso+altura+idade+sexo (sem perímetros) — versão escolhida porque
+  reduz o nº de inputs obrigatórios para a nutri conseguir um valor
+  automático (a versão completa do Lee pede mais perímetros/medições
+  específicas que não fazem parte deste formulário). **Limitação conhecida
+  e assumida:** por isto, este campo não usa ainda os novos perímetros
+  (Braço/Coxa/Gémeo/Cintura/Ancas) que foram adicionados no mesmo pedido —
+  ficam disponíveis para a nutri consultar e, se um dia se quiser trocar
+  para a versão completa do Lee (mais precisa, mas mais exigente em
+  inputs), já lá estão. Precisa da idade da atleta na data da avaliação —
+  calculada a partir da data de nascimento já existente no Plantel
+  (`_ageAtDate`), por isso recalcula também ao mudar de atleta ou de data
+  da avaliação, não só peso/altura.
+
+**Nota de transparência importante (comunicada também ao Roger em chat,
+não só aqui):** as duas equações publicadas originalmente incluem um termo
+de "raça"/etnia. Esse termo foi **omitido de propósito** em ambas — esta
+app não recolhe dado de raça/etnia (é dado sensível ao abrigo do RGPD,
+art.º 9, e nem a nutricionista nem o Roger pediram isso), e inventar ou
+adivinhar essa categoria seria pior do que assumir a categoria de
+referência do estudo. Isto equivale matematicamente a usar o termo racial
+de referência (coeficiente 0) — uma simplificação consciente, documentada
+em comentário no código junto de cada função (`_naAutoFat`, `_naAutoMuscle`)
+para quem for rever isto no futuro. O termo de sexo está fixo em feminino
+(toda a equipa é feminina).
+
+**3. Plano Dia de Jogo — agora também residente na aba Nutrição:**
+
+Antes só aparecia dentro do ecrã "Dia de Jogo", ativo apenas num dia de
+jogo real. Pedido do Roger: "quero que além de ficar ativo no dia de jogo,
+resida num espaço na aba nutrição para consulta em qualquer dia". Sem
+duplicar dados — novo cartão `<details>` (recolhível, mesmo padrão já usado
+na Referência de Ciclo Menstrual) em `renderAtNutri()`, lendo os mesmos 5
+campos via `_djNutriText()` (a mesma função já usada por `_diaJogoTimeline`,
+com o mesmo fallback para o texto genérico quando a nutricionista ainda não
+definiu nada). Aparece sempre na aba Nutrição da atleta, qualquer dia,
+sem gatilho de jogo.
+
+**Schema Supabase:** 14 colunas novas em `nutrition_records` (as 6 pregas
+que faltavam, soma, 5 perímetros, WHR, `muscle_kg`) — criadas primeiro como
+`text` e depois corrigidas para `numeric` numa segunda migração, depois de
+verificar `information_schema.columns` e confirmar que colunas irmãs
+existentes (peso, altura, imc, body_fat, tricipital, suprailiaca, muscle)
+são todas `numeric`. `_CLOUD_TABLE_SCHEMA.nutrition_records` (push) e o
+mapeamento de `pullCloud()` (pull) atualizados os dois em conjunto — só
+mudar um dos lados teria feito os campos novos desaparecerem
+silenciosamente depois de um refresh da cloud (mesma classe de bug já
+documentada nos Incidentes #1-3 deste ficheiro).
+
+SW bump para `sps-v165`. Testado: `node --check` ao ficheiro inteiro; 16
+testes isolados em Node das funções novas extraídas do próprio ficheiro
+(`_naSkinfSum`/`_naAutoFat`/`_naAutoMuscle`/`_ageAtDate`/`_naWHR`) — soma
+parcial fica vazia, soma completa calcula e dispara a sugestão de %
+gordura, %gordura e massa muscular não sobrescrevem valor manual sem
+`force=true` mas recalculam com o botão 🧮, inputs incompletos não
+rebentam e deixam o campo vazio, idade calculada corretamente à volta do
+aniversário (dia antes vs. dia exato), atleta sem data de nascimento não
+gera erro.
+
+**Ainda por fazer:** nada pendente para este pedido. Se a nutricionista
+quiser no futuro trocar a Massa Muscular para a versão completa do Lee et
+al. (usando os perímetros já recolhidos), é uma troca localizada dentro de
+`_naAutoMuscle`, sem alterações de schema.
