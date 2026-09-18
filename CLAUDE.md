@@ -1003,3 +1003,82 @@ vivo não foi feita nesta sessão (funcionalidade nova, ainda não publicada).
 
 **Ainda por fazer:** nada pendente para este pedido. Combinado com o Roger:
 confirmar visualmente com uma atleta real assim que estiver no ar.
+
+## sps-v168 (18/09/2026): PDF de Avaliação Individual + Guias de Referência por Cor
+
+Pedido do Roger: (1) um PDF de uma só avaliação (só tínhamos o de evolução,
+sps-v166); (2) cada medida com código de cor verde/amarelo/vermelho segundo
+guidelines científicas, com bandas por género (masculino/feminino),
+automático por defeito e editável pela nutricionista — edição sempre
+prevalece, na ausência usa-se o automático. Proposto e confirmado na doc
+"SPS vs Mercado", secção 5.4, antes de implementar.
+
+**Grounding usado antes de decidir o desenho — achado importante: nem
+todas as métricas podem ter banda absoluta.** % Gordura tem tabela do
+American Council on Exercise (ACE) por sexo (mulheres: Essencial 10-13% /
+Atletas 14-20% / Fitness 21-24% / Aceitável 25-31% / Obesidade 32%+;
+homens: Essencial 2-5% / Atletas 6-13% / Fitness 14-17% / Aceitável 18-24%
+/ Obesidade 25%+). Rácio Cintura-Ancas (WHR) tem o limiar de risco da OMS
+(2008): >0,85 mulheres / >0,90 homens. Massa Muscular (kg) e Soma das 8
+Pregas (mm) **não têm** — uma revisão de nutrição clínica mostra cortes de
+massa muscular a variar entre 14,3kg e 27,8kg só consoante a fórmula
+usada, e um estudo de referência em atletas de topo mostra somas de pregas
+entre ~40mm e ~118mm consoante o desporto — ambos os campos recomendam
+medidas normalizadas (altura², percentil por desporto/sexo), nunca um
+corte absoluto em bruto. Por isso estas 2 métricas continuam sem banda
+absoluta (mesmo princípio já usado no PDF de Evolução, sps-v166 —
+`_naTrendCls`/`_naEvolutionFindings`, cor só por tendência); IMC mantém a
+classificação universal da OMS já existente, sem divisão por género.
+
+**Cuidado deliberado no extremo baixo de %Gordura, ligado ao LEAF-Q
+(sps-v163):** a posição do ACSM sobre a Tríade da Atleta avisa contra
+cortes rígidos de %gordura — a teoria de que gordura baixa causa
+diretamente problemas hormonais foi refutada, o que importa é
+disponibilidade energética, não a %gordura isolada. Por isso a banda
+**não** marca "baixo" como simplesmente vermelho: 14-20% (faixa "Atletas")
+fica verde, 10-13% (faixa "Essencial") fica **amarelo** — não vermelho —
+só abaixo de 10% é que fica vermelho. A zona amarela do WHR (entre o
+"ideal" e o limiar de risco) é uma margem de precaução nossa, não uma
+citação separada — só o corte final (0,85/0,90) vem mesmo da OMS.
+
+**O que foi construído:**
+- `NA_GUIDE_DEFAULTS`: bandas por defeito (feminino/masculino), 6 cortes
+  cada (4 de %Gordura, 2 de WHR). Como o plantel é inteiramente feminino
+  (mesma assunção do sps-v165, sem campo de género na atleta), a banda
+  feminina é sempre a aplicada automaticamente; a masculina fica guardada
+  e editável, pronta para o dia em que fizer falta, sem forçar já um campo
+  que hoje não tem uso real.
+- `_naGuideBands(sex)`: junta os defeitos científicos com as edições da
+  nutricionista **campo a campo** — um corte editado prevalece sempre; um
+  campo deixado em branco volta ao valor por defeito (nunca é
+  tudo-ou-nada, como pedido pelo Roger).
+- `_naBodyFatColor(v,bands)` / `_naWhrColor(v,bands)`: devolvem cor +
+  legenda curta (nunca só a cor, sempre com uma frase de contexto).
+- `APP.config.naGuidelines`: novo bloco de configuração (estrutura já
+  presente em `APP.config`, sem migração de dados necessária).
+- `_naGuidelinesEditorHtml()` + `_setNaGuideline`/`_resetNaGuidelines`: novo
+  card recolhível "🎯 Guias de Referência — Composição Corporal" na
+  Nutrição → Dashboard (ao lado do seletor de Responsável já existente,
+  mesmo espírito), com um input por corte, por género, e um botão de reset
+  por género para voltar aos valores da literatura.
+- `printNaSinglePDF(id)`: novo PDF de uma avaliação — cabeçalho com
+  foto/nome/idade da atleta (mesmo bloco dos outros relatórios), tabela de
+  valores com badges de cor em %Gordura e WHR (+ legenda) e na
+  classificação já existente do IMC; Massa Muscular e Soma das Pregas
+  aparecem sem cor, com nota explícita ("sem intervalo absoluto — depende
+  do tamanho corporal/desporto"); bloco "Avaliado por" (Responsável
+  configurado, igual ao PDF de Evolução); notas da avaliação, se
+  existirem. Botão "🖨️" novo por linha na tabela de Avaliações, ao lado do
+  🗑️ já existente.
+
+SW bump para `sps-v168`. Testado: `node --check` ao ficheiro inteiro; 23
+testes isolados em Node de `_naGuideBands`/`_naBodyFatColor`/`_naWhrColor`
+— defeitos corretos por género, edição parcial prevalece só no campo
+editado (resto continua no valor por defeito), sexo desconhecido cai para
+feminino, as 5 zonas de %Gordura (incl. o teste central: 11% fica amarelo,
+nunca vermelho — a salvaguarda do ACSM), as 3 zonas de WHR, limites exatos
+nas fronteiras, e edição de um corte a mudar mesmo o resultado da cor.
+Verificação visual ao vivo não foi feita nesta sessão (funcionalidade
+nova, ainda não publicada).
+
+**Ainda por fazer:** nada pendente para este pedido.

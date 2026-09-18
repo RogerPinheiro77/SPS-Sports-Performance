@@ -590,7 +590,7 @@ const _gdForceLocalGameIds=new Set();
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],macrocycles:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
@@ -12239,6 +12239,105 @@ function _setNutriResponsavel(id){
   saveData();
   toast(u?'Responsável pelo plantel: '+u.name:'Responsável pelo plantel removido');
 }
+// Guias de Referência — Composição Corporal (sps-v168). Pedido do Roger: código de cores
+// verde/amarelo/vermelho por guideline científica, por género, automático por defeito e
+// editável pela nutricionista (edição sempre prevalece, corte a corte — nunca tudo-ou-
+// -nada). Proposto e confirmado na doc "SPS vs Mercado" secção 5.4 antes de implementar.
+// Só %Gordura e Rácio Cintura-Ancas têm banda ABSOLUTA válida por género na literatura —
+// Massa Muscular (kg) e Soma das 8 Pregas (mm) dependem demasiado do tamanho corporal
+// individual/desporto para ter um "normal" universal (ver nota em _naTrendCls/PDF de
+// Evolução, sps-v166, onde essas 2 métricas já só têm cor por TENDÊNCIA, nunca banda
+// absoluta — mantém-se esse princípio aqui, não se inventa uma cor que a evidência não
+// suporta). IMC mantém-se com a classificação universal da OMS já existente, sem género.
+//
+// Fontes: %Gordura — tabela American Council on Exercise (ACE) por sexo (mulheres:
+// Essencial 10-13% / Atletas 14-20% / Fitness 21-24% / Aceitável 25-31% / Obesidade 32%+;
+// homens: Essencial 2-5% / Atletas 6-13% / Fitness 14-17% / Aceitável 18-24% / Obesidade
+// 25%+). WHR — OMS (2008): risco de saúde elevado acima de 0,85 (mulheres) / 0,90 (homens).
+// Cuidado deliberado no extremo baixo de %Gordura: a posição do ACSM sobre a Tríade da
+// Atleta avisa contra cortes rígidos — a teoria de que gordura baixa causa diretamente
+// problemas hormonais foi refutada (o que importa é disponibilidade energética, mesma
+// lógica do LEAF-Q, sps-v163) — por isso a faixa "Essencial" (10-13% mulheres, 2-5%
+// homens) fica AMARELA (atenção, validar), não vermelha; só abaixo disso é vermelho.
+// A zona amarela do WHR (entre o "ideal" e o limiar de risco da OMS) é uma margem de
+// precaução nossa, não uma citação separada — só o corte final (0,85/0,90) vem da OMS.
+//
+// Plantel é inteiramente feminino (mesma assunção já documentada no sps-v165) — não há
+// campo de género na atleta, por isso a banda "feminino" é sempre a aplicada
+// automaticamente; a banda "masculino" fica guardada e editável, pronta para o dia em que
+// fizer falta, sem forçar já um campo que hoje não tem uso real.
+const NA_GUIDE_DEFAULTS={
+  feminino:{bodyFatLow:10,bodyFatLowMid:14,bodyFatHighMid:21,bodyFatHigh:25,whrMid:0.80,whrHigh:0.85},
+  masculino:{bodyFatLow:2,bodyFatLowMid:6,bodyFatHighMid:14,bodyFatHigh:18,whrMid:0.85,whrHigh:0.90}
+};
+const NA_GUIDE_FIELDS=[
+  {key:'bodyFatLow',label:'% Gordura — abaixo de (vermelho)'},
+  {key:'bodyFatLowMid',label:'% Gordura — abaixo de (amarelo → verde)'},
+  {key:'bodyFatHighMid',label:'% Gordura — a partir de (verde → amarelo)'},
+  {key:'bodyFatHigh',label:'% Gordura — a partir de (vermelho)'},
+  {key:'whrMid',label:'WHR — a partir de (verde → amarelo)'},
+  {key:'whrHigh',label:'WHR — a partir de (vermelho, limiar OMS)'}
+];
+// Junta os defeitos científicos com as edições da nutricionista, campo a campo — um corte
+// editado prevalece sempre; um campo deixado em branco volta a usar o valor por defeito.
+function _naGuideBands(sex){
+  sex=sex==='masculino'?'masculino':'feminino';
+  const def=NA_GUIDE_DEFAULTS[sex];
+  const cfg=(APP.config.naGuidelines&&APP.config.naGuidelines[sex])||{};
+  const merged={};
+  Object.keys(def).forEach(k=>{merged[k]=(cfg[k]!=null&&cfg[k]!==''&&!isNaN(+cfg[k]))?+cfg[k]:def[k];});
+  return merged;
+}
+function _naBodyFatColor(v,b){
+  if(v==null||v===''||isNaN(+v))return {cls:'',label:''};
+  v=+v;
+  if(v<b.bodyFatLow)return {cls:'bg-r',label:'Baixo — fora do intervalo esperado'};
+  if(v<b.bodyFatLowMid)return {cls:'bg-y',label:'Baixo — validar com a nutricionista'};
+  if(v<b.bodyFatHighMid)return {cls:'bg-g',label:'Dentro do intervalo ideal para atleta'};
+  if(v<b.bodyFatHigh)return {cls:'bg-y',label:'Acima do ideal — atenção'};
+  return {cls:'bg-r',label:'Acima do intervalo esperado'};
+}
+function _naWhrColor(v,b){
+  if(v==null||v===''||isNaN(+v))return {cls:'',label:''};
+  v=+v;
+  if(v<b.whrMid)return {cls:'bg-g',label:'Dentro do intervalo ideal'};
+  if(v<b.whrHigh)return {cls:'bg-y',label:'Atenção'};
+  return {cls:'bg-r',label:'Acima do limiar de risco (OMS)'};
+}
+function _setNaGuideline(sex,key,val){
+  if(!APP.config.naGuidelines)APP.config.naGuidelines={};
+  if(!APP.config.naGuidelines[sex])APP.config.naGuidelines[sex]={};
+  if(val===''||val==null){delete APP.config.naGuidelines[sex][key];}
+  else{const n=+val;if(isNaN(n))return toast('Valor inválido','err');APP.config.naGuidelines[sex][key]=n;}
+  saveData();toast('Guideline atualizada ✓');renderNutriDash();
+}
+function _resetNaGuidelines(sex){
+  if(APP.config.naGuidelines)delete APP.config.naGuidelines[sex];
+  saveData();toast('Valores por defeito repostos');renderNutriDash();
+}
+function _naGuidelinesEditorHtml(){
+  const genderCol=(sex,label,note)=>{
+    const b=_naGuideBands(sex);
+    const def=NA_GUIDE_DEFAULTS[sex];
+    return `<div style="flex:1;min-width:230px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:2px">${label}</div>
+      ${note?`<div style="font-size:9.5px;color:var(--t2);margin-bottom:6px">${note}</div>`:''}
+      ${NA_GUIDE_FIELDS.map(f=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+        <label style="font-size:10.5px;color:var(--t2);flex:1">${f.label}</label>
+        <input class="fc" type="number" step="0.01" style="width:70px" value="${b[f.key]}" placeholder="${def[f.key]}" onchange="_setNaGuideline('${sex}','${f.key}',this.value)">
+      </div>`).join('')}
+      <button class="btn btn-xs btn-gh" onclick="_resetNaGuidelines('${sex}')">↺ Repor valores por defeito</button>
+    </div>`;
+  };
+  return `<details class="card" style="margin-bottom:14px;padding:12px 14px">
+    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--t2)">🎯 Guias de Referência — Composição Corporal (editável)</summary>
+    <div style="font-size:10.5px;color:var(--t2);margin:8px 0 10px;line-height:1.4">Valores por defeito da literatura científica (ACE para % Gordura, OMS para Rácio Cintura-Ancas). Qualquer valor editado aqui passa a prevalecer sempre sobre o automático — deixa em branco para voltar ao valor por defeito nesse campo.</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      ${genderCol('feminino','Feminino','Aplicado automaticamente — o plantel é feminino')}
+      ${genderCol('masculino','Masculino','Guardado para uso futuro')}
+    </div>
+  </details>`;
+}
 function _nutriResponsavelSelectorHtml(){
   const nutris=(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
   if(!nutris.length)return '';
@@ -12368,6 +12467,7 @@ function renderNutriDash(){
   const withPlan=APP.athletes.filter(a=>APP.nutritionPlans.some(p=>p.athleteId===a.id&&p.active)).length;
   document.getElementById('pg-nutri-dash').innerHTML=`
   ${_nutriResponsavelSelectorHtml()}
+  ${_naGuidelinesEditorHtml()}
   ${_nutriAlertsHtml()}
   <div class="kpis">
     <div class="kpi"><div class="kpi-lbl">Atletas</div><div class="kpi-val">${athletes.length}</div></div>
@@ -12445,7 +12545,7 @@ function renderNutriAval(){
   <td>${a.sumSkinfolds?a.sumSkinfolds+'mm':'—'}</td>
   <td>${a.hydration||'—'}</td>
   <td style="font-size:10px;color:var(--t2)">${escHtml(a.registeredBy||'—')}</td>
-  <td><button class="btn btn-xs btn-r" onclick="deleteNutriAval('${a.id}')">🗑️</button></td></tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">📏</div><p>Sem avaliações</p></div>`;
+  <td><button class="btn btn-xs btn-gh" onclick="printNaSinglePDF('${a.id}')" title="PDF desta avaliação">🖨️</button> <button class="btn btn-xs btn-r" onclick="deleteNutriAval('${a.id}')">🗑️</button></td></tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">📏</div><p>Sem avaliações</p></div>`;
 
   // Seletor de atleta para o PDF de Evolução (sps-v166) — só lista atletas com pelo menos
   // 1 avaliação registada; printNaEvolutionPDF() valida à parte que há pelo menos 2 (não há
@@ -12719,6 +12819,77 @@ function printNaEvolutionPDF(){
     </div>
   </div>`;
   _printWin(`Evolução Antropométrica — ${at.name}`,body,null,null,true);
+}
+// PDF de Avaliação Individual (sps-v168) — uma só avaliação, ao contrário do PDF de
+// Evolução acima (várias). Cores por guideline absoluta (banda científica) em %Gordura e
+// WHR via _naBodyFatColor/_naWhrColor; IMC mantém a classificação universal já existente;
+// Massa Muscular e Soma das Pregas ficam sem cor, com nota explícita (ver NA_GUIDE_DEFAULTS
+// acima — não têm banda absoluta válida na literatura, só fazem sentido por tendência, que
+// é o que já têm no PDF de Evolução).
+function printNaSinglePDF(id){
+  const a=APP.nutritionAssessments.find(x=>x.id===id);if(!a)return;
+  const at=APP.athletes.find(x=>x.id===a.athleteId);if(!at)return;
+
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const age=at.dob?ageYears(at.dob):null;
+
+  const nutri=APP.users.find(u=>u.id===APP.config.nutriResponsavelId);
+  const nutriHtml=nutri
+    ?`<div style="display:flex;align-items:center;gap:8px;margin-top:8px">${nutri.photo?`<img src="${nutri.photo}" style="width:26px;height:26px;border-radius:50%;object-fit:cover">`:''}<div style="font-size:8pt;color:#555"><strong>Avaliado por:</strong> ${escHtml(nutri.name)}</div></div>`
+    :`<div style="font-size:7.5pt;color:#999;margin-top:8px">Responsável pela nutrição não configurada (Config → Nutrição).</div>`;
+
+  // Plantel é inteiramente feminino (mesma assunção do sps-v165/sps-v168) — banda
+  // feminina aplicada sempre, até existir um campo de género na atleta.
+  const bands=_naGuideBands('feminino');
+  const num=v=>(v===''||v==null||v===undefined||isNaN(+v))?null:+v;
+
+  const bmi=num(a.bmi);
+  const bmiCls=bmi==null?'':(bmi<18.5?'bg-y':bmi<25?'bg-g':bmi<30?'bg-y':'bg-r');
+  const fat=num(a.bodyFat),fatC=_naBodyFatColor(fat,bands);
+  const whr=num(a.whr),whrC=_naWhrColor(whr,bands);
+
+  const metricRow=(label,v,unit,cls,note)=>`<tr><td><strong>${label}</strong></td><td>${v==null?'—':(cls?`<span class="badge ${cls}">${v}${unit}</span>`:v+unit)}</td><td style="font-size:7pt;color:#888">${note||''}</td></tr>`;
+  const rowsHtml=[
+    metricRow('Peso',num(a.weight),'kg','',''),
+    metricRow('IMC',bmi,'',bmiCls,''),
+    metricRow('% Gordura',fat,'%',fatC.cls,fatC.label),
+    metricRow('Massa Muscular',num(a.muscleKg),'kg','','sem intervalo absoluto — depende do tamanho corporal'),
+    metricRow('Soma das 8 Pregas',num(a.sumSkinfolds),'mm','','sem intervalo absoluto — depende do desporto/tamanho corporal'),
+    metricRow('Rácio Cintura-Ancas',whr,'',whrC.cls,whrC.label),
+    metricRow('Perímetro Braço',num(a.armCirc),'cm','',''),
+    metricRow('Perímetro Coxa',num(a.thighCirc),'cm','',''),
+    metricRow('Perímetro Gémeo',num(a.calfCirc),'cm','',''),
+    metricRow('Perímetro Cintura',num(a.waistCirc),'cm','',''),
+    metricRow('Perímetro Ancas',num(a.hipCirc),'cm','','')
+  ].join('');
+  const tableHtml=`<table><thead><tr><th>Métrica</th><th>Valor</th><th>Nota</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  const notesHtml=a.notes?`<div style="margin-top:6px"><strong style="font-size:8pt">Notas:</strong> <span style="font-size:8pt">${escHtml(a.notes)}</span></div>`:'';
+
+  const body=`
+  <style>
+    .na-single{font-size:8.5pt}
+    .na-single .profile-header{margin-bottom:6px;padding-bottom:6px}
+    .na-single table{margin-bottom:10px}
+    .na-single th{padding:4px 6px;font-size:7.5pt}
+    .na-single td{padding:4px 6px;font-size:8pt}
+  </style>
+  <div class="na-single">
+    <div class="pr-title">Avaliação Antropométrica</div>
+    <div class="profile-header">
+      ${photoHtml}
+      <div style="flex:1">
+        <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}${at.alcunha?` <span style="font-size:10pt;font-weight:600;color:#888">("${escHtml(at.alcunha)}")</span>`:''}</div>
+        <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'}${age?' · '+age+' anos':''}</div>
+        <div style="font-size:9pt;color:#1d6f3b;font-weight:700;margin-top:3px">Avaliação de ${fmtDate(a.date)}${a.hydration?' · Hidratação: '+escHtml(a.hydration):''}</div>
+        ${nutriHtml}
+      </div>
+    </div>
+    <h3>Valores</h3>
+    ${tableHtml}
+    ${notesHtml}
+    <div style="font-size:7pt;color:#999;margin-top:10px">Cores segundo guias de referência científicas (ACE — % Gordura; OMS — Rácio Cintura-Ancas), configuráveis em Nutrição → Guias de Referência. Massa Muscular e Soma das Pregas não têm intervalo de referência absoluto validado — dependem do tamanho corporal individual e do desporto.</div>
+  </div>`;
+  _printWin(`Avaliação — ${at.name} — ${fmtDate(a.date)}`,body);
 }
 
 let _npAtId=null, _showNpForm=false, _editNpId=null;
