@@ -3818,7 +3818,7 @@ function _renderMacrociclosEpoca(){
     const hasLoad=weeks.some(w=>w.totalPlanned!=null||w.totalRealized!=null);
     const cargaHtml=hasLoad
       ?`<div style="margin-top:10px;border-top:1px solid var(--brd);padding-top:8px">
-          <canvas id="ch-macro-carga-${m.id}" height="70"></canvas>
+          <div style="position:relative;height:160px"><canvas id="ch-macro-carga-${m.id}"></canvas></div>
           <div style="font-size:10px;color:var(--t2);margin-top:4px">Carga planeada vs. realizada por semana (UA) · banda de tolerância ±15%</div>
         </div>`
       :`<div style="margin-top:10px;border-top:1px solid var(--brd);padding-top:8px;font-size:11px;color:var(--t2)">Ainda sem dados de carga nesta fase (sem treinos agendados/PSE registado no período).</div>`;

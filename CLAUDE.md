@@ -1190,3 +1190,33 @@ esta captura (as colunas de nutrição em si estavam vazias, sem dado
 sensível associado ao nome).
 
 Entregue via SendUserFile. Nada pendente.
+
+## sps-v171 (18/09/2026): fix — gráfico de carga em Macrociclos crescia sem limite
+
+Reportado pelo Roger com screenshot: ao abrir "Época (Macrociclos)", o
+cartão do Macrociclo 1 aparecia com uma área enorme, praticamente vazia,
+por baixo (só um "4500" isolado no canto, resto do ecrã em branco/escuro
+sem conteúdo visível).
+
+**Causa:** o gráfico de "Carga Planeada vs. Realizada" introduzido no
+sps-v164 (`_renderMacrociclosEpoca`) tinha `<canvas height="70">` sem
+nenhum contentor com altura CSS fixa à volta — e as opções do Chart.js
+usam `responsive:true`+`maintainAspectRatio:false` (necessário para o
+gráfico ocupar a largura do cartão). Sem um pai com altura limitada, essa
+combinação deixa o Chart.js entrar num ciclo de redimensionamento sem
+limite (cresce, mede-se outra vez, cresce mais) — o `height="70"` do HTML
+é ignorado assim que o Chart.js assume o controlo do canvas. O padrão
+correto já existia no próprio ficheiro (`ch-carga-sem` no Dashboard,
+`prof-load-ch`/`prof-well-ch` no Relatório de Atleta — todos com
+`<div style="position:relative;height:...px"><canvas>...</canvas></div>`)
+mas não foi seguido quando este gráfico foi acrescentado.
+
+**Fix:** canvas `ch-macro-carga-${m.id}` passou a ficar dentro de
+`<div style="position:relative;height:160px">`, igual ao `ch-carga-sem`.
+
+SW bump para `sps-v171`. Testado: `node --check` ao ficheiro inteiro
+(script extraído). Correção é puramente de marcação/CSS à volta de um
+`<canvas>` já existente — sem alteração de lógica de dados
+(`_macroLoadWeeks` intocado), por isso sem harness de dados novo.
+
+**Ainda por fazer:** nada pendente para este fix.
