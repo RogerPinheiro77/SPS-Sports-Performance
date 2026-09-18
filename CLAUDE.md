@@ -1220,3 +1220,89 @@ SW bump para `sps-v171`. Testado: `node --check` ao ficheiro inteiro
 (`_macroLoadWeeks` intocado), por isso sem harness de dados novo.
 
 **Ainda por fazer:** nada pendente para este fix.
+
+## sps-v172 (18/09/2026): RPE-alvo na Análise da Sessão + carga da última UT na Convocatória/Condição para o Jogo
+
+Pedido do Roger, em duas partes da mesma conversa: (1) rever se a Análise da
+Sessão de uma UT já liga wellness de chegada + PSE do treino + wellness do
+dia seguinte ao RPE-alvo planeado, "analisa, investiga, estuda e propõe"; (2)
+depois de confirmado o plano, se isso também apareceria nos PDFs e se fazia
+sentido esses acumulados aparecerem na aba Jogo para ajudar a convocatória e
+sobretudo o 11 do dia de jogo. Segui o padrão já estabelecido — análise e
+proposta primeiro, código só depois de "avança".
+
+**Investigação:** `_trAnaliseCompute`/`_trAnaliseHtml` (Análise da Sessão) já
+calculava `wellPre` (wellness de chegada, manhã do dia do treino) mas só o
+usava por trás, na "Leitura" cruzada — nunca aparecia como coluna própria. O
+RPE-alvo (Modelo da Semana, `_mcPlannedUaForDay`, sps-v164) só era usado nos
+ecrãs de Microciclos/Macrociclos, nunca chegava à Análise da Sessão. Do lado
+da Convocatória: `_jogoPreHtml` já mostra, por atleta, um badge de condição
+(`_condicaoJogoCompute` — ACWR, wellness, faltas, minutos no último jogo,
+ciclo) ao escolher quem convocar e o 11 — mas esse motor não olhava para a
+carga real da última UT vs. o que estava planeado.
+
+**Decisão tomada com o Roger antes de codar:** RPE-alvo fica sempre ao nível
+da sessão/equipa, nunca por atleta — comparar o PSE individual de cada
+atleta com um alvo pensado para a equipa geraria ruído; a leitura individual
+já existe, e de forma mais correta, através da baseline pessoal de cada
+atleta (`_cargaLeitura`, já existente). Isto evita um 3º critério de alarme
+por atleta a somar-se à Leitura + Decisão do dia já existentes.
+
+**Bloqueio técnico encontrado e resolvido:** `_mcPlannedUaForDay` (e,
+por baixo, `_mcResolveDayType`) só dá resultado correto quando chamada com
+`teamId===_mcTeam`, porque lê a equipa selecionada a partir dessa variável
+global, não de um parâmetro (nota já deixada no próprio código desde
+sps-v164) — nos 3 sítios que já a chamavam isso nunca foi problema porque
+corriam sempre dentro do próprio ecrã de Microciclos. Chamar isto a partir
+da Análise da Sessão ou da Condição do Jogo (ecrãs diferentes, que podem
+correr com `_mcTeam` a apontar para outra equipa se o Roger tiver estado a
+ver Microciclos de outra equipa no mesmo separador) arriscava dar o
+RPE-alvo errado. Resolvido com `_mcPlannedUaForDaySafe(dt,teamId)`: grava o
+`_mcTeam` atual, troca para a equipa pedida só durante o cálculo síncrono, e
+repõe sempre a seguir (mesmo em erro, via `finally`) — nunca deixa o ecrã de
+Microciclos noutro separador ver a sua equipa trocada por engano.
+
+**O que foi construído — tudo derivado, reaproveitando o motor de sps-v164
+(`_mcPlannedUaForDay`/`_mcRealizedUaForDay`/`_mcCargaStatus`/
+`_cargaStatusBadge`), sem tabela nova:**
+- `_mcPlannedUaForDaySafe(dt,teamId)` (nova, ver acima).
+- `_cargaTxtPlain(d)` (nova): versão em texto simples do mesmo estado
+  (✓/▲/▼), para os PDFs — mesmo padrão já usado dentro de
+  `_mcAnaliseReportHtml`, agora reutilizável fora dali.
+- `_ultimaUtCargaInfo(refDate,teamId)` (nova): encontra a UT mais recente
+  antes de uma data de referência (jogo, ou a data da Condição do Plantel) e
+  devolve o RPE-alvo dessa UT vs. o UA médio real, com `daysAgo` (para
+  perceber se a última sessão intensa foi mesmo em cima do jogo ou já há
+  vários dias, mesmo raciocínio já usado para os minutos jogados no jogo
+  anterior). `_ultimaUtCargaHtml(u)` (nova): a mesma linha em HTML para os
+  3 ecrãs interativos, com `_cargaStatusBadge`.
+- `_trAnaliseCompute`: passou a devolver também `plan` (RPE-alvo/UA
+  planeado do dia via `_mcPlannedUaForDaySafe`), `uaAvg` (UA médio real
+  desta UT) e `cargaStatus` (`_mcCargaStatus(plan.plannedUa,uaAvg)`).
+- `_trAnaliseHtml`: nova coluna "Chegada" (wellPre) na tabela por atleta, e
+  novo cartão "🎯 RPE-alvo desta sessão" com o selo de cumprimento (±15%).
+- `printAnaliseSessao`: mesma coluna "Chegada" e uma linha "🎯" equivalente
+  ao cartão do ecrã (texto simples, sem badge).
+- `_condicaoJogoCompute`: passou a devolver também `ultimaUt`
+  (`_ultimaUtCargaInfo`, sempre para 'T1', mesma equipa fixa já usada no
+  resto desta função).
+- `_jogoPreHtml` (Convocatória/Pré-Jogo), `renderCondicaoPlantel` e
+  `printCondicaoPlantel` (PDF): nova linha "🎯 Última UT" logo no topo,
+  junto de onde já aparecia "Próximo jogo".
+- `printAnaliseCumulativa` (PDF "Condição para o Jogo", ligado a uma UT
+  específica): mesma linha "🎯 Última UT", versão texto simples.
+
+SW bump para `sps-v172`. Testado: `node --check` ao ficheiro inteiro; 21
+testes isolados em Node das funções novas extraídas do próprio ficheiro —
+RPE-alvo resolvido corretamente para uma equipa diferente da selecionada em
+Microciclos, `_mcTeam` global sempre reposto depois da chamada (o teste
+central deste bloqueio técnico), UA médio da sessão calculado certo,
+"sem-registo" nunca confundido com carga 0, última UT encontrada
+corretamente entre várias datas (um Jogo no meio não conta como UT), `null`
+seguro sem nenhum treino anterior (não inventa UT nenhuma), e os 5 estados
+de `_cargaTxtPlain` (sem-alvo, sem-registo, ok, acima, abaixo com e sem
+baixa intensidade). Verificação visual ao vivo não foi feita nesta sessão.
+
+**Ainda por fazer:** nada pendente para este pedido. Combinado com o Roger:
+confirmar visualmente na app assim que a atualização chegar aos
+dispositivos (Service Worker `sps-v172`).
