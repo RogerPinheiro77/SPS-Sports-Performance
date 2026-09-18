@@ -12446,9 +12446,22 @@ function renderNutriAval(){
   <td style="font-size:10px;color:var(--t2)">${escHtml(a.registeredBy||'—')}</td>
   <td><button class="btn btn-xs btn-r" onclick="deleteNutriAval('${a.id}')">🗑️</button></td></tr>`;}).join('')}</tbody></table></div>`:`<div class="empty"><div class="ei">📏</div><p>Sem avaliações</p></div>`;
 
+  // Seletor de atleta para o PDF de Evolução (sps-v166) — só lista atletas com pelo menos
+  // 1 avaliação registada; printNaEvolutionPDF() valida à parte que há pelo menos 2 (não há
+  // "evolução" para comparar com 1 só).
+  const _naEvoAthletes=[...new Set(APP.nutritionAssessments.map(a=>a.athleteId))]
+    .map(id=>APP.athletes.find(a=>a.id===id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const evoSelHtml=`<select class="fc" id="na-evo-at" style="width:auto;min-width:160px">
+    <option value="">Selecionar atleta…</option>
+    ${_naEvoAthletes.map(a=>`<option value="${a.id}">${escHtml(_displayName(a))}</option>`).join('')}
+  </select>`;
   document.getElementById('pg-nutri-aval').innerHTML=`
   <div class="sh"><div class="sh-t">📏 Avaliações Antropométricas</div>
-  <button class="btn btn-g" onclick="_showNaForm=!_showNaForm;renderNutriAval()">+ Nova Avaliação</button></div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    ${evoSelHtml}
+    <button class="btn btn-gh" onclick="printNaEvolutionPDF()">🖨️ PDF Evolução</button>
+    <button class="btn btn-g" onclick="_showNaForm=!_showNaForm;renderNutriAval()">+ Nova Avaliação</button>
+  </div></div>
   ${formHtml}${tableHtml}`;
 }
 function calcBMI(){
@@ -12539,6 +12552,173 @@ function saveNutriAval(){
   saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
 }
 function deleteNutriAval(id){if(!confirm('Apagar?'))return;APP.nutritionAssessments=APP.nutritionAssessments.filter(a=>a.id!==id);saveData();toast('Apagada');renderNutriAval();}
+
+// ── PDF de Evolução da Avaliação Antropométrica (sps-v166) ─────────────────────
+// Pedido do Roger a partir de uma folha de referência (Excel equipa×mês); proposto e
+// confirmado na doc "SPS vs Mercado" secção 5.2 antes de implementar (por atleta, não
+// equipa toda — e "Avaliado por" usa sempre o Responsável configurado em Config →
+// Nutrição, nunca quem registou o registo em concreto, confirmado pelo Roger).
+// Gráfico de tendência genérico de 1 métrica ao longo do tempo — mesmo padrão de
+// canvas-off-screen+Chart.js+toDataURL já usado em _pseTrendB64/_wellTrendB64, só que
+// sem eixo fixo (cada métrica tem a sua escala). spanGaps:true porque nem toda avaliação
+// tem todos os campos preenchidos (ex.: Soma das 8 Pregas só existe se as 8 pregas
+// individuais estiverem preenchidas nessa avaliação).
+function _naTrendB64(labels,data,label,color){
+  try{
+    const cv=document.createElement('canvas');cv.width=560;cv.height=150;
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:560px;height:150px;opacity:0;pointer-events:none';
+    wrap.appendChild(cv);document.body.appendChild(wrap);
+    const ch=new Chart(cv.getContext('2d'),{type:'line',data:{labels,datasets:[
+      {label,data,borderColor:color,backgroundColor:color+'22',tension:.35,pointRadius:3,pointBackgroundColor:color,spanGaps:true}
+    ]},options:{responsive:false,animation:false,
+      plugins:{legend:{display:false},title:{display:true,text:label,font:{size:10,weight:'bold'},color:'#333'}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:8},color:'#666'}},
+        y:{grid:{color:'rgba(0,0,0,.08)'},ticks:{font:{size:8},color:'#666'}}}}});
+    const b64=cv.toDataURL('image/png',0.95);
+    ch.destroy();document.body.removeChild(wrap);
+    return b64;
+  }catch(e){console.warn('_naTrendB64 error:',e);return '';}
+}
+// Cor de uma célula da tabela de evolução, comparando com a avaliação anterior. Só usada
+// nas 3 métricas onde a "direção favorável" está bem estabelecida no contexto de
+// composição corporal de atletas (mesmo espírito da coluna "Soma Pregas" já colorida na
+// folha do Roger): % Gordura e Soma das 8 Pregas (↓ favorável), Massa Muscular (↑
+// favorável). Peso, perímetros e WHR ficam sempre sem cor — não há uma direção "melhor"
+// universal para eles nesta app, evitar um juízo clínico que não nos foi pedido.
+function _naTrendCls(cur,prev,favDir){
+  if(cur==null||prev==null||isNaN(cur)||isNaN(prev))return '';
+  const diff=Math.round((cur-prev)*100)/100;
+  if(Math.abs(diff)<0.1)return 'bg-y';
+  const improved=favDir<0?diff<0:diff>0;
+  return improved?'bg-g':'bg-r';
+}
+// Conclusão automática por regras (sem IA, sem custo — mesmo motor de _athleteNarrative/
+// findings do Relatório de Atleta) comparando a 1ª com a última avaliação da atleta.
+// Nunca inventa números: só fala de uma métrica se ela existir nas duas avaliações usadas.
+function _naEvolutionFindings(avals){
+  const num=v=>(v===''||v==null||v===undefined||isNaN(+v))?null:+v;
+  const first=avals[0],last=avals[avals.length-1];
+  const lines=[];
+  const cmp=(label,unit,getVal,favDir,decimals)=>{
+    const v0=num(getVal(first)),v1=num(getVal(last));
+    if(v0==null||v1==null)return;
+    const diff=Math.round((v1-v0)*Math.pow(10,decimals))/Math.pow(10,decimals);
+    if(Math.abs(diff)<Math.pow(10,-decimals)){
+      lines.push({lvl:'y',txt:`${label} manteve-se estável (${v1}${unit}) desde ${fmtDate(first.date)}.`});
+    }else{
+      const favoravel=favDir<0?diff<0:diff>0;
+      lines.push({lvl:favoravel?'g':'r',txt:`${label} ${diff<0?'diminuiu':'aumentou'} de ${v0}${unit} para ${v1}${unit} desde ${fmtDate(first.date)} (${diff>0?'+':''}${diff}${unit}).`});
+    }
+  };
+  cmp('% de massa gorda','%',a=>a.bodyFat,-1,1);
+  cmp('Massa muscular','kg',a=>a.muscleKg,1,1);
+  cmp('Soma das 8 pregas','mm',a=>a.sumSkinfolds,-1,1);
+  const w0=num(first.weight),w1=num(last.weight);
+  if(w0!=null&&w1!=null){
+    const diff=Math.round((w1-w0)*10)/10;
+    lines.push({lvl:'info',txt:diff===0?`Peso manteve-se em ${w1}kg desde ${fmtDate(first.date)}.`:`Peso passou de ${w0}kg para ${w1}kg desde ${fmtDate(first.date)} (${diff>0?'+':''}${diff}kg).`});
+  }
+  if(!lines.length)lines.push({lvl:'info',txt:'Dados insuficientes para uma análise de evolução — faltam medições de % de gordura, massa muscular ou soma das pregas em pelo menos duas avaliações.'});
+  return lines;
+}
+function printNaEvolutionPDF(){
+  const aid=document.getElementById('na-evo-at')?.value;
+  if(!aid)return toast('Escolhe uma atleta primeiro','err');
+  const at=APP.athletes.find(a=>a.id===aid);if(!at)return;
+  const avals=APP.nutritionAssessments.filter(a=>a.athleteId===aid).sort((a,b)=>a.date.localeCompare(b.date));
+  if(avals.length<2)return toast(`${_displayName(at)} tem apenas ${avals.length} avaliação${avals.length===1?'':'ões'} — não há evolução para comparar ainda`,'err');
+
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const age=at.dob?ageYears(at.dob):null;
+
+  const nutri=APP.users.find(u=>u.id===APP.config.nutriResponsavelId);
+  const nutriHtml=nutri
+    ?`<div style="display:flex;align-items:center;gap:8px;margin-top:8px">${nutri.photo?`<img src="${nutri.photo}" style="width:26px;height:26px;border-radius:50%;object-fit:cover">`:''}<div style="font-size:8pt;color:#555"><strong>Avaliado por:</strong> ${escHtml(nutri.name)}</div></div>`
+    :`<div style="font-size:7.5pt;color:#999;margin-top:8px">Responsável pela nutrição não configurada (Config → Nutrição).</div>`;
+
+  const num=v=>(v===''||v==null||v===undefined||isNaN(+v))?null:+v;
+  const rows=[
+    {label:'Peso',unit:'kg',get:a=>a.weight},
+    {label:'IMC',unit:'',get:a=>a.bmi,abs:true},
+    {label:'% Gordura',unit:'%',get:a=>a.bodyFat,color:true,favDir:-1},
+    {label:'Massa Muscular',unit:'kg',get:a=>a.muscleKg,color:true,favDir:1},
+    {label:'Soma das 8 Pregas',unit:'mm',get:a=>a.sumSkinfolds,color:true,favDir:-1},
+    {label:'Rácio Cintura-Ancas',unit:'',get:a=>a.whr},
+    {label:'Perímetro Braço',unit:'cm',get:a=>a.armCirc},
+    {label:'Perímetro Coxa',unit:'cm',get:a=>a.thighCirc},
+    {label:'Perímetro Gémeo',unit:'cm',get:a=>a.calfCirc},
+    {label:'Perímetro Cintura',unit:'cm',get:a=>a.waistCirc},
+    {label:'Perímetro Ancas',unit:'cm',get:a=>a.hipCirc}
+  ];
+  const evoRowsHtml=rows.map(r=>{
+    const cells=avals.map((a,i)=>{
+      const v=num(r.get(a));
+      if(v==null)return '<td>—</td>';
+      let cls='';
+      if(r.abs)cls=v<18.5?'bg-y':v<25?'bg-g':v<30?'bg-y':'bg-r';
+      else if(r.color&&i>0){const prev=num(r.get(avals[i-1]));cls=_naTrendCls(v,prev,r.favDir);}
+      return `<td>${cls?`<span class="badge ${cls}">${v}${r.unit}</span>`:v+r.unit}</td>`;
+    }).join('');
+    return `<tr><td><strong>${r.label}</strong></td>${cells}</tr>`;
+  }).join('');
+  const evoTableHtml=`<table><thead><tr><th>Métrica</th>${avals.map(a=>`<th>${fmtDate(a.date)}</th>`).join('')}</tr></thead><tbody>${evoRowsHtml}</tbody></table>`;
+
+  const labels=avals.map(a=>fmtDateShort(a.date));
+  const chart=(get,label,color)=>{
+    const data=avals.map(a=>num(get(a)));
+    return data.filter(v=>v!=null).length>=2?_naTrendB64(labels,data,label,color):'';
+  };
+  const charts=[
+    {img:chart(a=>a.weight,'Peso (kg)','#185FA5')},
+    {img:chart(a=>a.sumSkinfolds,'Soma das 8 Pregas (mm)','#c77b17')},
+    {img:chart(a=>a.bodyFat,'% Gordura','#c0392b')},
+    {img:chart(a=>a.muscleKg,'Massa Muscular (kg)','#1d6f3b')}
+  ].filter(c=>c.img);
+  const chartsHtml=charts.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(charts.length,2)},1fr);gap:6px;margin-bottom:10px">${charts.map(c=>`<img src="${c.img}" style="width:100%">`).join('')}</div>`:'';
+
+  const findings=_naEvolutionFindings(avals);
+  const _lvlIcon={r:'🔴',y:'🟡',info:'ℹ️',g:'🟢'};
+  const findingsHtml=findings.map(f=>`<div class="an-item an-${f.lvl}">${_lvlIcon[f.lvl]} ${f.txt}</div>`).join('');
+
+  const body=`
+  <style>
+    .na-evo{font-size:8.5pt}
+    .na-evo .profile-header{margin-bottom:6px;padding-bottom:6px}
+    .na-evo table{margin-bottom:10px}
+    .na-evo th{padding:4px 6px;font-size:7.5pt}
+    .na-evo td{padding:3px 6px;font-size:7.5pt;text-align:center}
+    .na-evo td:first-child{text-align:left}
+    .na-evo .an-box{border:1px solid #e5e5e5;border-radius:6px;padding:6px 10px;margin-bottom:10px;background:#fafafa}
+    .na-evo .an-title{font-size:8.5pt;font-weight:700;color:#333;margin-bottom:3px}
+    .na-evo .an-item{font-size:8pt;padding:1px 0;line-height:1.35}
+    .na-evo .an-r{color:#a32424}
+    .na-evo .an-y{color:#8a6a10}
+    .na-evo .an-info{color:#185FA5}
+    .na-evo .an-g{color:#1d6f3b}
+  </style>
+  <div class="na-evo">
+    <div class="pr-title">Evolução da Avaliação Antropométrica</div>
+    <div class="profile-header">
+      ${photoHtml}
+      <div style="flex:1">
+        <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}${at.alcunha?` <span style="font-size:10pt;font-weight:600;color:#888">("${escHtml(at.alcunha)}")</span>`:''}</div>
+        <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'}${age?' · '+age+' anos':''}</div>
+        <div style="font-size:9pt;color:#1d6f3b;font-weight:700;margin-top:3px">${avals.length} avaliações · ${fmtDate(avals[0].date)} a ${fmtDate(avals[avals.length-1].date)}</div>
+        ${nutriHtml}
+      </div>
+    </div>
+    <h3>Evolução por Avaliação</h3>
+    ${evoTableHtml}
+    <h3>Tendências</h3>
+    ${chartsHtml}
+    <div class="an-box">
+      <div class="an-title">🔎 Conclusão</div>
+      ${findingsHtml}
+    </div>
+  </div>`;
+  _printWin(`Evolução Antropométrica — ${at.name}`,body,null,null,true);
+}
 
 let _npAtId=null, _showNpForm=false, _editNpId=null;
 const MEALS=['Pequeno-almoço','Meio da manhã','Almoço','Lanche da tarde','Jantar','Ceia'];

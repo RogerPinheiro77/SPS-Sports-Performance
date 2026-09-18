@@ -871,3 +871,69 @@ gera erro.
 quiser no futuro trocar a Massa Muscular para a versão completa do Lee et
 al. (usando os perímetros já recolhidos), é uma troca localizada dentro de
 `_naAutoMuscle`, sem alterações de schema.
+
+## sps-v166 (18/09/2026): PDF de Evolução da Avaliação Antropométrica
+
+Pedido do Roger a partir de uma folha de referência (Excel: atletas em linha,
+meses em coluna, Peso + Soma de Pregas por mês, células coloridas, coluna de
+texto "Avaliação") — queria algo "mais evoluído", em PDF, com informação da
+atleta (incl. foto) e identificação da nutricionista. Proposto na doc "SPS
+vs Mercado", secção 5.2, antes de implementar (padrão de confirmar decisões
+de design/scope maiores). Duas perguntas fechadas antes de avançar:
+1. Por atleta (não equipa toda por mês, como a folha de referência) —
+   confirmado pelo Roger ("1 por atleta").
+2. Identificação da nutricionista: sempre o "Responsável" configurado no
+   clube (`APP.config.nutriResponsavelId`), não quem registou o registo em
+   concreto — confirmado pelo Roger ("2 a responsavel").
+
+**O que foi construído — tudo reaproveitando o motor de PDF já existente
+(`_printWin`), sem tabela nova (mesmo padrão dos relatórios anteriores):**
+- `_naTrendB64(labels,data,label,color)`: gráfico de tendência genérico de 1
+  métrica ao longo do tempo (canvas off-screen + Chart.js + `toDataURL`,
+  mesmo padrão de `_pseTrendB64`/`_wellTrendB64`), com `spanGaps:true`
+  porque nem toda avaliação tem todos os campos preenchidos.
+- `_naTrendCls(cur,prev,favDir)`: cor de uma célula (verde/amarelo/vermelho)
+  comparando com a avaliação anterior. Usada só em 3 métricas onde a
+  "direção favorável" está bem estabelecida em composição corporal de
+  atletas — % Gordura e Soma das 8 Pregas (↓ favorável), Massa Muscular (↑
+  favorável) — mesmo espírito da coluna "Soma Pregas" já colorida na folha
+  do próprio Roger. Peso, perímetros e Rácio Cintura-Ancas ficam sempre sem
+  cor: não há uma direção "melhor" universal para eles nesta app, e não
+  queríamos impor um juízo clínico que não foi pedido.
+- `_naEvolutionFindings(avals)`: conclusão automática por regras (sem IA,
+  sem custo — mesmo motor de `_athleteNarrative`/`findings` do Relatório de
+  Atleta), comparando a 1ª com a última avaliação da atleta. Nunca inventa
+  números — só fala de uma métrica se ela existir nas duas avaliações
+  usadas para a comparação; sem dados suficientes, mostra uma mensagem
+  neutra em vez de inventar uma conclusão.
+- `printNaEvolutionPDF()`: junta tudo — cabeçalho com foto/nome/alcunha/
+  posição/idade da atleta (mesmo bloco `.profile-header` do Relatório de
+  Atleta) + bloco "Avaliado por" (nome + foto do Responsável configurado,
+  ou aviso neutro se não estiver configurado); tabela de evolução (uma
+  coluna por avaliação, linhas = Peso/IMC/%Gordura/Massa Muscular/Soma das
+  8 Pregas/WHR/5 perímetros — IMC mantém a classificação absoluta já
+  existente na app, as 3 métricas de tendência usam `_naTrendCls`); até 4
+  gráficos (Peso, Soma das 8 Pregas, %Gordura, Massa Muscular — só entra
+  gráfico de uma métrica com pelo menos 2 pontos de dados); conclusão
+  automática. PDF em paisagem (tabela naturalmente larga com várias datas
+  em coluna).
+- Botão "🖨️ PDF Evolução" + seletor de atleta no cabeçalho da página
+  Avaliações (só lista atletas com pelo menos 1 avaliação; com menos de 2,
+  `printNaEvolutionPDF()` avisa em vez de gerar um PDF sem evolução para
+  mostrar).
+
+SW bump para `sps-v166`. Testado: `node --check` ao ficheiro inteiro; 21
+testes isolados em Node das duas funções de lógica extraídas do próprio
+ficheiro (`_naTrendCls`/`_naEvolutionFindings`) — sem/com dados em falta,
+tendência favorável/desfavorável/estável nas 3 métricas coloridas, campos
+de string vazia tratados como "sem dado" (nunca como 0), e a mensagem de
+fallback quando não há dados suficientes para nenhuma métrica. Verificação
+visual ao vivo não foi feita nesta sessão (a funcionalidade só existe no
+código ainda não publicado) — confiança assenta no harness contra o código
+real + reaproveitamento direto de padrões já validados noutros relatórios
+(`_printWin`, `.profile-header`, `_pseTrendB64`/`_wellTrendB64`); pedir ao
+Roger para confirmar visualmente no primeiro PDF gerado a sério.
+
+**Ainda por fazer:** nada pendente para este pedido. Se um dia fizer
+sentido, a vista "equipa toda por mês" da folha de referência do Roger fica
+registada na doc (5.2) como possível extensão futura, não pedida agora.
