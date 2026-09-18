@@ -12488,6 +12488,16 @@ let _naAtId=null, _showNaForm=false;
 // CLAUDE.md/doc "SPS vs Mercado" secção 5.1. `na-sup` já existia para suprailíaca antes
 // desta versão (nome mantido para não partir nada); os restantes 6 IDs são novos.
 const _NA_SKINFOLD_IDS=['na-tri','na-bic','na-sub','na-sup','na-abd','na-spe','na-cru','na-gem'];
+// Mesmas 8 pregas, mas como par campo-do-registo+rótulo (em vez de id de input do
+// formulário) — usado no PDF de Avaliação Individual (sps-v169) para mostrar visto ✓ só
+// nas que foram de facto medidas nesta avaliação (pedido do Roger: nem toda avaliação tem
+// as 8 preenchidas, e ele quer ver de relance quais faltaram).
+const NA_SKINFOLD_FIELDS=[
+  {key:'tricipital',label:'Tricipital'},{key:'bicipital',label:'Bicipital'},
+  {key:'subescapular',label:'Subescapular'},{key:'suprailiaca',label:'Suprailíaca'},
+  {key:'abdominal',label:'Abdominal'},{key:'supraespinal',label:'Supraespinal'},
+  {key:'crural',label:'Crural'},{key:'geminal',label:'Geminal'}
+];
 function renderNutriAval(){
   const formHtml=_showNaForm?`
   <div class="ipanel">
@@ -12863,6 +12873,21 @@ function printNaSinglePDF(id){
     metricRow('Perímetro Ancas',num(a.hipCirc),'cm','','')
   ].join('');
   const tableHtml=`<table><thead><tr><th>Métrica</th><th>Valor</th><th>Nota</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+
+  // Visto ✓ só nas pregas de facto medidas nesta avaliação (pedido do Roger, sps-v169) —
+  // nem toda avaliação tem as 8 preenchidas (a Soma só calcula quando estão as 8, mas uma
+  // avaliação pode ter registado só algumas), por isso mostrar cada uma isoladamente ajuda
+  // a ver de relance o que faltou medir.
+  const skinfoldEntries=NA_SKINFOLD_FIELDS.map(f=>{const v=num(a[f.key]);return {...f,v,measured:v!=null};});
+  const measuredCount=skinfoldEntries.filter(f=>f.measured).length;
+  const skinfoldsHtml=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px 10px;margin-bottom:4px">
+    ${skinfoldEntries.map(f=>`<div style="font-size:7.8pt;display:flex;align-items:center;gap:5px">
+      <span style="color:${f.measured?'#1d6f3b':'#ccc'};font-weight:700">${f.measured?'✓':'—'}</span>
+      <span style="color:${f.measured?'#111':'#aaa'}">${f.label}${f.measured?': '+f.v+'mm':''}</span>
+    </div>`).join('')}
+  </div>
+  <div style="font-size:7.5pt;color:#888;margin-bottom:10px">${measuredCount} de 8 pregas medidas${measuredCount<8?' — Soma das 8 Pregas só calcula quando todas estiverem preenchidas':''}</div>`;
+
   const notesHtml=a.notes?`<div style="margin-top:6px"><strong style="font-size:8pt">Notas:</strong> <span style="font-size:8pt">${escHtml(a.notes)}</span></div>`:'';
 
   const body=`
@@ -12886,6 +12911,8 @@ function printNaSinglePDF(id){
     </div>
     <h3>Valores</h3>
     ${tableHtml}
+    <h3>Pregas Cutâneas (protocolo ISAK)</h3>
+    ${skinfoldsHtml}
     ${notesHtml}
     <div style="font-size:7pt;color:#999;margin-top:10px">Cores segundo guias de referência científicas (ACE — % Gordura; OMS — Rácio Cintura-Ancas), configuráveis em Nutrição → Guias de Referência. Massa Muscular e Soma das Pregas não têm intervalo de referência absoluto validado — dependem do tamanho corporal individual e do desporto.</div>
   </div>`;

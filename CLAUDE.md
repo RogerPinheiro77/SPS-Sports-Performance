@@ -1082,3 +1082,32 @@ Verificação visual ao vivo não foi feita nesta sessão (funcionalidade
 nova, ainda não publicada).
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v169 (18/09/2026): Visto nas pregas medidas no PDF de Avaliação Individual
+
+Pedido do Roger: no PDF de uma avaliação (`printNaSinglePDF`, sps-v168), ver
+as 8 pregas cutâneas individuais com um visto (✓) só nas que foram de facto
+medidas nessa avaliação — nem toda avaliação tem as 8 preenchidas (a "Soma
+das 8 Pregas" só calcula quando estão todas, mas pode haver registos
+parciais), e ele quer ver de relance o que faltou medir. Pedido mecânico/
+incremental (acrescentar informação a um relatório já existente), não
+precisou de proposta prévia na doc.
+
+**O que foi construído:**
+- `NA_SKINFOLD_FIELDS`: as mesmas 8 pregas já usadas no formulário
+  (`_NA_SKINFOLD_IDS`), mas como par campo-do-registo+rótulo em vez de id
+  de input — reutilizável fora do formulário.
+- `printNaSinglePDF`: nova secção "Pregas Cutâneas (protocolo ISAK)" — uma
+  grelha com as 8 pregas, cada uma com ✓ (verde) + valor em mm se medida,
+  ou — (cinzento) se não. Uma linha de resumo "N de 8 pregas medidas",
+  com aviso extra se for menos de 8 (explica porque a Soma pode não
+  aparecer). `0` conta como medida real (não é tratado como "em falta" —
+  só string vazia/`null`/`undefined` conta como não medida).
+
+SW bump para `sps-v169`. Testado: `node --check` ao ficheiro inteiro; 8
+testes isolados em Node da lógica de "medida vs. não medida" — os 8 campos
+na ordem certa, avaliação completa (8/8), avaliação parcial (só 3 vistos),
+campos ausentes do registo (não só vazios) tratados como não medidos, e o
+caso de fronteira do valor `0` a contar como medição real.
+
+**Ainda por fazer:** nada pendente para este pedido.
