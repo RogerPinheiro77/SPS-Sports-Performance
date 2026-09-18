@@ -4171,6 +4171,66 @@ function _cargaStatusBadge(d){
   const c=d.status==='acima'?'#c0392b':'#c9971f';
   return `<span class="bdg" style="background:${c}22;color:${c};font-weight:700">${d.pct}% ${d.status==='acima'?'▲':'▼'}</span>`;
 }
+// Versão em texto simples do mesmo estado (sem span/cor) — para relatórios
+// impressos que já não usam badges coloridos (mesmo padrão já usado dentro de
+// _mcAnaliseReportHtml, só que reutilizável fora dali).
+function _cargaTxtPlain(d){
+  if(!d||d.plannedUa==null)return '—';
+  if(d.status==='sem-registo')return `${d.plannedUa} UA plan. / sem registo`;
+  const marca=d.status==='ok'?'✓':(d.lowIntensity?'':(d.status==='acima'?'▲':'▼'));
+  return `${d.plannedUa} UA plan. / ${d.realizedUa} UA real (${d.pct}%${marca?' '+marca:''})`;
+}
+// _mcPlannedUaForDay (acima) só dá resultado correto quando chamada com
+// teamId===_mcTeam, porque _mcResolveDayType lê a equipa a partir dessa
+// variável global, não de um parâmetro (ver nota já deixada em
+// _mcPlannedUaForDay). Fora do ecrã de Microciclos — Análise da Sessão de uma
+// UT, Condição para o Jogo — isolamos essa dependência aqui: gravamos o
+// _mcTeam atual, trocamos para a equipa pedida só durante este cálculo
+// síncrono (sem nenhum await no meio), e repomos sempre a seguir, mesmo em
+// erro, para nunca alterar por engano a equipa selecionada no ecrã de
+// Microciclos que o Roger possa ter aberto noutro separador.
+function _mcPlannedUaForDaySafe(dt,teamId){
+  const prevTeam=_mcTeam;
+  _mcTeam=teamId;
+  try{
+    const ws=getMonday(dt);
+    const weekDates=Array.from({length:7},(_,i)=>addDaysStr(ws,i));
+    const mc=(APP.microcycles||[]).find(m=>m.week===ws&&m.teamId===teamId)||{objective:'',dayTypes:{}};
+    const gameDate=_mcAnchorGameDate(weekDates,teamId);
+    return _mcPlannedUaForDay(dt,teamId,mc,gameDate);
+  }finally{
+    _mcTeam=prevTeam;
+  }
+}
+// Carga da última UT antes de uma data de referência (jogo, ou "hoje" na
+// Condição do Plantel), comparada com o que estava planeado (RPE-alvo do
+// Modelo da Semana) — pedido do Roger (18/09/2026): ligar a Convocatória/
+// Condição do Plantel/PDF "Condição para o Jogo" ao mesmo motor de Carga
+// Planeada vs. Realizada já usado em Microciclos (sps-v164) e, na mesma
+// alteração, na Análise da Sessão. De propósito ao nível da sessão/equipa,
+// não por atleta — decisão tomada com o Roger antes de codar, para não
+// duplicar o papel que o ACWR/baseline pessoal já tem em cada linha (ver
+// _cargaLeitura) com um segundo critério de alarme por atleta.
+function _ultimaUtCargaInfo(refDate,teamId){
+  const lastDt=(APP.schedule||[])
+    .filter(e=>e.date<refDate&&e.teamId===teamId&&MC_TRAINING_EV_TYPES.includes(e.type))
+    .map(e=>e.date).sort().pop()||null;
+  if(!lastDt)return null;
+  const plan=_mcPlannedUaForDaySafe(lastDt,teamId);
+  const realizedUa=_mcRealizedUaForDay(lastDt,teamId);
+  const status=_mcCargaStatus(plan.plannedUa,realizedUa);
+  const daysAgo=Math.round((new Date(refDate+'T00:00:00')-new Date(lastDt+'T00:00:00'))/86400000);
+  return {lastDt,daysAgo,...plan,realizedUa,...status};
+}
+// Linha "🎯 Última UT" partilhada pelos 3 ecrãs (Pré-Jogo/Convocatória,
+// Condição do Plantel) que mostram _condicaoJogoCompute — versão de ecrã, com
+// badge colorido (_cargaStatusBadge); o PDF usa _cargaTxtPlain em vez desta.
+function _ultimaUtCargaHtml(u){
+  if(!u)return '';
+  const realTxt=u.realizedUa!=null?u.realizedUa+' UA real':'sem registo de PSE';
+  const alvoTxt=u.plannedUa!=null?`RPE-alvo ${u.rpeMid} (${u.plannedUa} UA)`:'sem RPE-alvo definido para esse dia';
+  return `<div style="font-size:11px;color:var(--t2);margin-bottom:8px">🎯 Última UT: <strong>${fmtDate(u.lastDt)}</strong> (há ${u.daysAgo}d) — ${alvoTxt} · ${realTxt} ${_cargaStatusBadge(u)}</div>`;
+}
 // Painel "🎯 Carga Planeada vs. Realizada" da vista semanal do Microciclo.
 function _mcCargaWeekPanelHtml(weekDates,teamId){
   const wl=_mcWeekLoadCompliance(weekDates,teamId);
@@ -5590,7 +5650,8 @@ function _jogoPreHtml(g){
   // lesão/tratamento) — mesmo cálculo já usado no PDF Condição p/ Jogo, só para
   // informar quem convoca; nunca esconde ninguém da lista (decisão do Roger).
   const condByAid={};
-  _condicaoJogoCompute({date:g.date}).rows.forEach(r=>condByAid[r.at.id]=r);
+  const _condJ=_condicaoJogoCompute({date:g.date});
+  _condJ.rows.forEach(r=>condByAid[r.at.id]=r);
   // Confirmação de presença (RSVP) — a atleta responde na app (separador Convocatórias);
   // a resposta vive no registo unificado de APP.convocatorias (c.rsvp), não no Jogo.
   const _convForRsvp=APP.convocatorias.find(c=>c.gameId===g.id);
@@ -5646,6 +5707,7 @@ function _jogoPreHtml(g){
         <button class="btn btn-xs btn-r" onclick="desconvocarTodasAtletas('${g.id}')" title="Limpa toda a convocatória, onze e suplentes">Desconvocar Todas</button>
       </div>
     </div>
+    ${_ultimaUtCargaHtml(_condJ.ultimaUt)}
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px;background:var(--bg3);border-radius:6px">
       <label class="fl" style="margin:0">🕓 Publicar na app das atletas em (opcional)</label>
       <input class="fc" type="datetime-local" style="width:auto" value="${escHtml(g.convocatoriaPublishAt||'')}" onchange="_setConvocatoriaPublishAt('${g.id}',this.value)">
@@ -8253,7 +8315,17 @@ function _trAnaliseCompute(tr){
     const leitura=(wellPre&&pse)?_cargaLeitura(+wellPre.score||0,+pse.ua||0,uaBaseline):null;
     return {at,pse,well,wellPre,att,inj,trat,acwr,uaBaseline,uaDev,monStrain,leitura};
   });
-  return {ats,dt,nextDt,rows};
+  // RPE-alvo desta sessão (Modelo da Semana) vs. UA médio realmente reportado pelas
+  // atletas desta UT — pedido do Roger (18/09/2026): ligar o alvo de intensidade
+  // planeado à Análise da Sessão, que até aqui só mostrava a carga real. Reaproveita
+  // o motor da Carga Planeada vs. Realizada (sps-v164) via _mcPlannedUaForDaySafe
+  // (isola a dependência de _mcTeam). Ao nível da sessão/equipa, não por atleta —
+  // a leitura por atleta já existe acima (leitura, vs. baseline pessoal).
+  const plan=_mcPlannedUaForDaySafe(dt,_anTeamId);
+  const uaVals=rows.filter(r=>r.pse).map(r=>+r.pse.ua||0);
+  const uaAvg=uaVals.length?Math.round(uaVals.reduce((s,v)=>s+v,0)/uaVals.length):null;
+  const cargaStatus=_mcCargaStatus(plan.plannedUa,uaAvg);
+  return {ats,dt,nextDt,rows,plan,uaAvg,cargaStatus};
 }
 // Ordena e recorta as linhas com leitura cruzada para o bloco "Destaques" — prioridade
 // para acumulação (fadiga+carga alta, o padrão mais preocupante), depois destaque
@@ -8267,7 +8339,7 @@ function _trDestaques(rows){
   }).slice(0,5);
 }
 function _trAnaliseHtml(tr){
-  const {dt,nextDt,rows}=_trAnaliseCompute(tr);
+  const {dt,nextDt,rows,plan,uaAvg,cargaStatus}=_trAnaliseCompute(tr);
   const isFuture=dt>today();
   const alerts=[];
   if(!isFuture){
@@ -8293,15 +8365,20 @@ function _trAnaliseHtml(tr){
 
   const pseVals=rows.filter(r=>r.pse).map(r=>+r.pse.pse||0);
   const pseAvg=pseVals.length?(pseVals.reduce((s,v)=>s+v,0)/pseVals.length).toFixed(1):'—';
-  const uaVals=rows.filter(r=>r.pse).map(r=>+r.pse.ua||0);
-  const uaAvg=uaVals.length?Math.round(uaVals.reduce((s,v)=>s+v,0)/uaVals.length):'—';
   const presentes=rows.filter(r=>r.att&&r.att.status==='treino').length;
 
   const summaryHtml=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0">
     <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${pseAvg}</div><div style="font-size:10px;color:var(--t2)">PSE médio /10</div></div>
-    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${uaAvg}</div><div style="font-size:10px;color:var(--t2)">UA médio</div></div>
+    <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${uaAvg??'—'}</div><div style="font-size:10px;color:var(--t2)">UA médio</div></div>
     <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${presentes}/${rows.length}</div><div style="font-size:10px;color:var(--t2)">Presentes</div></div>
     <div class="card" style="padding:10px;text-align:center"><div style="font-size:20px;font-weight:800">${rows.filter(r=>r.pse).length}/${rows.length}</div><div style="font-size:10px;color:var(--t2)">Com PSE</div></div>
+  </div>`;
+  // 🎯 RPE-alvo desta sessão (Modelo da Semana) vs. UA médio real — pedido do Roger
+  // (18/09/2026). Reaproveita _cargaStatusBadge (mesmo selo já usado em Microciclos).
+  const cargaBadgeObj={...plan,...cargaStatus};
+  const rpeAlvoHtml=`<div class="card" style="padding:10px 14px;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="font-size:12px"><strong>🎯 RPE-alvo desta sessão</strong> (Modelo da Semana): ${plan.plannedUa!=null?plan.rpeMid+' (UA alvo '+plan.plannedUa+')':'sem alvo definido para este dia'}${uaAvg!=null?' · UA médio real: '+uaAvg:''}</div>
+    ${plan.plannedUa!=null?_cargaStatusBadge(cargaBadgeObj):''}
   </div>`;
 
   const attLabel=(status)=>status==='treino'?'<span class="bdg bg-g">Presente</span>':status==='tratamento'?'<span class="bdg bg-y">Tratamento</span>':status==='ausente'?'<span class="bdg bg-r">Ausente</span>':'<span style="color:var(--t2)">—</span>';
@@ -8317,6 +8394,7 @@ function _trAnaliseHtml(tr){
     const ms=r.monStrain;
     return `<tr>
     <td title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</td>
+    <td style="text-align:center">${r.wellPre?r.wellPre.score:'—'}</td>
     <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
     <td style="text-align:center">${r.pse?r.pse.ua+(uz&&uz.cls?` <span class="bdg ${uz.cls}">${uz.label}</span>`:''):'—'}</td>
     <td style="text-align:center">${r.well?r.well.score:'—'}</td>
@@ -8341,19 +8419,20 @@ function _trAnaliseHtml(tr){
   ${alertsHtml}
   ${destaquesHtml}
   ${summaryHtml}
+  ${rpeAlvoHtml}
   <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Impacto</th><th>Presença</th><th>Fisio</th><th>ACWR (cumulativo até à data)</th><th>Monotonia / Strain (7d)</th><th>Leitura</th><th>Decisão do dia</th></tr></thead>
+      <thead><tr><th>Atleta</th><th>Chegada</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Impacto</th><th>Presença</th><th>Fisio</th><th>ACWR (cumulativo até à data)</th><th>Monotonia / Strain (7d)</th><th>Leitura</th><th>Decisão do dia</th></tr></thead>
       <tbody>${tableRows}</tbody>
     </table>
   </div>
-  <div style="font-size:10px;color:var(--t2);margin-top:8px">Wellness: coluna "Wellness" é do dia seguinte (${fmtDate(nextDt)}), "Leitura" cruza com o wellness da manhã deste dia (chegada) · Carga da sessão = duração × PSE (método de Foster) · ACWR = carga aguda (7 dias) ÷ crónica (28 dias) até ${fmtDate(dt)} · Monotonia = média ÷ desvio-padrão da carga diária dos últimos 7 dias, Strain = carga total da semana × monotonia (monotonia >2.0 é geralmente referida na literatura como zona de atenção) · "Decisão do dia" combina UA da sessão + wellness + impacto do ciclo (pior combinação vence) — tudo apoio à decisão, não substitui avaliação clínica.</div>
+  <div style="font-size:10px;color:var(--t2);margin-top:8px">Wellness: coluna "Chegada" é a manhã deste dia, antes do treino, coluna "Wellness" é do dia seguinte (${fmtDate(nextDt)}) — "Leitura" cruza a Chegada com o desvio da carga desta sessão face à baseline pessoal · RPE-alvo = intensidade planeada no Modelo da Semana (Microciclos) para este dia, comparada com o UA médio real (banda de tolerância ±15%, mesma do painel de Microciclos) · Carga da sessão = duração × PSE (método de Foster) · ACWR = carga aguda (7 dias) ÷ crónica (28 dias) até ${fmtDate(dt)} · Monotonia = média ÷ desvio-padrão da carga diária dos últimos 7 dias, Strain = carga total da semana × monotonia (monotonia >2.0 é geralmente referida na literatura como zona de atenção) · "Decisão do dia" combina UA da sessão + wellness + impacto do ciclo (pior combinação vence) — tudo apoio à decisão, não substitui avaliação clínica.</div>
   `;
 }
 // ─── PDF: Análise da Sessão (A4, mesmo mecanismo de impressão do resto da app) ──
 function printAnaliseSessao(trId){
   const tr=(APP.trainings||[]).find(t=>t.id===trId);if(!tr)return toast('Unidade não encontrada','err');
-  const {dt,nextDt,rows}=_trAnaliseCompute(tr);
+  const {dt,nextDt,rows,plan,uaAvg,cargaStatus}=_trAnaliseCompute(tr);
   const attLabel=(status)=>status==='treino'?'<span class="badge bg-g">Presente</span>':status==='tratamento'?'<span class="badge bg-y">Tratamento</span>':status==='ausente'?'<span class="badge bg-r">Ausente</span>':'—';
   const acwrBdg=(v)=>{
     if(v===null||v===undefined)return '—';
@@ -8366,6 +8445,7 @@ function printAnaliseSessao(trId){
     const ms=r.monStrain;
     return `<tr>
     <td>${escHtml(r.at.name)}</td>
+    <td style="text-align:center">${r.wellPre?r.wellPre.score:'—'}</td>
     <td style="text-align:center">${r.pse?r.pse.pse+'/10':'—'}</td>
     <td style="text-align:center">${r.pse?r.pse.ua+(uz&&uz.cls?` <span class="badge ${uz.cls}">${uz.label}</span>`:''):'—'}</td>
     <td style="text-align:center">${r.well?r.well.score:'—'}</td>
@@ -8382,12 +8462,16 @@ function printAnaliseSessao(trId){
     <div style="font-size:9pt;font-weight:700;margin:8px 0 4px">🔍 Destaques desta sessão</div>
     ${destaques.map(r=>`<p style="font-size:8.5pt;margin:2px 0"><strong>${escHtml(r.at.name)}</strong>: ${r.leitura.txt}</p>`).join('')}
   `:'';
+  const rpeAlvoTxt=plan.plannedUa!=null
+    ?`RPE-alvo desta sessão (Modelo da Semana): ${plan.rpeMid} — ${_cargaTxtPlain({...plan,...cargaStatus})}${uaAvg==null?' (sem PSE registado ainda)':''}.`
+    :`Sem RPE-alvo definido para este dia no Modelo da Semana.`;
   const title=`Análise da Sessão — ${escHtml(tr.title||'Unidade de Treino')} — ${fmtDate(dt)}`;
   const body=`
     <div class="pr-title">${title}</div>
-    <p style="font-size:9pt;color:#666;margin-bottom:10px">Wellness = dia seguinte (${fmtDate(nextDt)}), Leitura cruza com o wellness da manhã deste dia · Carga da sessão = duração × PSE (Foster) · ACWR = carga aguda (7d) ÷ crónica (28d) até ${fmtDate(dt)} · Monotonia = média ÷ desvio-padrão da carga diária (7d), Strain = carga total × monotonia · Decisão do dia combina UA da sessão + wellness + impacto do ciclo — tudo apoio à decisão, não substitui avaliação clínica.</p>
+    <p style="font-size:9pt;color:#666;margin-bottom:4px">Chegada = wellness da manhã deste dia, antes do treino; Wellness = dia seguinte (${fmtDate(nextDt)}) — Leitura cruza a Chegada com o desvio da carga desta sessão face à baseline pessoal · Carga da sessão = duração × PSE (Foster) · ACWR = carga aguda (7d) ÷ crónica (28d) até ${fmtDate(dt)} · Monotonia = média ÷ desvio-padrão da carga diária (7d), Strain = carga total × monotonia · Decisão do dia combina UA da sessão + wellness + impacto do ciclo — tudo apoio à decisão, não substitui avaliação clínica.</p>
+    <p style="font-size:9pt;color:#666;margin-bottom:10px">🎯 ${rpeAlvoTxt}</p>
     ${destaquesHtml}
-    <table><thead><tr><th>Atleta</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Presença</th><th>Fisio</th><th>ACWR</th><th>Mon./Strain</th><th>Leitura</th><th>Decisão</th></tr></thead>
+    <table><thead><tr><th>Atleta</th><th>Chegada</th><th>PSE</th><th>UA</th><th>Wellness</th><th>Ciclo</th><th>Presença</th><th>Fisio</th><th>ACWR</th><th>Mon./Strain</th><th>Leitura</th><th>Decisão</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table>
     <p style="font-size:8pt;color:#999;margin-top:8px">${rows.length} atletas · ${rows.filter(r=>r.pse).length} com PSE · ${rows.filter(r=>r.att&&r.att.status==='treino').length} presentes</p>
   `;
@@ -8523,7 +8607,11 @@ function _condicaoJogoCompute(tr){
     const overallLabel=overallLvl==='r'?'Risco':overallLvl==='y'?'Atenção':'Ótima';
     return {at,gate:false,acwr,acwrLvl,wellAvg,wellLvl,faltas,faltasLvl,minsInfo,minsLvl,cyclePhase,cycleImpact,cycleLvl,cycleReg,extraCount,extraMin,extraLvl,overallLvl,overallLabel};
   });
-  return {dt,rows,nextGame,lastGame};
+  // Carga da última UT vs. RPE-alvo planeado — pedido do Roger (18/09/2026), ver
+  // _ultimaUtCargaInfo. Ao nível da sessão/equipa (T1, mesma equipa fixa já usada
+  // no resto desta função), não entra no semáforo por atleta acima de propósito.
+  const ultimaUt=_ultimaUtCargaInfo(dt,'T1');
+  return {dt,rows,nextGame,lastGame,ultimaUt};
 }
 // ─── CONDIÇÃO DO PLANTEL ────────────────────────────────────────────────────
 // Página própria (não presa a um treino nem jogo específico) para o Roger poder
@@ -8537,7 +8625,7 @@ function _cpRecommendation(lvl){
   return {g:'🟢 Treino normal',y:'🟡 Monitorizar / considerar individualização',r:'🔴 Avaliação individual antes da sessão'}[lvl]||'—';
 }
 function renderCondicaoPlantel(){
-  const {dt,rows,nextGame,lastGame}=_condicaoJogoCompute({date:_cpDate});
+  const {dt,rows,nextGame,lastGame,ultimaUt}=_condicaoJogoCompute({date:_cpDate});
   const _ord={r:0,y:1,gate:2,g:3};
   const sorted=rows.slice().sort((a,b)=>{
     const ka=a.gate?'gate':a.overallLvl, kb=b.gate?'gate':b.overallLvl;
@@ -8549,6 +8637,7 @@ function renderCondicaoPlantel(){
   const indispCount=rows.filter(r=>r.gate).length;
 
   const gameNote=nextGame?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Próximo jogo: <strong>${fmtDate(nextGame.date)}</strong>${nextGame.opp?' vs '+escHtml(nextGame.opp):''}</div>`:'';
+  const ultimaUtNote=_ultimaUtCargaHtml(ultimaUt);
 
   const kpiHtml=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px">
     <div class="card" style="padding:10px;text-align:center;border-left:3px solid var(--danger,#c0392b)"><div style="font-size:20px;font-weight:800">${riscoCount}</div><div style="font-size:10px;color:var(--t2)">🔴 Em risco</div></div>
@@ -8617,6 +8706,7 @@ function renderCondicaoPlantel(){
       </div>
       <div class="cb">
         ${gameNote}
+        ${ultimaUtNote}
         ${kpiHtml}
         ${destaquesHtml}
         ${destaquesCicloHtml}
@@ -8635,7 +8725,7 @@ function renderCondicaoPlantel(){
 // printAnaliseCumulativa), mas para a data escolhida na página (_cpDate), não presa a um
 // treino. Pedido do Roger, 24/08/2026.
 function printCondicaoPlantel(){
-  const {dt,rows,nextGame}=_condicaoJogoCompute({date:_cpDate});
+  const {dt,rows,nextGame,ultimaUt}=_condicaoJogoCompute({date:_cpDate});
   const _ord={r:0,y:1,gate:2,g:3};
   const sorted=rows.slice().sort((a,b)=>{
     const ka=a.gate?'gate':a.overallLvl, kb=b.gate?'gate':b.overallLvl;
@@ -8694,6 +8784,7 @@ function printCondicaoPlantel(){
   `:'';
 
   const gameNote=nextGame?`<p style="font-size:9pt;color:#666;margin-bottom:4px">Próximo jogo: <strong>${fmtDate(nextGame.date)}</strong>${nextGame.opp?' vs '+escHtml(nextGame.opp):''}</p>`:'';
+  const ultimaUtNote=ultimaUt?`<p style="font-size:9pt;color:#666;margin-bottom:4px">🎯 Última UT: <strong>${fmtDate(ultimaUt.lastDt)}</strong> (há ${ultimaUt.daysAgo}d) — ${ultimaUt.plannedUa!=null?'RPE-alvo '+ultimaUt.rpeMid+' — '+_cargaTxtPlain(ultimaUt):'sem RPE-alvo definido para esse dia'}.</p>`:'';
   const kpiHtml=`<div class="kpi-row">
     <div class="kpi"><div class="kpi-v">${riscoCount}</div><div class="kpi-l">Em risco</div></div>
     <div class="kpi"><div class="kpi-v">${atencaoCount}</div><div class="kpi-l">Em atenção</div></div>
@@ -8705,6 +8796,7 @@ function printCondicaoPlantel(){
   const body=`
     <div class="pr-title">${title}</div>
     ${gameNote}
+    ${ultimaUtNote}
     ${kpiHtml}
     ${destaquesHtml}
     ${destaquesCicloHtml}
@@ -8715,7 +8807,7 @@ function printCondicaoPlantel(){
 }
 function printAnaliseCumulativa(trId){
   const tr=(APP.trainings||[]).find(t=>t.id===trId);if(!tr)return toast('Unidade não encontrada','err');
-  const {dt,rows,nextGame}=_condicaoJogoCompute(tr);
+  const {dt,rows,nextGame,ultimaUt}=_condicaoJogoCompute(tr);
   const lvlBadge=(lvl,label)=>`<span class="badge bg-${lvl}">${label}</span>`;
   const rowsHtml=rows.map(r=>{
     if(r.gate)return `<tr><td>${escHtml(r.at.name)}</td><td colspan="5" style="text-align:center;color:#999">${escHtml(r.gateTxt)}</td><td style="text-align:center">${lvlBadge('r','Indisponível')}</td></tr>`;
@@ -8732,6 +8824,7 @@ function printAnaliseCumulativa(trId){
     </tr>`;
   }).join('');
   const gameNote=nextGame?`<p style="font-size:9pt;color:#666;margin-bottom:4px">Próximo jogo: <strong>${fmtDate(nextGame.date)}</strong>${nextGame.opp?' vs '+escHtml(nextGame.opp):''} — ${Math.round((new Date(nextGame.date+'T00:00:00')-new Date(dt+'T00:00:00'))/86400000)} dia(s) após esta análise.</p>`:'';
+  const ultimaUtNote=ultimaUt?`<p style="font-size:9pt;color:#666;margin-bottom:4px">🎯 Última UT: <strong>${fmtDate(ultimaUt.lastDt)}</strong> (há ${ultimaUt.daysAgo}d) — ${ultimaUt.plannedUa!=null?'RPE-alvo '+ultimaUt.rpeMid+' — '+_cargaTxtPlain(ultimaUt):'sem RPE-alvo definido para esse dia'}.</p>`:'';
   // Destaques do período (pedido pelo Roger 2026-08-21, mesmo espírito do bloco da
   // Análise da Sessão): só para as atletas em risco disponíveis (não as já gated por
   // lesão/tratamento, que já saltam à vista na tabela), junta os fatores que motivaram
@@ -8755,6 +8848,7 @@ function printAnaliseCumulativa(trId){
   const body=`
     <div class="pr-title">${title}</div>
     ${gameNote}
+    ${ultimaUtNote}
     <p style="font-size:9pt;color:#666;margin-bottom:10px">Semáforo por atleta: pior dos 6 fatores vence (ACWR, wellness médio recente, impacto do ciclo quando relevante, faltas não justificadas nos últimos 7 dias, minutos no último jogo, treino extra autorreportado nos últimos 7 dias). A fase do ciclo por si só não altera o semáforo — só entra quando a própria atleta reporta impacto elevado (2-3). Lesão ativa ou tratamento nesta data marca a atleta como indisponível, sem entrar nos restantes fatores. Apoio à decisão, não substitui avaliação clínica.</p>
     ${destaquesHtml}
     <table><thead><tr><th>Atleta</th><th>ACWR</th><th>Wellness méd.</th><th>Ciclo</th><th>Faltas 7d</th><th>Min. últ. jogo</th><th>Condição</th></tr></thead>
