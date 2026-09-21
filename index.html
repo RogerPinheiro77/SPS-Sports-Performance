@@ -6023,12 +6023,12 @@ function _jogoCampoHtml(g){
   // se distinguia dos 3 de bolas paradas por mostrar o campo inteiro + formação 4-3-3
   // etc.). A única diferença que se mantém: o tático mostra número + alcunha por baixo
   // do círculo, os outros 3 só número (espaço mais apertado, ver [[project_sps_campo_tatico_4_quadros]]).
-  const showName=mode==='tatico';
+  const showName=false;
   // Marcadores maiores — pedido do Roger, 07/09/2026, a par do campo em si crescer
   // (max-width 280px→480px→640px, ver .jc-pitch-wrap): raio/letra escalados na mesma
   // proporção do campo, para caberem dedos a arrastar com precisão no telemóvel sem
   // ficar desproporcionado ao SVG maior.
-  const rad=13,numFs=12.5,sw=2.3,capFs=12,capOff=11,capY=-12;
+  const rad=6,numFs=6,sw=1.2,capFs=6,capOff=5,capY=-6;
   const maxY=_pitchMaxY(mode);
   // Ordem pelo número da camisola (não pela ordem em que foram clicadas como titulares
   // no Pré-Jogo) — pedido do Roger, 24/08/2026: os números devem manter-se consistentes
