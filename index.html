@@ -4408,6 +4408,95 @@ let _showJogoForm=false,_editJogoId=null,_jogoTab='proximos';
 // do Dashboard (tabela da competição do próximo jogo) e o espaço Competições dentro de Jogos.
 let _showCampImport=false,_campImportRows=null;
 let _pitchDragging=null,_pitchWasDrag=false;
+let _jogoCampoDrawMode='mover',_jogoArrowStyle='solid',_arrowDragging=null;
+function _pitchArrows(g,mode){if(!g.pitchArrows)g.pitchArrows={};if(!g.pitchArrows[mode])g.pitchArrows[mode]=[];return g.pitchArrows[mode];}
+function pitchArrowStart(e,gid,mode){
+  if(_jogoCampoDrawMode!=='seta')return;
+  e.preventDefault();if(e.stopPropagation)e.stopPropagation();
+  mode=mode||_jogoCampoTab||'tatico';
+  const svg=document.getElementById('pitch-svg-'+gid);if(!svg)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(198,svgP.y));
+  _arrowDragging={gid,mode,x1:cx,y1:cy,x2:cx,y2:cy};
+  let prev=svg.querySelector('#arrow-preview');
+  if(!prev){prev=document.createElementNS('http://www.w3.org/2000/svg','line');prev.id='arrow-preview';prev.setAttribute('stroke','#fff');prev.setAttribute('stroke-width','2');prev.setAttribute('marker-end','url(#arrowhead-'+gid+')');svg.appendChild(prev);}
+  prev.setAttribute('stroke-dasharray',_jogoArrowStyle==='dashed'?'6,4':'none');
+  prev.setAttribute('x1',cx);prev.setAttribute('y1',cy);prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);
+}
+function pitchArrowMove(e){
+  if(!_arrowDragging)return;
+  const svg=document.getElementById('pitch-svg-'+_arrowDragging.gid);if(!svg)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(198,svgP.y));
+  _arrowDragging.x2=cx;_arrowDragging.y2=cy;
+  const prev=svg.querySelector('#arrow-preview');
+  if(prev){prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);}
+}
+function pitchArrowEnd(e){
+  if(!_arrowDragging)return;
+  const d=_arrowDragging;_arrowDragging=null;
+  const svg=document.getElementById('pitch-svg-'+d.gid);
+  const prev=svg&&svg.querySelector('#arrow-preview');if(prev)prev.remove();
+  const dist=Math.hypot(d.x2-d.x1,d.y2-d.y1);
+  if(dist<8)return;
+  const g=APP.games.find(x=>x.id===d.gid);if(!g)return;
+  _pitchArrows(g,d.mode).push({id:'arr'+Date.now()+Math.floor(Math.random()*1000),x1:+d.x1.toFixed(1),y1:+d.y1.toFixed(1),x2:+d.x2.toFixed(1),y2:+d.y2.toFixed(1),style:_jogoArrowStyle});
+  saveData();
+  _renderJogoDetailFull();
+}
+function pitchArrowClick(e,gid,arrId,mode){
+  if(e&&e.stopPropagation)e.stopPropagation();
+  if(!confirm('Apagar esta seta?'))return;
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const arr=_pitchArrows(g,mode);
+  const idx=arr.findIndex(a=>a.id===arrId);
+  if(idx>=0){arr.splice(idx,1);saveData();_renderJogoDetailFull();}
+}
+function pitchClearArrows(gid,mode){
+  if(!confirm('Apagar todas as setas deste quadro?'))return;
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  _pitchArrows(g,mode).length=0;
+  saveData();_renderJogoDetailFull();
+}
+async function shareJogoCampoImage(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const svgEl=document.getElementById('pitch-svg-'+gid);if(!svgEl)return;
+  const clone=svgEl.cloneNode(true);
+  clone.removeAttribute('onmousemove');clone.removeAttribute('onmouseup');clone.removeAttribute('onmouseleave');clone.removeAttribute('onmousedown');
+  clone.querySelectorAll('[onmousedown]').forEach(el=>el.removeAttribute('onmousedown'));
+  clone.querySelectorAll('[onclick]').forEach(el=>el.removeAttribute('onclick'));
+  const prevEl=clone.querySelector('#arrow-preview');if(prevEl)prevEl.remove();
+  const svgStr=new XMLSerializer().serializeToString(clone);
+  const svgUrl='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svgStr)));
+  const modeLabel=(_SETPIECE_TABS.find(([k])=>k===mode)||['',mode])[1]||mode;
+  const clubName=(APP.config&&APP.config.clubName)||'';
+  const opp=g.opp?('vs '+g.opp):'';
+  const dt=g.date?fmtDate(g.date):'';
+  const img=new Image();
+  await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=svgUrl;});
+  const scale=3,footerH=56;
+  const canvas=document.createElement('canvas');
+  canvas.width=300*scale;canvas.height=(200+footerH)*scale;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#1a3a5c';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img,0,0,300*scale,200*scale);
+  ctx.fillStyle='#fff';ctx.textAlign='center';
+  ctx.font='bold '+(13*scale)+'px sans-serif';
+  ctx.fillText(clubName+(modeLabel?(' — '+modeLabel):''),canvas.width/2,(200+22)*scale);
+  ctx.font=(10*scale)+'px sans-serif';ctx.fillStyle='rgba(255,255,255,.8)';
+  ctx.fillText([opp,dt].filter(Boolean).join(' • '),canvas.width/2,(200+40)*scale);
+  canvas.toBlob(async (blob)=>{
+    const fileName='campo_'+mode+'_'+(g.date||'')+'.png';
+    const file=new File([blob],fileName,{type:'image/png'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:clubName+' — '+modeLabel,text:[opp,dt].filter(Boolean).join(' • ')});return;}catch(e){if(e.name==='AbortError')return;}
+    }
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName;a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  },'image/png');
+}
 
 const _FPOS={
   '4-3-3':[[150,30],[40,85],[110,80],[190,80],[260,85],[60,185],[150,175],[240,185],[55,305],[150,320],[245,305]],
@@ -6015,7 +6104,7 @@ function _pitchGalleryHtml(g,mode){
 function _jogoCampoHtml(g){
   const PW=300,PH=420;
   const mode=_jogoCampoTab;
-  const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
+  const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode),arrowList=_pitchArrows(g,mode);
   const modeTabs=_SETPIECE_TABS.map(([k,lb])=>`<button class="tab-btn ${mode===k?'on':''}" onclick="_jogoCampoTab='${k}';_renderJogoDetailFull()">${lb}</button>`).join('');
   const modeLabel=(_SETPIECE_TABS.find(([k])=>k===mode)||['',''])[1]||'Campo';
   // Os 4 quadros mostram só meio campo, com a mesma grelha e círculos pequenos — o
@@ -6074,12 +6163,22 @@ function _jogoCampoHtml(g){
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;color:var(--t2)">Arrasta atletas • Clica para tarefa</span>
         <button class="btn btn-sm btn-gh" onclick="printJogoCampo('${g.id}')">📄 PDF deste Quadro</button>
+        <button class="btn btn-sm btn-gh" onclick="shareJogoCampoImage('${g.id}','${mode}')">📤 Partilhar Imagem</button>
       </div>
     </div>
     <div class="tabs" style="margin-bottom:10px;flex-wrap:wrap">${modeTabs}</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button class="tab-btn ${_jogoCampoDrawMode!=='seta'?'on':''}" onclick="_jogoCampoDrawMode='mover';_renderJogoDetailFull()">👆 Mover</button>
+      <button class="tab-btn ${_jogoCampoDrawMode==='seta'?'on':''}" onclick="_jogoCampoDrawMode='seta';_renderJogoDetailFull()">✏️ Desenhar Seta</button>
+      ${_jogoCampoDrawMode==='seta'?`<span style="font-size:11px;color:var(--t2);margin-left:4px">Estilo:</span>
+      <button class="tab-btn ${_jogoArrowStyle!=='dashed'?'on':''}" onclick="_jogoArrowStyle='solid';_renderJogoDetailFull()" title="Movimento/corrida">— Sólida</button>
+      <button class="tab-btn ${_jogoArrowStyle==='dashed'?'on':''}" onclick="_jogoArrowStyle='dashed';_renderJogoDetailFull()" title="Passe">┄ Tracejada</button>
+      <button class="btn btn-sm btn-gh" onclick="pitchClearArrows('${g.id}','${mode}')" style="margin-left:6px">🗑️ Limpar Setas</button>`:''}
+    </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
       <div class="jc-pitch-wrap" style="flex-shrink:0">
-      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} 200" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousemove="pitchDragMove(event)" onmouseup="pitchDragEnd(event)" onmouseleave="pitchDragEnd(event)">
+      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} 200" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pitchArrowStart(event,'${g.id}','${mode}')" onmousemove="pitchDragMove(event);pitchArrowMove(event)" onmouseup="pitchDragEnd(event);pitchArrowEnd(event)" onmouseleave="pitchDragEnd(event);pitchArrowEnd(event)">
+        <defs><marker id="arrowhead-${g.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
         <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
         <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
         <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -6093,6 +6192,7 @@ function _jogoCampoHtml(g){
         <rect x="132" y="403" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
         <circle cx="150" cy="58" r="2.5" fill="rgba(255,255,255,.45)"/>
         <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>
+        ${arrowList.map(a=>`<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="#fff" stroke-width="2" stroke-dasharray="${a.style==='dashed'?'6,4':'none'}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></line>`).join('')}
         ${g.lineup.length?players:`<text x="150" y="100" text-anchor="middle" fill="rgba(255,255,255,.35)" font-size="11">Define o onze no Pré-Jogo</text>`}
       </svg>
       </div>
@@ -6191,8 +6291,9 @@ function savePitchNotes(gid,mode,val){
 
 function pitchDragStart(e,gid,aid,mode){
   e.preventDefault();e.stopPropagation();
-  _pitchWasDrag=false;
   mode=mode||_jogoCampoTab||'tatico';
+  if(_jogoCampoDrawMode==='seta'){pitchArrowStart(e,gid,mode);return;}
+  _pitchWasDrag=false;
   const svg=document.getElementById('pitch-svg-'+gid);if(!svg)return;
   const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
@@ -6253,13 +6354,15 @@ function _initPitchEvents(gid){
     if(e.touches.length!==1)return;
     const t=e.touches[0],target=t.target.closest('.pitch-pl');
     if(target){e.preventDefault();pitchDragStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},gid,target.dataset.aid,_jogoCampoTab);}
+    else if(_jogoCampoDrawMode==='seta'){e.preventDefault();pitchArrowStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},gid,_jogoCampoTab);}
   },{passive:false});
   svg.addEventListener('touchmove',e=>{
-    if(!_pitchDragging||e.touches.length!==1)return;
-    e.preventDefault();pitchDragMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY});
+    if(e.touches.length!==1)return;
+    if(_pitchDragging){e.preventDefault();pitchDragMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY});}
+    else if(_arrowDragging){e.preventDefault();pitchArrowMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY});}
   },{passive:false});
   svg.addEventListener('touchend',e=>{
-    if(!_pitchDragging)return;
+    if(!_pitchDragging){if(_arrowDragging){const t2=e.changedTouches[0];pitchArrowEnd({clientX:t2.clientX,clientY:t2.clientY});}return;}
     const t=e.changedTouches[0];
     const dgid=_pitchDragging.gid,daid=_pitchDragging.aid,dmode=_pitchDragging.mode||'tatico',wasD=_pitchWasDrag;
     pitchDragEnd({clientX:t.clientX,clientY:t.clientY});
@@ -16970,7 +17073,7 @@ const _CLOUD_TABLE_SCHEMA={
     'pre_game_notes','post_game_notes','fpf_url','concentracao_local','concentracao_hora','transporte','refeicao_antes','refeicao_apos',
     'convocatoria_publish_at','convocatoria_launched','dj_off_meal','dj_off_snack','dj_off_warmup','dj_off_focus','dj_dur_jogo','dj_nota',
     'convocatoria','lineup','subs','player_positions','player_tasks','setpiece_positions','setpiece_tasks','pitch_notes','setpieces',
-    'opp_tactical','opp_sp_boards','opp_roster','tactico_snapshots','setpiece_snapshots','live_session','player_stats','fpf_timeline','no_show'],
+    'opp_tactical','opp_sp_boards','opp_roster','tactico_snapshots','setpiece_snapshots','live_session','player_stats','fpf_timeline','no_show','pitch_arrows'],
     rename:{teamId:'team_id',oppLogo:'opp_logo',eventId:'event_id',viceCaptain:'vice_captain',oppFormation:'opp_formation',
       oppStrengths:'opp_strengths',oppWeaknesses:'opp_weaknesses',oppSetPieces:'opp_set_pieces',oppScoutLink:'opp_scout_link',
       preGameNotes:'pre_game_notes',postGameNotes:'post_game_notes',fpfUrl:'fpf_url',concentracaoLocal:'concentracao_local',
@@ -16980,7 +17083,7 @@ const _CLOUD_TABLE_SCHEMA={
       playerPositions:'player_positions',playerTasks:'player_tasks',setpiecePositions:'setpiece_positions',setpieceTasks:'setpiece_tasks',
       pitchNotes:'pitch_notes',oppTactical:'opp_tactical',oppSPBoards:'opp_sp_boards',oppRoster:'opp_roster',
       tacticoSnapshots:'tactico_snapshots',setpieceSnapshots:'setpiece_snapshots',liveSession:'live_session',
-      playerStats:'player_stats',fpfTimeline:'fpf_timeline',noShow:'no_show'}}
+      playerStats:'player_stats',fpfTimeline:'fpf_timeline',noShow:'no_show',pitchArrows:'pitch_arrows'}}
 };
 // Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
 // console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud
