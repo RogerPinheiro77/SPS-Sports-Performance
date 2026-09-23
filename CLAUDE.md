@@ -1306,3 +1306,43 @@ baixa intensidade). Verificação visual ao vivo não foi feita nesta sessão.
 **Ainda por fazer:** nada pendente para este pedido. Combinado com o Roger:
 confirmar visualmente na app assim que a atualização chegar aos
 dispositivos (Service Worker `sps-v172`).
+
+## sps-v175 (23/09/2026): fix — IMC desaparecia depois de qualquer sync (Avaliações Antropométricas)
+
+Reportado pelo Roger: depois de vários registos de Avaliação Antropométrica
+feitos no dia anterior (22/09, pela nutricionista Teresa Ferreira), o IMC
+deixou de aparecer calculado automaticamente na aba Nutrição.
+
+**Investigação:** confirmado por SQL direto contra a Supabase que o `imc`
+estava sempre bem calculado e bem guardado nos 10 registos de 22/09 — o
+cálculo em `calcBMI()` (oninput de Peso/Altura) e a gravação em
+`saveNutriAval()` nunca tiveram bug. O problema estava em `pullCloud()`: o
+push (`_CLOUD_TABLE_SCHEMA.nutrition_records.rename`) já renomeia
+corretamente `bmi`→`imc` ao gravar na Supabase, mas o mapeamento de leitura
+de `nutrition_records` (dentro do array `pulls`) nunca fazia o inverso
+(`imc`→`bmi`) — só espalhava `...r` (que traz `imc`, nome da coluna) sem
+nunca definir `bmi`, campo que o resto da app lê sempre (tabela de
+Avaliações, KPI do Dashboard, cartão do Plantel, PDFs, "A tua Evolução" na
+app da atleta). Qualquer sync (botão 🔄, reabrir a app, trocar de
+dispositivo, o pull automático no arranque) sobrescrevia
+`APP.nutritionAssessments` com objetos sem `bmi` — por isso o IMC
+desaparecia do ecrã em avaliações antigas e novas, mesmo continuando
+correto na base de dados. Mesma classe de bug já documentada várias vezes
+neste ficheiro (schema de push e mapeamento de pull têm de mudar sempre em
+conjunto, nunca só um lado).
+
+**Fix:** adicionado `bmi:r.imc` ao mapeamento de pull de `nutrition_records`
+em `pullCloud()`.
+
+SW bump para `sps-v175`. Testado: `node --check` ao ficheiro inteiro;
+harness isolado em Node com o mapeamento real extraído do ficheiro,
+confirmando que uma linha vinda da Supabase (com `imc` mas sem `bmi`) passa
+a ter `bmi` legível pela UI depois do fix, e que o mapeamento antigo
+reproduz exatamente o bug reportado (`bmi` fica `undefined`, UI mostraria
+"—"). Não foi feita verificação visual ao vivo nesta sessão — os dados de
+22/09 já confirmam o cálculo/gravação corretos; falta só confirmar
+visualmente que o IMC volta a aparecer depois deste deploy.
+
+**Ainda por fazer:** nada pendente para este fix. Pedir ao Roger para
+confirmar visualmente na aba Nutrição depois da atualização chegar aos
+dispositivos (Service Worker `sps-v175`).
