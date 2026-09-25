@@ -5827,11 +5827,11 @@ function _jogoPreHtml(g){
       <div class="form-g"><label class="fl">Hora de Concentração</label><input class="fc" type="time" id="jp-conc-hora" value="${escHtml(g.concentracaoHora||'')}" onblur="saveJogoField('${g.id}','concentracaoHora',this.value)"></div>
     </div>
     <div class="fr">
-      <div class="form-g"><label class="fl">Hora de Palestra Pré-Aquecimento</label><input class="fc" type="time" id="jp-ppa-hora" value="${escHtml(g.palestraPreAquecimentoHora||'')}" onblur="saveJogoField('${g.id}','palestraPreAquecimentoHora',this.value)"></div>
+      <div class="form-g"><label class="fl">Local de Palestra Pré-Jogo</label><input class="fc" id="jp-ppj-local" value="${escHtml(g.palestraPreJogoLocal||'')}" placeholder="Auditório / Sala / Balneário — antes de equipar" onblur="saveJogoField('${g.id}','palestraPreJogoLocal',this.value)"></div>
+      <div class="form-g"><label class="fl">Hora de Palestra Pré-Jogo</label><input class="fc" type="time" id="jp-ppj-hora" value="${escHtml(g.palestraPreJogoHora||'')}" onblur="saveJogoField('${g.id}','palestraPreJogoHora',this.value)"></div>
     </div>
     <div class="fr">
-      <div class="form-g"><label class="fl">Local de Palestra Pré-Jogo</label><input class="fc" id="jp-ppj-local" value="${escHtml(g.palestraPreJogoLocal||'')}" placeholder="Ex: Balneário" onblur="saveJogoField('${g.id}','palestraPreJogoLocal',this.value)"></div>
-      <div class="form-g"><label class="fl">Hora de Palestra Pré-Jogo</label><input class="fc" type="time" id="jp-ppj-hora" value="${escHtml(g.palestraPreJogoHora||'')}" onblur="saveJogoField('${g.id}','palestraPreJogoHora',this.value)"></div>
+      <div class="form-g"><label class="fl">Hora de Palestra Pré-Aquecimento <span style="opacity:.7;font-weight:400">(balneário, já equipadas)</span></label><input class="fc" type="time" id="jp-ppa-hora" value="${escHtml(g.palestraPreAquecimentoHora||'')}" onblur="saveJogoField('${g.id}','palestraPreAquecimentoHora',this.value)"></div>
     </div>
     <div class="form-g"><label class="fl">Transporte</label><input class="fc" id="jp-transporte" value="${escHtml(g.transporte||'')}" placeholder="Ex: Autocarro, saída às 14h00" onblur="saveJogoField('${g.id}','transporte',this.value)"></div>
     <div class="fr">
@@ -8032,8 +8032,8 @@ function exportJogoPDF(gid,type){
       <p><b>Adversário:</b> ${g.opp} (${haStr})${g.loc?' — '+g.loc:''}</p>
       ${cap?`<p><b>Capitã:</b> ${cap.name}${vc?' &nbsp;|&nbsp; <b>Vice-Capitã:</b> '+vc.name:''}</p>`:''}
       ${g.concentracaoLocal||g.concentracaoHora?`<p><b>Concentração:</b> ${g.concentracaoHora||''} ${g.concentracaoLocal||''}</p>`:''}
-      ${g.palestraPreAquecimentoHora?`<p><b>Palestra Pré-Aquecimento:</b> ${g.palestraPreAquecimentoHora}</p>`:''}
       ${g.palestraPreJogoHora||g.palestraPreJogoLocal?`<p><b>Palestra Pré-Jogo:</b> ${g.palestraPreJogoHora||''} ${g.palestraPreJogoLocal||''}</p>`:''}
+      ${g.palestraPreAquecimentoHora?`<p><b>Palestra Pré-Aquecimento:</b> ${g.palestraPreAquecimentoHora}</p>`:''}
       ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
       ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
       ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
@@ -8142,8 +8142,8 @@ function exportConvocatoriaListPDF(gid){
     <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Lista de Convocados</h2>
     <p><b>Adversário:</b> ${g.opp}${g.loc?' — '+g.loc:''}</p>
     ${g.concentracaoLocal||g.concentracaoHora?`<p><b>Concentração:</b> ${g.concentracaoHora||''} ${g.concentracaoLocal||''}</p>`:''}
-    ${g.palestraPreAquecimentoHora?`<p><b>Palestra Pré-Aquecimento:</b> ${g.palestraPreAquecimentoHora}</p>`:''}
     ${g.palestraPreJogoHora||g.palestraPreJogoLocal?`<p><b>Palestra Pré-Jogo:</b> ${g.palestraPreJogoHora||''} ${g.palestraPreJogoLocal||''}</p>`:''}
+    ${g.palestraPreAquecimentoHora?`<p><b>Palestra Pré-Aquecimento:</b> ${g.palestraPreAquecimentoHora}</p>`:''}
     ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
     ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
     ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
@@ -10904,8 +10904,8 @@ function renderConvocatorias(){
     const selected=[...(c.athletes||[])].map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
     const seen=(c.seenBy||[]);
     const logisticaBits=[c.concentracaoLocal||c.concentracaoHora?`Concentração: ${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim():'',
-      c.palestraPreAquecimentoHora?'Palestra Pré-Aquecimento: '+c.palestraPreAquecimentoHora:'',
       c.palestraPreJogoHora||c.palestraPreJogoLocal?`Palestra Pré-Jogo: ${c.palestraPreJogoHora||''} ${c.palestraPreJogoLocal||''}`.trim():'',
+      c.palestraPreAquecimentoHora?'Palestra Pré-Aquecimento: '+c.palestraPreAquecimentoHora:'',
       c.transporte?'Transporte: '+c.transporte:'',c.refeicaoAntes?'Antes: '+c.refeicaoAntes:'',c.refeicaoApos?'Após: '+c.refeicaoApos:''].filter(Boolean);
     return`<div class="card" style="margin-bottom:12px">
       <div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)} ${game?'vs '+escHtml(game.opp):''}</span>
@@ -15323,10 +15323,10 @@ function _diaJogoTimeline(g){
   items.push({time:null,dom:'nutri',icon:'droplet',title:'Hidratação ao longo da manhã',desc:_djNutriText('hydration')});
   if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffSnack',90)),dom:'nutri',icon:'droplet',title:'Snack ligeiro (se precisares)',desc:_djNutriText('snack')});
   if(conc!=null)items.push({time:_dj_toHHMM(conc),dom:'log',icon:'map-pin',title:'Concentração',desc:`Chegada ao local${g.concentracaoLocal?': '+g.concentracaoLocal:''}. Equipamento, avaliação com a fisio se precisares, ambiente de equipa.`});
-  if(ppa!=null)items.push({time:_dj_toHHMM(ppa),dom:'mental',icon:'message-circle',title:'Palestra Pré-Aquecimento',desc:'Orientações do treinador antes do aquecimento.'});
+  if(ppj!=null)items.push({time:_dj_toHHMM(ppj),dom:'mental',icon:'message-circle',title:'Palestra Pré-Jogo',desc:`Reunião tática, antes de equipar${g.palestraPreJogoLocal?': '+g.palestraPreJogoLocal:''}.`});
+  if(ppa!=null)items.push({time:_dj_toHHMM(ppa),dom:'mental',icon:'message-circle',title:'Palestra Pré-Aquecimento',desc:'Últimas orientações do treinador no balneário, já equipadas, antes de saíres para o aquecimento.'});
   const warm=kickoff!=null?kickoff-_djOff(g,'djOffWarmup',45):(conc!=null?conc+30:null);
   if(warm!=null)items.push({time:_dj_toHHMM(warm),dom:'fisico',icon:'run',title:'Ativação / Aquecimento',desc:'Mobilidade, ativação neuromuscular progressiva, exercícios com bola — segue o protocolo do treinador.'});
-  if(ppj!=null)items.push({time:_dj_toHHMM(ppj),dom:'mental',icon:'message-circle',title:'Palestra Pré-Jogo',desc:`Últimas indicações tácticas do treinador${g.palestraPreJogoLocal?': '+g.palestraPreJogoLocal:''}.`});
   if(kickoff!=null){
     items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffFocus',15)),dom:'mental',icon:'target',title:'Foco final',desc:'Respiração, foco no presente, confiança no trabalho feito. Última hidratação, em pequenos goles.'});
     items.push({time:_dj_toHHMM(kickoff),dom:'jogo',icon:'ball-football',title:'Apito inicial',desc:'Boa sorte! ⚽'});
@@ -16480,8 +16480,8 @@ function renderAtConvoc(){
     // Roger, 25/09/2026): só se sabe que foi convocada, nada sobre composição do onze
     // ou capitania.
     const logistica=[c.concentracaoLocal||c.concentracaoHora?['Concentração',`${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim()]:null,
-      c.palestraPreAquecimentoHora?['Palestra Pré-Aquecimento',c.palestraPreAquecimentoHora]:null,
       c.palestraPreJogoHora||c.palestraPreJogoLocal?['Palestra Pré-Jogo',`${c.palestraPreJogoHora||''} ${c.palestraPreJogoLocal||''}`.trim()]:null,
+      c.palestraPreAquecimentoHora?['Palestra Pré-Aquecimento',c.palestraPreAquecimentoHora]:null,
       c.transporte?['Transporte',c.transporte]:null,c.refeicaoAntes?['Refeição antes',c.refeicaoAntes]:null,c.refeicaoApos?['Refeição após',c.refeicaoApos]:null].filter(Boolean);
     const _r=_rsvpOf(c);
     const _rBadge=_r?(_r.status==='yes'?'<span class="bdg bg-g">✅ Vou</span>':'<span class="bdg bg-r">❌ Não vou</span>'):'<span class="bdg bg-gr">⏳ Por confirmar</span>';

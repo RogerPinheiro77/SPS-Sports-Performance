@@ -1535,3 +1535,43 @@ cronologia base aparece corretamente no Pré-Jogo, na Convocatória e no
 ecrã "Dia de Jogo" da atleta — e avisá-lo do bug das setas do Campo Tático
 encontrado e corrigido de passagem (não pedido por ele, mas do mesmo tipo
 de bug já documentado várias vezes nesta base de código).
+
+## sps-v180 (25/09/2026): fix — ordem da cronologia trocada (Palestra Pré-Jogo é antes da Palestra Pré-Aquecimento)
+
+Correção pedida pelo Roger logo depois do sps-v179: a ordem real do dia de
+jogo é Palestra Pré-Jogo primeiro — em Auditório, Sala ou Balneário (local a
+definir por jogo), **antes** de as atletas equiparem — e só depois a
+Palestra Pré-Aquecimento, já no balneário, com as atletas **já equipadas**,
+imediatamente antes de saírem para o aquecimento. O sps-v179 tinha isto
+trocado (Pré-Aquecimento antes do Aquecimento, Pré-Jogo depois, junto do
+Foco final) — presunção minha errada sobre a rotina real do dia de jogo,
+nunca confirmada com o Roger antes de implementar.
+
+**Fix, mesmos campos/schema do sps-v179 (sem alterações de dados nem de
+cloud — só ordem e texto):**
+- `_jogoPreHtml()`: painel de Logística reordenado — Concentração → Local +
+  Hora de Palestra Pré-Jogo (placeholder atualizado para "Auditório / Sala
+  / Balneário — antes de equipar") → Hora de Palestra Pré-Aquecimento
+  (rótulo com nota "balneário, já equipadas") → Transporte.
+- `_diaJogoTimeline()`: ordem trocada — Concentração → Palestra Pré-Jogo →
+  Palestra Pré-Aquecimento → Ativação/Aquecimento → Foco final → Apito
+  inicial. Descrições ajustadas para refletir a rotina real: Palestra
+  Pré-Jogo passou a "Reunião tática, antes de equipar: [local]"; Palestra
+  Pré-Aquecimento passou a "Últimas orientações do treinador no balneário,
+  já equipadas, antes de saíres para o aquecimento."
+- `exportJogoPDF()`/`exportConvocatoriaListPDF()`: linhas reordenadas
+  (Palestra Pré-Jogo antes de Palestra Pré-Aquecimento).
+- `renderAtConvoc()`/`renderConvocatorias()`: arrays `logistica`/
+  `logisticaBits` reordenadas na mesma sequência.
+
+SW bump para `sps-v180`. Testado: `node --check` ao ficheiro inteiro;
+harness isolado em Node com a ordem corrigida — 12 verificações,
+confirmando a nova ordem cronológica (Concentração < Palestra Pré-Jogo <
+Palestra Pré-Aquecimento < Aquecimento < Foco final), texto de cada
+palestra a refletir equipar/já equipadas, local livre (Auditório/Sala/
+Balneário) a aparecer corretamente na descrição, jogos sem os campos
+continuam sem mostrar nada extra, e ordem correta também nas listas de
+logística da Convocatória. Verificação visual ao vivo não foi feita nesta
+sessão.
+
+**Ainda por fazer:** nada pendente para este fix.
