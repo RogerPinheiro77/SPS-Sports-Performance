@@ -8136,7 +8136,7 @@ function exportConvocatoriaListPDF(gid){
   const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
   const rows=ats.map(a=>{
     const conv=squadSet.has(a.id);
-    return `<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center">${conv?'<span style="color:#16a34a;font-weight:800;font-size:13pt">✓</span>':''}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td></tr>`;
+    return `<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center;width:48px">${conv?'<span style="color:#16a34a;font-weight:800;font-size:13pt">✓</span>':''}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td><td></td></tr>`;
   }).join('');
   const body=`
     <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Lista de Convocados</h2>
@@ -8147,8 +8147,8 @@ function exportConvocatoriaListPDF(gid){
     ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
     ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
     ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
-    <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;margin-top:12px">
-      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th>Nº</th><th>Posição</th><th>Convocada</th><th></th></tr></thead>
+    <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed">
+      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th style="width:30px">Nº</th><th style="width:60px">Posição</th><th style="width:48px;font-size:9pt">Convocada</th><th style="width:36px"></th><th style="width:150px">Assinatura</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p style="margin-top:10px;font-size:9pt;color:#666">Convocadas: ${nConv} de ${ats.length}${cap?' · Capitã: '+cap.name:''}${vc?' · Vice-Capitã: '+vc.name:''}</p>

@@ -1575,3 +1575,35 @@ logística da Convocatória. Verificação visual ao vivo não foi feita nesta
 sessão.
 
 **Ainda por fazer:** nada pendente para este fix.
+
+## sps-v181 (25/09/2026): Lista de Convocados — coluna "Convocada" mais estreita + nova coluna "Assinatura"
+
+Pedido do Roger: no PDF "Lista de Convocados" (Relatórios → Convocatórias),
+ajustar a coluna do visto ("Convocada") para ficar mais estreita, e
+acrescentar uma última coluna para assinatura — para poder imprimir a
+lista e as atletas assinarem para confirmar presença/conhecimento da
+convocatória.
+
+**Fix, só marcação da tabela (sem alterações de dados/lógica):**
+- Tabela passou a `table-layout:fixed` com largura fixa em cada coluna
+  exceto "Nome" (que ocupa o espaço restante): Nº 30px, Posição 60px,
+  **Convocada 48px** (antes sem largura definida — ficava mais larga do
+  que precisava só para um ✓), coluna C/VC 36px, e nova coluna
+  **"Assinatura" 150px**, em branco em todas as linhas (espaço para
+  assinar à mão no papel impresso).
+- `rows` (por atleta) ganhou uma célula vazia extra no final, alinhada com
+  a nova coluna de cabeçalho.
+
+SW bump para `sps-v181`. Testado: `node --check` ao ficheiro inteiro;
+harness isolado em Node com o cabeçalho e uma linha de atleta extraídos do
+ficheiro — 12 verificações: 6 colunas no cabeçalho e em cada linha, última
+coluna é "Assinatura" com 150px, coluna "Convocada" com 48px, célula de
+assinatura sempre vazia (convocada ou não, capitã ou não), visto verde e
+badge C/VC continuam a aparecer nas colunas certas. Verificação visual ao
+vivo do PDF impresso não foi feita nesta sessão.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
+confirmar visualmente a largura das colunas no PDF impresso, depois de
+`sps-v181` chegar aos dispositivos — larguras em pixels podem comportar-se
+de forma levemente diferente entre browsers/impressoras, sem teste
+automático possível para isso a partir daqui.
