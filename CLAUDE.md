@@ -1607,3 +1607,72 @@ confirmar visualmente a largura das colunas no PDF impresso, depois de
 `sps-v181` chegar aos dispositivos — larguras em pixels podem comportar-se
 de forma levemente diferente entre browsers/impressoras, sem teste
 automático possível para isso a partir daqui.
+
+## sps-v182 (25/09/2026): fix — editar local/hora de um evento do Planeamento apagava as confirmações (RSVP) das atletas
+
+Bug reportado pelo Roger: editou só o local de um treino de Ginásio e, ao
+gravar, as confirmações de presença (Vou/Não vou) das atletas que já
+tinham respondido desapareceram. Pedido: "sempre que eu tiver que alterar
+local e hora não quero que elimine as confirmadas".
+
+**Causa:** `saveEvent()` construía sempre um objeto `ev` novo **do zero**,
+só com os campos do próprio formulário de edição (id, teamId, type, title,
+date, time, dur, location, notes, horaConcentracao, localConcentracao,
+guestIds, gymSheet). Ao editar um evento existente, esse objeto substituía
+o registo inteiro em `APP.schedule[i]=ev` — qualquer campo do evento
+original que não estivesse no formulário desaparecia, mesmo que a edição
+fosse só ao local ou à hora. O campo afetado na prática é `rsvp` (mapa
+`{athleteId:{status,reason,respondedAt}}`, escrito por `atGymRsvpYes`/
+`atGymRsvpDeclineConfirm`/`atGymRsvpReset` quando a atleta confirma
+presença num evento de Ginásio — ver `_gymRsvpOf`/`_CLOUD_TABLE_SCHEMA.
+schedule_events`); `createdAt` tinha exatamente o mesmo problema (também
+não fazia parte do formulário), embora sem impacto visível para o Roger.
+Como `saveEvent()` já chama `cloudUpsert('schedule_events',{...ev,...})`
+logo a seguir (desde o fix do feedback_sps_pse_dur_sync_bug, ver comentário
+no código), o objeto incompleto era gravado diretamente na Supabase — a
+perda não era só um glitch local de uma sessão, ficava sincronizada e
+visível em todos os dispositivos depois do próximo pull.
+
+Este é um bug novo/diferente dos incidentes #1-#4 e do sps-v175 (esses
+eram sempre um campo em falta de um dos dois lados de
+`_CLOUD_TABLE_SCHEMA`/`pullCloud()` — schema local e cloud dessincronizados
+depois de um sync). Aqui não há sync nenhum envolvido: o campo já era
+perdido localmente, em memória, no instante em que se clicava em Guardar,
+antes de qualquer chamada à cloud.
+
+**Fix:** em vez de construir `ev` do zero, `saveEvent()` agora começa por
+localizar o evento existente (quando `_editEvId` está definido) e faz
+*spread* desse registo para dentro do novo `ev`, aplicando os campos do
+formulário **por cima**. Assim qualquer campo do registo original que o
+formulário não controla (`rsvp`, `createdAt`, e qualquer campo futuro que
+vier a existir em `schedule_events` sem ter um input dedicado) sobrevive
+intacto a qualquer edição — mesmo padrão de "fundir em vez de deixar um
+registo inteiro ganhar ao outro" já usado em `_mergeConvocatorias()` para
+o bug equivalente nas convocatórias (ver comentário nessa função). Os
+campos que o formulário controla explicitamente (incluindo `gymSheet`,
+que continua a ser anulado quando o tipo deixa de ser "Ginásio") continuam
+a substituir normalmente — não é um merge de tudo, só dos campos que
+ficavam esquecidos. A criação de eventos novos não é afetada (não há
+registo existente para espalhar).
+
+SW bump para `sps-v182`. Testado: `node --check` ao ficheiro inteiro;
+harness isolado em Node com uma réplica do comportamento antigo (para
+confirmar que reproduz exatamente o bug relatado) e do comportamento
+corrigido — 16 verificações: comportamento antigo perde `rsvp` e
+`createdAt` ao editar só o local (confirma a causa); comportamento
+corrigido preserva `rsvp` intacto ao editar local, ao editar hora, e
+mesmo ao mudar o tipo do evento; `createdAt` preservado; campos do
+formulário (local, hora, guestIds, gymSheet) continuam a ser aplicados/
+substituídos normalmente; criação de evento novo não fica com `rsvp`/
+`createdAt` inventados do nada. Verificação visual ao vivo (confirmar
+presença como atleta, editar o evento como treinador, confirmar que a
+resposta continua lá) não foi feita nesta sessão.
+
+**Ainda por fazer:** nada pendente para este fix em código. Ponto aberto:
+como o objeto incompleto já estava a ser gravado na Supabase antes deste
+fix, quem tiver editado um evento de Ginásio com confirmações antes de
+`sps-v182` chegar aos dispositivos pode já ter perdido esses `rsvp` na
+cloud (sem reparação retroativa possível a partir daqui — não há backup
+de `rsvp` antigo para restaurar). Avisar o Roger deste risco e sugerir que,
+se notar confirmações em falta em eventos já editados, terá de pedir às
+atletas para confirmarem de novo.

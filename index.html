@@ -3236,9 +3236,21 @@ async function saveEvent(){
   const title=document.getElementById('ef-title').value.trim();
   const date=document.getElementById('ef-date').value;
   if(!type||!title||!date)return toast('Tipo, título e data obrigatórios','err');
-  const ev={id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim(),guestIds:[..._efGuestIds],gymSheet:type==='Ginásio'?(_efGymSheet||null):null};
-  if(_editEvId){const i=APP.schedule.findIndex(e=>e.id===_editEvId);if(i>=0)APP.schedule[i]=ev;}
-  else{APP.schedule.push(ev);}
+  // pedido do Roger, 25/09/2026: "editei o local de treino no Ginásio e ao gravar
+  // saíram as confirmações das atletas que tinham confirmado" — este `ev` era
+  // sempre construído do zero só com os campos do formulário, e ao editar
+  // substituía o registo inteiro (APP.schedule[i]=ev): qualquer campo do evento
+  // original fora do formulário (rsvp — confirmações Vou/Não vou das atletas no
+  // Ginásio, ver _gymRsvpOf/atGymRsvpYes; e createdAt) desaparecia ao gravar
+  // qualquer edição, mesmo só mudar o local ou a hora. Fix: partir de uma cópia
+  // do evento existente (spread) e só depois aplicar os campos do formulário por
+  // cima — mesmo padrão de "fundir em vez de substituir o registo inteiro" já
+  // usado em _mergeConvocatorias() para o mesmo tipo de bug nas convocatórias.
+  const _evI=_editEvId?APP.schedule.findIndex(e=>e.id===_editEvId):-1;
+  const _evExisting=_evI>=0?APP.schedule[_evI]:null;
+  const ev={..._evExisting,id:_editEvId||uid(),teamId:document.getElementById('ef-team').value,type,title,date,time:document.getElementById('ef-time').value,dur:+document.getElementById('ef-dur').value||null,location:document.getElementById('ef-loc').value,notes:document.getElementById('ef-notes').value,horaConcentracao:document.getElementById('ef-hconc').value,localConcentracao:document.getElementById('ef-locconc').value.trim(),guestIds:[..._efGuestIds],gymSheet:type==='Ginásio'?(_efGymSheet||null):null};
+  if(_evI>=0)APP.schedule[_evI]=ev;
+  else APP.schedule.push(ev);
   // Antes só o ramo de evento novo chamava cloudUpsert — editar um evento existente
   // "corrigia" a vista local mas nunca chegava à Supabase; no refresh seguinte,
   // pullCloud() lia a tabela schedule_events (ainda com os dados antigos) e
