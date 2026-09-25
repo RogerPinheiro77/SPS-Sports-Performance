@@ -1459,3 +1459,79 @@ outra equipa só conta se estiver de facto no onze/banco.
 **Ainda por fazer:** nada pendente para este fix. Fica registada, mas sem
 ação pedida, a atleta fictícia "Teste" (`mso9x6ooc0im`) ainda no plantel de
 T1 — se o Roger confirmar que quer removê-la, é um `deleteAthlete` normal.
+
+## sps-v179 (25/09/2026): Cronologia base do dia de jogo (Palestra Pré-Jogo, Palestra Pré-Aquecimento) reflete na Convocatória
+
+Pedido do Roger: no campo de Logística do Dia de Jogo (separador Pré-Jogo do
+Jogo), queria que a "cronologia base" do dia incluísse, além do que já
+existia, a hora e local de Palestra Pré-Jogo, e a hora de Palestra
+Pré-Aquecimento (sem campo de local, como pedido explicitamente) — e que
+tudo isto se refletisse na Convocatória.
+
+**Campos novos no Jogo:** `palestraPreJogoHora`, `palestraPreJogoLocal`,
+`palestraPreAquecimentoHora` (strings, mesmo padrão de
+`concentracaoHora`/`concentracaoLocal`). Hora e local do Jogo em si
+(`g.time`/`g.loc`) e de Concentração já existiam — não foram duplicados,
+só passaram a aparecer resumidos no topo do painel de Logística ("🗓️
+Cronologia base: Jogo HH:MM · Local"), com nota a apontar para "Info do
+Jogo" onde já se editam.
+
+**Onde foi ligado (mesmo padrão de concentração/transporte/refeição):**
+- `_initG(g)` — valores por omissão ''.
+- `_jogoPreHtml()` — 3 novos inputs no painel "🚌 Logística do Dia de Jogo"
+  (Hora de Palestra Pré-Aquecimento; Local e Hora de Palestra Pré-Jogo),
+  todos a gravar via `saveJogoField()` já existente (chama
+  `_syncConvocatoriaFromGame` automaticamente).
+- `_syncConvocatoriaFromGame(g)` — copia os 3 campos novos para
+  `APP.convocatorias` (o "único sítio para preencher" mantém-se único).
+- `renderAtConvoc()` (app da atleta) e `renderConvocatorias()` (staff) —
+  arrays `logistica`/`logisticaBits` mostram as duas palestras quando
+  preenchidas (Palestra Pré-Jogo aparece mesmo só com local, sem hora).
+- `_diaJogoTimeline()` — dois blocos novos na cronologia da atleta:
+  "Palestra Pré-Aquecimento" (antes do Aquecimento) e "Palestra Pré-Jogo"
+  (depois do Aquecimento, antes do Foco final), cada um só aparece se a
+  respetiva hora estiver preenchida — ordem cronológica: Concentração →
+  Palestra Pré-Aquecimento → Aquecimento → Palestra Pré-Jogo → Foco final
+  → Apito inicial.
+- `exportJogoPDF()` (Ficha Pré-Jogo) e `exportConvocatoriaListPDF()`
+  (Lista de Convocados) — nova linha "Palestra Pré-Aquecimento"/"Palestra
+  Pré-Jogo" junto da linha de Concentração já existente.
+- Cloud: `_CLOUD_TABLE_SCHEMA.games` (3 colunas novas +
+  rename camelCase↔snake_case) e o mapping inverso em `pullCloud()` foram
+  atualizados **juntos**, como sempre exigido nesta base de código (ver
+  incidentes #1-#4) — evita repetir o bug do sps-v175 (campo só num dos
+  dois lados, desaparece depois do primeiro sync). Migração aplicada à
+  tabela `games` no Supabase (`palestra_pre_jogo_hora`,
+  `palestra_pre_jogo_local`, `palestra_pre_aquecimento_hora`, todas texto).
+
+**Bug pré-existente encontrado e corrigido de passagem:** ao rever o
+mapping de `pullCloud()` para `games` (para saber onde inserir os campos
+novos), reparou-se que `pitch_arrows` (setas desenhadas no Campo Tático,
+`g.pitchArrows`) já estava no `_CLOUD_TABLE_SCHEMA.games` (push) e já
+existia como coluna na tabela `games` no Supabase, mas **nunca tinha sido
+lido de volta** em `pullCloud()` — exatamente o mesmo padrão de bug dos
+incidentes #1-#4 (campo só do lado do push). Na prática, qualquer seta
+desenhada no Campo Tático seria perdida no dispositivo que a desenhou logo
+que esse dispositivo fizesse outro pull da cloud (troca de ecrã, refresh,
+etc.), embora fosse gravada corretamente na base de dados. Não foi
+possível determinar quando este campo foi introduzido (sem entrada própria
+neste changelog) nem se o Roger já reparou nisto na prática. Corrigido
+adicionando `pitchArrows:r.pitch_arrows||undefined` ao mapping de
+`pullCloud()`, mesmo padrão dos outros campos JSON dessa tabela
+(`noShow`, `setpieces`, etc.).
+
+SW bump para `sps-v179`. Testado: `node --check` ao ficheiro inteiro;
+harness isolado em Node reproduzindo `_diaJogoTimeline()` e as arrays
+`logistica`/`logisticaBits` com os 3 campos novos — 15 verificações,
+incluindo ordem cronológica correta dos dois blocos novos face a
+Concentração/Aquecimento/Foco final, jogos antigos sem os campos novos não
+mostram nada extra nem rebentam, e Palestra Pré-Jogo aparece na lista de
+logística mesmo só com local (sem hora). Verificação visual ao vivo (app
+real, depois do Service Worker atualizar) não foi feita nesta sessão.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
+confirmar visualmente, depois de `sps-v179` chegar aos dispositivos, que a
+cronologia base aparece corretamente no Pré-Jogo, na Convocatória e no
+ecrã "Dia de Jogo" da atleta — e avisá-lo do bug das setas do Campo Tático
+encontrado e corrigido de passagem (não pedido por ele, mas do mesmo tipo
+de bug já documentado várias vezes nesta base de código).

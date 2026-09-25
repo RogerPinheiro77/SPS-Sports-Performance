@@ -4532,6 +4532,14 @@ function _initG(g){
   if(!g.setpieces)g.setpieces={corners:'',freeKicks:'',penalty:''};
   if(g.concentracaoLocal===undefined)g.concentracaoLocal='';
   if(g.concentracaoHora===undefined)g.concentracaoHora='';
+  // Cronologia base do dia de jogo — Palestra Pré-Jogo (hora+local) e Palestra
+  // Pré-Aquecimento (só hora, pedido explícito do Roger, 25/09/2026: "horario de
+  // palestra pré aquecimento", sem campo de local). Junta-se a g.time/g.loc (jogo)
+  // e g.concentracaoHora/g.concentracaoLocal, já existentes, para formar a
+  // cronologia completa mostrada no Pré-Jogo, na Convocatória e no Dia de Jogo.
+  if(g.palestraPreJogoHora===undefined)g.palestraPreJogoHora='';
+  if(g.palestraPreJogoLocal===undefined)g.palestraPreJogoLocal='';
+  if(g.palestraPreAquecimentoHora===undefined)g.palestraPreAquecimentoHora='';
   if(g.transporte===undefined)g.transporte='';
   if(g.refeicaoAntes===undefined)g.refeicaoAntes='';
   if(g.refeicaoApos===undefined)g.refeicaoApos='';
@@ -4594,7 +4602,10 @@ function _syncConvocatoriaFromGame(g){
   const data={teamId:g.teamId,date:g.date,notes:'vs '+g.opp,athletes:[...g.convocatoria],
     lineup:[...g.lineup],subs:[...g.subs],captain:g.captain,viceCaptain:g.viceCaptain,formation:g.formation,
     concentracaoLocal:g.concentracaoLocal,concentracaoHora:g.concentracaoHora,transporte:g.transporte,
-    refeicaoAntes:g.refeicaoAntes,refeicaoApos:g.refeicaoApos,publishAt:g.convocatoriaPublishAt||''};
+    refeicaoAntes:g.refeicaoAntes,refeicaoApos:g.refeicaoApos,
+    palestraPreJogoHora:g.palestraPreJogoHora,palestraPreJogoLocal:g.palestraPreJogoLocal,
+    palestraPreAquecimentoHora:g.palestraPreAquecimentoHora,
+    publishAt:g.convocatoriaPublishAt||''};
   if(i>=0){Object.assign(APP.convocatorias[i],data);}
   else{APP.convocatorias.push({id:uid(),gameId:g.id,seenBy:[],...data});}
 }
@@ -5810,9 +5821,17 @@ function _jogoPreHtml(g){
   </div>
   <div class="ipanel" style="margin-bottom:12px">
     <div class="sh-t" style="font-size:15px;margin-bottom:12px">🚌 Logística do Dia de Jogo</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">🗓️ Cronologia base: <b>Jogo</b> ${g.time?escHtml(g.time):'—'}${g.loc?' · '+escHtml(g.loc):''} <span style="opacity:.7">(edita em "Info do Jogo")</span></div>
     <div class="fr">
       <div class="form-g"><label class="fl">Local de Concentração</label><input class="fc" id="jp-conc-local" value="${escHtml(g.concentracaoLocal||'')}" placeholder="Ex: Complexo Desportivo" onblur="saveJogoField('${g.id}','concentracaoLocal',this.value)"></div>
       <div class="form-g"><label class="fl">Hora de Concentração</label><input class="fc" type="time" id="jp-conc-hora" value="${escHtml(g.concentracaoHora||'')}" onblur="saveJogoField('${g.id}','concentracaoHora',this.value)"></div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Hora de Palestra Pré-Aquecimento</label><input class="fc" type="time" id="jp-ppa-hora" value="${escHtml(g.palestraPreAquecimentoHora||'')}" onblur="saveJogoField('${g.id}','palestraPreAquecimentoHora',this.value)"></div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Local de Palestra Pré-Jogo</label><input class="fc" id="jp-ppj-local" value="${escHtml(g.palestraPreJogoLocal||'')}" placeholder="Ex: Balneário" onblur="saveJogoField('${g.id}','palestraPreJogoLocal',this.value)"></div>
+      <div class="form-g"><label class="fl">Hora de Palestra Pré-Jogo</label><input class="fc" type="time" id="jp-ppj-hora" value="${escHtml(g.palestraPreJogoHora||'')}" onblur="saveJogoField('${g.id}','palestraPreJogoHora',this.value)"></div>
     </div>
     <div class="form-g"><label class="fl">Transporte</label><input class="fc" id="jp-transporte" value="${escHtml(g.transporte||'')}" placeholder="Ex: Autocarro, saída às 14h00" onblur="saveJogoField('${g.id}','transporte',this.value)"></div>
     <div class="fr">
@@ -8013,6 +8032,8 @@ function exportJogoPDF(gid,type){
       <p><b>Adversário:</b> ${g.opp} (${haStr})${g.loc?' — '+g.loc:''}</p>
       ${cap?`<p><b>Capitã:</b> ${cap.name}${vc?' &nbsp;|&nbsp; <b>Vice-Capitã:</b> '+vc.name:''}</p>`:''}
       ${g.concentracaoLocal||g.concentracaoHora?`<p><b>Concentração:</b> ${g.concentracaoHora||''} ${g.concentracaoLocal||''}</p>`:''}
+      ${g.palestraPreAquecimentoHora?`<p><b>Palestra Pré-Aquecimento:</b> ${g.palestraPreAquecimentoHora}</p>`:''}
+      ${g.palestraPreJogoHora||g.palestraPreJogoLocal?`<p><b>Palestra Pré-Jogo:</b> ${g.palestraPreJogoHora||''} ${g.palestraPreJogoLocal||''}</p>`:''}
       ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
       ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
       ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
@@ -8121,6 +8142,8 @@ function exportConvocatoriaListPDF(gid){
     <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Lista de Convocados</h2>
     <p><b>Adversário:</b> ${g.opp}${g.loc?' — '+g.loc:''}</p>
     ${g.concentracaoLocal||g.concentracaoHora?`<p><b>Concentração:</b> ${g.concentracaoHora||''} ${g.concentracaoLocal||''}</p>`:''}
+    ${g.palestraPreAquecimentoHora?`<p><b>Palestra Pré-Aquecimento:</b> ${g.palestraPreAquecimentoHora}</p>`:''}
+    ${g.palestraPreJogoHora||g.palestraPreJogoLocal?`<p><b>Palestra Pré-Jogo:</b> ${g.palestraPreJogoHora||''} ${g.palestraPreJogoLocal||''}</p>`:''}
     ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
     ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
     ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
@@ -10880,7 +10903,10 @@ function renderConvocatorias(){
     const game=APP.games.find(g=>g.id===c.gameId);
     const selected=[...(c.athletes||[])].map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
     const seen=(c.seenBy||[]);
-    const logisticaBits=[c.concentracaoLocal||c.concentracaoHora?`Concentração: ${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim():'',c.transporte?'Transporte: '+c.transporte:'',c.refeicaoAntes?'Antes: '+c.refeicaoAntes:'',c.refeicaoApos?'Após: '+c.refeicaoApos:''].filter(Boolean);
+    const logisticaBits=[c.concentracaoLocal||c.concentracaoHora?`Concentração: ${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim():'',
+      c.palestraPreAquecimentoHora?'Palestra Pré-Aquecimento: '+c.palestraPreAquecimentoHora:'',
+      c.palestraPreJogoHora||c.palestraPreJogoLocal?`Palestra Pré-Jogo: ${c.palestraPreJogoHora||''} ${c.palestraPreJogoLocal||''}`.trim():'',
+      c.transporte?'Transporte: '+c.transporte:'',c.refeicaoAntes?'Antes: '+c.refeicaoAntes:'',c.refeicaoApos?'Após: '+c.refeicaoApos:''].filter(Boolean);
     return`<div class="card" style="margin-bottom:12px">
       <div class="ch"><span class="ct">📋 ${c.notes||fmtDate(c.date)} ${game?'vs '+escHtml(game.opp):''}</span>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -15289,6 +15315,7 @@ function _dj_toHHMM(m){if(m==null)return null;m=((m%1440)+1440)%1440;return Stri
 function _djOff(g,field,def){const v=parseInt(g[field],10);return isNaN(v)?def:v;}
 function _diaJogoTimeline(g){
   const kickoff=_dj_toMin(g.time),conc=_dj_toMin(g.concentracaoHora);
+  const ppa=_dj_toMin(g.palestraPreAquecimentoHora),ppj=_dj_toMin(g.palestraPreJogoHora);
   const items=[];
   items.push({time:null,dom:'nutri',icon:'coffee',title:'Ao acordar',desc:_djNutriText('wake')});
   items.push({time:null,dom:'mental',icon:'brain',title:'Ativação mental',desc:'Reserva uns minutos para visualizar o jogo: o teu papel, os pontos fortes a explorar, como queres sentir-te em campo.'});
@@ -15296,8 +15323,10 @@ function _diaJogoTimeline(g){
   items.push({time:null,dom:'nutri',icon:'droplet',title:'Hidratação ao longo da manhã',desc:_djNutriText('hydration')});
   if(kickoff!=null)items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffSnack',90)),dom:'nutri',icon:'droplet',title:'Snack ligeiro (se precisares)',desc:_djNutriText('snack')});
   if(conc!=null)items.push({time:_dj_toHHMM(conc),dom:'log',icon:'map-pin',title:'Concentração',desc:`Chegada ao local${g.concentracaoLocal?': '+g.concentracaoLocal:''}. Equipamento, avaliação com a fisio se precisares, ambiente de equipa.`});
+  if(ppa!=null)items.push({time:_dj_toHHMM(ppa),dom:'mental',icon:'message-circle',title:'Palestra Pré-Aquecimento',desc:'Orientações do treinador antes do aquecimento.'});
   const warm=kickoff!=null?kickoff-_djOff(g,'djOffWarmup',45):(conc!=null?conc+30:null);
   if(warm!=null)items.push({time:_dj_toHHMM(warm),dom:'fisico',icon:'run',title:'Ativação / Aquecimento',desc:'Mobilidade, ativação neuromuscular progressiva, exercícios com bola — segue o protocolo do treinador.'});
+  if(ppj!=null)items.push({time:_dj_toHHMM(ppj),dom:'mental',icon:'message-circle',title:'Palestra Pré-Jogo',desc:`Últimas indicações tácticas do treinador${g.palestraPreJogoLocal?': '+g.palestraPreJogoLocal:''}.`});
   if(kickoff!=null){
     items.push({time:_dj_toHHMM(kickoff-_djOff(g,'djOffFocus',15)),dom:'mental',icon:'target',title:'Foco final',desc:'Respiração, foco no presente, confiança no trabalho feito. Última hidratação, em pequenos goles.'});
     items.push({time:_dj_toHHMM(kickoff),dom:'jogo',icon:'ball-football',title:'Apito inicial',desc:'Boa sorte! ⚽'});
@@ -16450,7 +16479,10 @@ function renderAtConvoc(){
     // Titular/Suplente/Capitã/Vice-Capitã NUNCA aparecem à atleta aqui (pedido do
     // Roger, 25/09/2026): só se sabe que foi convocada, nada sobre composição do onze
     // ou capitania.
-    const logistica=[c.concentracaoLocal||c.concentracaoHora?['Concentração',`${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim()]:null,c.transporte?['Transporte',c.transporte]:null,c.refeicaoAntes?['Refeição antes',c.refeicaoAntes]:null,c.refeicaoApos?['Refeição após',c.refeicaoApos]:null].filter(Boolean);
+    const logistica=[c.concentracaoLocal||c.concentracaoHora?['Concentração',`${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim()]:null,
+      c.palestraPreAquecimentoHora?['Palestra Pré-Aquecimento',c.palestraPreAquecimentoHora]:null,
+      c.palestraPreJogoHora||c.palestraPreJogoLocal?['Palestra Pré-Jogo',`${c.palestraPreJogoHora||''} ${c.palestraPreJogoLocal||''}`.trim()]:null,
+      c.transporte?['Transporte',c.transporte]:null,c.refeicaoAntes?['Refeição antes',c.refeicaoAntes]:null,c.refeicaoApos?['Refeição após',c.refeicaoApos]:null].filter(Boolean);
     const _r=_rsvpOf(c);
     const _rBadge=_r?(_r.status==='yes'?'<span class="bdg bg-g">✅ Vou</span>':'<span class="bdg bg-r">❌ Não vou</span>'):'<span class="bdg bg-gr">⏳ Por confirmar</span>';
     return`<div class="card" style="margin-bottom:10px">
@@ -16764,6 +16796,8 @@ async function pullCloud(){
           preGameNotes:r.pre_game_notes,postGameNotes:r.post_game_notes,fpfUrl:r.fpf_url,
           concentracaoLocal:r.concentracao_local,concentracaoHora:r.concentracao_hora,transporte:r.transporte,
           refeicaoAntes:r.refeicao_antes,refeicaoApos:r.refeicao_apos,
+          palestraPreJogoHora:r.palestra_pre_jogo_hora,palestraPreJogoLocal:r.palestra_pre_jogo_local,
+          palestraPreAquecimentoHora:r.palestra_pre_aquecimento_hora,
           convocatoriaPublishAt:r.convocatoria_publish_at,convocatoriaLaunched:!!r.convocatoria_launched,
           djOffMeal:r.dj_off_meal,djOffSnack:r.dj_off_snack,djOffWarmup:r.dj_off_warmup,djOffFocus:r.dj_off_focus,
           djDurJogo:r.dj_dur_jogo,djNota:r.dj_nota,
@@ -16774,7 +16808,7 @@ async function pullCloud(){
           oppTactical:r.opp_tactical||undefined,oppSPBoards:r.opp_sp_boards||undefined,oppRoster:r.opp_roster||undefined,
           tacticoSnapshots:r.tactico_snapshots||undefined,setpieceSnapshots:r.setpiece_snapshots||undefined,
           liveSession:r.live_session||undefined,playerStats:r.player_stats||undefined,
-          fpfTimeline:r.fpf_timeline||undefined,noShow:r.no_show||undefined
+          fpfTimeline:r.fpf_timeline||undefined,noShow:r.no_show||undefined,pitchArrows:r.pitch_arrows||undefined
         }));
         const atRisk=_gdLiveGamesAtRisk();
         if(atRisk.length){
@@ -17086,6 +17120,7 @@ const _CLOUD_TABLE_SCHEMA={
   games:{cols:['id','team_id','opp','date','time','ha','loc','tipo','comp','status','g1','g2','notes','opp_logo','event_id',
     'formation','captain','vice_captain','opp_formation','opp_strengths','opp_weaknesses','opp_set_pieces','opp_scout_link',
     'pre_game_notes','post_game_notes','fpf_url','concentracao_local','concentracao_hora','transporte','refeicao_antes','refeicao_apos',
+    'palestra_pre_jogo_hora','palestra_pre_jogo_local','palestra_pre_aquecimento_hora',
     'convocatoria_publish_at','convocatoria_launched','dj_off_meal','dj_off_snack','dj_off_warmup','dj_off_focus','dj_dur_jogo','dj_nota',
     'convocatoria','lineup','subs','player_positions','player_tasks','setpiece_positions','setpiece_tasks','pitch_notes','setpieces',
     'opp_tactical','opp_sp_boards','opp_roster','tactico_snapshots','setpiece_snapshots','live_session','player_stats','fpf_timeline','no_show','pitch_arrows'],
@@ -17093,6 +17128,8 @@ const _CLOUD_TABLE_SCHEMA={
       oppStrengths:'opp_strengths',oppWeaknesses:'opp_weaknesses',oppSetPieces:'opp_set_pieces',oppScoutLink:'opp_scout_link',
       preGameNotes:'pre_game_notes',postGameNotes:'post_game_notes',fpfUrl:'fpf_url',concentracaoLocal:'concentracao_local',
       concentracaoHora:'concentracao_hora',refeicaoAntes:'refeicao_antes',refeicaoApos:'refeicao_apos',
+      palestraPreJogoHora:'palestra_pre_jogo_hora',palestraPreJogoLocal:'palestra_pre_jogo_local',
+      palestraPreAquecimentoHora:'palestra_pre_aquecimento_hora',
       convocatoriaPublishAt:'convocatoria_publish_at',convocatoriaLaunched:'convocatoria_launched',djOffMeal:'dj_off_meal',
       djOffSnack:'dj_off_snack',djOffWarmup:'dj_off_warmup',djOffFocus:'dj_off_focus',djDurJogo:'dj_dur_jogo',djNota:'dj_nota',
       playerPositions:'player_positions',playerTasks:'player_tasks',setpiecePositions:'setpiece_positions',setpieceTasks:'setpiece_tasks',
