@@ -8085,8 +8085,12 @@ function exportJogoPDF(gid,type){
         <p style="margin:6px 0 0;font-size:14px;color:#555">${g.opp} • ${dateStr}${comp}${g.loc?' • '+g.loc:''}</p>
       </div>${body}</div>`);
 }
-// Lista de Convocados simples (ordem alfabética) — para afixar/entregar, distinta
-// da Ficha Pré-Jogo tática (que mantém a ordem do onze/formação).
+// Lista de Convocados (ordem alfabética) — para afixar/entregar, distinta
+// da Ficha Pré-Jogo tática (que mantém a ordem do onze/formação). Mostra o
+// plantel completo da equipa (+ convocadas de outra equipa, se houver), com
+// um visto verde nas convocadas — pedido do Roger, 25/09/2026: antes só
+// listava quem tinha sido convocada, agora fica visível também quem NÃO foi,
+// o que é mais fácil de afixar/conferir do que uma lista só de "sins".
 function exportConvocatoriaListPDF(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
   _initG(g);
@@ -8094,10 +8098,17 @@ function exportConvocatoriaListPDF(gid){
   const club=APP.config.clubName||'Clube';
   const dateStr=fmtDate(g.date)+(g.time?' '+g.time.slice(0,5):'');
   const comp=g.comp?' — '+g.comp:'';
-  const ats=g.convocatoria.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const convSet=new Set(g.convocatoria);
+  const ownAthletes=APP.athletes.filter(a=>a.teamId===g.teamId);
+  const guestAthletes=APP.athletes.filter(a=>a.teamId!==g.teamId&&convSet.has(a.id));
+  const ats=[...ownAthletes,...guestAthletes].sort((a,b)=>a.name.localeCompare(b.name));
+  const nConv=ats.filter(a=>convSet.has(a.id)).length;
   const cap=APP.athletes.find(a=>a.id===g.captain);
   const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
-  const rows=ats.map(a=>`<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td></tr>`).join('');
+  const rows=ats.map(a=>{
+    const conv=convSet.has(a.id);
+    return `<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center">${conv?'<span style="color:#16a34a;font-weight:800;font-size:13pt">✓</span>':''}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td></tr>`;
+  }).join('');
   const body=`
     <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Lista de Convocados</h2>
     <p><b>Adversário:</b> ${g.opp}${g.loc?' — '+g.loc:''}</p>
@@ -8106,10 +8117,10 @@ function exportConvocatoriaListPDF(gid){
     ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
     ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
     <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;margin-top:12px">
-      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th>Nº</th><th>Posição</th><th></th></tr></thead>
+      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th>Nº</th><th>Posição</th><th>Convocada</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="margin-top:10px;font-size:9pt;color:#666">Total: ${ats.length} convocadas${cap?' · Capitã: '+cap.name:''}${vc?' · Vice-Capitã: '+vc.name:''}</p>
+    <p style="margin-top:10px;font-size:9pt;color:#666">Convocadas: ${nConv} de ${ats.length}${cap?' · Capitã: '+cap.name:''}${vc?' · Vice-Capitã: '+vc.name:''}</p>
   `;
   _printWin(`Lista de Convocados — ${g.opp} ${dateStr}`,
     `<div style="font-family:Arial,sans-serif;padding:20px">
@@ -13612,7 +13623,7 @@ function renderRelatorios(){
       <div class="form-g"><label class="fl">Jogo</label>
         <select class="fc" id="rep-conv-game">${APP.games.filter(g=>g.convocatoria&&g.convocatoria.length).sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`<option value="${g.id}">${fmtDate(g.date)} vs ${escHtml(g.opp)}</option>`).join('')||'<option value="">Sem jogos com convocatória</option>'}</select>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Dois formatos: lista simples em ordem alfabética (para afixar/entregar) ou ficha tática com 11 inicial, suplentes, capitã e logística.</div>
+      <div style="margin-top:10px;font-size:11px;color:var(--t2)">Dois formatos: plantel completo em ordem alfabética com visto verde nas convocadas (para afixar/entregar) ou ficha tática com 11 inicial, suplentes, capitã e logística.</div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="btn btn-g btn-sm" onclick="exportConvocatoriaListPDF(document.getElementById('rep-conv-game').value)">🖨️ Lista de Convocados</button>
         <button class="btn btn-gh btn-sm" onclick="exportJogoPDF(document.getElementById('rep-conv-game').value,'prejogo')">🖨️ Ficha de Jogo (tática)</button>

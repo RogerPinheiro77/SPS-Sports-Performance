@@ -1378,3 +1378,39 @@ Não foi feita verificação visual ao vivo nesta sessão.
 **Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
 confirmar visualmente na app da atleta (ecrã Convocatórias) depois da
 atualização chegar aos dispositivos (Service Worker `sps-v176`).
+
+## sps-v177 (25/09/2026): Lista de Convocados (Relatórios) passa a mostrar o plantel todo, com visto verde
+
+Pedido do Roger: na aba Relatórios → Convocatórias → "Lista de Convocados",
+quer ver todas as atletas do plantel, com as convocadas marcadas com um
+visto verde — em vez da lista antiga, que só mostrava quem tinha sido
+convocada (ordem alfabética das convocadas, sem ninguém de fora). Testado
+com o jogo real deste domingo (27/09, vs Destreza Aventura, `g_cnf_1_f_j1`)
+confirmado por SQL: 23 convocadas de um plantel de 23 (T1) — a app está a
+usar o mesmo jogo/convocatória já feita pelo Roger.
+
+**Fix:** `exportConvocatoriaListPDF()` passou a construir a lista a partir
+de `APP.athletes.filter(a=>a.teamId===g.teamId)` (todo o plantel da equipa
+do jogo, mesmo padrão já usado no ecrã de montagem da convocatória,
+`renderJogoPreJogo`) mais qualquer convocada de outra equipa
+(`guestAthletes`, mesmo conceito dos "guests" já usados nessa mesma tela) —
+nunca só as convocadas. Nova coluna "Convocada" na tabela com um ✓ verde
+(`#16a34a`) só nas linhas convocadas; quem não foi convocada fica com a
+célula em branco (sem "✗" vermelho — o pedido foi só marcar as convocadas).
+Rodapé mudou de "Total: N convocadas" para "Convocadas: N de M" (M = total
+do plantel + guests). Coluna C/VC (capitã/vice-capitã) mantida sem
+alterações — é um relatório para a equipa técnica, fora do âmbito do pedido
+anterior do Roger (sps-v176) de tirar essa informação da app da atleta.
+
+SW bump para `sps-v177`. Testado: `node --check` ao ficheiro inteiro;
+harness isolado em Node com a lógica de construção da lista extraída do
+ficheiro — plantel completo aparece mesmo com só parte convocada, ordem
+alfabética correta, contagem de convocadas certa, convocada de outra
+equipa (guest) entra na lista e conta, e atleta de outra equipa que não foi
+convocada nunca aparece. Confirmado por SQL o estado real do jogo de
+domingo (23/23 convocadas); verificação visual ao vivo do PDF em si não
+foi feita nesta sessão.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
+confirmar visualmente o PDF depois da atualização chegar aos dispositivos
+(Service Worker `sps-v177`).
