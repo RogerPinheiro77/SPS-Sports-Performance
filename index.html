@@ -8091,6 +8091,14 @@ function exportJogoPDF(gid,type){
 // um visto verde nas convocadas — pedido do Roger, 25/09/2026: antes só
 // listava quem tinha sido convocada, agora fica visível também quem NÃO foi,
 // o que é mais fácil de afixar/conferir do que uma lista só de "sins".
+//
+// "Convocada" aqui = está no onze inicial ou nos suplentes (g.lineup/g.subs),
+// NUNCA o array bruto g.convocatoria. Correção pedida pelo Roger no mesmo
+// dia: g.convocatoria é só o "banco de candidatas" a partir do qual se monta
+// o onze/suplentes no Pré-Jogo (pode ficar com nomes por afinar que nunca
+// chegaram a onze/banco — inclui inclusive uma atleta "Teste" fictícia,
+// deixada no plantel de outra tarefa) — o que o Pré-Jogo mostra como
+// convocação final, e o que o Roger considera correto, é sempre onze+banco.
 function exportConvocatoriaListPDF(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
   _initG(g);
@@ -8098,15 +8106,15 @@ function exportConvocatoriaListPDF(gid){
   const club=APP.config.clubName||'Clube';
   const dateStr=fmtDate(g.date)+(g.time?' '+g.time.slice(0,5):'');
   const comp=g.comp?' — '+g.comp:'';
-  const convSet=new Set(g.convocatoria);
+  const squadSet=new Set([...g.lineup,...g.subs]);
   const ownAthletes=APP.athletes.filter(a=>a.teamId===g.teamId);
-  const guestAthletes=APP.athletes.filter(a=>a.teamId!==g.teamId&&convSet.has(a.id));
+  const guestAthletes=APP.athletes.filter(a=>a.teamId!==g.teamId&&squadSet.has(a.id));
   const ats=[...ownAthletes,...guestAthletes].sort((a,b)=>a.name.localeCompare(b.name));
-  const nConv=ats.filter(a=>convSet.has(a.id)).length;
+  const nConv=ats.filter(a=>squadSet.has(a.id)).length;
   const cap=APP.athletes.find(a=>a.id===g.captain);
   const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
   const rows=ats.map(a=>{
-    const conv=convSet.has(a.id);
+    const conv=squadSet.has(a.id);
     return `<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center">${conv?'<span style="color:#16a34a;font-weight:800;font-size:13pt">✓</span>':''}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td></tr>`;
   }).join('');
   const body=`

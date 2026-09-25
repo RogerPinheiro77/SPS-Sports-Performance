@@ -1414,3 +1414,48 @@ foi feita nesta sessão.
 **Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
 confirmar visualmente o PDF depois da atualização chegar aos dispositivos
 (Service Worker `sps-v177`).
+
+## sps-v178 (25/09/2026): fix — Lista de Convocados usava o array errado (g.convocatoria em vez de onze+banco)
+
+Reportado pelo Roger logo depois do sps-v177: no jogo vs Destreza Aventura
+(27/09), a Lista de Convocados marcava com visto atletas que ele **não**
+convocou. Ele confirmou que o separador Jogo → Pré-Jogo mostra a informação
+certa, e pediu para a lista nova partir dessa mesma fonte.
+
+**Investigação:** confirmado por SQL que `games.convocatoria` (o array bruto)
+tinha as 23 atletas do plantel de T1 — incluindo `mso9x6ooc0im`, uma atleta
+fictícia "Teste" deixada no plantel de uma sessão de trabalho anterior (usada
+para gerar exemplos de PDF, ver entrada "Manual_SPS_Nutricao.pdf" acima) e
+nunca removida. Mas `games.lineup` (11) + `games.subs` (9) = só 20 nomes —
+faltavam exatamente as 3 atletas que o Roger disse que não tinha convocado
+(confirmado por SQL: `mso9x6ooc0im`/"Teste", mais outras 2 da 1ª fase da
+convocatória que nunca chegaram a onze/banco). `g.convocatoria` funciona, na
+prática, como um "banco de candidatas" a partir do qual se monta o onze/
+suplentes no Pré-Jogo (`toggleConvocado` só liga o checkbox; `setStarter`/
+`setSub` é que atribuem de facto o papel) — nunca encolhe automaticamente
+quando uma candidata acaba por não ser usada. O sps-v177 tinha lido esse
+array bruto como "convocada", em vez do que o Pré-Jogo mostra como
+convocação final (onze+banco) — daí o visto a aparecer em quem não devia.
+
+**Fix:** `exportConvocatoriaListPDF()` passou a marcar "convocada" com
+`new Set([...g.lineup,...g.subs])`, nunca `g.convocatoria`. A lista de quem
+aparece no relatório (plantel completo + convocadas de outra equipa)
+também passou a basear-se nesse conjunto em vez do array bruto — uma
+convocada avulsa de outra equipa só entra na lista se estiver de facto no
+onze ou no banco, não só marcada como candidata. Sem alterações a
+`g.convocatoria`/`_syncConvocatoriaFromGame`/à app da atleta — o pedido era
+só sobre este relatório; a atleta "Teste" fictícia e as outras candidatas
+por afinar continuam no "banco" (não removidas da base de dados), só
+deixaram de aparecer com visto neste PDF.
+
+SW bump para `sps-v178`. Testado: `node --check` ao ficheiro inteiro;
+harness isolado em Node reproduzindo o caso real reportado (23 no plantel,
+20 em onze+banco, incluindo a atleta "Teste" fictícia) — confirma que só as
+20 de onze+banco ficam marcadas, as 3 fora do onze/banco (incl. "Teste")
+nunca aparecem com visto mesmo estando em `g.convocatoria`; convocatória em
+rascunho sem onze/banco definido não marca ninguém; convocada avulsa de
+outra equipa só conta se estiver de facto no onze/banco.
+
+**Ainda por fazer:** nada pendente para este fix. Fica registada, mas sem
+ação pedida, a atleta fictícia "Teste" (`mso9x6ooc0im`) ainda no plantel de
+T1 — se o Roger confirmar que quer removê-la, é um `deleteAthlete` normal.
