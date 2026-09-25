@@ -7,6 +7,7 @@ backups/
 # materiais de divulgação) — ficam só nesta pasta, não fazem parte do código da
 # plataforma. Podem passar a versionados a qualquer momento, bastar remover a
 # linha correspondente daqui e fazer git add.
+Calendario_1a_Fase_Atletas.pdf
 Guia_App_Atleta_SPS.pdf
 Manual_SPS_Gameday.pdf
 Manual_SPS_Ginasio.pdf
