@@ -16428,9 +16428,9 @@ function renderAtConvoc(){
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-clipboard-list" style="margin-right:6px;vertical-align:-3px;color:#2dd4bf" aria-hidden="true"></i>Convocatórias</div>
   ${convs.length?convs.map(c=>{
     const g=APP.games.find(x=>x.id===c.gameId);
-    const isStarter=g&&g.lineup&&g.lineup.includes(AID);
-    const isSub=g&&g.subs&&g.subs.includes(AID);
-    const isCap=g&&g.captain===AID,isVc=g&&g.viceCaptain===AID;
+    // Titular/Suplente/Capitã/Vice-Capitã NUNCA aparecem à atleta aqui (pedido do
+    // Roger, 25/09/2026): só se sabe que foi convocada, nada sobre composição do onze
+    // ou capitania.
     const logistica=[c.concentracaoLocal||c.concentracaoHora?['Concentração',`${c.concentracaoHora||''} ${c.concentracaoLocal||''}`.trim()]:null,c.transporte?['Transporte',c.transporte]:null,c.refeicaoAntes?['Refeição antes',c.refeicaoAntes]:null,c.refeicaoApos?['Refeição após',c.refeicaoApos]:null].filter(Boolean);
     const _r=_rsvpOf(c);
     const _rBadge=_r?(_r.status==='yes'?'<span class="bdg bg-g">✅ Vou</span>':'<span class="bdg bg-r">❌ Não vou</span>'):'<span class="bdg bg-gr">⏳ Por confirmar</span>';
@@ -16439,10 +16439,6 @@ function renderAtConvoc(){
       <div class="cb" style="padding:12px 14px">
         ${g?`<div style="font-size:14px;font-weight:800;margin-bottom:4px">vs ${escHtml(g.opp)}</div>
         <div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}${g.time?' · '+g.time:''}${g.loc?' · '+escHtml(g.loc):''}</div>`:`<div style="font-size:11px;color:var(--t2)">${fmtDate(c.date)}</div>`}
-        ${isStarter||isSub||isCap||isVc?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-          ${isStarter?'<span class="bdg bg-g">Titular</span>':isSub?'<span class="bdg bg-y">Suplente</span>':''}
-          ${isCap?'<span class="bdg bg-b">Capitã</span>':isVc?'<span class="bdg bg-b">Vice-Capitã</span>':''}
-        </div>`:''}
         ${logistica.length?`<div style="margin-top:10px;font-size:11px;color:var(--t2)">${logistica.map(([l,v])=>`<div><strong>${l}:</strong> ${escHtml(v)}</div>`).join('')}</div>`:''}
         ${(c.notes&&!(g&&c.notes==='vs '+g.opp))?`<div class="al al-b" style="margin-top:8px;font-size:11px">${escHtml(c.notes)}</div>`:''}
         ${_rsvpBlockHtml(c)}

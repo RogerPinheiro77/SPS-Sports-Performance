@@ -1346,3 +1346,35 @@ visualmente que o IMC volta a aparecer depois deste deploy.
 **Ainda por fazer:** nada pendente para este fix. Pedir ao Roger para
 confirmar visualmente na aba Nutrição depois da atualização chegar aos
 dispositivos (Service Worker `sps-v175`).
+
+## sps-v176 (25/09/2026): tirar Titular/Suplente da app da atleta na Convocatória
+
+Pedido do Roger: na aba Jogo → Convocatória, quando faz a convocatória e
+define o onze, quer que as atletas recebam na app só se foram convocadas ou
+não — sem menção a estarem no onze inicial ou nos suplentes.
+
+**Investigação:** confirmado que isso NÃO era o comportamento atual.
+`renderAtConvoc()` (ecrã "Convocatórias" da app da atleta) mostrava badges
+"Titular"/"Suplente" assim que o jogo tinha onze definido, além do badge
+"Convocada" em si. O Home da atleta e o ecrã "Dia de Jogo" nunca mostraram
+isso (só "Convocada! [data]"), e não há sistema de push notification nesta
+app (a atleta só vê ao abrir a app) — por isso o único sítio a corrigir era
+mesmo este ecrã.
+
+**Fix:** removidas as duas linhas que calculavam `isStarter`/`isSub` e o
+badge correspondente em `renderAtConvoc()`. Numa 2ª volta na mesma
+conversa, o Roger pediu para tirar também Capitã/Vice-Capitã — removidas
+também essas duas variáveis (`isCap`/`isVc`) e o bloco de badge inteiro;
+o cartão da Convocatória na app da atleta passa a mostrar só
+"Convocada" + RSVP + logística, nada sobre onze/suplentes/capitania.
+
+SW bump para `sps-v176`. Testado: `node --check` ao ficheiro inteiro;
+harness isolado em Node com a lógica dos badges extraída do ficheiro —
+titular sem cargo não mostra nada, suplente sem cargo não mostra nada,
+titular+capitã não mostra nada (nem "Titular" nem "Capitã"),
+suplente+vice-capitã idem, e convocatória sem jogo associado não rebenta.
+Não foi feita verificação visual ao vivo nesta sessão.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
+confirmar visualmente na app da atleta (ecrã Convocatórias) depois da
+atualização chegar aos dispositivos (Service Worker `sps-v176`).
