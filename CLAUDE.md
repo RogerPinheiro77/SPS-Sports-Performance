@@ -1823,3 +1823,46 @@ problema (relógio ficado a correr) — só o jogo que o Roger reportou foi
 corrigido. Se aparecer outro caso semelhante, vale a pena verificar se
 algum jogo antigo tem `player_stats`/PSE com minutos muito acima do
 plausível (>130min) e corrigir da mesma forma.
+
+**Nota (28/09/2026, mesmo dia): refinamento com o relatório oficial da
+FPF.** O Roger deu o link oficial do jogo em resultados.fpf.pt
+(`Match/GetMatchInformation?matchId=2636080`, o relatório do árbitro) e
+pediu para cruzar e corrigir com essa fonte, dizendo que na dúvida é ela
+que prevalece. Esse relatório mostra o jogo a terminar aos 90'+4' (94
+minutos), não aos 97' como assumido na correção acima — os 97' tinham
+sido a minha melhor estimativa (baseada no último evento registado, um
+canto aos 94') na ausência de outra fonte; o relatório oficial confirma
+que o canto aos 94' foi mesmo o último lance, mas o apito final foi ao
+94', não ao 97'. Corrigido de novo diretamente na base de dados
+(`live_session.regEndSec`/`accumSec`→5640s, `player_stats` e os 15
+`pse_records` afetados recalculados para o novo fim aos 94').
+Adicionalmente, cruzando os nomes das atletas com o relatório: (1) o
+primeiro golo (5'/6') estava com o marcador errado no evento
+(`mssvtpxkyta4`, a guarda-redes Ana Machado) — improvável e não batia
+com o relatório, que dá o golo a Ines Lopes; os `player_stats` já tinham
+o golo correto atribuído a `mssmfv9ba6f4` (Inês Lopes) de alguma correção
+anterior, só o próprio evento ficou dessincronizado — corrigido o
+`scorer` do evento para condizer; (2) os pares de substituição às 60' e
+81' estavam trocados (ex: o evento tinha "saiu a Trigo, entrou a Ivone
+Oliveira" quando o relatório diz "saiu a Trigo, entrou a Sofia Leite" —
+e vice-versa para a outra substituição do mesmo minuto); os minutos de
+cada atleta não mudam com isto (cada uma só depende do seu próprio
+momento de saída/entrada), mas a Ficha/Relatório Pós-Jogo passava a
+mostrar a substituição errada — corrigido trocando o `playerIn` entre
+os pares. Uma identidade ficou por confirmar: a atleta que sai aos 60'
+consta na nossa base como "Mariana Couto" mas o relatório da FPF lista
+nesse lugar "Mariana Moreira" — a jogadora que entra por ela (Bárbara
+Martins) bate certo nos dois lados, por isso é muito provável que seja
+a mesma pessoa com um nome diferente registado num dos dois sítios; não
+alterei o nome na ficha da atleta sem confirmação do Roger.
+
+Também associado a este pedido do Roger ("já podes atualizar a
+classificação, visto que já há dados da primeira jornada"): importada a
+classificação da Série B do Campeonato Nacional Feminino IV Divisão
+(`resultados.fpf.pt/Competition/Details?competitionId=28109&seasonId=106`,
+onde o Moreirense e o Destreza Aventura jogam) diretamente para
+`clubs.meta.config.classificacoes["Campeonato Nacional Feminino"]` —
+mesma estrutura que o import manual em Competições grava — com a tabela
+completa da 1ª jornada (8 equipas). Não fica a atualizar sozinha; para
+jornadas seguintes é preciso repetir o import (manual, em Competições, ou
+pedir de novo aqui).
