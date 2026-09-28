@@ -1676,3 +1676,73 @@ cloud (sem reparação retroativa possível a partir daqui — não há backup
 de `rsvp` antigo para restaurar). Avisar o Roger deste risco e sugerir que,
 se notar confirmações em falta em eventos já editados, terá de pedir às
 atletas para confirmarem de novo.
+
+## sps-v183 (28/09/2026): Relatórios → Convocatórias — Lista de Convocados e Ficha de Jogo (tática) a caber sempre numa folha A4
+
+Pedido do Roger: "no relatórios Convocatórias / Ficha de Jogo Tática, quero
+que caiba tudo em pdf numa folha A4, ajusta" — os dois PDFs do cartão
+"📋 Convocatórias" em Relatórios (`exportConvocatoriaListPDF` — botão
+"Lista de Convocados" — e `exportJogoPDF(gid,'prejogo')` — botão "Ficha de
+Jogo (tática)") estavam a transbordar para uma 2ª página com dados
+realistas (plantel completo + logística toda preenchida), a maior parte só
+com uma linha de conteúdo residual na 2ª página.
+
+**Medição antes de tocar em código** (Chromium headless via Playwright,
+`page.pdf()` + contagem de páginas com `pypdf`, dados realistas: plantel de
+22 atletas, onze+suplentes, toda a logística preenchida incluindo as duas
+palestras e notas do sps-v179/180): Lista de Convocados a precisar de
+~310mm de altura de conteúdo para um espaço disponível de 261mm por página
+A4 (cabeçalho+rodapé+margens de `_printWin` incluídos); Ficha Pré-Jogo a
+precisar de ~315mm. Ambas confirmadas a sair em 2 páginas.
+
+**Fix — só estes dois PDFs, nunca o `_printWin()` global (partilhado por
+todos os outros relatórios da app) nem os outros tipos de `exportJogoPDF`
+(Folha Tática, Relatório Pós-Jogo, Relatório Completo — esses continuam a
+poder ocupar várias páginas como sempre):**
+- Nova função `_pdfCompactStyleHtml()` — devolve um bloco `<style>` com a
+  classe `.pr-compact` (fonte 8.5pt, margens/paddings de parágrafos,
+  cabeçalhos e tabela bastante mais apertados que o resto da app) mais duas
+  regras extra que só atuam quando essa classe está presente na página:
+  `body:has(.pr-compact) .pr-header{...}` encolhe o logótipo/cabeçalho do
+  `_printWin()`, e `.pr-compact ~ .pr-footer{...}` encolhe o espaçamento e
+  as imagens do rodapé (UEFA/contactos/assinatura) — os seletores `:has()`/
+  `~` garantem que isto nunca afeta a impressão de nenhum outro relatório
+  da app (só entra em jogo quando o `.pr-compact` existe na própria página).
+- `exportConvocatoriaListPDF()`: corpo envolvido em `<div class="pr-compact">`
+  sempre (este PDF é sempre pensado para uma folha só).
+- `exportJogoPDF()`: corpo envolvido em `pr-compact` só quando
+  `type==='prejogo'` (variável `_compact`) — a Folha Tática, o Relatório
+  Pós-Jogo e o Relatório Completo mantêm o espaçamento original, sem
+  qualquer alteração visual.
+- Padding do `<div>` que envolve cada relatório reduzido de `20px` para
+  `6px` quando compacto (o `_printWin()` global já dá 10mm de padding
+  impresso — os 20px eram um espaçamento redundante por cima desse).
+
+SW bump para `sps-v183`. Testado com o código REAL extraído do
+`index.html` (não uma réplica manual) — harness Node que carrega
+`exportJogoPDF`/`exportConvocatoriaListPDF`/`_pdfCompactStyleHtml`/
+`_printWin` tal como ficaram no ficheiro, com `APP`/DOM/`window.open`
+stubados e dados realistas (plantel de 22 atletas, toda a logística
+preenchida), gera o HTML real que `_printWin()` produziria, e usa o
+Chromium headless (Playwright) para gerar o PDF a sério e contar páginas
+com `pypdf`: Lista de Convocados e Ficha Pré-Jogo confirmadas em **1
+página** cada, com ~17mm e ~50mm de margem sobrante respetivamente (medido
+com `document.body.scrollHeight` à largura real de impressão). Teste de
+robustez adicional com plantel de 26 atletas (acima do normal) — continuam
+as duas em 1 página. Verificação de regressão: `exportJogoPDF(gid,'campo')`
+(Folha Tática) confirmado SEM a classe `pr-compact` e com o padding
+original de `20px` intacto — os outros tipos de relatório não são afetados.
+Inspeção visual das duas páginas compactas (renderizadas para PNG a
+150dpi) — texto legível, tabela completa com as 22 atletas, rodapé com
+marca/logótipos/assinatura presente, sem conteúdo cortado. Verificação
+visual ao vivo no browser/impressora reais do Roger não foi feita nesta
+sessão.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
+confirmar visualmente, depois de `sps-v183` chegar aos dispositivos, que
+os dois PDFs (Lista de Convocados e Ficha de Jogo tática) saem mesmo numa
+folha só ao imprimir a sério — a medição foi feita com Chromium headless,
+que devia corresponder ao motor de impressão do Chrome/Edge normal, mas
+sem teste automático possível para impressoras físicas ou outros
+navegadores a partir daqui. Se o plantel de alguma equipa crescer muito
+além de ~26 atletas, vale a pena voltar a medir.

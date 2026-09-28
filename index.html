@@ -8021,6 +8021,42 @@ function _sortGKFirst(list){
     return (+(a.number||a.num)||999)-(+(b.number||b.num)||999);
   });
 }
+// Estilo compacto para caber tudo numa única folha A4 — pedido do Roger,
+// 28/09/2026: "no relatórios Convocatórias / Ficha de Jogo Tática, quero que
+// caiba tudo em pdf numa folha A4, ajusta". Aplicado só à Lista de Convocados
+// (exportConvocatoriaListPDF) e à Ficha Pré-Jogo (exportJogoPDF, type==='prejogo')
+// — os dois PDFs do cartão "Convocatórias" em Relatórios. NUNCA ao _printWin()
+// global (usado por todos os outros relatórios da app, ver função abaixo) nem
+// aos outros tipos de exportJogoPDF (Folha Tática, Relatório Pós-Jogo,
+// Relatório Completo), que continuam a poder ocupar várias páginas como
+// sempre — só estes dois é que precisam de caber numa folha só. Medido com
+// Chromium headless (Playwright) e dados realistas (plantel de 22 atletas,
+// logística toda preenchida): sem isto, tanto a Lista de Convocados como a
+// Ficha Pré-Jogo transbordavam para uma 2ª página.
+function _pdfCompactStyleHtml(){
+  return `<style>
+    .pr-compact{font-size:8.5pt}
+    .pr-compact h2{margin-bottom:3px;padding-bottom:3px;font-size:12pt}
+    .pr-compact h3{margin:5px 0 2px;padding-bottom:2px;font-size:9pt}
+    .pr-compact p{margin:0 0 1.5px;line-height:1.2}
+    .pr-compact table{margin-bottom:3px;line-height:1.05}
+    .pr-compact th{padding:1.5px 4px;font-size:7.5pt}
+    .pr-compact td{padding:1.5px 4px;font-size:7.5pt}
+    /* Cabeçalho/rodapé de _printWin() são partilhados por TODOS os relatórios da
+       app — nunca alterados globalmente. Aqui usam-se seletores :has()/~ para só
+       os encolher quando a própria página tiver o marcador .pr-compact (só a
+       Lista de Convocados e a Ficha Pré-Jogo), dando margem extra para caber
+       sempre numa folha A4 mesmo com plantéis maiores. */
+    body:has(.pr-compact) .pr-header{padding-bottom:5px;margin-bottom:8px}
+    body:has(.pr-compact) .pr-logo{width:34px;height:34px;font-size:18px}
+    body:has(.pr-compact) .pr-club{font-size:11pt}
+    body:has(.pr-compact) .pr-sub{font-size:7.5pt}
+    .pr-compact ~ .pr-footer{margin-top:6px;padding-top:5px}
+    .pr-compact ~ .pr-footer .pr-footer-uefa{height:5mm}
+    .pr-compact ~ .pr-footer .pr-footer-contacts{height:5mm}
+    .pr-compact ~ .pr-footer .pr-footer-sig{height:6mm}
+  </style>`;
+}
 function exportJogoPDF(gid,type){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   _initG(g);
@@ -8111,8 +8147,9 @@ function exportJogoPDF(gid,type){
     if(oppBody)body+=`<div style="page-break-before:always">
       <h2 style="border-bottom:2px solid #333;padding-bottom:8px">🧩 Adversário (galeria cronológica)</h2>${oppBody}</div>`;
   }
+  const _compact=type==='prejogo';
   _printWin(`${type==='full'?'Relatório Completo':type==='prejogo'?'Ficha Pré-Jogo':type==='campo'?'Folha Tática':'Relatório Pós-Jogo'} — ${g.opp} ${dateStr}`,
-    `<div style="font-family:Arial,sans-serif;padding:20px">
+    `${_compact?_pdfCompactStyleHtml():''}<div class="${_compact?'pr-compact':''}" style="font-family:Arial,sans-serif;padding:${_compact?'6px':'20px'}">
       <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:20px">
         <h1 style="font-size:20px;margin:0">${club}</h1>
         <p style="margin:6px 0 0;font-size:14px;color:#555">${g.opp} • ${dateStr}${comp}${g.loc?' • '+g.loc:''}</p>
@@ -8166,7 +8203,7 @@ function exportConvocatoriaListPDF(gid){
     <p style="margin-top:10px;font-size:9pt;color:#666">Convocadas: ${nConv} de ${ats.length}${cap?' · Capitã: '+cap.name:''}${vc?' · Vice-Capitã: '+vc.name:''}</p>
   `;
   _printWin(`Lista de Convocados — ${g.opp} ${dateStr}`,
-    `<div style="font-family:Arial,sans-serif;padding:20px">
+    `${_pdfCompactStyleHtml()}<div class="pr-compact" style="font-family:Arial,sans-serif;padding:6px">
       <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:20px">
         <h1 style="font-size:20px;margin:0">${club}</h1>
         <p style="margin:6px 0 0;font-size:14px;color:#555">${g.opp} • ${dateStr}${comp}${g.loc?' • '+g.loc:''}</p>
