@@ -6915,6 +6915,32 @@ function _gdExportBackup(gid,tag,silent){
 function _gdAutoBackup(gid,tag){ _gdExportBackup(gid,tag,true); }
 function _gdRunning(ls){return !!ls.runningSince;}
 function _gdElapsedSec(ls){return ls.accumSec+(ls.runningSince?(Date.now()-ls.runningSince)/1000:0);}
+// Salvaguarda contra o relógio ficar a correr indefinidamente — pedido do Roger,
+// 28/09/2026, depois de um jogo em que o adjunto não parou nem lançou o relógio:
+// ficou a correr ~20h50 (desde o pontapé de saída até à manhã seguinte) e esse
+// troço todo foi dobrado para accumSec sem aviso, disparando o tempo de jogo para
+// ~1251min e corrompendo minutos por atleta (_gdBuildPlayerStats) e PSE/UA
+// (_gdSyncPSEDuration). Esta função substitui o padrão repetido
+// "if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}" usado
+// em _gdPause/_gdPauseWithReason/_gdEndReg/_gdEndET/_gdLaunch: sempre que se vai
+// dobrar runningSince para dentro de accumSec, se o troço em curso (sem qualquer
+// pausa) for maior do que qualquer parte/prolongamento real poderia ser, pergunta
+// ao operador quantos minutos passaram realmente nesse troço em vez de gravar as
+// horas todas silenciosamente. Limite generoso (3h) para nunca incomodar em uso
+// normal, mas muito acima do que um jogo real atinge.
+const _GD_MAX_TROCO_SEC=3*3600;
+function _gdFoldRunning(ls){
+  if(!ls.runningSince)return;
+  const decorridoSec=(Date.now()-ls.runningSince)/1000;
+  if(decorridoSec>_GD_MAX_TROCO_SEC){
+    const horas=(decorridoSec/3600).toFixed(1);
+    const resp=prompt(`⚠️ O relógio esteve a correr ${horas}h sem qualquer pausa — não parece um tempo de jogo real (o telemóvel deve ter ficado esquecido a correr).\n\nQuantos minutos passaram REALMENTE neste troço? (0 ou vazio = não contar nada deste troço)`,'0');
+    const mins=resp!=null&&resp.trim()!==''?Math.max(0,parseInt(resp,10)||0):0;
+    ls.accumSec+=mins*60;ls.runningSince=null;
+    return;
+  }
+  ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;
+}
 function _gdFmtClock(sec){sec=Math.max(0,Math.round(sec));const m=Math.floor(sec/60),s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
 function _gdMinLabel(sec){return Math.floor(Math.max(0,sec)/60)+"'";}
 
@@ -6943,7 +6969,7 @@ function _gdStartGame(gid){
 function _gdPause(gid,nextPhase){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
   const ls=g.liveSession;
-  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  _gdFoldRunning(ls);
   ls.phase=nextPhase;
   saveData();_renderJogoDetailFull();
 }
@@ -6976,7 +7002,7 @@ function _gdPauseMenuHtml(g){
 function _gdPauseWithReason(gid,reason){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
   const ls=g.liveSession;
-  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  _gdFoldRunning(ls);
   ls.pauseReason=reason;
   ls.events.push({id:uid(),sec:ls.accumSec,min:_gdMinLabel(ls.accumSec),phase:ls.phase,type:'pausa',reason});
   _gdPauseMenuOpen=false;
@@ -6994,14 +7020,14 @@ function _gdResumeFromPause(gid){
 function _gdEndReg(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
   const ls=g.liveSession;
-  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  _gdFoldRunning(ls);
   ls.regEndSec=ls.accumSec;ls.phase='fimReg';
   saveData();_gdAutoBackup(gid,'fim_parte');_renderJogoDetailFull();
 }
 function _gdEndET(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g||!g.liveSession)return;
   const ls=g.liveSession;
-  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  _gdFoldRunning(ls);
   ls.etEndSec=ls.accumSec;
   ls.phase=(ls.score.casa===ls.score.fora)?'penaltis':'fim';
   saveData();_gdAutoBackup(gid,'fim_prolongamento');_renderJogoDetailFull();
@@ -7338,7 +7364,7 @@ function _gdLaunch(gid){
   }
   g.status='realizado';
   ls.phase='fim';ls.launched=true;
-  if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}
+  _gdFoldRunning(ls);
   saveData();
   toast('Jogo lançado na plataforma ✓');
   _jogoDetailTab='posjogo';

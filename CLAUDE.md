@@ -1746,3 +1746,80 @@ que devia corresponder ao motor de impressão do Chrome/Edge normal, mas
 sem teste automático possível para impressoras físicas ou outros
 navegadores a partir daqui. Se o plantel de alguma equipa crescer muito
 além de ~26 atletas, vale a pena voltar a medir.
+
+## sps-v184 (28/09/2026): correção de dados do jogo vs Destreza Aventura (28/09) + salvaguarda contra o relógio do SPS-Gameday ficar a correr sem fim
+
+Pedido do Roger: "Ve no jogo de ontem o meu adjunto, não parou o tempo
+nem lançou, os dados estão corretos, mas o tempo de fim de jogo passa a
+ser 97 minutos, resolve e acerta isso."
+
+**Diagnóstico:** o adjunto iniciou o jogo (`_gdStartGame`) ao pontapé de
+saída e nunca tocou em Terminar Parte / Terminar Prolongamento / Lançar —
+o cronómetro (`runningSince`) ficou a correr sozinho, sem qualquer pausa,
+durante ~20h50 (do pontapé de saída até esta manhã, quando finalmente se
+tocou em Lançar). Como `_gdElapsedSec()` mede sempre `accumSec +
+(Date.now()-runningSince)`, esse troço todo — 20h50 em vez dos ~97 minutos
+reais de jogo — foi dobrado para `accumSec`/`regEndSec` sem qualquer
+aviso, e propagou-se em cadeia: `_gdEndMinute()` deu ~1251min em vez de
+97; `_gdBuildPlayerStats()` usou esse fim de jogo errado para calcular os
+minutos de cada atleta em campo (quem ficou até ao fim ficou com ~1251min
+em vez dos minutos reais); e `_gdSyncPSEDuration()` copiou esses minutos
+errados para os registos de PSE já feitos, disparando a UA (carga de
+treino) de várias atletas para valores absurdos (ex: 11259 em vez de
+873). Os dados que o Roger validou como corretos (golos, cartões,
+substituições, eventos da cronologia) não foram tocados — só o fim de
+jogo e tudo o que dependia dele.
+
+**Correção de dados (jogo `g_cnf_1_f_j1`, vs Destreza Aventura,
+27/09/2026), feita diretamente na base de dados Supabase de produção:**
+- `live_session.regEndSec`/`accumSec`: de 75071.77s (~1251min) para
+  5820s (97min) — último evento real registado às 94' (canto), 97' como
+  fim de jogo plausível.
+- `player_stats`: recalculados os minutos das 11 atletas (de 16) que
+  estavam em campo ao fim, com o novo fim de jogo aos 97'; as 5 atletas
+  substituídas antes disso já estavam corretas e não foram tocadas.
+- `pse_records` (11 registos ligados a este jogo via `event_id`): `duration`
+  e `ua` recalculados com os minutos corrigidos de cada atleta (ex:
+  duration 1251→97, ua 7506→582 para quem ficou os 97min completos; para
+  quem saiu antes, duration/ua ajustados ao minuto real de substituição).
+  Os outros 8 registos de PSE deste evento já estavam corretos (atletas
+  não convocadas ou cujo minuto de saída já batia certo) e não foram
+  tocados.
+
+**Salvaguarda ("resolve"), para isto não voltar a acontecer:** nova
+função `_gdFoldRunning(ls)` (linha ~6932, logo depois de
+`_gdElapsedSec`) substitui o padrão repetido
+`if(ls.runningSince){ls.accumSec=_gdElapsedSec(ls);ls.runningSince=null;}`
+usado em `_gdPause`, `_gdPauseWithReason`, `_gdEndReg`, `_gdEndET` e
+`_gdLaunch` — os 5 sítios onde o troço em curso do relógio é dobrado para
+dentro de `accumSec`. Sempre que isso vai acontecer, se o troço sem
+qualquer pausa for maior do que 3 horas (`_GD_MAX_TROCO_SEC`, um limite
+generoso — muito acima de qualquer parte, prolongamento ou pausa real,
+mas que apanha exatamente este tipo de "ficou esquecido a correr"), a
+função pergunta ao operador (`prompt()`) quantos minutos passaram
+realmente nesse troço, em vez de gravar as horas todas em silêncio; a
+resposta (ou 0, se ficar em branco/cancelada) é o que entra em
+`accumSec`. Um jogo normal, mesmo com pausas longas de lesão/VAR/
+hidratação via `_gdPauseWithReason`, nunca chega às 3h num único troço
+sem pausa, por isso isto não deve incomodar em uso normal — só dispara
+quando o cronómetro passa horas a fio sem ninguém tocar em nada, que é
+exatamente o cenário deste bug.
+
+SW bump para `sps-v184`. Testado com o código REAL extraído do
+`index.html` (`_gdElapsedSec`+`_gdFoldRunning`, linhas 6917-6943) —
+harness Node (`test_gdFoldRunning.js`) com `prompt()` stubado: (1) troço
+normal de 42min não dispara pergunta nenhuma e dobra o tempo tal como
+antes; (2) reprodução exata do bug do Roger (troço de 20h50) dispara a
+pergunta, informa as horas reais decorridas, e usa a resposta do operador
+("97") como os novos minutos em vez das 20h50 reais; (3) resposta vazia/
+cancelada não perde as horas todas — fica só com o que já tinha antes do
+troço suspeito; (4) fronteira do limite (2h59) confirmada a não disparar
+a pergunta. A correção dos dados do jogo em si (Supabase) foi validada
+com `RETURNING` nas próprias instruções SQL — os valores gravados
+coincidem exatamente com os pré-calculados.
+
+**Ainda por fazer:** nenhum outro jogo foi auditado à procura do mesmo
+problema (relógio ficado a correr) — só o jogo que o Roger reportou foi
+corrigido. Se aparecer outro caso semelhante, vale a pena verificar se
+algum jogo antigo tem `player_stats`/PSE com minutos muito acima do
+plausível (>130min) e corrigir da mesma forma.
