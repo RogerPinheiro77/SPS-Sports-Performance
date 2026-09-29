@@ -2204,3 +2204,73 @@ inconsistente com o padrão do resto da app). Confirmado com Node
 (continua tudo a passar). Com isto, um registo gravado no ecrã da
 Nutri passa a aparecer também no ecrã do Fisio (e vice-versa) em
 qualquer dispositivo, cumprindo o "AS DUAS" tal como decidido.
+
+## sps-v189 — Métricas & Evolução no Dashboard Completo do Fisio (29/09/2026)
+
+Pedido do Roger: no Dashboard Completo do Fisio, identificar por código
+de cores as métricas/pesos/volumes das atletas, mostrar por seta se há
+evolução quando se fazem novas avaliações, e poder exportar tudo em PDF
+A4 horizontal. Antes de codificar, escrevi uma proposta num documento
+Claude Docs dedicado ("SPS — Métricas & Evolução no Dashboard Fisio")
+com o que já existia na app para reaproveitar, uma pequena arquitetura
+e 5 perguntas — todas respondidas pelo Roger com a opção recomendada:
+âmbito só antropometria (peso, %gordura, massa muscular, perímetros,
+WHR — os "volumes" a que se referia, já geridos pela Nutri em Nutri →
+Avaliações), cartão dentro do Dashboard Completo já existente (sem
+página nova no menu), leitura para o Fisio (Nutri continua a editar),
+botão de PDF também no Fisio, e limiar de 60 dias para avaliação
+desatualizada (mesmo valor já usado em Condição do Plantel).
+
+**O que mudou:**
+
+1. `_naTrendBadge(atual, anterior, direção favorável, casas decimais)`
+   — nova função central de cor + seta (↑/↓/→), substitui `_naTrendCls`
+   (que só dava cor, nunca seta). Duas métricas com juízo clínico
+   estabelecido (verde/vermelho, mesmas 3 de sempre: %Gordura e Soma
+   das 8 Pregas ↓ favorável, Massa Muscular ↑ favorável) e todas as
+   restantes (Peso, WHR, os 5 perímetros) ganham agora a seta também,
+   mas sem cor — mantém-se o princípio já documentado no código de não
+   inventar um juízo clínico sobre peso/perímetros que não foi pedido.
+   `_trendBadgeHtml()` formata o resultado como badge colorido ou texto
+   cinzento informativo, conforme o caso.
+2. A tabela de Evolução da Nutri (`printNaEvolutionPDF`) passou a usar
+   `_naTrendBadge` em vez de `_naTrendCls` — ganhou seta em todas as
+   métricas, de graça, sem qualquer pedido extra. A função passou a
+   aceitar um `athleteId` opcional (antes só lia o `<select>` da
+   página da Nutri) — necessário para o novo botão a partir do Fisio,
+   sem duplicar a função nem partir a chamada já existente.
+3. Novo cartão "📏 Métricas & Evolução" no Dashboard Completo do Fisio
+   (`renderFisioDash`), em modo leitura — lê `APP.nutritionAssessments`
+   diretamente (já sincronizado, sem tabela nova no Supabase, sem
+   duplicar dados): uma linha por atleta com pelo menos 1 avaliação,
+   com peso/%gordura/massa muscular da última avaliação + cor/seta vs.
+   a anterior, data da última avaliação (aviso ⚠️ visual quando > 60
+   dias) e um botão 📄 para o PDF de evolução dessa atleta (só quando
+   já há ≥2 avaliações). Atletas sem avaliação nenhuma ficam fora da
+   tabela, contadas numa nota à parte.
+4. Novo `printFisioMetricasPlantelPDF()` — uma linha por atleta com a
+   última avaliação, no espírito de `printCondicaoPlantel()` mas sem
+   nenhuma ligação a carga de treino (fontes de dados diferentes,
+   donos diferentes). A4 horizontal (`_printWin(...,true)`), acionado
+   por um botão no próprio cartão do Fisio.
+5. Correção a uma afirmação errada que eu tinha escrito na proposta:
+   `printCondicaoPlantel()` **não** é A4 horizontal (fica em A4
+   vertical, só o PDF de Evolução da Nutri já usava o 5º parâmetro) —
+   corrigido no documento assim que percebi o engano, antes de
+   codificar fosse o que fosse a partir dessa premissa errada.
+
+Testado com Node (`node --check`) e um novo ficheiro Playwright
+dedicado (`test_fisio_metricas_v189.js`): `_naTrendBadge` em todos os
+casos (favorável, desfavorável, estável, sem juízo, sem avaliação
+anterior), o cartão do Fisio com os 3 cenários de atleta (2 avaliações,
+1 avaliação, nenhuma), o aviso de avaliação desatualizada, o PDF por
+atleta chamado com `athleteId` explícito (entrada nova a partir do
+Fisio) e o novo PDF de plantel (título, A4 horizontal, lista certa de
+atletas). Verificado também à parte que a Evolução da Nutri continua a
+funcionar exatamente como antes a partir do `<select>` da própria
+página, e que ganhou as setas em todas as métricas. As suites de
+regressão pré-existentes (sps-v185 a sps-v188) foram todas re-corridas
+depois destas alterações e continuam a passar sem regressões (a mesma
+falha de sempre do CDN bloqueado pelo proxy da sandbox).
+
+SW bump para `sps-v189`.
