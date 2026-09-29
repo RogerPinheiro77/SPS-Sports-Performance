@@ -6243,6 +6243,11 @@ function _pitchSnapshotSvg(mode,snap,w){
   const viewH=snap.fullView?420:200;
   const h=Math.round(w*(viewH/300));
   const rad=7,numFs=7,sw=1.5;
+  // Baliza e pequena área alargadas (sps-v185, 29/09/2026, pedido do Roger): a largura
+  // real da baliza (36) e da pequena área (56) não dava espaço para 4 marcadores lado a
+  // lado sem se sobreporem — alargadas para 60/90 só para efeitos visuais/de arrasto
+  // (deixa de ser rigorosamente à escala, mas cabem confortavelmente 4 atletas na largura
+  // da baliza para montar a linha defensiva de um canto). A área grande (124) manteve-se.
   const bg=`<rect width="300" height="420" fill="#2d7a2d" rx="8"/>
     <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
     <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -6250,10 +6255,10 @@ function _pitchSnapshotSvg(mode,snap,w){
     <circle cx="150" cy="210" r="3" fill="rgba(255,255,255,.45)"/>
     <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
     <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-    <rect x="122" y="15" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-    <rect x="122" y="359" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-    <rect x="132" y="8" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
-    <rect x="132" y="403" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
+    <rect x="105" y="15" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="120" y="8" width="60" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
+    <rect x="120" y="403" width="60" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
     <circle cx="150" cy="58" r="2.5" fill="rgba(255,255,255,.45)"/>
     <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>`;
   const lineup=snap.lineup||Object.keys(snap.positions);
@@ -6267,10 +6272,13 @@ function _pitchSnapshotSvg(mode,snap,w){
     dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||'?'}</text>`;
     if(isTatico)dots+=`<text x="${p.x}" y="${(p.y+16).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
   });
-  // Adversárias (círculos vermelhos, letra "A"+número) e bola (sps-v185) — snapshots
-  // anteriores a esta versão não têm estes campos, por isso ficam simplesmente sem eles.
+  // Adversárias — um X vermelho (sps-v185, 29/09/2026: pedido do Roger, trocou o círculo
+  // numerado original por um X, mais rápido de identificar/desenhar num quadro de bolas
+  // paradas) — e bola. Snapshots anteriores a esta versão não têm estes campos, por isso
+  // ficam simplesmente sem eles.
+  const oppArm=rad-1;
   (snap.opponents||[]).forEach(o=>{
-    dots+=`<circle cx="${o.x}" cy="${o.y}" r="${rad}" fill="#e74c3c" stroke="white" stroke-width="${sw}"/><text x="${o.x}" y="${(o.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="#fff">${o.num||''}</text>`;
+    dots+=`<line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y-oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y+oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+1.5}" stroke-linecap="round"/><line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y+oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y-oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+1.5}" stroke-linecap="round"/>`;
   });
   if(snap.ball){
     dots+=`<circle cx="${snap.ball.x}" cy="${snap.ball.y}" r="${Math.round(rad*0.6)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>`;
@@ -6333,13 +6341,18 @@ function _jogoCampoHtml(g){
       <title>${escHtml(a.name)}${task?' — '+escHtml(task):''}</title>
     </g>`;
   }).join('');
-  // Adversárias (círculos vermelhos "A"+número) e bola (sps-v185) — mesma mecânica de
-  // arrastar dos jogadores (ver pitchDragStart/kind), sem ligação a nenhuma atleta. Toca
+  // Adversárias — um X vermelho (sps-v185, 29/09/2026: pedido do Roger, trocou o círculo
+  // numerado original por um X, mais rápido de reconhecer num quadro de bolas paradas) —
+  // mesma mecânica de arrastar dos jogadores (ver pitchDragStart/kind), sem ligação a
+  // nenhuma atleta. Um círculo transparente por baixo do X dá uma área de toque confortável
+  // (as duas linhas finas do X, sozinhas, seriam difíceis de acertar no telemóvel). Toca
   // (sem arrastar) remove o marcador — mesmo espírito das setas (pitchArrowClick).
   const opponentsList=_pitchOpponents(g,mode);
+  const oppArm=rad;
   const opponentMarkers=opponentsList.map(o=>`<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="pitchRemoveOpponent(event,'${g.id}','${mode}','${o.id}')">
-      <circle r="${rad}" fill="#e74c3c" stroke="white" stroke-width="${sw}"/>
-      <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="#fff">${o.num||''}</text>
+      <circle r="${rad+3}" fill="transparent"/>
+      <line x1="${-oppArm}" y1="${-oppArm}" x2="${oppArm}" y2="${oppArm}" stroke="#e63946" stroke-width="${sw+1.5}" stroke-linecap="round"/>
+      <line x1="${-oppArm}" y1="${oppArm}" x2="${oppArm}" y2="${-oppArm}" stroke="#e63946" stroke-width="${sw+1.5}" stroke-linecap="round"/>
       <title>Adversária — toca para remover</title>
     </g>`).join('');
   const ballPos=_pitchBallMap(g)[mode];
@@ -6392,10 +6405,10 @@ function _jogoCampoHtml(g){
         <circle cx="150" cy="210" r="3" fill="rgba(255,255,255,.45)"/>
         <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
         <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <rect x="122" y="15" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <rect x="122" y="359" width="56" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <rect x="132" y="8" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
-        <rect x="132" y="403" width="36" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
+        <rect x="105" y="15" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="120" y="8" width="60" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
+        <rect x="120" y="403" width="60" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
         <circle cx="150" cy="58" r="2.5" fill="rgba(255,255,255,.45)"/>
         <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>
         ${arrowList.map(a=>`<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="#fff" stroke-width="2" stroke-dasharray="${a.style==='dashed'?'6,4':'none'}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></line>`).join('')}

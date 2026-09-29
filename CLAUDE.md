@@ -1970,3 +1970,51 @@ gerado até o Roger fornecer um, mesmo padrão dos outros modos no
 passado); nenhuma decisão de ordenação/numeração fixa das adversárias
 foi pedida, por isso ficam só numeradas pela ordem em que são
 adicionadas.
+
+## sps-v186 — Quadro Tático: baliza mais larga + adversárias em X
+## (29/09/2026, mesmo dia)
+
+Ainda antes do Roger fazer o `git push` do sps-v185, mandou uma imagem
+de referência (um esquema de organização defensiva de canto, com 11
+marcadoras numeradas) com dois pedidos concretos e uma pergunta:
+
+1. "a largura da baliza tem que caber 4 atletas, nem que para isso
+   aumentes um pouco a baliza" — a baliza (36 de largura) e a pequena
+   área (56) do Campo Tático estavam desenhadas pequenas de mais para 4
+   marcadoras caberem lado a lado sem se sobreporem na linha defensiva
+   de um canto. Alargadas para 60 (baliza) e 90 (pequena área) — deixa
+   de estar rigorosamente à escala real do campo, mas ganha espaço de
+   trabalho, exatamente o pedido. A área grande (124) manteve-se, já
+   tinha espaço de sobra. Alterado nos dois sítios onde este desenho
+   existe (o quadro ao vivo em `_jogoCampoHtml` e a miniatura/PDF em
+   `_pitchSnapshotSvg`), para nunca divergirem visualmente.
+2. "quero ter adversários e quero que estes seja um (X) vermelho" — os
+   marcadores de adversária (introduzidos no sps-v185 como círculo
+   vermelho + número) passam a ser um X vermelho (`#e63946`), sem
+   número. Um círculo transparente maior por baixo do X mantém uma área
+   de toque confortável para arrastar no telemóvel (o X sozinho, feito
+   só de duas linhas finas, seria difícil de acertar com o dedo).
+   Alterado no quadro ao vivo e na miniatura/PDF/galeria, tal como o
+   ponto anterior.
+3. "não aconselhas que seja tipo app?" — respondido em conversa, não é
+   alteração de código: o `?tatico=1` já É instalável como app (ícone
+   próprio no ecrã principal, abre em ecrã inteiro sem barra do
+   browser, `display:'standalone'` no manifest) assim que o Roger o
+   adicionar ao ecrã principal do tablet — recomendei ficar com esta
+   via em vez de uma app nativa (loja, aprovação, atualizações mais
+   lentas) sem necessidade real disso.
+
+SW bump para `sps-v186`. Testado com Playwright a conduzir o browser
+contra o `index.html` real: confirma a baliza do quadro ao vivo com 60
+de largura (era 36), e que o marcador de adversária deixou de ter
+texto/número e passou a desenhar exatamente 2 linhas (o X), mantendo o
+círculo transparente de toque por baixo. Os testes do sps-v185 (Node +
+Playwright, ver entrada acima) foram todos re-corridos depois destas
+alterações e continuam a passar sem alterações.
+
+Nota: a app tem uma segunda ferramenta parecida mas independente, o
+quadro "Adversário" (funções `_oppXxx`, na aba Jogo → Adversário —
+para esboçar a FORMAÇÃO INTEIRA do adversário, 11 marcadores
+numerados, não ligado ao Campo Tático) — tem a mesma baliza/pequena
+área estreitas, mas o Roger não pediu para mexer ali e por isso não foi
+tocada; se quiser o mesmo alargamento nesse quadro, é só pedir.
