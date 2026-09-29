@@ -1866,3 +1866,107 @@ mesma estrutura que o import manual em Competições grava — com a tabela
 completa da 1ª jornada (8 equipas). Não fica a atualizar sozinha; para
 jornadas seguintes é preciso repetir o import (manual, em Competições, ou
 pedir de novo aqui).
+
+**Fecho da identidade em aberto:** o Roger confirmou — "a Mariana Couto é
+a Mariana Moreira sim, a Bárbara Martins está certa do nosso lado, tem
+alcunha Lisa". Atualizado o campo `name` da atleta na base de dados de
+"Mariana Couto" para "Mariana Moreira" (o `alcunha` ficou como estava,
+"Couto"); a ficha da Bárbara Martins não precisou de nenhuma alteração.
+
+## sps-v185 — Quadro Tático standalone (?tatico=1) + adversárias/bola no
+## Campo Tático interativo (29/09/2026)
+
+Pedido do Roger: um "quadro tático" para o adjunto de bolas paradas usar
+no banco, no seu próprio tablet, ao lado do tablet do SPS-Gameday —
+baseado no que já existia em Jogo → Campo, mas isolado numa app própria
+(só o campo, sem o resto da plataforma à volta). Pediu para pesquisar o
+que há no mercado deste tipo antes de propor.
+
+**Pesquisa de mercado** (WebSearch/WebFetch): Set Pieces Coach
+(setpiecescoach.com) — app dedicada a bolas paradas, quadro com
+jogadoras/bola/linhas/setas/formas, biblioteca de jogadas, animação por
+timeline nos planos pagos; Settik (settik.com/board) — quadro grátis no
+browser, arrastar jogadoras + desenhar corridas + animar + exportar GIF,
+sem conta; TacticalPad/Tactics Manager — campo inteiro/meio, animações
+multi-passo, exportar imagem/vídeo. Traço comum às três: têm sempre
+marcador de adversário e de bola, além das próprias jogadoras — algo que
+o nosso Campo Tático ainda não tinha.
+
+**Decisão (`AskUserQuestion`, Roger escolheu as 3 opções recomendadas):**
+(1) atalho standalone dentro da própria SPS (`?tatico=1`), não uma app
+separada — mesmo padrão exato do `?gameday=1`/`?ginasio=1`/`?fisio=1`/
+`?nutri=1`: login normal de staff, só muda o que acontece depois
+(`_forceTaticoMode`, `_taticoEligibleRole`, `_maybeEnterTaticoMode`,
+classe CSS `.tt-mode`, ícone/nome próprios no `applyPWAManifest`); (2) o
+quadro Tático passa a mostrar campo inteiro por defeito (antes só tinha
+meio campo, desde 24/08/2026), os 3 quadros de bolas paradas continuam
+em meio campo por defeito, e os 4 ganham um botão para alternar
+(`_pitchFullView`, `_pitchToggleView`, `_pitchMaxY`/`_pitchViewH`
+dinâmicos); (3) manter a galeria de posicionamentos (snapshots) já
+existente em vez de construir um motor de animação verdadeiro — só
+otimizada para o banco.
+
+**Implementação:**
+- `?tatico=1` — mesmo padrão exato dos outros 4 modos standalone; ao
+  abrir um jogo específico salta logo para o separador Campo em vez de
+  Info (`openJogo`, mesmo truque do `?gameday=1`→"aovivo"), e
+  `_renderJogoDetailFull` tranca o separador em "campo" e esconde a tab
+  bar do Jogo (Info/Adversário/Pré-Jogo/Ao Vivo/Pós-Jogo/Exportar) e o
+  botão Apagar — o adjunto de bolas paradas só vê o quadro, nada mais.
+  Ainda sem logo próprio do Roger — ícone SVG gerado "TT" (cor
+  `#f39c12`), mesmo esquema usado inicialmente para o Gameday/Ginásio
+  antes de terem ícone fornecido; substituir em `assets/icon_tatico_*`
+  quando o Roger o der (e nesse ponto acrescentar essas entradas ao
+  `sw.js`, tal como as dos outros modos).
+- Campo inteiro/meio campo por quadro: `_pitchFullView` (objeto em
+  memória, não persistido — mesmo espírito de `_jogoCampoDrawMode`,
+  reinicia nos valores por defeito a cada visita, que é o pedido). Botão
+  de alternar no quadro; `_pitchMaxY`/`_pitchViewH` e o `viewBox` do SVG
+  passam a depender deste estado; `_pitchDefaultPos` espalha as
+  jogadoras por mais linhas em campo inteiro.
+- Adversárias e bola: marcadores genéricos por jogo+quadro
+  (`g.pitchOpponents{tatico,cornerDef,cornerOf,freeKick}`,
+  `g.pitchBall{...}`), sem ligação a nenhuma atleta. Botão "+
+  Adversária" (até 11, com aviso ao chegar ao limite); toca num marcador
+  para remover (com confirmação — mesmo espírito das setas). Botão
+  "Bola" alterna adicionar/remover o único marcador de bola do quadro.
+  O arrastar (`pitchDragStart/Move/End`) foi generalizado com um 4º
+  parâmetro `kind` ('player'/'opponent'/'ball') e duas funções novas
+  (`_pitchMarkerPos`/`_pitchSetMarkerPos`) que resolvem onde cada tipo de
+  marcador vive — sem isto, cada tipo precisaria da sua própria cópia
+  quase igual das 3 funções de arrastar. `_initPitchEvents` (touch)
+  também generalizado da mesma forma. A galeria de posicionamentos
+  (`_pitchSnapshot`/`_pitchLoadSnapshot`/`_pitchSnapshotSvg`) passa a
+  incluir adversárias, bola e a vista (inteiro/meio) em cada registo —
+  snapshots antigos (sem estes campos) continuam a funcionar, só ficam
+  sem adversárias/bola. PDF e Partilhar Imagem já incluem os novos
+  marcadores automaticamente, porque clonam o próprio SVG em ecrã.
+
+SW bump para `sps-v185`. Testado em duas camadas: (1) Node, com o
+código REAL extraído do `index.html` (`_pitchFullView`,
+`_pitchToggleView`, `_pitchMaxY`/`_pitchViewH`, `_pitchDefaultPos`,
+`_pitchOpponents`/`_pitchBallMap`, `pitchAddOpponent`/
+`pitchRemoveOpponent`/`pitchToggleBall`, `_pitchMarkerPos`/
+`_pitchSetMarkerPos`) com mocks de `APP`/`saveData`/`toast`/`confirm` —
+defeitos por quadro, toggle isolado por modo, limite de 11 adversárias,
+cancelar vs confirmar a remoção, um toque que era arrasto nunca remove,
+toggle da bola respeita o limite de Y de cada vista, e as 3 funções
+genéricas por `kind` não se confundem entre si; (2) Playwright, a servir
+o `index.html` real num servidor local e a conduzir o browser: cria o
+1º admin com `?tatico=1` na URL, confirma `tt-mode`/sidebar escondida/
+título "Jogos", injeta um jogo de teste e abre-o (`openJogo`), confirma
+que entra logo no separador Campo com a tab bar e o botão Apagar
+escondidos, alterna campo inteiro/meio campo e confirma o `viewBox`,
+adiciona/remove adversárias e a bola a clicar nos botões reais da
+página, remove um marcador a clicar nele (aceitando o `confirm()`), e
+regista um posicionamento confirmando que o snapshot guardado inclui os
+novos campos. Um bug real foi apanhado neste teste: adicionar duas
+adversárias seguidas fazia-as ficar exatamente sobrepostas na mesma
+posição (impossível distinguir/arrastar uma da outra) — corrigido para
+espalhar em grelha, tal como já acontecia com as jogadoras.
+
+**Ainda por fazer:** ícone próprio do `?tatico=1` (fica com o SVG "TT"
+gerado até o Roger fornecer um, mesmo padrão dos outros modos no
+passado); nenhuma decisão de ordenação/numeração fixa das adversárias
+foi pedida, por isso ficam só numeradas pela ordem em que são
+adicionadas.

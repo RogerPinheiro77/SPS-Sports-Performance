@@ -134,6 +134,13 @@ ul{list-style:none}
 .nu-mode #tb-cfg-btn,.nu-mode .tb-btn[onclick="toggleSb()"]{display:none}
 .nu-only{display:none}
 .nu-mode .nu-only{display:flex}
+/* SPS-Tático standalone (?tatico=1, sps-v185) — mesmo padrão exato do gd-mode acima:
+   sidebar escondida, topbar reduzida a título + atalho Jogos/Sair. */
+.tt-mode #sidebar{display:none}
+.tt-mode #main{margin-left:0}
+.tt-mode #tb-cfg-btn,.tt-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.tt-only{display:none}
+.tt-mode .tt-only{display:flex}
 /* Home+Agenda Geral (sps-v130) acrescentaram atalhos à topbar do fs-mode/nu-mode —
    flex-wrap evita cortar botões em telemóveis mais estreitos. */
 .fs-mode .topbar,.nu-mode .topbar{flex-wrap:wrap;height:auto;min-height:var(--th);padding:8px 12px;row-gap:6px}
@@ -186,6 +193,8 @@ ul{list-style:none}
 .fs-mode .tb-btn{width:38px;height:38px}
 /* Em modo Nutri, mesmo motivo. */
 .nu-mode .tb-btn{width:38px;height:38px}
+/* Em modo Tático, mesmo motivo — usado de pé, no banco, muitas vezes com pressa. */
+.tt-mode .tb-btn{width:38px;height:38px}
 
 /* CARDS */
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
@@ -446,6 +455,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn fs-only" id="fs-home-btn" onclick="navTo('fisio-home')" title="Home">🏠</button>
       <button class="tb-btn nu-only" id="nu-home-btn" onclick="navTo('nutri-home')" title="Home">🏠</button>
       <button class="tb-btn gd-only" id="gd-home-btn" onclick="_jogoView='list';navTo('jogos')" title="Home">🏠</button>
+      <button class="tb-btn tt-only" id="tt-home-btn" onclick="_jogoView='list';navTo('jogos')" title="Home">🏠</button>
       <span class="topbar-title" id="pg-title">Dashboard</span>
       <button class="tb-btn" onclick="pullCloud()" title="Atualizar (traz os dados mais recentes da cloud)">🔄</button>
       <button class="tb-btn" id="tb-cfg-btn" onclick="navTo('config')" title="Config">⚙️</button>
@@ -455,6 +465,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn gy-only" onclick="logout()" title="Sair">🚪</button>
       <button class="tb-btn fs-only" onclick="logout()" title="Sair">🚪</button>
       <button class="tb-btn nu-only" onclick="logout()" title="Sair">🚪</button>
+      <button class="tb-btn tt-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
       <div class="pg on" id="pg-dashboard"></div>
@@ -709,6 +720,13 @@ const _forceFisioMode=new URLSearchParams(location.search).get('fisio')==='1';
 // 02/09/2026: mesmo pacote do Fisio (autoria, responsável, app própria) aplicado à
 // Nutrição — ver project_sps_nutri_autoria.
 const _forceNutriMode=new URLSearchParams(location.search).get('nutri')==='1';
+// SPS-Tático standalone (?tatico=1, sps-v185) — mesmo padrão exato do ?gameday=1 acima:
+// login normal de staff, exige acesso a Jogos (ver _taticoEligibleRole), só muda o que
+// acontece DEPOIS do login (ver _maybeEnterTaticoMode). Pedido do Roger 29/09/2026: um
+// tablet dedicado para o adjunto de bolas paradas no banco, ao lado do tablet do
+// SPS-Gameday, a mostrar só o Campo Tático (Jogo → Campo) — ver
+// [[project_sps_quadro_tatico_bolas_paradas]].
+const _forceTaticoMode=new URLSearchParams(location.search).get('tatico')==='1';
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -786,7 +804,7 @@ async function createFirstAdmin(){
   setSession({userId:user.id,role:'treinador',isAdmin:true,name:user.name});
   ROLE='treinador';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();
 }
 async function handleLogin(){
   const username=(document.getElementById('login-user')?.value||'').trim();
@@ -808,7 +826,7 @@ async function handleLogin(){
   setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
   ROLE=user.role;showStaffApp();
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();
 }
 // ── 1º acesso staff: obrigar a definir password própria (troca a password fixa inicial) ──
 function _showStaffPwdSetup(user){
@@ -841,7 +859,7 @@ async function _saveStaffPwdSetup(userId){
   ROLE=user.role;showStaffApp();
   toast('Password definida ✓ Bem-vindo, '+user.name+'!');
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();
 }
 async function handleAthleteLogin(){
   const username=(document.getElementById('at-login-user')?.value||'').trim();
@@ -1075,6 +1093,27 @@ function _maybeEnterNutriMode(){
   }
   document.body.classList.add('nu-mode');
   navTo('nutri-home');
+}
+// SPS-Tático standalone (?tatico=1, sps-v185) — mesmo espírito do SPS-Gameday acima: só faz
+// sentido para cargos com acesso a Jogos e que podem editar (o Campo Tático vive dentro de
+// Jogo → Campo) — senão cai-se na lista de Jogos sem conseguir arrastar nada.
+function _taticoEligibleRole(role){
+  const def=ROLE_DEFS[role];
+  return !!def&&def.pages.includes('jogos')&&!def.readOnly;
+}
+// Chamada a par das outras _maybeEnterXMode() depois de qualquer showStaffApp() bem
+// sucedido — entra direto na lista de Jogos, sem sidebar/resto da plataforma (ver .tt-mode
+// no CSS); ao abrir um jogo específico já entra na aba Campo em vez de Info (ver openJogo,
+// mesmo truque do _forceGamedayMode a saltar para "aovivo"). Pensado para o adjunto de
+// bolas paradas ter o seu próprio tablet no banco, ao lado do tablet do Gameday.
+function _maybeEnterTaticoMode(){
+  if(typeof _forceTaticoMode==='undefined'||!_forceTaticoMode)return;
+  if(!_taticoEligibleRole(ROLE)){
+    toast('Este acesso é para o SPS-Tático — o teu cargo não tem acesso a Jogos','err');
+    return;
+  }
+  document.body.classList.add('tt-mode');
+  navTo('jogos');
 }
 // Títulos qualificados por página — partilhado entre navTo() (cabeçalho da página) e
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
@@ -4429,7 +4468,8 @@ function pitchArrowStart(e,gid,mode){
   const svg=document.getElementById('pitch-svg-'+gid);if(!svg)return;
   const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
-  const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(198,svgP.y));
+  const vh=(typeof _pitchViewH==='function'?_pitchViewH(mode):200)-2;
+  const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(vh,svgP.y));
   _arrowDragging={gid,mode,x1:cx,y1:cy,x2:cx,y2:cy};
   let prev=svg.querySelector('#arrow-preview');
   if(!prev){prev=document.createElementNS('http://www.w3.org/2000/svg','line');prev.id='arrow-preview';prev.setAttribute('stroke','#fff');prev.setAttribute('stroke-width','2');prev.setAttribute('marker-end','url(#arrowhead-'+gid+')');svg.appendChild(prev);}
@@ -4441,7 +4481,8 @@ function pitchArrowMove(e){
   const svg=document.getElementById('pitch-svg-'+_arrowDragging.gid);if(!svg)return;
   const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
-  const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(198,svgP.y));
+  const vh=(typeof _pitchViewH==='function'?_pitchViewH(_arrowDragging.mode):200)-2;
+  const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(vh,svgP.y));
   _arrowDragging.x2=cx;_arrowDragging.y2=cy;
   const prev=svg.querySelector('#arrow-preview');
   if(prev){prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);}
@@ -5131,6 +5172,9 @@ function openJogo(id,tab='info'){
   // separador Info — é o único motivo de estar nesta app dedicada. Só quando o chamador
   // não pediu já um separador específico (ex. o botão "Convocatória" continua a abrir Pré-Jogo).
   if(tab==='info'&&typeof _forceGamedayMode!=='undefined'&&_forceGamedayMode)tab='aovivo';
+  // Em modo SPS-Tático standalone (sps-v185), "Abrir" salta logo para o separador Campo em
+  // vez de Info — mesmo motivo do Gameday acima, é o único motivo de estar nesta app dedicada.
+  if(tab==='info'&&typeof _forceTaticoMode!=='undefined'&&_forceTaticoMode)tab='campo';
   _jogoView='detail';_jogoDetailTab=tab;
   renderJogos();
 }
@@ -5251,6 +5295,12 @@ function _renderJogoDetailFull(){
   const g=APP.games.find(x=>x.id===_jogoDetailId);
   if(!g){_jogoView='list';renderJogos();return;}
   _initG(g);
+  // Em modo SPS-Tático standalone (sps-v185), fica sempre trancado no separador Campo — é
+  // o único motivo de estar nesta app dedicada (ver _maybeEnterTaticoMode/openJogo); esta
+  // barreira aqui garante que nenhum outro sítio (ex: um clique perdido) tira o adjunto do
+  // Campo por engano, mesmo sem sidebar/resto da plataforma para voltar a navegar.
+  const _ttLocked=typeof _forceTaticoMode!=='undefined'&&_forceTaticoMode;
+  if(_ttLocked)_jogoDetailTab='campo';
   const ha={casa:'🏠 Casa',fora:'✈️ Fora',neutro:'⚖️ Neutro'}[g.ha]||'';
   const res=g.g1!=null&&g.g2!=null?`${g.g1}–${g.g2}`:'vs';
   const tDefs={info:'📋 Info',adversario:'🔍 Adversário',prejogo:'📋 Pré-Jogo',campo:'🏟️ Campo',aovivo:'🔴 Ao Vivo',posjogo:'📊 Pós-Jogo',exportar:'📥 Exportar'};
@@ -5276,9 +5326,9 @@ function _renderJogoDetailFull(){
         <div style="font-size:12px;color:var(--t2)">${fmtDate(g.date)}${g.time?' '+g.time.slice(0,5):''} • ${ha}${g.comp?' • '+escHtml(g.comp):''}</div>
       </div>
     </div>
-    <button class="btn btn-r btn-sm" onclick="deleteJogo('${g.id}')">🗑️ Apagar</button>
+    ${_ttLocked?'':`<button class="btn btn-r btn-sm" onclick="deleteJogo('${g.id}')">🗑️ Apagar</button>`}
   </div>
-  <div class="tabs" style="flex-wrap:wrap;margin-bottom:16px">${tabBtns}</div>
+  ${_ttLocked?'':`<div class="tabs" style="flex-wrap:wrap;margin-bottom:16px">${tabBtns}</div>`}
   <div id="jogo-tab-content">${tc}</div>`;
   if(_jogoDetailTab==='campo')setTimeout(()=>_initPitchEvents(g.id),80);
   if(_jogoDetailTab==='aovivo')setTimeout(()=>_gdStartClockInterval(g.id),80);
@@ -6016,6 +6066,18 @@ function _setConvocatoriaPublishAt(gid,val){
 // — pedido do Roger, 24/08/2026, para poder montar rotinas específicas por fase de jogo.
 const _SETPIECE_TABS=[['tatico','🏟️ Tático'],['cornerDef','🔴 Canto Defensivo'],['cornerOf','🔵 Canto Ofensivo'],['freeKick','🎯 Livre']];
 let _jogoCampoTab='tatico';
+// Campo inteiro/meio campo por quadro (sps-v185) — pedido do Roger, 29/09/2026: o Tático
+// mostra o campo inteiro por defeito (visão de conjunto da organização), os 3 quadros de
+// bolas paradas continuam a mostrar só meio campo por defeito (mais espaço para arrastar
+// com precisão perto da baliza) — mas os 4 têm um botão para alternar. Fica em memória,
+// não na base de dados (mesmo espírito de _jogoCampoDrawMode/_jogoArrowStyle) — reinicia
+// nos valores por defeito a cada visita, o que é o comportamento pedido.
+let _pitchFullView={tatico:true,cornerDef:false,cornerOf:false,freeKick:false};
+function _pitchToggleView(gid,mode){
+  mode=mode||_jogoCampoTab||'tatico';
+  _pitchFullView[mode]=!_pitchFullView[mode];
+  _renderJogoDetailFull();
+}
 function _pitchPos(g,mode){
   if(mode==='tatico'){if(!g.playerPositions)g.playerPositions={};return g.playerPositions;}
   if(!g.setpiecePositions)g.setpiecePositions={cornerDef:{},cornerOf:{},freeKick:{}};
@@ -6033,11 +6095,80 @@ function _pitchTasks(g,mode){
 // tático deixou de ter formações predefinidas (4-3-3 etc.), pedido do Roger 24/08/2026,
 // para ficar consistente com os 3 quadros de bolas paradas (só meio campo).
 function _pitchDefaultPos(mode,i,formation){
+  if(_pitchFullView[mode])return [40+(i%4)*70,80+Math.floor(i/4)*110];
   return [40+(i%4)*70,110+Math.floor(i/4)*35];
 }
-// Altura máxima de arrasto (eixo Y) — os 4 quadros mostram só meio campo (área+baliza),
-// por isso o limite é sempre o mesmo, curto.
-function _pitchMaxY(mode){return 190;}
+// Altura máxima de arrasto (eixo Y) — em meio campo, os 4 quadros mostram só a área+baliza
+// (limite curto); em campo inteiro (sps-v185, ver _pitchFullView) o limite sobe para quase
+// a linha de fundo oposta (PH=420 em _jogoCampoHtml, com uma margem de 20px).
+function _pitchMaxY(mode){return _pitchFullView[mode]?400:190;}
+// Altura do viewBox do SVG (eixo Y visível) — meio campo mostra só até ~200 (baliza+meio-
+// campo), campo inteiro mostra os 420 completos (mesmo PH usado no desenho do campo).
+function _pitchViewH(mode){return _pitchFullView[mode]?420:200;}
+// ── Adversárias e bola (sps-v185) — marcadores genéricos, sem ligação a nenhuma atleta,
+// para o adjunto de bolas paradas poder desenhar também a estrutura da equipa adversária
+// (ex: onde ficam as marcadoras no canto) e a posição da bola — pedido do Roger,
+// 29/09/2026, inspirado no que existe nas apps de bolas paradas pesquisadas (Set Pieces
+// Coach, Settik, TacticalPad — todas têm marcador de adversário e de bola). Guardado por
+// jogo+quadro, tal como as posições das próprias atletas.
+function _pitchOpponents(g,mode){
+  if(!g.pitchOpponents)g.pitchOpponents={tatico:[],cornerDef:[],cornerOf:[],freeKick:[]};
+  if(!g.pitchOpponents[mode])g.pitchOpponents[mode]=[];
+  return g.pitchOpponents[mode];
+}
+function _pitchBallMap(g){
+  if(!g.pitchBall)g.pitchBall={tatico:null,cornerDef:null,cornerOf:null,freeKick:null};
+  return g.pitchBall;
+}
+function pitchAddOpponent(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  mode=mode||_jogoCampoTab||'tatico';
+  const list=_pitchOpponents(g,mode);
+  if(list.length>=11)return toast('Máximo de 11 adversárias por quadro','err');
+  const maxY=_pitchMaxY(mode);
+  // Grelha em vez de todas na mesma posição (bug encontrado em teste, sps-v185): duas
+  // adversárias adicionadas de seguida ficavam exatamente sobrepostas, impossível de
+  // distinguir/arrastar uma da outra até se mexer — espalha por linha de 4, como a grelha
+  // por defeito das próprias atletas (ver _pitchDefaultPos), só que mais perto da baliza
+  // (zona típica de canto/livre) para não começar em cima do onze.
+  const i=list.length;
+  const x=40+(i%4)*70;
+  const yBase=_pitchFullView[mode]?260:150;
+  const y=Math.min(maxY,yBase+Math.floor(i/4)*30);
+  list.push({id:'opp'+Date.now()+Math.floor(Math.random()*1000),num:list.length+1,x,y});
+  saveData();_renderJogoDetailFull();
+}
+function pitchRemoveOpponent(e,gid,mode,oid){
+  if(e&&e.stopPropagation)e.stopPropagation();
+  if(_pitchWasDrag){_pitchWasDrag=false;return;}
+  if(!confirm('Remover esta marcadora adversária?'))return;
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const list=_pitchOpponents(g,mode);
+  const idx=list.findIndex(o=>o.id===oid);
+  if(idx>=0){list.splice(idx,1);saveData();_renderJogoDetailFull();}
+}
+function pitchToggleBall(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  mode=mode||_jogoCampoTab||'tatico';
+  const bm=_pitchBallMap(g);
+  if(bm[mode]){bm[mode]=null;}
+  else{const maxY=_pitchMaxY(mode);bm[mode]={x:150,y:Math.min(maxY,_pitchFullView[mode]?210:100)};}
+  saveData();_renderJogoDetailFull();
+}
+// Posição/gravação genéricas por "kind" (player/opponent/ball) — usadas pelo arrastar
+// (pitchDragStart/Move/End) para não precisarem de saber a diferença entre uma atleta, uma
+// adversária e a bola; cada kind só resolve onde essa posição vive.
+function _pitchMarkerPos(g,mode,kind,mid){
+  if(!g)return null;
+  if(kind==='opponent'){const o=_pitchOpponents(g,mode).find(x=>x.id===mid);return o?{x:o.x,y:o.y}:null;}
+  if(kind==='ball'){return _pitchBallMap(g)[mode]||null;}
+  return _pitchPos(g,mode)[mid]||null;
+}
+function _pitchSetMarkerPos(g,mode,kind,mid,x,y){
+  if(kind==='opponent'){const o=_pitchOpponents(g,mode).find(o2=>o2.id===mid);if(o){o.x=x;o.y=y;}return;}
+  if(kind==='ball'){const bm=_pitchBallMap(g);if(bm[mode])bm[mode]={x,y};return;}
+  _pitchPos(g,mode)[mid]={x,y};
+}
 // Galeria cronológica também na própria equipa (não só no Adversário) — pedido do Roger,
 // 26/08/2026: começa com o que está definido na plataforma, mas durante o jogo dá para
 // ir ajustando a estrutura (incl. bolas paradas) e gerar "prints", tal como já acontece
@@ -6067,7 +6198,12 @@ function _pitchSnapshot(gid,mode){
     positions[aid]={x:raw.x,y:Math.min(raw.y,maxY)};
     if(taskMap[aid])tasks[aid]=taskMap[aid];
   });
-  _pitchSnapshotsFor(g,mode).push({id:uid(),minRaw,note,positions,tasks,lineup:sortedLineup.map(x=>x.aid)});
+  // Adversárias e bola (sps-v185) entram também no registo — a organização da equipa
+  // adversária num canto/livre é tão parte do "momento" como a da própria equipa.
+  const opponents=_pitchOpponents(g,mode).map(o=>({id:o.id,num:o.num,x:o.x,y:o.y}));
+  const ball=_pitchBallMap(g)[mode]?{...(_pitchBallMap(g)[mode])}:null;
+  const fullView=!!_pitchFullView[mode];
+  _pitchSnapshotsFor(g,mode).push({id:uid(),minRaw,note,positions,tasks,opponents,ball,fullView,lineup:sortedLineup.map(x=>x.aid)});
   saveData();toast('Posicionamento registado ✓');
   _renderJogoDetailFull();
 }
@@ -6077,6 +6213,13 @@ function _pitchLoadSnapshot(gid,mode,snapId){
   const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
   Object.keys(snap.positions).forEach(aid=>{posMap[aid]={...snap.positions[aid]};});
   Object.keys(snap.tasks||{}).forEach(aid=>{taskMap[aid]=snap.tasks[aid];});
+  // Restaura também adversárias/bola/vista (campo inteiro ou meio) tal como estavam no
+  // momento do registo — snapshots antigos (antes do sps-v185) não têm estes campos, por
+  // isso caem sempre nos valores por defeito em vez de rebentar.
+  g.pitchOpponents=g.pitchOpponents||{tatico:[],cornerDef:[],cornerOf:[],freeKick:[]};
+  g.pitchOpponents[mode]=(snap.opponents||[]).map(o=>({...o}));
+  const bm=_pitchBallMap(g);bm[mode]=snap.ball?{...snap.ball}:null;
+  if(typeof snap.fullView==='boolean')_pitchFullView[mode]=snap.fullView;
   saveData();toast('Posicionamento carregado — ajusta e regista de novo');
   _renderJogoDetailFull();
 }
@@ -6094,7 +6237,11 @@ function _pitchDeleteSnapshot(gid,mode,snapId){
 function _pitchSnapshotSvg(mode,snap,w){
   w=w||190;
   const isTatico=mode==='tatico';
-  const h=Math.round(w*(200/300));
+  // Miniatura mostra a mesma vista (campo inteiro/meio) que estava ativa quando o
+  // posicionamento foi registado (sps-v185, ver snap.fullView) — snapshots antigos não têm
+  // este campo e caem sempre em meio campo (200), o comportamento que já tinham antes.
+  const viewH=snap.fullView?420:200;
+  const h=Math.round(w*(viewH/300));
   const rad=7,numFs=7,sw=1.5;
   const bg=`<rect width="300" height="420" fill="#2d7a2d" rx="8"/>
     <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -6120,7 +6267,15 @@ function _pitchSnapshotSvg(mode,snap,w){
     dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||'?'}</text>`;
     if(isTatico)dots+=`<text x="${p.x}" y="${(p.y+16).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
   });
-  return `<svg viewBox="0 0 300 200" style="width:${w}px;height:${h}px;display:block;border-radius:6px">${bg}${dots}</svg>`;
+  // Adversárias (círculos vermelhos, letra "A"+número) e bola (sps-v185) — snapshots
+  // anteriores a esta versão não têm estes campos, por isso ficam simplesmente sem eles.
+  (snap.opponents||[]).forEach(o=>{
+    dots+=`<circle cx="${o.x}" cy="${o.y}" r="${rad}" fill="#e74c3c" stroke="white" stroke-width="${sw}"/><text x="${o.x}" y="${(o.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="#fff">${o.num||''}</text>`;
+  });
+  if(snap.ball){
+    dots+=`<circle cx="${snap.ball.x}" cy="${snap.ball.y}" r="${Math.round(rad*0.6)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>`;
+  }
+  return `<svg viewBox="0 0 300 ${viewH}" style="width:${w}px;height:${h}px;display:block;border-radius:6px">${bg}${dots}</svg>`;
 }
 function _pitchGalleryHtml(g,mode){
   const snaps=_pitchSnapshotsFor(g,mode);
@@ -6169,7 +6324,7 @@ function _jogoCampoHtml(g){
     const tf=isGK?'#fff':'#1a1a2e';
     const nm=escHtml(_shortName(a));
     const task=taskMap[aid]||'';
-    return `<g class="pitch-pl" data-aid="${aid}" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}')" onclick="pitchPlayerClick(event,'${g.id}','${aid}','${mode}')">
+    return `<g class="pitch-pl" data-aid="${aid}" data-kind="player" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}','player')" onclick="pitchPlayerClick(event,'${g.id}','${aid}','${mode}')">
       <circle r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/>
       <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||i+1}</text>
       ${showName?`<text text-anchor="middle" y="25" font-size="11" fill="rgba(255,255,255,.9)">${nm}</text>`:''}
@@ -6178,6 +6333,20 @@ function _jogoCampoHtml(g){
       <title>${escHtml(a.name)}${task?' — '+escHtml(task):''}</title>
     </g>`;
   }).join('');
+  // Adversárias (círculos vermelhos "A"+número) e bola (sps-v185) — mesma mecânica de
+  // arrastar dos jogadores (ver pitchDragStart/kind), sem ligação a nenhuma atleta. Toca
+  // (sem arrastar) remove o marcador — mesmo espírito das setas (pitchArrowClick).
+  const opponentsList=_pitchOpponents(g,mode);
+  const opponentMarkers=opponentsList.map(o=>`<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="pitchRemoveOpponent(event,'${g.id}','${mode}','${o.id}')">
+      <circle r="${rad}" fill="#e74c3c" stroke="white" stroke-width="${sw}"/>
+      <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="#fff">${o.num||''}</text>
+      <title>Adversária — toca para remover</title>
+    </g>`).join('');
+  const ballPos=_pitchBallMap(g)[mode];
+  const ballMarker=ballPos?`<g class="pitch-ball" data-aid="ball-${mode}" data-kind="ball" data-gid="${g.id}" transform="translate(${ballPos.x},${ballPos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','ball-${mode}','${mode}','ball')" onclick="event.stopPropagation();if(!_pitchWasDrag)pitchToggleBall('${g.id}','${mode}');_pitchWasDrag=false;">
+      <circle r="${Math.round(rad*0.7)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>
+      <title>Bola — toca para remover</title>
+    </g>`:'';
   const taskRows=sortedLineup.map(({aid,a})=>{
     const isGK=a.pos==='GR';
     const task=taskMap[aid]||'';
@@ -6191,7 +6360,7 @@ function _jogoCampoHtml(g){
   <div class="ipanel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div class="sh-t" style="font-size:15px">🏟️ Campo Tático Interativo</div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--t2)">Arrasta atletas • Clica para tarefa</span>
         <button class="btn btn-sm btn-gh" onclick="printJogoCampo('${g.id}')">📄 PDF deste Quadro</button>
         <button class="btn btn-sm btn-gh" onclick="shareJogoCampoImage('${g.id}','${mode}')">📤 Partilhar Imagem</button>
@@ -6206,9 +6375,15 @@ function _jogoCampoHtml(g){
       <button class="tab-btn ${_jogoArrowStyle==='dashed'?'on':''}" onclick="_jogoArrowStyle='dashed';_renderJogoDetailFull()" title="Passe">┄ Tracejada</button>
       <button class="btn btn-sm btn-gh" onclick="pitchClearArrows('${g.id}','${mode}')" style="margin-left:6px">🗑️ Limpar Setas</button>`:''}
     </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button class="tab-btn ${_pitchFullView[mode]?'on':''}" onclick="_pitchToggleView('${g.id}','${mode}')" title="Alternar campo inteiro/meio campo">${_pitchFullView[mode]?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
+      <button class="btn btn-sm btn-gh" onclick="pitchAddOpponent('${g.id}','${mode}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
+      <button class="btn btn-sm ${ballPos?'btn-r':'btn-gh'}" onclick="pitchToggleBall('${g.id}','${mode}')" title="Adicionar/remover marcador da bola">⚽ ${ballPos?'Remover Bola':'Bola'}</button>
+      ${opponentsList.length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para remover</span>`:''}
+    </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
       <div class="jc-pitch-wrap" style="flex-shrink:0">
-      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} 200" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pitchArrowStart(event,'${g.id}','${mode}')" onmousemove="pitchDragMove(event);pitchArrowMove(event)" onmouseup="pitchDragEnd(event);pitchArrowEnd(event)" onmouseleave="pitchDragEnd(event);pitchArrowEnd(event)">
+      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} ${_pitchViewH(mode)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pitchArrowStart(event,'${g.id}','${mode}')" onmousemove="pitchDragMove(event);pitchArrowMove(event)" onmouseup="pitchDragEnd(event);pitchArrowEnd(event)" onmouseleave="pitchDragEnd(event);pitchArrowEnd(event)">
         <defs><marker id="arrowhead-${g.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
         <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
         <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -6225,6 +6400,8 @@ function _jogoCampoHtml(g){
         <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>
         ${arrowList.map(a=>`<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="#fff" stroke-width="2" stroke-dasharray="${a.style==='dashed'?'6,4':'none'}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></line>`).join('')}
         ${g.lineup.length?players:`<text x="150" y="100" text-anchor="middle" fill="rgba(255,255,255,.35)" font-size="11">Define o onze no Pré-Jogo</text>`}
+        ${opponentMarkers}
+        ${ballMarker}
       </svg>
       </div>
       <div style="flex:1;min-width:180px">
@@ -6320,17 +6497,18 @@ function savePitchNotes(gid,mode,val){
   g.pitchNotes[mode]=val;saveData();
 }
 
-function pitchDragStart(e,gid,aid,mode){
+function pitchDragStart(e,gid,aid,mode,kind){
   e.preventDefault();e.stopPropagation();
   mode=mode||_jogoCampoTab||'tatico';
+  kind=kind||'player';
   if(_jogoCampoDrawMode==='seta'){pitchArrowStart(e,gid,mode);return;}
   _pitchWasDrag=false;
   const svg=document.getElementById('pitch-svg-'+gid);if(!svg)return;
   const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
   const g=APP.games.find(x=>x.id===gid);
-  const pos=(g&&_pitchPos(g,mode)[aid])||{x:150,y:210};
-  _pitchDragging={gid,aid,mode,sx:svgP.x,sy:svgP.y,ox:pos.x,oy:pos.y};
+  const pos=(g&&_pitchMarkerPos(g,mode,kind,aid))||{x:150,y:210};
+  _pitchDragging={gid,aid,mode,kind,sx:svgP.x,sy:svgP.y,ox:pos.x,oy:pos.y};
 }
 
 function pitchDragMove(e){
@@ -6357,7 +6535,7 @@ function pitchDragEnd(e){
       const nx=Math.max(16,Math.min(284,_pitchDragging.ox+dx));
       const ny=Math.max(16,Math.min(_pitchMaxY(_pitchDragging.mode),_pitchDragging.oy+dy));
       const g=APP.games.find(x=>x.id===_pitchDragging.gid);
-      if(g){_pitchPos(g,_pitchDragging.mode||'tatico')[_pitchDragging.aid]={x:nx,y:ny};saveData();}
+      if(g){_pitchSetMarkerPos(g,_pitchDragging.mode||'tatico',_pitchDragging.kind||'player',_pitchDragging.aid,nx,ny);saveData();}
     }
   }
   _pitchDragging=null;
@@ -6383,8 +6561,10 @@ function _initPitchEvents(gid){
   const svg=document.getElementById('pitch-svg-'+gid);if(!svg)return;
   svg.addEventListener('touchstart',e=>{
     if(e.touches.length!==1)return;
-    const t=e.touches[0],target=t.target.closest('.pitch-pl');
-    if(target){e.preventDefault();pitchDragStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},gid,target.dataset.aid,_jogoCampoTab);}
+    // sps-v185: além das próprias atletas (.pitch-pl), agora também adversárias (.pitch-opp)
+    // e bola (.pitch-ball) — cada marcador diz o seu "kind" via data-kind.
+    const t=e.touches[0],target=t.target.closest('.pitch-pl,.pitch-opp,.pitch-ball');
+    if(target){e.preventDefault();pitchDragStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},gid,target.dataset.aid,_jogoCampoTab,target.dataset.kind);}
     else if(_jogoCampoDrawMode==='seta'){e.preventDefault();pitchArrowStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},gid,_jogoCampoTab);}
   },{passive:false});
   svg.addEventListener('touchmove',e=>{
@@ -6395,13 +6575,19 @@ function _initPitchEvents(gid){
   svg.addEventListener('touchend',e=>{
     if(!_pitchDragging){if(_arrowDragging){const t2=e.changedTouches[0];pitchArrowEnd({clientX:t2.clientX,clientY:t2.clientY});}return;}
     const t=e.changedTouches[0];
-    const dgid=_pitchDragging.gid,daid=_pitchDragging.aid,dmode=_pitchDragging.mode||'tatico',wasD=_pitchWasDrag;
+    const dgid=_pitchDragging.gid,daid=_pitchDragging.aid,dmode=_pitchDragging.mode||'tatico',dkind=_pitchDragging.kind||'player',wasD=_pitchWasDrag;
     pitchDragEnd({clientX:t.clientX,clientY:t.clientY});
     if(!wasD){
-      const a=APP.athletes.find(x=>x.id===daid);
-      const g=APP.games.find(x=>x.id===dgid);
-      if(a&&g){const taskMap=_pitchTasks(g,dmode);const task=taskMap[daid]||'';const nt=prompt('Tarefa — '+a.name+':',task);
-      if(nt!==null){taskMap[daid]=nt;saveData();}}
+      const g=APP.games.find(x=>x.id===dgid);if(!g)return;
+      if(dkind==='player'){
+        const a=APP.athletes.find(x=>x.id===daid);
+        if(a){const taskMap=_pitchTasks(g,dmode);const task=taskMap[daid]||'';const nt=prompt('Tarefa — '+a.name+':',task);
+        if(nt!==null){taskMap[daid]=nt;saveData();}}
+      } else if(dkind==='opponent'){
+        if(confirm('Remover esta marcadora adversária?')){const list=_pitchOpponents(g,dmode);const idx=list.findIndex(o=>o.id===daid);if(idx>=0){list.splice(idx,1);saveData();_renderJogoDetailFull();}}
+      } else if(dkind==='ball'){
+        pitchToggleBall(dgid,dmode);
+      }
     }
   });
 }
@@ -17492,7 +17678,7 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
       AID=sess.userId;
       const at=APP.athletes.find(a=>a.id===AID);
       if(at){showAtletaApp(at);return;}
-    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();return;}
+    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();return;}
   }
   if(_checkAtletaToken()) return;
   // Sessão persistente da atleta (localStorage)
