@@ -2018,3 +2018,84 @@ para esboçar a FORMAÇÃO INTEIRA do adversário, 11 marcadores
 numerados, não ligado ao Campo Tático) — tem a mesma baliza/pequena
 área estreitas, mas o Roger não pediu para mexer ali e por isso não foi
 tocada; se quiser o mesmo alargamento nesse quadro, é só pedir.
+
+## sps-v187 — Afinações mobile/tablet (app em geral + Quadro Tático)
+## (29/09/2026, mesmo dia)
+
+Pedido do Roger: "ajusta o modo telemóvel e tablet quer na app em geral
+quer no tático que criamos agora". Como era um pedido geral ("Pedido
+geral, sem testar ainda", confirmado por pergunta) e não uma queixa de
+um bug visto num aparelho concreto, esclareci primeiro o âmbito por
+pergunta — o Roger escolheu 3 áreas: toque/tamanho dos marcadores e
+botões, aproveitamento do ecrã, e orientação retrato/paisagem. Antes de
+alterar código, um agente de exploração fez uma auditoria só de leitura
+ao CSS/manifest/tamanhos de marcadores existentes, que confirmou: não
+havia nenhuma breakpoint dedicada à gama de tablet (768–1024px), o
+`.jc-pitch-wrap` do Campo Tático não tinha nenhuma regra específica
+para paisagem, e o manifest da PWA trancava a orientação em
+`'portrait'` em todos os modos (Atleta, Gameday, Ginásio, Fisio, Nutri,
+Tático). Cinco alterações concretas, uma por área:
+
+1. **Orientação** — `applyPWAManifest` deixou de forçar
+   `orientation:'portrait'`; passa a `orientation:opts.orientation||'any'`
+   (nenhum modo passa uma orientação fixa neste momento, por isso todos
+   ficam livres para rodar, incluindo o `?tatico=1` no tablet do banco).
+2. **Toque/tamanho dos botões** — nova regra
+   `@media(hover:none) and (pointer:coarse)` sobe o tamanho dos botões
+   da topbar, `.btn`/`.btn-sm`/`.btn-xs`/`.btn-icon` e das abas em
+   qualquer ecrã tátil (telemóvel OU tablet), sem afetar rato/trackpad
+   em desktop — `pointer:coarse` deteta o tipo de input, não a largura
+   do ecrã, por isso não confunde um portátil pequeno com um tablet
+   grande.
+3. **Marcadores do Campo Tático** — os marcadores de atleta e de bola
+   ganharam um círculo transparente maior por baixo do círculo visível
+   (mesmo padrão já usado no X da adversária desde o sps-v186), para
+   uma área de toque mais confortável no dedo sem aumentar o tamanho
+   visual do marcador.
+4. **Aproveitamento do ecrã (barra lateral)** — nova breakpoint
+   `@media(max-width:1024px) and (min-width:681px)` esconde a barra
+   lateral fora do ecrã (tal como já acontecia só abaixo de 680px),
+   libertando o ecrã inteiro em tablets; abre com o botão de
+   hambúrguer, tal como no telemóvel.
+5. **Campo Tático mais largo em paisagem de tablet** — dentro da regra
+   `@media(orientation:landscape) and (min-width:680px)` já existente,
+   `.jc-pitch-wrap{width:min(72vw,90vh,820px)}` (antes só tinha a regra
+   genérica de retrato, `min(96vw,640px)`). A página do Campo Tático
+   tem scroll normal (não é um ecrã fixo tipo o Gameday em direto), por
+   isso o limite de altura (`vh`) é só uma rede de segurança, não uma
+   obrigação de caber sem scroll — daí usar `90vh` em vez de um valor
+   mais apertado.
+
+Testado com um agente de exploração (leitura) + Node (`node --check`
+ao bloco `<script>`) + Playwright, criando um novo ficheiro dedicado
+(`test_mobile_v187.js`) que cobre as 5 áreas em contextos de browser
+isolados (viewports de telemóvel/tablet/desktop, com e sem toque,
+retrato e paisagem). Dois problemas foram apanhados e corrigidos
+durante os testes, nenhum dos dois no comportamento visual final para
+o Roger:
+
+- Um falso alarme do próprio teste: a verificação da barra lateral
+  media `getComputedStyle(transform)` antes de fazer login — mas o
+  `#staff-app` só passa a `display:flex` depois do login
+  (`showStaffApp()`), e o Chromium resolve `transform` sempre como
+  `'none'` para qualquer elemento dentro de um antecessor com
+  `display:none`, seja qual for a regra CSS aplicável. Corrigido a
+  fazer login antes de medir. Um segundo falso alarme parecido: depois
+  de abrir a barra lateral, o `transform` calculado nem sempre é a
+  string `'none'` — pode ser a matriz identidade
+  `matrix(1,0,0,1,0,0)` (mesmo resultado visual, string diferente,
+  consoante a regra CSS é "sem transform" ou "transform:translateX(0)")
+  — o teste passou a comparar a componente de deslocamento X em vez da
+  string exata.
+- Um bug real de CSS: a primeira fórmula para a largura do campo em
+  paisagem, `min(62vw,60vh,820px)`, tinha o termo `60vh` a tornar-se o
+  limite mais apertado em alturas de tablet típicas (ex.: 800px de
+  altura → só 480px), ficando o campo mais estreito do que a regra de
+  retrato simples — o oposto do pedido. Corrigido para
+  `min(72vw,90vh,820px)`, conforme o ponto 5 acima.
+
+SW bump para `sps-v187`. Os testes do sps-v185/v186 (Node + Playwright,
+ver entradas acima) foram todos re-corridos depois destas alterações e
+continuam a passar sem regressões (a única falha da suite e2e do
+sps-v185 é a de sempre, o CDN bloqueado pelo proxy da sandbox, sem
+relação com este trabalho).

@@ -184,6 +184,13 @@ ul{list-style:none}
   .gd-live-wrap{flex-direction:row;align-items:flex-start;gap:16px}
   .gd-pitch-col{flex:0 0 auto}
   .gd-info-col{flex:1;min-width:0;max-height:92vh;overflow-y:auto;padding-right:2px}
+  /* Quadro Tático (sps-v187, 29/09/2026, pedido do Roger — "aproveitamento do ecrã"): em
+     paisagem num tablet o campo ficava preso ao teto de 640px mesmo havendo ecrã de sobra
+     ao lado (a coluna de Tarefas fica à direita, ver _jogoCampoHtml) — ganha até 820px. A
+     página desta aba tem scroll normal (não é um ecrã fixo tipo Ao Vivo), por isso o limite
+     de altura (90vh) é só uma rede de segurança para não ficar exagerado num ecrã baixo,
+     não uma garantia rígida de caber tudo sem scroll. */
+  .jc-pitch-wrap{width:min(72vw,90vh,820px)}
 }
 /* Em modo Gameday, botão de saída maior — usado de pé, no banco, muitas vezes com pressa. */
 .gd-mode .tb-btn{width:38px;height:38px}
@@ -404,6 +411,31 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 
 /* RESPONSIVE */
 @media(max-width:900px){:root{--sw:200px}.g3{grid-template-columns:1fr 1fr}}
+/* Tablet (681-1024px, sps-v187, 29/09/2026, pedido do Roger — "aproveitamento do ecrã"):
+   até aqui a barra lateral ficava sempre fixa/acoplada (só recolhia a partir de 680px),
+   ocupando 200-242px de um ecrã de tablet (retrato ~768px, paisagem ~1024px) que já não
+   sobra muito. Mesmo mecanismo off-canvas do telemóvel (transform + .mob + backdrop, ver
+   o bloco de 680px logo abaixo) aplicado também a este intervalo — os grids de várias
+   colunas (.g2/.g3/etc) ficam como estão, cabem bem numa largura de tablet. */
+@media(max-width:1024px) and (min-width:681px){
+  #sidebar{transform:translateX(-100%);width:min(var(--sw),320px)}
+  #sidebar.mob{transform:translateX(0)}
+  #main{margin-left:0}
+  #sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:150}
+  #sb-backdrop.on{display:block}
+}
+/* Alvos de toque maiores em qualquer ecrã tátil, telemóvel ou tablet — não por largura de
+   ecrã (um portátil com ecrã pequeno continua a usar rato), mas por tipo de ponteiro
+   (sps-v187, 29/09/2026, pedido do Roger — "toque/tamanho dos botões"). Cobre a topbar
+   geral, que só tinha este reforço dentro dos modos standalone (gd-mode/tt-mode/etc). */
+@media (hover:none) and (pointer:coarse){
+  .tb-btn{width:38px;height:38px}
+  .btn{padding:9px 15px}
+  .btn-sm{padding:7px 11px}
+  .btn-xs{padding:5px 9px}
+  .btn-icon{width:32px;height:32px}
+  .tab-btn{padding:8px 14px}
+}
 @media(max-width:680px){
   #sidebar{transform:translateX(-100%);width:min(var(--sw),82vw)}
   #sidebar.mob{transform:translateX(0)}
@@ -6320,6 +6352,11 @@ function _jogoCampoHtml(g){
   // de ser fiável depois desta reordenação.
   const sortedLineup=g.lineup.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
     .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+  // Cada marcador (atleta, adversária, bola) ganha um círculo invisível maior (rad+3) por
+  // baixo do desenho visível, só para a área de toque — o círculo/X visível fica do mesmo
+  // tamanho de sempre (senão o campo fica poluído com marcadores enormes), mas arrastar no
+  // telemóvel deixa de exigir acertar exatamente nos poucos pixels do círculo pequeno
+  // (sps-v187, 29/09/2026, pedido do Roger — "toque/tamanho dos marcadores").
   const players=sortedLineup.map(({aid,a},i)=>{
     const def=_pitchDefaultPos(mode,i,g.formation);
     const rawPos=posMap[aid]||{x:def[0],y:def[1]};
@@ -6333,6 +6370,7 @@ function _jogoCampoHtml(g){
     const nm=escHtml(_shortName(a));
     const task=taskMap[aid]||'';
     return `<g class="pitch-pl" data-aid="${aid}" data-kind="player" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}','player')" onclick="pitchPlayerClick(event,'${g.id}','${aid}','${mode}')">
+      <circle r="${rad+3}" fill="transparent"/>
       <circle r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/>
       <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||i+1}</text>
       ${showName?`<text text-anchor="middle" y="25" font-size="11" fill="rgba(255,255,255,.9)">${nm}</text>`:''}
@@ -6344,9 +6382,8 @@ function _jogoCampoHtml(g){
   // Adversárias — um X vermelho (sps-v185, 29/09/2026: pedido do Roger, trocou o círculo
   // numerado original por um X, mais rápido de reconhecer num quadro de bolas paradas) —
   // mesma mecânica de arrastar dos jogadores (ver pitchDragStart/kind), sem ligação a
-  // nenhuma atleta. Um círculo transparente por baixo do X dá uma área de toque confortável
-  // (as duas linhas finas do X, sozinhas, seriam difíceis de acertar no telemóvel). Toca
-  // (sem arrastar) remove o marcador — mesmo espírito das setas (pitchArrowClick).
+  // nenhuma atleta. Toca (sem arrastar) remove o marcador — mesmo espírito das setas
+  // (pitchArrowClick).
   const opponentsList=_pitchOpponents(g,mode);
   const oppArm=rad;
   const opponentMarkers=opponentsList.map(o=>`<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="pitchRemoveOpponent(event,'${g.id}','${mode}','${o.id}')">
@@ -6357,6 +6394,7 @@ function _jogoCampoHtml(g){
     </g>`).join('');
   const ballPos=_pitchBallMap(g)[mode];
   const ballMarker=ballPos?`<g class="pitch-ball" data-aid="ball-${mode}" data-kind="ball" data-gid="${g.id}" transform="translate(${ballPos.x},${ballPos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','ball-${mode}','${mode}','ball')" onclick="event.stopPropagation();if(!_pitchWasDrag)pitchToggleBall('${g.id}','${mode}');_pitchWasDrag=false;">
+      <circle r="${rad+3}" fill="transparent"/>
       <circle r="${Math.round(rad*0.7)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>
       <title>Bola — toca para remover</title>
     </g>`:'';
@@ -17483,7 +17521,11 @@ function applyPWAManifest(opts){
     // showAtletaApp) para que o ícone instalado no ecrã principal do telemóvel abra sempre
     // direto no login de atleta — sem isto, o ícone reabria sempre o ecrã de staff com
     // "Entrar como Atleta" só como botão secundário, mesmo depois de corrigido no browser.
-    var manifest={name:name,short_name:shortName,start_url:opts.startUrl||location.pathname,display:'standalone',orientation:'portrait',background_color:'#0c0f14',theme_color:themeColor,icons:[
+    // orientation deixou de estar preso a 'portrait' (sps-v187, 29/09/2026, pedido do
+    // Roger): isto travava a rotação da app instalada em Android mesmo em modos pensados
+    // para paisagem (Gameday, Tático — o próprio quadro tático tem um campo mais largo que
+    // alto em meio campo). 'any' deixa o sistema seguir a orientação física do aparelho.
+    var manifest={name:name,short_name:shortName,start_url:opts.startUrl||location.pathname,display:'standalone',orientation:opts.orientation||'any',background_color:'#0c0f14',theme_color:themeColor,icons:[
       {src:icon192,sizes:'192x192',type:iconType,purpose:'any maskable'},
       {src:icon512,sizes:'512x512',type:iconType,purpose:'any maskable'}
     ]};
