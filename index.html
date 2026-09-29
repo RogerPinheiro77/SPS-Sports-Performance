@@ -13070,7 +13070,7 @@ function saveHydraRecord(athleteId,gameId,data){
   if(!r){r={id:'hy'+Date.now()+Math.floor(Math.random()*1000),athleteId,gameId};APP.hydrationRecords.push(r);}
   Object.assign(r,data,{registeredBy:sess?sess.name:(r.registeredBy||''),registeredById:sess?sess.userId:(r.registeredById||null),updatedAt:new Date().toISOString()});
   saveData();
-  if(_sync)cloudUpsert('hydration_records',r);
+  if(_sync)cloudUpsert('hydration_records',{...r,club_id:_cid});
   toast('Registo guardado ✓');
   _hydraRerender();
 }
@@ -17630,9 +17630,9 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{preGameMeal:'pre_game_meal',postGame:'post_game',updatedAt:'updated_at',updatedBy:'updated_by',updatedById:'updated_by_id'}},
   // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
   // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
-  // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela ainda por criar no Supabase
-  // (ver CLAUDE.md) — até lá, cloudUpsert falha em silêncio (_warnSyncFailure) e os dados
-  // ficam só em localStorage neste dispositivo.
+  // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela criada no Supabase
+  // (migração create_hydration_records, sps-v188.1) com a mesma política RLS anon_all
+  // usada em todas as outras tabelas.
   hydration_records:{cols:['id','athlete_id','game_id','pre_weight','post_weight','fluids_l','urine_l','duration_h','sweat_rate','weight_loss_pct','notes','registered_by','registered_by_id','updated_at'],
     rename:{athleteId:'athlete_id',gameId:'game_id',preWeight:'pre_weight',postWeight:'post_weight',fluidsL:'fluids_l',urineL:'urine_l',durationH:'duration_h',sweatRate:'sweat_rate',weightLossPct:'weight_loss_pct',registeredBy:'registered_by',registeredById:'registered_by_id',updatedAt:'updated_at'}},
   physio_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],

@@ -2188,19 +2188,19 @@ bloqueado pelo proxy da sandbox, sem relação com este trabalho).
 
 SW bump para `sps-v188`.
 
-**Nota importante — sincronização entre dispositivos ainda não está
-ativa para esta funcionalidade:** a tabela `hydration_records` foi
-registada no schema de sincronização (`_CLOUD_TABLE_SCHEMA` e
-`pullCloud()`), mas a sessão do MCP do Supabase expirou a meio deste
-trabalho ("MCP server 'Supabase' needs you to sign in again") e não
-foi possível criar a tabela na base de dados real do Roger. O código
-degrada de forma segura (grava sempre localmente; `cloudUpsert`/
-`pullCloud` falham em silêncio se a tabela não existir), mas até a
-tabela ser criada, um registo de hidratação gravado num dispositivo
-(ex.: telemóvel da Nutri) não aparece automaticamente noutro
-dispositivo (ex.: tablet do Fisio) — só no mesmo dispositivo/sessão
-local. Isto contraria a decisão do Roger de a App Fisio ter acesso de
-leitura E escrita aos mesmos dados ("AS DUAS"), por isso a tabela
-precisa de ser criada antes deste bloco poder ser considerado
-funcionalmente completo entre dispositivos — numa sessão futura
-(assim que o Supabase reconectar) ou manualmente pelo Roger.
+**Atualização (mesmo dia): sincronização entre dispositivos resolvida.**
+A nota original desta secção (tabela `hydration_records` por criar,
+porque a sessão do MCP do Supabase tinha expirado a meio deste
+trabalho) já não se aplica — o Supabase reconectou ainda na mesma
+sessão e a tabela foi criada (migração `create_hydration_records`),
+com a mesma política RLS `anon_all` usada em todas as outras tabelas
+da app. Também corrigido nesse momento: `saveHydraRecord()` passou a
+enviar `club_id` explicitamente para `cloudUpsert('hydration_records',
+...)`, tal como todas as outras chamadas a `cloudUpsert` no código
+(era o único ponto a confiar só no preenchimento automático do
+`club_id` dentro do próprio `cloudUpsert` — inofensivo na prática, mas
+inconsistente com o padrão do resto da app). Confirmado com Node
+(`node --check`) e reexecução da suite `test_hydration_v188.js`
+(continua tudo a passar). Com isto, um registo gravado no ecrã da
+Nutri passa a aparecer também no ecrã do Fisio (e vice-versa) em
+qualquer dispositivo, cumprindo o "AS DUAS" tal como decidido.
