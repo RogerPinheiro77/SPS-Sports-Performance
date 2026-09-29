@@ -525,11 +525,13 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-fisio-anamnese"></div>
       <div class="pg" id="pg-fisio-agenda-geral"></div>
       <div class="pg" id="pg-fisio-consultas"></div>
+      <div class="pg" id="pg-fisio-hidratacao"></div>
       <div class="pg" id="pg-nutri-home"></div>
       <div class="pg" id="pg-nutri-dash"></div>
       <div class="pg" id="pg-nutri-aval"></div>
       <div class="pg" id="pg-nutri-planos"></div>
       <div class="pg" id="pg-nutri-gameday"></div>
+      <div class="pg" id="pg-nutri-hidratacao"></div>
       <div class="pg" id="pg-nutri-agenda-geral"></div>
       <div class="pg" id="pg-nutri-consultas"></div>
       <div class="pg" id="pg-nutri-manual"></div>
@@ -634,13 +636,13 @@ const _gdForceLocalGameIds=new Set();
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null,hydrationGuidelines:null},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],macrocycles:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],nutritionAppointments:[],fisioAppointments:[],
-    nutritionGameDayPlan:null,
+    nutritionGameDayPlan:null,hydrationRecords:[],
     anamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     mcTemplates:[],
     users:[]
@@ -1020,12 +1022,14 @@ const ALL_PAGES=[
   {id:'fisio-anamnese',icon:'📋',label:'Anamnese'},
   {id:'fisio-agenda-geral',icon:'🗓️',label:'Agenda Geral'},
   {id:'fisio-consultas',icon:'📅',label:'Consultas'},
+  {id:'fisio-hidratacao',icon:'💧',label:'Matchday Hydration'},
   {id:'fisio-dash',icon:'📊',label:'Dashboard Completo'},
   {sec:'Nutrição'},
   {id:'nutri-home',icon:'🏠',label:'Home'},
   {id:'nutri-aval',icon:'📏',label:'Avaliações'},
   {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
   {id:'nutri-gameday',icon:'🏆',label:'Plano Dia de Jogo'},
+  {id:'nutri-hidratacao',icon:'💧',label:'Matchday Hydration'},
   {id:'nutri-agenda-geral',icon:'🗓️',label:'Agenda Geral'},
   {id:'nutri-consultas',icon:'📅',label:'Consultas'},
   {id:'nutri-dash',icon:'📊',label:'Dashboard Completo'},
@@ -1041,8 +1045,8 @@ const ROLE_DEFS={
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
-  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-dash'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-manual'],readOnly:false,manageUsers:false},
+  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-hidratacao','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-manual'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes'],readOnly:true,manageUsers:false}
 };
@@ -1151,7 +1155,7 @@ function _maybeEnterTaticoMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1227,7 +1231,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -12291,6 +12295,8 @@ function renderFisioHome(){
     _card('fisio-consultas','calendar-event','#2dd4bf','Consultas',
       nextC?`Próx: ${fmtDateShort(nextC.date)}`:'Sem consultas agendadas',
       nextC?'#2dd4bf':'var(--t2)', _bdg(upcomingC.length||'','#0d9488'),'13,148,136'),
+    _card('fisio-hidratacao','droplet','#38bdf8','Matchday Hydration',
+      'Peso e líquidos em dia de jogo','var(--t2)','','56,189,248'),
     _card('fisio-dash','chart-bar','#E3BF4A','Dashboard Completo',
       cicloAlerta?`${cicloAlerta} alerta(s) de ciclo hoje`:'Ver análise completa',
       cicloAlerta?'#f87171':'var(--t2)', _bdg(cicloAlerta||'','#dc2626'),'217,119,6'),
@@ -12956,6 +12962,228 @@ function _nutriAlertsHtml(){
     </div>
   </div>`;
 }
+// ─── MATCHDAY HYDRATION (sps-v188, Bloco 1 de 5 — pedido do Roger, 29/09/2026) ───────────
+// Protocolo de hidratação em dia de jogo. Gerido pela Nutri (configura defeitos + overrides
+// por atleta); o Fisio regista/vê em pé de igualdade (decisão do Roger, "AS DUAS") — mesma
+// página partilhada nas duas apps, mesmo padrão de _agendaGeralCore(containerId) já usado
+// para a Agenda Geral. Ver doc "SPS — Matchday Hydration: Análise e Proposta" para as
+// fontes científicas (NATA 2017, ACSM, estudo em futebolistas femininas de elite) por trás
+// destes valores de defeito.
+const HYDRATION_DEFAULTS={
+  preGameMlKgLow:5,preGameMlKgHigh:7,
+  t60MlLow:300,t60MlHigh:500,
+  t15MlLow:150,t15MlHigh:250,
+  duringMlHLow:500,duringMlHHigh:700,
+  htMlLow:300,htMlHigh:500,
+  postReplacementMultiplier:1.5,
+  drinkCarbsGLLow:30,drinkCarbsGLHigh:60,
+  drinkSodiumMgLLow:400,drinkSodiumMgLHigh:700,
+  weightLossAmberPct:2,weightLossRedPct:3
+};
+const HYDRATION_FIELDS=[
+  {key:'preGameMlKgLow',label:'Pré-jogo — ml/kg (mínimo)'},
+  {key:'preGameMlKgHigh',label:'Pré-jogo — ml/kg (máximo)'},
+  {key:'t60MlLow',label:'T-60 — ml (mínimo)'},
+  {key:'t60MlHigh',label:'T-60 — ml (máximo)'},
+  {key:'t15MlLow',label:'T-15 — ml (mínimo)'},
+  {key:'t15MlHigh',label:'T-15 — ml (máximo)'},
+  {key:'duringMlHLow',label:'Durante o jogo — ml/h (mínimo)'},
+  {key:'duringMlHHigh',label:'Durante o jogo — ml/h (máximo)'},
+  {key:'htMlLow',label:'Intervalo — ml (mínimo)'},
+  {key:'htMlHigh',label:'Intervalo — ml (máximo)'},
+  {key:'postReplacementMultiplier',label:'Reposição pós-jogo — multiplicador do défice (NATA: 1,5)'},
+  {key:'drinkCarbsGLLow',label:'Bebida — hidratos g/L (mínimo)'},
+  {key:'drinkCarbsGLHigh',label:'Bebida — hidratos g/L (máximo)'},
+  {key:'drinkSodiumMgLLow',label:'Bebida — sódio mg/L (mínimo)'},
+  {key:'drinkSodiumMgLHigh',label:'Bebida — sódio mg/L (máximo)'},
+  {key:'weightLossAmberPct',label:'Alerta 🟡 — perda de peso a partir de (%)'},
+  {key:'weightLossRedPct',label:'Alerta 🔴 — perda de peso a partir de (%)'}
+];
+// Junta os defeitos científicos com os overrides do clube (guidelines.default) e, por cima,
+// da atleta (guidelines.athletes[id]) — mesmo espírito do _naGuideBands: um campo em branco
+// numa camada volta sempre à camada anterior, nunca é "tudo ou nada" campo a campo.
+// athleteId=null → só clube+defeitos (usado no editor de clube).
+function _hydraBands(athleteId){
+  const g=APP.config.hydrationGuidelines||{};
+  const clubOv=g.default||{};
+  const athOv=(athleteId&&g.athletes&&g.athletes[athleteId])||{};
+  const merged={};
+  Object.keys(HYDRATION_DEFAULTS).forEach(k=>{
+    const fromAth=athOv[k],fromClub=clubOv[k];
+    merged[k]=(fromAth!=null&&fromAth!==''&&!isNaN(+fromAth))?+fromAth
+      :(fromClub!=null&&fromClub!==''&&!isNaN(+fromClub))?+fromClub
+      :HYDRATION_DEFAULTS[k];
+  });
+  return merged;
+}
+function _setHydraGuideline(scope,key,val){
+  if(!APP.config.hydrationGuidelines)APP.config.hydrationGuidelines={default:{},athletes:{}};
+  if(!APP.config.hydrationGuidelines.athletes)APP.config.hydrationGuidelines.athletes={};
+  const bucket=scope==='default'?
+    (APP.config.hydrationGuidelines.default||(APP.config.hydrationGuidelines.default={})):
+    (APP.config.hydrationGuidelines.athletes[scope]||(APP.config.hydrationGuidelines.athletes[scope]={}));
+  if(val===''||val==null){delete bucket[key];}
+  else{const n=+val;if(isNaN(n))return toast('Valor inválido','err');bucket[key]=n;}
+  saveData();toast('Guideline atualizada ✓');_hydraRerender();
+}
+function _resetHydraGuidelines(scope){
+  if(!APP.config.hydrationGuidelines)return;
+  if(scope==='default')APP.config.hydrationGuidelines.default={};
+  else if(APP.config.hydrationGuidelines.athletes)delete APP.config.hydrationGuidelines.athletes[scope];
+  saveData();toast('Valores por defeito repostos');_hydraRerender();
+}
+// Taxa de sudorese (L/h) — fórmula NATA 2017: (peso inicial − peso final + líquidos − urina) / duração.
+function _hydraSweatRate(preKg,postKg,fluidsL,urineL,durH){
+  if(preKg==null||postKg==null||!durH)return null;
+  const loss=(+preKg)-(+postKg)+(+fluidsL||0)-(+urineL||0);
+  return loss/(+durH);
+}
+function _hydraWeightLossPct(preKg,postKg){
+  if(preKg==null||postKg==null||!preKg)return null;
+  return ((+preKg)-(+postKg))/(+preKg)*100;
+}
+// Objetivo de reposição pós-jogo — défice de líquidos × multiplicador (defeito 150%, NATA).
+// Défice ≤0 (a atleta não perdeu peso) → nada a repor.
+function _hydraReplacementTarget(preKg,postKg,bands){
+  if(preKg==null||postKg==null)return null;
+  const deficit=(+preKg)-(+postKg);
+  if(deficit<=0)return 0;
+  return deficit*bands.postReplacementMultiplier;
+}
+// Semáforo da perda de peso — inclui o caso de GANHO de peso (pct negativo) como o seu
+// próprio aviso, nunca tratado como "dentro do objetivo": ganhar peso a meio do exercício é
+// o sinal mais fiável de sobre-hidratação (ver secção "Cálculos e segurança" da proposta).
+function _hydraWeightColor(pct,bands){
+  if(pct==null||isNaN(pct))return {cls:'',label:''};
+  if(pct<0)return {cls:'bg-y',label:'Ganhou peso — rever ingestão (risco de sobre-hidratação)'};
+  if(pct<bands.weightLossAmberPct)return {cls:'bg-g',label:'Dentro do objetivo'};
+  if(pct<bands.weightLossRedPct)return {cls:'bg-y',label:'Atenção'};
+  return {cls:'bg-r',label:'Necessita intervenção'};
+}
+function _hydraRecordFor(athleteId,gameId){
+  return (APP.hydrationRecords||[]).find(r=>r.athleteId===athleteId&&r.gameId===gameId);
+}
+function saveHydraRecord(athleteId,gameId,data){
+  if(!athleteId||!gameId)return toast('Escolhe a atleta e o jogo','err');
+  const sess=getSession();
+  let r=_hydraRecordFor(athleteId,gameId);
+  if(!r){r={id:'hy'+Date.now()+Math.floor(Math.random()*1000),athleteId,gameId};APP.hydrationRecords.push(r);}
+  Object.assign(r,data,{registeredBy:sess?sess.name:(r.registeredBy||''),registeredById:sess?sess.userId:(r.registeredById||null),updatedAt:new Date().toISOString()});
+  saveData();
+  if(_sync)cloudUpsert('hydration_records',r);
+  toast('Registo guardado ✓');
+  _hydraRerender();
+}
+function _hydraGameForCur(){return (APP.games||[]).find(g=>g.id===_hydraSelGame);}
+// Recalcula os valores derivados (taxa de sudorese, % perda, objetivo de reposição) a cada
+// alteração no formulário SEM re-renderizar a página inteira — um re-render a cada tecla
+// perderia o foco do campo (mesmo cuidado já usado no cálculo do WHR em Nutri → Avaliações).
+function _hydraCalcLive(){
+  const g=id=>{const el=document.getElementById(id);return (el&&el.value!=='')?+el.value:null;};
+  const pre=g('hy-pre'),post=g('hy-post'),fluids=g('hy-fluids')||0,urine=g('hy-urine')||0,dur=g('hy-dur');
+  const bands=_hydraBands(_hydraSelAthlete);
+  const sweat=_hydraSweatRate(pre,post,fluids,urine,dur);
+  const lossPct=_hydraWeightLossPct(pre,post);
+  const target=_hydraReplacementTarget(pre,post,bands);
+  const sweatEl=document.getElementById('hy-sweat');
+  if(sweatEl)sweatEl.textContent=(sweat!=null&&!isNaN(sweat))?sweat.toFixed(2)+' L/h':'—';
+  const lossEl=document.getElementById('hy-loss');
+  if(lossEl){
+    if(lossPct==null||isNaN(lossPct)){lossEl.innerHTML='—';}
+    else{const c=_hydraWeightColor(lossPct,bands);lossEl.innerHTML=`<span class="${c.cls}" style="padding:2px 8px;border-radius:6px;font-weight:700">${lossPct.toFixed(1)}%</span> <span style="font-size:10px;color:var(--t2)">${escHtml(c.label)}</span>`;}
+  }
+  const targetEl=document.getElementById('hy-target');
+  if(targetEl)targetEl.textContent=(target!=null)?target.toFixed(2)+' L':'—';
+  const warnEl=document.getElementById('hy-warn');
+  if(warnEl)warnEl.style.display=(lossPct!=null&&lossPct<0)?'block':'none';
+}
+function saveHydraRecordFromForm(){
+  const g=id=>{const el=document.getElementById(id);return (el&&el.value!=='')?+el.value:null;};
+  const pre=g('hy-pre'),post=g('hy-post'),fluids=g('hy-fluids')||0,urine=g('hy-urine')||0,dur=g('hy-dur');
+  saveHydraRecord(_hydraSelAthlete,_hydraSelGame,{
+    preWeight:pre,postWeight:post,fluidsL:fluids,urineL:urine,durationH:dur,
+    notes:(document.getElementById('hy-notes')||{}).value||'',
+    sweatRate:_hydraSweatRate(pre,post,fluids,urine,dur),
+    weightLossPct:_hydraWeightLossPct(pre,post)
+  });
+}
+function _hydraEditorFieldsHtml(scope,bands){
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:6px 16px">
+    ${HYDRATION_FIELDS.map(f=>`<div style="display:flex;align-items:center;gap:6px">
+      <label style="font-size:10.5px;color:var(--t2);flex:1">${f.label}</label>
+      <input class="fc" type="number" step="0.01" style="width:80px" value="${bands[f.key]}" placeholder="${HYDRATION_DEFAULTS[f.key]}" onchange="_setHydraGuideline('${scope}','${f.key}',this.value)">
+    </div>`).join('')}
+  </div>`;
+}
+function _hydraDefaultsEditorHtml(){
+  const bands=_hydraBands(null);
+  return `<details class="card" style="margin-bottom:14px;padding:12px 14px">
+    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--t2)">🎯 Valores de Referência do Clube (editável)</summary>
+    <div style="font-size:10.5px;color:var(--t2);margin:8px 0 10px;line-height:1.4">Defeitos com base científica (NATA 2017, ACSM) — não são conselho médico. Editar aqui aplica-se a toda a equipa; deixar em branco volta ao valor por defeito. Qualquer atleta pode ter valores próprios mais abaixo, que prevalecem sobre estes.</div>
+    ${_hydraEditorFieldsHtml('default',bands)}
+    <button class="btn btn-xs btn-gh" style="margin-top:8px" onclick="_resetHydraGuidelines('default')">↺ Repor valores por defeito</button>
+  </details>`;
+}
+function _hydraAthleteOverrideHtml(){
+  if(!_hydraSelAthlete)return '';
+  const at=APP.athletes.find(a=>a.id===_hydraSelAthlete);
+  const bands=_hydraBands(_hydraSelAthlete);
+  return `<details class="card" style="padding:12px 14px">
+    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--t2)">👤 Valores próprios de ${escHtml(at?_displayName(at):'?')} (opcional)</summary>
+    <div style="font-size:10.5px;color:var(--t2);margin:8px 0 10px;line-height:1.4">Substitui, só para esta atleta, os valores do clube acima. Em branco = usa o valor do clube.</div>
+    ${_hydraEditorFieldsHtml(_hydraSelAthlete,bands)}
+    <button class="btn btn-xs btn-gh" style="margin-top:8px" onclick="_resetHydraGuidelines('${_hydraSelAthlete}')">↺ Repor valores do clube</button>
+  </details>`;
+}
+let _hydraRenderContainer='pg-nutri-hidratacao',_hydraSelAthlete=null,_hydraSelGame=null;
+function _hydraRerender(){_hidratacaoCore(_hydraRenderContainer);}
+function _hidratacaoCore(containerId){
+  const el=document.getElementById(containerId);if(!el)return;
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>_displayName(a).localeCompare(_displayName(b)));
+  const games=[...(APP.games||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const rec=(_hydraSelAthlete&&_hydraSelGame)?_hydraRecordFor(_hydraSelAthlete,_hydraSelGame):null;
+  const curGame=_hydraGameForCur();
+  const durDefault=rec&&rec.durationH!=null?rec.durationH:(curGame&&curGame.djDurJogo?+(curGame.djDurJogo/60).toFixed(2):'');
+  el.innerHTML=`
+  <div style="font-size:17px;font-weight:900;margin-bottom:2px">💧 Matchday Hydration</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Protocolo de hidratação em dia de jogo — valores de referência, nunca conselho médico. O protocolo individual definido para cada atleta prevalece sempre sobre os valores gerais.</div>
+  ${_hydraDefaultsEditorHtml()}
+  <div class="card" style="margin-bottom:14px;padding:14px">
+    <div style="font-weight:800;font-size:13px;margin-bottom:10px">Registo de peso e líquidos</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <select class="fc" style="min-width:200px" onchange="_hydraSelAthlete=this.value||null;_hydraRerender()">
+        <option value="">— Escolher atleta —</option>
+        ${athletes.map(a=>`<option value="${a.id}" ${a.id===_hydraSelAthlete?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}
+      </select>
+      <select class="fc" style="min-width:220px" onchange="_hydraSelGame=this.value||null;_hydraRerender()">
+        <option value="">— Escolher jogo —</option>
+        ${games.map(g=>`<option value="${g.id}" ${g.id===_hydraSelGame?'selected':''}>${escHtml(g.opp||'?')} — ${fmtDate(g.date)}</option>`).join('')}
+      </select>
+    </div>
+    ${(!_hydraSelAthlete||!_hydraSelGame)?'<div style="font-size:11px;color:var(--t2)">Escolhe a atleta e o jogo para registar peso e líquidos.</div>':`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:10px">
+      <div><label style="font-size:10.5px;color:var(--t2)">Peso pré-jogo (kg)</label><input class="fc" id="hy-pre" type="number" step="0.1" value="${rec&&rec.preWeight!=null?rec.preWeight:''}" oninput="_hydraCalcLive()"></div>
+      <div><label style="font-size:10.5px;color:var(--t2)">Peso pós-jogo (kg)</label><input class="fc" id="hy-post" type="number" step="0.1" value="${rec&&rec.postWeight!=null?rec.postWeight:''}" oninput="_hydraCalcLive()"></div>
+      <div><label style="font-size:10.5px;color:var(--t2)">Líquidos ingeridos (L)</label><input class="fc" id="hy-fluids" type="number" step="0.05" value="${rec&&rec.fluidsL!=null?rec.fluidsL:''}" oninput="_hydraCalcLive()"></div>
+      <div><label style="font-size:10.5px;color:var(--t2)">Urina (L, opcional)</label><input class="fc" id="hy-urine" type="number" step="0.05" value="${rec&&rec.urineL!=null?rec.urineL:''}" oninput="_hydraCalcLive()"></div>
+      <div><label style="font-size:10.5px;color:var(--t2)">Duração (h)</label><input class="fc" id="hy-dur" type="number" step="0.05" value="${durDefault}" oninput="_hydraCalcLive()"></div>
+    </div>
+    <div id="hy-warn" style="display:none;font-size:11px;color:#b45309;background:rgba(245,158,11,.12);border-radius:8px;padding:8px 10px;margin-bottom:10px">⚠️ A atleta pode ter ganho peso durante o jogo — confirma os valores antes de guardar (não é objetivo atingido).</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;font-size:12px">
+      <div>Taxa de sudorese: <strong id="hy-sweat">—</strong></div>
+      <div>Perda de peso: <span id="hy-loss">—</span></div>
+      <div>Objetivo de reposição pós-jogo: <strong id="hy-target">—</strong></div>
+    </div>
+    <textarea class="fc" id="hy-notes" rows="2" placeholder="Notas (opcional)">${rec?escHtml(rec.notes||''):''}</textarea>
+    <div style="margin-top:10px"><button class="btn" onclick="saveHydraRecordFromForm()">Guardar registo</button></div>
+    `}
+  </div>
+  ${_hydraAthleteOverrideHtml()}`;
+  if(_hydraSelAthlete&&_hydraSelGame)setTimeout(_hydraCalcLive,0);
+}
+function renderNutriHidratacao(){_hydraRenderContainer='pg-nutri-hidratacao';_hidratacaoCore('pg-nutri-hidratacao');}
+function renderFisioHidratacao(){_hydraRenderContainer='pg-fisio-hidratacao';_hidratacaoCore('pg-fisio-hidratacao');}
+
 // Home do SPS-Nutri (sps-v130) — réplica 1:1 do espírito de renderFisioHome, ver nota
 // lá. Vira a página de entrada de ?nutri=1 (ver _maybeEnterNutriMode) e 1º item de
 // ROLE_DEFS.nutri.pages.
@@ -12985,6 +13213,8 @@ function renderNutriHome(){
     _card('nutri-gameday','trophy','#fb923c','Plano Dia de Jogo',
       APP.nutritionGameDayPlan?'Definido — válido para toda a equipa':'Ainda não definido (a usar texto genérico)',
       APP.nutritionGameDayPlan?'#fb923c':'#f87171', APP.nutritionGameDayPlan?'':_bdg('!','#dc2626'),'251,146,60'),
+    _card('nutri-hidratacao','droplet','#38bdf8','Matchday Hydration',
+      `${(APP.hydrationRecords||[]).length} registo(s)`,'var(--t2)','','56,189,248'),
     _card('nutri-agenda-geral','calendar','#a78bfa','Agenda Geral',
       todayEvs?`${todayEvs} evento${todayEvs>1?'s':''} hoje`:'Sem eventos hoje',
       todayEvs?'#a78bfa':'var(--t2)', _bdg(todayEvs||'','#7c3aed'),'124,58,237'),
@@ -17058,6 +17288,7 @@ async function pullCloud(){
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
+      ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
       ['physio_appointments','fisioAppointments',(d)=>APP.fisioAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null,rsvp:r.rsvp||{}}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
@@ -17397,6 +17628,13 @@ const _CLOUD_TABLE_SCHEMA={
   // ver saveNutriGameday/_djNutriText/_diaJogoTimeline. Pedido do Roger, 17/09/2026.
   nutrition_gameday_plan:{cols:['id','wake','pre_game_meal','hydration','snack','post_game','updated_at','updated_by','updated_by_id'],
     rename:{preGameMeal:'pre_game_meal',postGame:'post_game',updatedAt:'updated_at',updatedBy:'updated_by',updatedById:'updated_by_id'}},
+  // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
+  // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
+  // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela ainda por criar no Supabase
+  // (ver CLAUDE.md) — até lá, cloudUpsert falha em silêncio (_warnSyncFailure) e os dados
+  // ficam só em localStorage neste dispositivo.
+  hydration_records:{cols:['id','athlete_id','game_id','pre_weight','post_weight','fluids_l','urine_l','duration_h','sweat_rate','weight_loss_pct','notes','registered_by','registered_by_id','updated_at'],
+    rename:{athleteId:'athlete_id',gameId:'game_id',preWeight:'pre_weight',postWeight:'post_weight',fluidsL:'fluids_l',urineL:'urine_l',durationH:'duration_h',sweatRate:'sweat_rate',weightLossPct:'weight_loss_pct',registeredBy:'registered_by',registeredById:'registered_by_id',updatedAt:'updated_at'}},
   physio_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],
     rename:{athleteId:'athlete_id',registeredBy:'registered_by',registeredById:'registered_by_id',registeredAt:'registered_at',responsavelId:'responsavel_id',responsavelName:'responsavel_name',rsvpStatus:'rsvp_status',rsvpReason:'rsvp_reason',rsvpRespondedAt:'rsvp_responded_at'}},
   schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet','rsvp'],

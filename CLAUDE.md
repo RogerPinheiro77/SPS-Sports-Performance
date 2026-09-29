@@ -2099,3 +2099,108 @@ ver entradas acima) foram todos re-corridos depois destas alterações e
 continuam a passar sem regressões (a única falha da suite e2e do
 sps-v185 é a de sempre, o CDN bloqueado pelo proxy da sandbox, sem
 relação com este trabalho).
+
+## sps-v188 — Matchday Hydration, Bloco 1: modelo de dados + configuração
+partilhada Nutri/Fisio + registo de peso pré/pós-jogo (29/09/2026)
+
+Início de um projeto maior pedido pelo Roger: um protocolo de
+hidratação de jogo ("Matchday Hydration") gerido pela App Nutricionista
+e visível na App Fisio, a partir de um documento de 21 secções que o
+Roger anexou com a especificação completa. Antes de escrever código,
+foi feita uma proposta num documento Claude Docs dedicado
+("SPS — Matchday Hydration: Análise e Proposta") cobrindo: localização
+na app, base científica, arquitetura, valores por defeito, fórmulas de
+cálculo, fases de entrega e riscos — incluindo uma pergunta em aberto
+importante, porque o documento do Roger falava em "App Fisio" para a
+gestão do protocolo em vários sítios, mas o pedido original dele dizia
+"app nutricionista". O Roger decidiu: **App Nutricionista gere e edita
+o protocolo, App Fisio tem acesso de leitura E escrita** ("AS DUAS" —
+paridade total, não só alertas em modo leitura), manter o âmbito
+completo do documento mas entregue por blocos testáveis ("TUDO"),
+lembretes por badge em vez de notificações push reais (a app não tem
+push nativo), e manter os valores por defeito propostos com base
+científica. A ordem dos blocos ficou ao meu critério.
+
+Base científica usada para os valores por defeito (todos editáveis
+pela Nutri, com override por atleta — ver abaixo): posição de consenso
+da NATA (National Athletic Trainers' Association) 2017 sobre
+hidratação no desporto (fórmula da taxa de sudorese, limiar de 2% de
+perda de massa corporal, regra de reposição pós-jogo de 150% do
+défice), um estudo de 2022 sobre balanço hídrico em futebolistas de
+elite (referências concretas de taxa de sudorese/ingestão/perda de
+peso), as recomendações da Wilderness Medical Society para prevenção
+de hiponatremia associada ao exercício (nunca repor mais líquido do
+que a perda de peso; não existe um volume universal seguro) e o
+Consenso do COI de 2010.
+
+**Bloco 1 (este release) — modelo de dados, cálculos e a UI de
+configuração/registo, partilhada entre Nutri e Fisio:**
+
+1. Nova página "Matchday Hydration" (💧) tanto em `nutri-*` como em
+   `fisio-*`, com acesso de card a partir do ecrã inicial de cada
+   cargo. As duas páginas reutilizam o mesmo core de renderização
+   (`_hidratacaoCore(containerId)`), o mesmo padrão já usado em
+   `_agendaGeralCore` — uma função a construir o HTML, duas funções
+   finas (`renderNutriHidratacao`/`renderFisioHidratacao`) a escolher
+   o container — para garantir que Nutri e Fisio veem sempre os
+   mesmos dados, sem duplicação.
+2. `APP.config.hydrationGuidelines` — valores por defeito científicos
+   (`HYDRATION_DEFAULTS`, 17 campos: ml/kg pré-jogo, ml aos T-60/T-15,
+   ml/h durante o jogo, ml ao intervalo, multiplicador de reposição
+   pós-jogo, gramas de hidratos e mg de sódio por litro de bebida
+   recomendados, limiares de alerta de perda de peso), com um editor
+   `<details>` colapsável a nível de clube e outro a nível de atleta
+   (override), exatamente o mesmo padrão já usado em
+   `naGuidelines`/`_naBands` para os valores de referência de
+   Nutrição. `_hydraBands(athleteId)` faz o merge (override da atleta
+   > valor do clube > valor científico por defeito, campo a campo).
+3. `APP.hydrationRecords[]` — um registo por atleta+jogo, com peso
+   pré-jogo, peso pós-jogo, líquidos ingeridos, urina, duração,
+   notas, autor e timestamp. `saveHydraRecord()` cria ou atualiza.
+4. Cálculos automáticos, com recálculo em direto no formulário
+   (`_hydraCalcLive()`, sem re-render completo — o mesmo padrão já
+   usado no cálculo em direto do WHR em Nutri → Avaliações, para não
+   perder o foco do campo a cada tecla):
+   - Taxa de sudorese: `(peso pré − peso pós + líquidos − urina) / duração`.
+   - % de perda de massa corporal, com um semáforo (`_hydraWeightColor`)
+     verde/amarelo/vermelho segundo os limiares configuráveis
+     (por defeito 2%/3%), e um aviso próprio e distinto quando a
+     atleta GANHOU peso durante o jogo (risco de sobre-hidratação,
+     nunca tratado como "dentro do objetivo").
+   - Objetivo de reposição pós-jogo: 150% do défice de peso (regra
+     NATA), nunca negativo.
+5. Formulário de registo com seleção de atleta + jogo, pré-preenchido
+   automaticamente se já existir um registo para essa combinação.
+
+Testado com Node (`node --check` ao bloco `<script>`) + um novo
+ficheiro Playwright dedicado (`test_hydration_v188.js`): fórmulas de
+cálculo, semáforo de peso (incluindo o caso de ganho de peso), valores
+por defeito a bater com os acordados, editor de defeitos do clube
+(definir + repor), precedência do override por atleta, formulário a
+recalcular em direto com `page.fill()` real, gravar/reabrir um
+registo com pré-preenchimento, aviso de ganho de peso, e confirmação
+de que o mesmo registo gravado a partir do ecrã Nutri aparece também
+no ecrã Fisio sem duplicar dados. Todas as afirmações passaram. As
+suites de regressão pré-existentes (sps-v185/v186/v187) foram
+re-corridas depois de inserir este bloco de código novo e continuam
+todas a passar sem regressões (a mesma falha de sempre do CDN
+bloqueado pelo proxy da sandbox, sem relação com este trabalho).
+
+SW bump para `sps-v188`.
+
+**Nota importante — sincronização entre dispositivos ainda não está
+ativa para esta funcionalidade:** a tabela `hydration_records` foi
+registada no schema de sincronização (`_CLOUD_TABLE_SCHEMA` e
+`pullCloud()`), mas a sessão do MCP do Supabase expirou a meio deste
+trabalho ("MCP server 'Supabase' needs you to sign in again") e não
+foi possível criar a tabela na base de dados real do Roger. O código
+degrada de forma segura (grava sempre localmente; `cloudUpsert`/
+`pullCloud` falham em silêncio se a tabela não existir), mas até a
+tabela ser criada, um registo de hidratação gravado num dispositivo
+(ex.: telemóvel da Nutri) não aparece automaticamente noutro
+dispositivo (ex.: tablet do Fisio) — só no mesmo dispositivo/sessão
+local. Isto contraria a decisão do Roger de a App Fisio ter acesso de
+leitura E escrita aos mesmos dados ("AS DUAS"), por isso a tabela
+precisa de ser criada antes deste bloco poder ser considerado
+funcionalmente completo entre dispositivos — numa sessão futura
+(assim que o Supabase reconectar) ou manualmente pelo Roger.
