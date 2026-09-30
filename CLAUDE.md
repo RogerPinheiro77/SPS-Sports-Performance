@@ -2312,3 +2312,60 @@ regressão pré-existentes (sps-v187/v188, Quadro Tático, Evolução da
 Nutri) foram re-corridas e continuam a passar sem regressões.
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v191 (30/09/2026): Quadro Tático — X de adversária reduzido + app própria "SPS Set Pieces Board"
+
+Pedido do Roger, com o logo "SPS Set Pieces Board" em anexo (badge circular
+preta com prancheta tática, bola, "SPS" em prateado 3D, anel verde):
+"na aba Campo reduz o X de adversária, analisa e melhora todas as
+funcionalidades tendo em conta o selecionar e arrastar, quero que
+coloques link apenas para essa parte para tipo app específica com este
+logo. Quero que seja um quadro tático muito funcional para bolas paradas."
+
+**1) X de adversária mais pequeno (quadro ao vivo + miniatura/galeria/PDF):**
+- `_jogoCampoHtml()`: braço do X passou de `rad` para `rad*0.6` (visualmente
+  o X ficava com mais peso que os círculos das atletas do mesmo raio); traço
+  de `sw+1.5` para `sw+0.8`.
+- `_pitchSnapshotSvg()` (miniatura/galeria/PDF): mesma proporção — braço de
+  `rad-1` para `rad*0.55`, traço de `sw+1.5` para `sw+0.8` — para a
+  miniatura nunca divergir visualmente do quadro ao vivo. `printJogoCampo()`
+  clona o SVG ao vivo diretamente, por isso o PDF herda a mudança sem
+  código extra.
+- **Selecionar/arrastar preservado de propósito:** o círculo transparente de
+  toque por baixo do X (`r=rad+3`) **não foi reduzido** — só o traço
+  visível ficou mais fino. Área de arrastar/toque igual à de antes, só o
+  desenho ficou mais discreto, exatamente o pedido do Roger ("tem em conta
+  o selecionar e arrastar").
+
+**2) App própria para o Quadro Tático (`?tatico=1`):**
+- Descoberto, ao investigar, que o `initPWA()` nunca teve de facto um ramo
+  `_forceTaticoMode` — apesar do changelog do sps-v185 falar num ícone "TT"
+  gerado para este modo, esse ramo não existia; `?tatico=1` caía sempre no
+  manifest genérico do clube (nome/ícone/`start_url` errados ao "Adicionar
+  ao Ecrã Principal"). Gap agora fechado.
+- Novo logo do Roger processado (fundo quase-branco removido por
+  flood-fill a partir dos cantos, preservando os brilhos internos do
+  badge) em `assets/icon_tatico_192.png` / `_512.png` (RGBA, cantos
+  transparentes) e `assets/icon_tatico_apple.png` (180×180, fundo sólido
+  `#0c0f14` — os ícones Apple não lidam bem com transparência).
+  `sw.js` (`ASSETS`) atualizado com os 3 novos ficheiros.
+- Novo ramo em `initPWA()`: nome "SPS Set Pieces Board", `short_name`
+  "Set Pieces", `theme_color` `#8bc634` (verde do logo), `start_url` com
+  `?tatico=1`, ícones/`apple-touch-icon` próprios. "Adicionar ao Ecrã
+  Principal" a partir do Quadro Tático agora abre só essa parte, com o
+  logo certo.
+
+SW bump para `sps-v191`. Testado: `node --check`; novo
+`test_tatico_v191.js` (Playwright) confirma o braço/traço do X reduzido no
+quadro ao vivo e na miniatura, o círculo de toque inalterado (r=9), e o
+manifest do `?tatico=1` (nome, `start_url`, ícones 192/512, `theme_color`,
+apple-touch-icon). Regressão completa re-corrida (sps-v187/v188, Quadro
+Tático original, Evolução da Nutri, Fisio→Nutri v190) sem falhas.
+
+**Ainda por fazer:** a parte mais aberta do pedido — "analisa e melhora
+todas as funcionalidades" do Quadro Tático — ainda não foi endereçada.
+Falta propor ao Roger um conjunto concreto de melhorias (candidatas
+identificadas na investigação: seleção múltipla/mover em grupo, guias de
+alinhamento/snap, desfazer para arrasto ou remoção acidental, destaque
+visual durante o arrasto) antes de implementar, seguindo a prática deste
+projeto de confirmar o âmbito de pedidos abertos antes de avançar.

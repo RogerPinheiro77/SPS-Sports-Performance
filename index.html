@@ -6312,9 +6312,11 @@ function _pitchSnapshotSvg(mode,snap,w){
   // numerado original por um X, mais rápido de identificar/desenhar num quadro de bolas
   // paradas) — e bola. Snapshots anteriores a esta versão não têm estes campos, por isso
   // ficam simplesmente sem eles.
-  const oppArm=rad-1;
+  // X reduzido (sps-v191) — mesma proporção usada no quadro ao vivo (_jogoCampoHtml), para
+  // a miniatura/PDF/galeria nunca divergir visualmente do que se vê a trabalhar.
+  const oppArm=rad*0.55;
   (snap.opponents||[]).forEach(o=>{
-    dots+=`<line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y-oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y+oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+1.5}" stroke-linecap="round"/><line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y+oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y-oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+1.5}" stroke-linecap="round"/>`;
+    dots+=`<line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y-oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y+oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/><line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y+oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y-oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>`;
   });
   if(snap.ball){
     dots+=`<circle cx="${snap.ball.x}" cy="${snap.ball.y}" r="${Math.round(rad*0.6)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>`;
@@ -6389,11 +6391,17 @@ function _jogoCampoHtml(g){
   // nenhuma atleta. Toca (sem arrastar) remove o marcador — mesmo espírito das setas
   // (pitchArrowClick).
   const opponentsList=_pitchOpponents(g,mode);
-  const oppArm=rad;
+  // X reduzido (sps-v191, 30/09/2026, pedido do Roger): a pedido dele o marcador de
+  // adversária introduzido no sps-v185/186 ficava visualmente maior do que os círculos das
+  // atletas (braço = rad + traço mais grosso somam mais "peso" visual que um círculo do
+  // mesmo raio) — braço reduzido para ~60% do raio e traço mais fino, mas o círculo
+  // transparente de toque (rad+3) mantém-se do mesmo tamanho de sempre, para não piorar o
+  // arrastar/selecionar no dedo mesmo com o X visualmente mais pequeno.
+  const oppArm=rad*0.6;
   const opponentMarkers=opponentsList.map(o=>`<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="pitchRemoveOpponent(event,'${g.id}','${mode}','${o.id}')">
       <circle r="${rad+3}" fill="transparent"/>
-      <line x1="${-oppArm}" y1="${-oppArm}" x2="${oppArm}" y2="${oppArm}" stroke="#e63946" stroke-width="${sw+1.5}" stroke-linecap="round"/>
-      <line x1="${-oppArm}" y1="${oppArm}" x2="${oppArm}" y2="${-oppArm}" stroke="#e63946" stroke-width="${sw+1.5}" stroke-linecap="round"/>
+      <line x1="${(-oppArm).toFixed(1)}" y1="${(-oppArm).toFixed(1)}" x2="${oppArm.toFixed(1)}" y2="${oppArm.toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>
+      <line x1="${(-oppArm).toFixed(1)}" y1="${oppArm.toFixed(1)}" x2="${oppArm.toFixed(1)}" y2="${(-oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>
       <title>Adversária — toca para remover</title>
     </g>`).join('');
   const ballPos=_pitchBallMap(g)[mode];
@@ -17860,6 +17868,13 @@ var _NUTRI_ICON_APPLE='assets/icon_nutri_apple.png';
 var _GINASIO_ICON_192='assets/icon_ginasio_192.png';
 var _GINASIO_ICON_512='assets/icon_ginasio_512.png';
 var _GINASIO_ICON_APPLE='assets/icon_ginasio_apple.png';
+// Logo próprio do SPS Set Pieces Board / Quadro Tático (fornecido pelo Roger, 30/09/2026)
+// — substitui o ícone "TT" gerado que nunca chegou a ficar ligado ao manifest (o
+// ?tatico=1, sps-v185/186/187, ainda caía no manifest genérico do clube por faltar este
+// ramo em initPWA(), ver sps-v191).
+var _TATICO_ICON_192='assets/icon_tatico_192.png';
+var _TATICO_ICON_512='assets/icon_tatico_512.png';
+var _TATICO_ICON_APPLE='assets/icon_tatico_apple.png';
 function applyPWAManifest(opts){
   try{
     var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, icon192=opts.icon192||iconSrc, icon512=opts.icon512||iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
@@ -17984,6 +17999,13 @@ function _swMaybeShowUpdateBanner(){
     } else if(typeof _forceNutriMode!=='undefined'&&_forceNutriMode){
       // SPS-Nutri standalone — mesma cor/ícone já usados para o Nutri em showStaffApp() (sps-v15+).
       applyPWAManifest({name:'SPS Nutri',shortName:'SPS Nutri',icon192:_NUTRI_ICON_192,icon512:_NUTRI_ICON_512,iconType:'image/png',themeColor:'#3d7a52',appleIcon:_NUTRI_ICON_APPLE,startUrl:location.pathname+'?nutri=1'});
+    } else if(typeof _forceTaticoMode!=='undefined'&&_forceTaticoMode){
+      // SPS Set Pieces Board (?tatico=1) standalone — mesmo motivo dos anteriores (ícone
+      // certo já antes do login terminar); este ramo faltava até sps-v191, por isso
+      // "Adicionar ao Ecrã Principal" a partir daqui instalava sempre o manifest genérico
+      // do clube (sem o ?tatico=1 no startUrl, e sem o logo próprio entretanto fornecido
+      // pelo Roger) — o ícone instalado reabria a plataforma inteira, não o quadro tático.
+      applyPWAManifest({name:'SPS Set Pieces Board',shortName:'Set Pieces',icon192:_TATICO_ICON_192,icon512:_TATICO_ICON_512,iconType:'image/png',themeColor:'#8bc634',appleIcon:_TATICO_ICON_APPLE,startUrl:location.pathname+'?tatico=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     }
