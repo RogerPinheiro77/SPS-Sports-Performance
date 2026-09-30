@@ -2274,3 +2274,41 @@ depois destas alterações e continuam a passar sem regressões (a mesma
 falha de sempre do CDN bloqueado pelo proxy da sandbox).
 
 SW bump para `sps-v189`.
+
+## sps-v190 (30/09/2026): botão "📄 PDF Plantel" — mudado do Dashboard do Fisio para o da Nutri
+
+Pedido do Roger logo depois do sps-v189 chegar aos dispositivos: "quero
+esse botão na Nutri em vez da Fisio, faz mais sentido". Confirmado por
+pergunta que era para o cartão inteiro "📏 Métricas & Evolução" sair do
+Fisio, não para duplicar nos dois lados ("que fique só na Nutri").
+
+**Fix, puramente de localização — nenhuma alteração de cálculo/lógica:**
+- `${_fisioMetricasCardHtml()}` removido de `renderFisioDash()`.
+- As três funções envolvidas foram renomeadas para refletir o novo dono
+  (a Nutri já edita estes dados diretamente — deixou de fazer sentido o
+  prefixo `_fisio*`): `_fisioMetricasRows`→`_nutriMetricasRows`,
+  `_fisioMetricasCardHtml`→`_nutriMetricasCardHtml`,
+  `printFisioMetricasPlantelPDF`→`printNutriMetricasPlantelPDF`,
+  `FISIO_METRICAS_STALE_DAYS`→`NUTRI_METRICAS_STALE_DAYS` (continua 60
+  dias, sem alteração de valor).
+- `${_nutriMetricasCardHtml()}` inserido em `renderNutriDash()`, logo a
+  seguir ao card "🥗 Visão Geral Nutricional" já existente.
+- Texto do cartão ajustado: a frase "Registado pela Nutrição — leitura"
+  deixou de fazer sentido (a Nutri já é quem está a ver o próprio cartão)
+  — passou a "Última avaliação antropométrica de cada atleta."
+
+SW bump para `sps-v190`. Testado: `node --check` ao ficheiro inteiro;
+novo ficheiro Playwright (`test_nutri_metricas_v190.js`, substitui o
+`test_fisio_metricas_v189.js` da versão anterior) confirmando: o cartão e
+os 3 cenários de atleta (2 avaliações/1 avaliação/nenhuma) agora no
+Dashboard da Nutri; `_nutriMetricasRows()`/`printNutriMetricasPlantelPDF()`
+funcionam com os nomes novos; e — verificação explícita do pedido — o
+cartão **deixou de aparecer** no Dashboard do Fisio. Um falso alarme do
+próprio teste foi corrigido a meio (a tabela "Visão Geral Nutricional",
+pré-existente, lista sempre todo o plantel incluindo quem não tem
+avaliação — a verificação de exclusão teve de isolar só a tabela do
+cartão novo, não o texto da página inteira). Todas as suites de
+regressão pré-existentes (sps-v187/v188, Quadro Tático, Evolução da
+Nutri) foram re-corridas e continuam a passar sem regressões.
+
+**Ainda por fazer:** nada pendente para este pedido.

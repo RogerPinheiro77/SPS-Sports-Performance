@@ -12381,7 +12381,6 @@ function renderFisioDash(){
   </div>
   ${cicloHtml}
   ${cicloRefHtml}
-  ${_fisioMetricasCardHtml()}
   <div class="sh"><div class="sh-t">🩺 Atletas em Acompanhamento</div>
     <button class="btn btn-g" onclick="navTo('fisio-ep')">+ Novo Episódio</button>
   </div>
@@ -12391,12 +12390,16 @@ function renderFisioDash(){
 // dados de antropometria continuam a nascer só em Nutri → Avaliações (mesmo espírito de
 // acesso já usado nos Avisos — _fisioAlertsHtml/_nutriAlertsHtml — e decidido para este
 // bloco: Nutri edita, Fisio lê). Sem tabela nova no Supabase, sem duplicar dados — lê
-// diretamente APP.nutritionAssessments, já sincronizado.
+// diretamente APP.nutritionAssessments (a própria fonte, sem sync extra).
 // Limiar de avaliação desatualizada = 60 dias, o mesmo já usado em Condição do Plantel
 // para "avaliação técnica desatualizada" (ver _athleteNarrative) — consistência entre
 // as duas partes da app que já avisam sobre dados older.
-const FISIO_METRICAS_STALE_DAYS=60;
-function _fisioMetricasRows(){
+// Nota (sps-v190): este cartão/PDF viveu no Dashboard Completo do Fisio até sps-v189 —
+// movido a pedido do Roger para o Dashboard da Nutri ("faz mais sentido lá", 30/09/2026),
+// já que é a Nutri quem edita estes dados. Nomes de função atualizados de _fisio* para
+// _nutri*/printNutri* para refletir o novo dono; lógica interna intocada.
+const NUTRI_METRICAS_STALE_DAYS=60;
+function _nutriMetricasRows(){
   const num=v=>(v===''||v==null||v===undefined||isNaN(+v))?null:+v;
   return APP.athletes.map(at=>{
     const avals=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===at.id).sort((a,b)=>a.date.localeCompare(b.date));
@@ -12405,15 +12408,15 @@ function _fisioMetricasRows(){
     const days=diffDays(last.date,today());
     const badge=(key,favDir,decimals)=>_naTrendBadge(num(last[key]),prev?num(prev[key]):null,favDir,decimals);
     return {
-      at,last,days,stale:days>FISIO_METRICAS_STALE_DAYS,hasEvo:avals.length>=2,
+      at,last,days,stale:days>NUTRI_METRICAS_STALE_DAYS,hasEvo:avals.length>=2,
       weight:{v:num(last.weight),b:badge('weight')},
       bodyFat:{v:num(last.bodyFat),b:badge('bodyFat',-1)},
       muscleKg:{v:num(last.muscleKg),b:badge('muscleKg',1)}
     };
   }).filter(Boolean).sort((a,b)=>_displayName(a.at).localeCompare(_displayName(b.at)));
 }
-function _fisioMetricasCardHtml(){
-  const rows=_fisioMetricasRows();
+function _nutriMetricasCardHtml(){
+  const rows=_nutriMetricasRows();
   const semAval=APP.athletes.length-rows.length;
   const cell=(r,unit)=>`${r.v!=null?r.v+unit:'—'}${_trendBadgeHtml(r.b,unit)}`;
   const rowsHtml=rows.map(r=>`<tr>
@@ -12426,20 +12429,21 @@ function _fisioMetricasCardHtml(){
   </tr>`).join('');
   return `
   <div class="sh"><div class="sh-t">📏 Métricas & Evolução</div>
-    <button class="btn btn-sm btn-gh" onclick="printFisioMetricasPlantelPDF()">📄 PDF Plantel</button>
+    <button class="btn btn-sm btn-gh" onclick="printNutriMetricasPlantelPDF()">📄 PDF Plantel</button>
   </div>
-  <div style="font-size:10px;color:var(--t2);margin:-6px 0 8px">Registado pela Nutrição (Nutri → Avaliações) — leitura. Seta e cor comparam com a avaliação anterior da mesma atleta.</div>
+  <div style="font-size:10px;color:var(--t2);margin:-6px 0 8px">Última avaliação antropométrica de cada atleta. Seta e cor comparam com a avaliação anterior da mesma atleta.</div>
   ${rows.length?`<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px"><div class="tw"><table><thead><tr><th>Atleta</th><th>Última avaliação</th><th>Peso</th><th>%Gordura</th><th>Massa Muscular</th><th>Evolução</th></tr></thead>
   <tbody>${rowsHtml}</tbody></table></div></div>`
   :`<div class="empty" style="margin-bottom:14px"><div class="ei">📏</div><p>Sem avaliações registadas</p></div>`}
   ${semAval?`<div style="font-size:10px;color:var(--t2);margin:-6px 0 14px">${semAval} atleta${semAval>1?'s':''} sem avaliação antropométrica registada.</div>`:''}`;
 }
-// PDF de plantel (sps-v189) — uma linha por atleta com a última avaliação antropométrica,
-// no espírito de printCondicaoPlantel() mas sem nenhuma ligação a carga de treino (fontes
-// de dados diferentes, donos diferentes — ver doc "Métricas & Evolução no Dashboard
-// Fisio"). A4 horizontal (_printWin(...,true)), tal como o PDF de Evolução por atleta.
-function printFisioMetricasPlantelPDF(){
-  const rows=_fisioMetricasRows();
+// PDF de plantel (sps-v189, movido para a Nutri no sps-v190) — uma linha por atleta com a
+// última avaliação antropométrica, no espírito de printCondicaoPlantel() mas sem nenhuma
+// ligação a carga de treino (fontes de dados diferentes, donos diferentes — ver doc
+// "Métricas & Evolução no Dashboard Fisio"). A4 horizontal (_printWin(...,true)), tal como
+// o PDF de Evolução por atleta.
+function printNutriMetricasPlantelPDF(){
+  const rows=_nutriMetricasRows();
   const title=`Métricas & Evolução — Plantel — ${fmtDate(today())}`;
   const cell=(r,unit)=>{
     if(r.v==null)return '—';
@@ -13343,7 +13347,8 @@ function renderNutriDash(){
   </div>
   <div class="card"><div class="ch"><span class="ct">🥗 Visão Geral Nutricional</span></div>
   <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Peso</th><th>IMC</th><th>% Gordo</th><th>Plano Ativo</th><th>Última Aval.</th><th>Ações</th></tr></thead>
-  <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>`;
+  <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>
+  ${_nutriMetricasCardHtml()}`;
 }
 
 let _naAtId=null, _showNaForm=false;
