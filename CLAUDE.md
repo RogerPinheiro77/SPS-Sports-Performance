@@ -2497,3 +2497,79 @@ prescrição funciona; cartão da Home mostra a contagem. Regressão completa re
 `_verify_extra.js`, `_check_nutri_evo.js`) sem falhas.
 
 SW bump para `sps-v193`.
+
+## sps-v194 (01/10/2026): Dashboard do Plantel (Nutrição) + Notas da Sessão nas Consultas
+
+Pedido do Roger, depois do sps-v193: "quero tambem se possivel acrescentar na marcaçaõ e nas
+consultas feitas pela nutri exista um espaço de notas para a nutri ir guardando notas de
+sessao a sessao e que essas notas aparecam num pdf de registo/relatório geral de tudo o que a
+nutri faz" — pedido que cresceu, numa troca de perguntas, para "actividade completa, mas que
+permita atraves de vistos as areas que se quer imprimir, e ter um dasboard do plantel tipo o
+que temos na plataforma, que ao clicar abre toda a info e os botoes de impressao". Processo
+completo: doc de análise+proposta no Claude Docs (4 perguntas em aberto respondidas uma a
+uma) → rascunho HTML (`rascunho_dashboard_plantel_v1.html`) aprovado ("avança") → código.
+
+1. **Notas da Sessão**: cada Consulta (`nutritionAppointments`) já guardava `notes` — não
+   havia nenhum campo novo a criar, só o rótulo do formulário mudou de "Notas" para "Notas da
+   Sessão" (`nc-notes`, `renderNutriConsultas`), com uma dica a explicar onde essas notas vão
+   aparecer. Dados/IDs existentes inalterados.
+2. **Nova página `nutri-plantel`** (📋 Dashboard do Plantel) — só no cargo Nutri
+   (`ROLE_DEFS.nutri.pages`), separada do Dashboard Completo (`nutri-dash`) já existente,
+   registada nos 4 sítios habituais (`ALL_PAGES`, `ROLE_DEFS.nutri.pages`, `_NAV_TITLES`,
+   mapa `renders` do `navTo`) + container `<div class="pg" id="pg-nutri-plantel">`.
+   `renderNutriPlantel()`: tabela do plantel com 4 badges de resumo por atleta (Última
+   Consulta, Última Avaliação — com chip "desatualizada" quando `diffDays>NUTRI_METRICAS_
+   STALE_DAYS`, igual ao já usado no cartão de Métricas —, Plano Ativo, Suplementação — com
+   aviso quando alguma prescrição ativa tem `_suplReviewOverdue`). Clicar numa linha abre
+   `_openNutriPlantelModal(athleteId)`.
+3. **Modal da ficha completa** (`openMod`, tamanho `lg`): cabeçalho com foto/nome/posição +
+   barra com o botão "🖨️ Gerar PDF", e 5 secções em `<details open>` (mesmo padrão já usado
+   em `_naGuidelinesEditorHtml` — sem CSS novo) — Consultas & Notas de Sessão / Avaliações
+   Antropométricas / Planos Nutricionais / Suplementação / Matchday Hydration — cada uma com
+   contagem de registos e um checkbox "Incluir no PDF" (`_npSections{consultas,avaliacoes,
+   planos,suplementacao,hidratacao}`, todas `true` por defeito, reposto sempre que o modal
+   abre para uma atleta). O checkbox tem `onclick="event.stopPropagation()"` para não abrir/
+   fechar o `<details>` ao clicar nele. Cada secção tem a sua função de conteúdo
+   (`_npConsultasHtml`/`_npAvaliacoesHtml`/`_npPlanosHtml`/`_npSuplementacaoHtml`/
+   `_npHidratacaoHtml`), todas lendo dados já existentes (`nutritionAppointments`/
+   `nutritionAssessments`/`nutritionPlans`/`supplementPrescriptions`/`hydrationRecords`) —
+   nenhuma tabela nova no Supabase.
+4. **PDF seletivo** (`printNutriPlantelPDF`): monta o corpo só com as secções marcadas em
+   `_npSections` (feedback de erro via `toast` se nenhuma estiver marcada) e chama
+   `_printWin(title, body)` sem o parâmetro `landscape` — sempre A4 vertical, por atleta
+   (decisão confirmada com o Roger: nunca um PDF geral do plantel numa tabela só). Reaproveita
+   o mesmo cabeçalho/rodapé e `profile-header` dos outros PDFs de Nutrição
+   (`printNaSinglePDF`).
+5. Cada função de secção tem uma 2ª variante de classes (`printMode` true/false) porque o
+   ecrã (tema escuro, classe `.bdg`) e a janela do `_printWin` (fundo branco, classe
+   `.badge`) usam folhas de estilo diferentes com o mesmo nome de modificador (`bg-g`/`bg-y`/
+   `bg-r`) — mesma solução já usada em `printNaSinglePDF`.
+6. Novo cartão "📋 Dashboard do Plantel" na Home da Nutri (`renderNutriHome`), a seguir ao
+   cartão do Dashboard Completo.
+
+**Decisão deliberada: sem CSS novo.** Toda a UI (tabela, cartões, badges, `<details>`,
+checkboxes) reaproveita classes já existentes no `<style>` global (`.card`/`.ch`/`.cb`/`.tw`/
+`table`/`.bdg`/`.bg-*`/`.btn`) com estilo inline só onde precisava de algo específico — mesmo
+espírito de `_naGuidelinesEditorHtml`.
+
+Testado com Node (`node --check`) e um novo ficheiro Playwright dedicado
+(`test_nutri_plantel_v194.js`): página só no cargo Nutri; título de navegação qualificado;
+rótulo "Notas da Sessão" aparece sem mudar o campo `nc-notes`; lista do plantel mostra as 3
+atletas com os 4 badges corretos (plano ativo, revisão de suplementação vencida, avaliação
+desatualizada ao fim de 90 dias); modal mostra as 5 secções com os dados certos (nota da
+sessão, "sem notas" quando vazio, avaliação mais recente, plano, suplemento com revisão
+vencida, registo de hidratação ligado ao jogo) e as 5 checkboxes; PDF com tudo marcado inclui
+as 5 secções e é sempre A4 vertical; desmarcar 2 secções exclui-as do PDF sem afetar as
+restantes; com tudo desmarcado não gera PDF e mostra aviso; reabrir o modal para outra atleta
+repõe as 5 secções marcadas e não mostra dados da atleta anterior; cartão novo aparece na Home
+da Nutri e liga à página certa. Regressão completa re-corrida (`test_supl_v193.js`,
+`test_na_plantel_v192.js`, `test_na_dashboard_v192.js`, `test_nutri_metricas_v190.js`,
+`test_hydration_v188.js`, `test_tatico_v191.js`, `test_mobile_v187.js`) sem falhas.
+
+**Ainda por fazer (pedido anterior, aprovado mas não implementado — ver mockups
+`rascunho_anamnese_diario_v1.html` e `rascunho_pdfs_anamnese_suplementacao_v1.html`):**
+Anamnese Alimentar + Diário Alimentar evoluído (7 dias × 6 refeições) na App Nutri + vista da
+atleta + PDFs (Anamnese+Diário por atleta, ficha individual de Suplementação, checklist de
+plantel A3 para Matchday).
+
+SW bump para `sps-v194`.

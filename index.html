@@ -543,6 +543,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-fisio-hidratacao"></div>
       <div class="pg" id="pg-nutri-home"></div>
       <div class="pg" id="pg-nutri-dash"></div>
+      <div class="pg" id="pg-nutri-plantel"></div>
       <div class="pg" id="pg-nutri-aval"></div>
       <div class="pg" id="pg-nutri-planos"></div>
       <div class="pg" id="pg-nutri-gameday"></div>
@@ -1051,6 +1052,7 @@ const ALL_PAGES=[
   {id:'nutri-agenda-geral',icon:'🗓️',label:'Agenda Geral'},
   {id:'nutri-consultas',icon:'📅',label:'Consultas'},
   {id:'nutri-dash',icon:'📊',label:'Dashboard Completo'},
+  {id:'nutri-plantel',icon:'📋',label:'Dashboard do Plantel'},
   {id:'nutri-manual',icon:'📖',label:'Manual de Utilização'},
 ];
 const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
@@ -1064,7 +1066,7 @@ const ROLE_DEFS={
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-manual'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes'],readOnly:true,manageUsers:false}
 };
@@ -1173,7 +1175,7 @@ function _maybeEnterTaticoMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1249,7 +1251,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -13601,6 +13603,8 @@ function renderNutriHome(){
       nextC?'#2dd4bf':'var(--t2)', _bdg(upcomingC.length||'','#0d9488'),'13,148,136'),
     _card('nutri-dash','chart-bar','#E3BF4A','Dashboard Completo',
       'Ver visão geral do plantel','var(--t2)','','217,119,6'),
+    _card('nutri-plantel','clipboard-list','#4ade80','Dashboard do Plantel',
+      'Ficha por atleta + PDF de registo','var(--t2)','','34,197,94'),
   ];
 
   document.getElementById('pg-nutri-home').innerHTML=`
@@ -13643,6 +13647,221 @@ function renderNutriDash(){
   <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Peso</th><th>IMC</th><th>% Gordo</th><th>Plano Ativo</th><th>Última Aval.</th><th>Ações</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>
   ${_nutriMetricasCardHtml()}`;
+}
+
+// ─── DASHBOARD DO PLANTEL (Nutrição, sps-v194) ──────────────────────────
+// Pedido do Roger (23/09/2026→01/10/2026): espaço de notas de sessão a sessão nas
+// Consultas (reaproveita nutritionAppointments.notes, já existente — só faltava o
+// rótulo "Notas da Sessão", ver renderNutriConsultas acima) + um relatório/registo
+// geral de tudo o que a Nutri faz, organizado por atleta, com "vistos" (checkboxes)
+// para escolher que secções imprimir. Ficou um ecrã próprio "Dashboard do Plantel"
+// (separado do Dashboard Completo/nutri-dash) — ao clicar numa atleta abre uma
+// ficha com as 5 áreas da Nutri (Consultas & Notas de Sessão / Avaliações / Planos
+// Nutricionais / Suplementação / Matchday Hydration), cada uma com checkbox
+// "Incluir no PDF" (pré-marcado) e um botão único "🖨️ Gerar PDF" que monta só as
+// secções marcadas, sempre em A4 vertical. Rascunho visual aprovado ("avança") em
+// rascunho_dashboard_plantel_v1.html. Reaproveita os dados já existentes
+// (nutritionAppointments/nutritionAssessments/nutritionPlans/
+// supplementPrescriptions/hydrationRecords) — sem tabelas novas no Supabase.
+// Cada secção tem duas variantes de badge/cor (printMode true/false) porque o
+// ecrã (tema escuro, classe .bdg) e a janela de impressão do _printWin (fundo
+// branco, classe .badge) têm folhas de estilo diferentes — mesmo truque de
+// printNaSinglePDF.
+let _npSections={consultas:true,avaliacoes:true,planos:true,suplementacao:true,hidratacao:true};
+function renderNutriPlantel(){
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>_displayName(a).localeCompare(_displayName(b)));
+  const td=today();
+  const rows=athletes.map(at=>{
+    const consultas=(APP.nutritionAppointments||[]).filter(c=>c.athleteId===at.id);
+    const lastConsulta=consultas.slice().sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||'')))[0];
+    const avals=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const lastAval=avals[0];
+    const avalStale=lastAval?diffDays(lastAval.date,td)>NUTRI_METRICAS_STALE_DAYS:false;
+    const plan=(APP.nutritionPlans||[]).find(p=>p.athleteId===at.id&&p.active);
+    const supls=(APP.supplementPrescriptions||[]).filter(p=>p.athleteId===at.id&&p.status!=='suspenso');
+    const supplOverdue=supls.some(_suplReviewOverdue);
+
+    const consultaCell=lastConsulta?fmtDate(lastConsulta.date):'—';
+    const avalCell=lastAval?`${fmtDate(lastAval.date)}${avalStale?' <span class="bdg bg-y" style="font-size:9px">desatualizada</span>':''}`:'—';
+    const planCell=plan?'<span class="bdg bg-g">✅ Ativo</span>':'<span class="bdg bg-gr">Sem plano</span>';
+    const supplCell=!supls.length?'<span class="bdg bg-gr">Nenhuma</span>':
+      (supplOverdue?`<span class="bdg bg-r">⚠️ ${supls.length} ativa${supls.length>1?'s':''} · revisão vencida</span>`:`<span class="bdg bg-g">${supls.length} ativa${supls.length>1?'s':''}</span>`);
+
+    return `<tr style="cursor:pointer" onclick="_openNutriPlantelModal('${at.id}')" title="Clicar abre a ficha completa">
+      <td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,28)}<strong>${escHtml(_displayName(at))}</strong></div></td>
+      <td>${consultaCell}</td>
+      <td>${avalCell}</td>
+      <td>${planCell}</td>
+      <td>${supplCell}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('pg-nutri-plantel').innerHTML=`
+  <div style="font-size:17px;font-weight:900;margin-bottom:2px">📋 Dashboard do Plantel</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Clica numa atleta para abrir a ficha completa (Consultas, Avaliações, Planos, Suplementação, Matchday Hydration) e gerar um PDF só com as secções que escolheres.</div>
+  <div class="card">
+    <div class="ch"><span class="ct">🥗 Plantel — Nutrição</span><span style="font-size:11px;color:var(--t2)">${athletes.length} atleta${athletes.length!==1?'s':''}</span></div>
+    <div class="cb"><div class="tw"><table>
+      <thead><tr><th>Atleta</th><th>Última Consulta</th><th>Última Avaliação</th><th>Plano</th><th>Suplementação</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody>
+    </table></div></div>
+  </div>`;
+}
+
+function _npConsultasHtml(athleteId,printMode){
+  const list=(APP.nutritionAppointments||[]).filter(c=>c.athleteId===athleteId).sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
+  if(!list.length)return{count:0,html:`<div style="font-size:11.5px;color:${printMode?'#888':'var(--t2)'}">Sem consultas registadas.</div>`};
+  const bdg=printMode?'badge':'bdg';
+  const STATUS_LABEL={agendada:'Agendada',realizada:'Realizada',faltou:'Faltou'};
+  const STATUS_CLS={agendada:'bg-gr',realizada:'bg-g',faltou:'bg-r'};
+  const rows=list.map(c=>`<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px dotted ${printMode?'#eee':'var(--brd)'}">
+    <div style="font-size:10.5px;color:${printMode?'#888':'var(--t3)'};white-space:nowrap;padding-top:1px;min-width:62px">${fmtDateShort(c.date)}${c.time?' '+c.time:''}</div>
+    <div style="flex:1">
+      <span class="${bdg} ${STATUS_CLS[c.status]||'bg-gr'}" style="font-size:9.5px">${STATUS_LABEL[c.status]||'Agendada'}</span>
+      ${c.notes?`<div style="margin-top:3px;font-size:11.5px;${printMode?'color:#111':'color:var(--t1)'}">${escHtml(c.notes)}</div>`:`<div style="margin-top:3px;font-size:10.5px;${printMode?'color:#aaa':'color:var(--t3)'};font-style:italic">Sem notas desta sessão.</div>`}
+    </div>
+  </div>`).join('');
+  return{count:list.length,html:rows};
+}
+function _npAvaliacoesHtml(athleteId,printMode){
+  const list=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===athleteId).sort((a,b)=>b.date.localeCompare(a.date));
+  if(!list.length)return{count:0,html:`<div style="font-size:11.5px;color:${printMode?'#888':'var(--t2)'}">Sem avaliações registadas.</div>`};
+  const bdg=printMode?'badge':'bdg';
+  const rows=list.map(a=>{
+    const bmi=a.bmi?+a.bmi:null;
+    const bmiCls=bmi==null?'':(bmi<18.5?'bg-y':bmi<25?'bg-g':bmi<30?'bg-y':'bg-r');
+    return`<tr><td>${fmtDate(a.date)}</td><td>${a.weight?a.weight+'kg':'—'}</td><td>${bmi?`<span class="${bdg} ${bmiCls}">${bmi}</span>`:'—'}</td><td>${a.bodyFat?a.bodyFat+'%':'—'}</td><td>${a.muscleKg?a.muscleKg+'kg':'—'}</td></tr>`;
+  }).join('');
+  return{count:list.length,html:`<table><thead><tr><th>Data</th><th>Peso</th><th>IMC</th><th>% Gordura</th><th>Massa Musc.</th></tr></thead><tbody>${rows}</tbody></table>`};
+}
+function _npPlanosHtml(athleteId,printMode){
+  const list=(APP.nutritionPlans||[]).filter(p=>p.athleteId===athleteId).sort((a,b)=>(b.active?1:0)-(a.active?1:0)||(b.startDate||'').localeCompare(a.startDate||''));
+  if(!list.length)return{count:0,html:`<div style="font-size:11.5px;color:${printMode?'#888':'var(--t2)'}">Sem planos nutricionais.</div>`};
+  const bdg=printMode?'badge':'bdg';
+  const blocks=list.map(p=>{
+    const macros=[p.kcal?`${p.kcal} kcal`:'',p.protein?`${p.protein}g proteína`:'',p.carbs?`${p.carbs}g HC`:'',p.fat?`${p.fat}g gordura`:''].filter(Boolean).join(' · ');
+    const meals=(p.meals||[]).filter(m=>m.foods).map(m=>`<div style="margin-top:4px"><strong style="font-size:11px">${MEAL_ICONS[m.name]||'🍴'} ${m.name}</strong><div style="font-size:10.5px;${printMode?'color:#555':'color:var(--t2)'}">${escHtml(m.foods)}</div></div>`).join('');
+    return`<div style="padding:8px 0;border-bottom:1px dotted ${printMode?'#eee':'var(--brd)'}">
+      <div style="font-weight:700;font-size:12px;${printMode?'color:#111':''}">${escHtml(p.name||'Plano')} <span class="${bdg} ${p.active?'bg-g':'bg-gr'}" style="font-size:9.5px">${p.active?'Ativo':'Inativo'}</span></div>
+      ${macros?`<div style="font-size:11px;${printMode?'color:#555':'color:var(--t2)'};margin-top:2px">${macros}</div>`:''}
+      ${p.objective?`<div style="font-size:10.5px;${printMode?'color:#777':'color:var(--t2)'};margin-top:2px">🎯 ${escHtml(p.objective)}</div>`:''}
+      ${meals}
+    </div>`;
+  }).join('');
+  return{count:list.length,html:blocks};
+}
+function _npSuplementacaoHtml(athleteId,printMode){
+  const list=(APP.supplementPrescriptions||[]).filter(p=>p.athleteId===athleteId).sort((a,b)=>(a.status==='suspenso'?1:0)-(b.status==='suspenso'?1:0));
+  if(!list.length)return{count:0,html:`<div style="font-size:11.5px;color:${printMode?'#888':'var(--t2)'}">Sem prescrições de suplementação.</div>`};
+  const bdg=printMode?'badge':'bdg';
+  const STATUS_LABEL={ativo:'Ativo',pausado:'Pausado',suspenso:'Suspenso'};
+  const STATUS_CLS={ativo:'bg-g',pausado:'bg-y',suspenso:'bg-gr'};
+  const rows=list.map(p=>{
+    const supl=p.supplementId?(APP.supplementCatalog||[]).find(x=>x.id===p.supplementId):null;
+    const name=supl?supl.name:(p.customName||'—');
+    const momentsLabel=(p.moments||[]).map(mk=>(SUPL_MOMENTS.find(m=>m.key===mk)||{}).label||mk).join(', ');
+    const overdue=_suplReviewOverdue(p);
+    return`<div style="padding:7px 0;border-bottom:1px dotted ${printMode?'#eee':'var(--brd)'}">
+      <div style="font-weight:700;font-size:12px;${printMode?'color:#111':''}">${escHtml(name)} <span class="${bdg} ${STATUS_CLS[p.status]||'bg-gr'}" style="font-size:9.5px">${STATUS_LABEL[p.status]||p.status}</span></div>
+      <div style="font-size:11px;${printMode?'color:#555':'color:var(--t2)'};margin-top:2px">${momentsLabel||'—'}${p.dose?' · '+escHtml(p.dose):''}${p.frequency?' · '+escHtml(p.frequency):''}</div>
+      ${p.instructions?`<div style="font-size:10.5px;${printMode?'color:#777':'color:var(--t2)'};margin-top:2px">${escHtml(p.instructions)}</div>`:''}
+      ${overdue?`<span class="${bdg} bg-r" style="font-size:9.5px;margin-top:3px;display:inline-block">⚠️ Revisão vencida (${fmtDateShort(p.reviewDate)})</span>`:(p.reviewDate?`<span style="font-size:9.5px;${printMode?'color:#999':'color:var(--t3)'}">Revisão ${fmtDateShort(p.reviewDate)}</span>`:'')}
+    </div>`;
+  }).join('');
+  return{count:list.length,html:rows};
+}
+function _npHidratacaoHtml(athleteId,printMode){
+  const list=(APP.hydrationRecords||[]).filter(r=>r.athleteId===athleteId).sort((a,b)=>{
+    const ga=(APP.games||[]).find(g=>g.id===a.gameId),gb=(APP.games||[]).find(g=>g.id===b.gameId);
+    return(gb?.date||'').localeCompare(ga?.date||'');
+  });
+  if(!list.length)return{count:0,html:`<div style="font-size:11.5px;color:${printMode?'#888':'var(--t2)'}">Sem registos de hidratação.</div>`};
+  const rows=list.map(r=>{
+    const g=(APP.games||[]).find(x=>x.id===r.gameId);
+    const lossPct=r.weightLossPct!=null?r.weightLossPct:_hydraWeightLossPct(r.preWeight,r.postWeight);
+    return`<div style="padding:7px 0;border-bottom:1px dotted ${printMode?'#eee':'var(--brd)'}">
+      <div style="font-weight:700;font-size:12px;${printMode?'color:#111':''}">${g?escHtml(g.opp||'?')+' — '+fmtDate(g.date):'Jogo não identificado'}</div>
+      <div style="font-size:11px;${printMode?'color:#555':'color:var(--t2)'};margin-top:2px">Pré: ${r.preWeight!=null?r.preWeight+'kg':'—'} · Pós: ${r.postWeight!=null?r.postWeight+'kg':'—'} · Perda: ${lossPct!=null&&!isNaN(lossPct)?lossPct.toFixed(1)+'%':'—'}${r.sweatRate!=null?' · Sudorese: '+(+r.sweatRate).toFixed(2)+' L/h':''}</div>
+      ${r.notes?`<div style="font-size:10.5px;${printMode?'color:#777':'color:var(--t2)'};margin-top:2px">${escHtml(r.notes)}</div>`:''}
+    </div>`;
+  }).join('');
+  return{count:list.length,html:rows};
+}
+function _npModalBodyHtml(athleteId){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return'';
+  const photoHtml=at.photo?`<img src="${at.photo}" style="width:46px;height:46px;border-radius:10px;object-fit:cover">`:`<div style="width:46px;height:46px;border-radius:10px;background:#1d6f3b33;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#4ade80">${at.name.slice(0,1)}</div>`;
+  const age=at.dob?ageYears(at.dob):null;
+
+  const sec=(key,icon,title,data)=>`
+  <details class="card" style="margin-bottom:10px;padding:0;overflow:hidden" open>
+    <summary style="cursor:pointer;padding:11px 14px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:15px">${icon}</span>
+      <span style="font-weight:800;font-size:13px;flex:1">${title}</span>
+      <span style="font-size:11px;color:var(--t2)">${data.count} registo${data.count!==1?'s':''}</span>
+      <label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t2);cursor:pointer;white-space:nowrap">
+        <input type="checkbox" ${_npSections[key]?'checked':''} onchange="_npSections.${key}=this.checked">
+        Incluir no PDF
+      </label>
+    </summary>
+    <div style="padding:10px 14px 13px;border-top:1px solid var(--brd);font-size:12px">${data.html}</div>
+  </details>`;
+
+  return`
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    ${photoHtml}
+    <div>
+      <div style="font-size:15px;font-weight:800">${escHtml(_displayName(at))}</div>
+      <div style="font-size:11.5px;color:var(--t2);margin-top:2px">${at.pos||'—'}${age?' · '+age+' anos':''}</div>
+    </div>
+  </div>
+  <div style="background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <span style="font-size:11px;color:var(--t2);flex:1">Marca as secções a incluir — todas vêm pré-marcadas.</span>
+    <button class="btn btn-g btn-sm" onclick="printNutriPlantelPDF('${athleteId}')">🖨️ Gerar PDF</button>
+  </div>
+  ${sec('consultas','📅','Consultas & Notas de Sessão',_npConsultasHtml(athleteId,false))}
+  ${sec('avaliacoes','📏','Avaliações Antropométricas',_npAvaliacoesHtml(athleteId,false))}
+  ${sec('planos','🍽️','Planos Nutricionais',_npPlanosHtml(athleteId,false))}
+  ${sec('suplementacao','💊','Suplementação',_npSuplementacaoHtml(athleteId,false))}
+  ${sec('hidratacao','💧','Matchday Hydration',_npHidratacaoHtml(athleteId,false))}`;
+}
+function _openNutriPlantelModal(athleteId){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  _npSections={consultas:true,avaliacoes:true,planos:true,suplementacao:true,hidratacao:true};
+  openMod('📋 '+_displayName(at),_npModalBodyHtml(athleteId),'lg');
+}
+function printNutriPlantelPDF(athleteId){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  const sectionsDef=[
+    {key:'consultas',title:'Consultas & Notas de Sessão',data:_npConsultasHtml(athleteId,true)},
+    {key:'avaliacoes',title:'Avaliações Antropométricas',data:_npAvaliacoesHtml(athleteId,true)},
+    {key:'planos',title:'Planos Nutricionais',data:_npPlanosHtml(athleteId,true)},
+    {key:'suplementacao',title:'Suplementação',data:_npSuplementacaoHtml(athleteId,true)},
+    {key:'hidratacao',title:'Matchday Hydration',data:_npHidratacaoHtml(athleteId,true)}
+  ];
+  const chosen=sectionsDef.filter(s=>_npSections[s.key]);
+  if(!chosen.length)return toast('Marca pelo menos uma secção para incluir no PDF','err');
+
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const age=at.dob?ageYears(at.dob):null;
+  const nutri=APP.users.find(u=>u.id===APP.config.nutriResponsavelId);
+  const nutriHtml=nutri
+    ?`<div style="display:flex;align-items:center;gap:8px;margin-top:8px">${nutri.photo?`<img src="${nutri.photo}" style="width:26px;height:26px;border-radius:50%;object-fit:cover">`:''}<div style="font-size:8pt;color:#555"><strong>Acompanhamento:</strong> ${escHtml(nutri.name)}</div></div>`
+    :`<div style="font-size:7.5pt;color:#999;margin-top:8px">Responsável pela nutrição não configurada (Config → Nutrição).</div>`;
+
+  const body=`
+  <div>
+    <div class="pr-title">Registo de Atividade — Nutrição</div>
+    <div class="profile-header">
+      ${photoHtml}
+      <div style="flex:1">
+        <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}${at.alcunha?` <span style="font-size:10pt;font-weight:600;color:#888">("${escHtml(at.alcunha)}")</span>`:''}</div>
+        <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'}${age?' · '+age+' anos':''}</div>
+        ${nutriHtml}
+      </div>
+    </div>
+    ${chosen.map(s=>`<h3>${s.title}</h3>${s.data.html}`).join('')}
+  </div>`;
+  _printWin(`Registo de Atividade — ${at.name} — ${fmtDate(today())}`,body);
 }
 
 let _naAtId=null, _showNaForm=false;
@@ -14382,7 +14601,7 @@ function renderNutriConsultas(){
     <div class="fr3"><div class="form-g"><label class="fl">Hora *</label><input class="fc" id="nc-time" type="time" value="${_ncExisting?.time||''}"></div>
     <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="nc-dur" type="number" value="${_ncExisting?.duration||30}"></div>
     <div class="form-g"><label class="fl">Local</label><input class="fc" id="nc-loc" placeholder="Gabinete / Online" value="${escHtml(_ncExisting?.location||'')}"></div></div>
-    <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="nc-notes" rows="2">${escHtml(_ncExisting?.notes||'')}</textarea></div>
+    <div class="form-g"><label class="fl">Notas da Sessão</label><textarea class="fc" id="nc-notes" rows="2" placeholder="Notas desta consulta — ficam disponíveis no Dashboard do Plantel e no PDF de registo">${escHtml(_ncExisting?.notes||'')}</textarea></div>
     <div class="form-g"><label class="fl">Responsável (opcional — pode mudar depois)</label><select class="fc" id="nc-resp"><option value="" ${_ncDefaultResp?'':'selected'}>— Nenhum —</option>${(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<option value="${u.id}" ${u.id===_ncDefaultResp?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
     <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-g" onclick="saveNutriConsulta()">💾 Guardar</button><button class="btn btn-gh" onclick="_showNcForm=false;_editNcId=null;renderNutriConsultas()">Cancelar</button></div>
   </div>`:'';
