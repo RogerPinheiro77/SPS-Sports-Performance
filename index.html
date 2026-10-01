@@ -546,6 +546,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-plantel"></div>
       <div class="pg" id="pg-nutri-aval"></div>
       <div class="pg" id="pg-nutri-planos"></div>
+      <div class="pg" id="pg-nutri-anamnese-diario"></div>
       <div class="pg" id="pg-nutri-gameday"></div>
       <div class="pg" id="pg-nutri-hidratacao"></div>
       <div class="pg" id="pg-nutri-supl"></div>
@@ -661,7 +662,7 @@ function defApp(){
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],nutritionAppointments:[],fisioAppointments:[],
     nutritionGameDayPlan:null,hydrationRecords:[],
     supplementCatalog:[],supplementPrescriptions:[],
-    anamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
+    anamnesis:[],nutritionDietAnamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     mcTemplates:[],
     users:[]
   };
@@ -1046,6 +1047,7 @@ const ALL_PAGES=[
   {id:'nutri-home',icon:'🏠',label:'Home'},
   {id:'nutri-aval',icon:'📏',label:'Avaliações'},
   {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
+  {id:'nutri-anamnese-diario',icon:'🍽️',label:'Anamnese & Diário Alimentar'},
   {id:'nutri-gameday',icon:'🏆',label:'Plano Dia de Jogo'},
   {id:'nutri-hidratacao',icon:'💧',label:'Matchday Hydration'},
   {id:'nutri-supl',icon:'💊',label:'Suplementação'},
@@ -1066,7 +1068,7 @@ const ROLE_DEFS={
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes'],readOnly:true,manageUsers:false}
 };
@@ -1175,7 +1177,7 @@ function _maybeEnterTaticoMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1251,7 +1253,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -1376,6 +1378,13 @@ function statusBadge(s){const m={ativo:'bg-r',reabilitação:'bg-y',alta:'bg-g',
 function _getAnamnesis(athleteId){
   return (APP.anamnesis||[]).find(a=>a.athleteId===athleteId)
     || {id:athleteId,athleteId,selfReport:{},selfReportUpdatedAt:null,clinicalNotes:'',clinicalNotesUpdatedAt:null,clinicalNotesUpdatedBy:null,fisioViewedAt:null};
+}
+// Anamnese Alimentar (sps-v195): mesmo padrão exato de _getAnamnesis, tabela própria
+// (nutrition_diet_anamnesis) — domínio da Nutrição, não mistura com o histórico clínico
+// do Fisio. Preenchida pela atleta (selfReport livre), notas só visíveis à Nutri.
+function _getDietAnamnesis(athleteId){
+  return (APP.nutritionDietAnamnesis||[]).find(a=>a.athleteId===athleteId)
+    || {id:athleteId,athleteId,selfReport:{},selfReportUpdatedAt:null,nutriNotes:'',nutriNotesUpdatedAt:null,nutriNotesUpdatedBy:null,nutriViewedAt:null};
 }
 
 
@@ -13369,8 +13378,13 @@ function renderNutriSupl(){
   if(!_suplSelAthlete&&athletes.length)_suplSelAthlete=athletes[0].id;
   const lastTab=_suplTab;
   document.getElementById('pg-nutri-supl').innerHTML=`
-  <div style="font-size:17px;font-weight:900;margin-bottom:2px">💊 Suplementação</div>
-  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Catálogo de suplementos e prescrição individual por atleta, organizada por momento. Gerido apenas pela Nutri.</div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:17px;font-weight:900;margin-bottom:2px">💊 Suplementação</div>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Catálogo de suplementos e prescrição individual por atleta, organizada por momento. Gerido apenas pela Nutri.</div>
+    </div>
+    <button class="btn btn-gh btn-sm" onclick="printSuplPlantelPDF()" title="Checklist de plantel para o dia de jogo, A3 horizontal">🖨️ PDF Plantel (A3 horizontal)</button>
+  </div>
   <div class="tabs">
     <div class="tab-btn" id="supl-tabbtn-cat" onclick="_suplShowTab('cat')">📋 Catálogo</div>
     <div class="tab-btn" id="supl-tabbtn-presc" onclick="_suplShowTab('presc')">👤 Prescrição por Atleta</div>
@@ -13479,9 +13493,12 @@ function _suplPrescricaoHtml(athletes){
   return `<div class="card">
     <div class="ch"><span class="ct">👤 Prescrição por Atleta</span></div>
     <div class="cb">
-      <select class="fc" style="min-width:240px;margin-bottom:16px" onchange="_suplSelAthlete=this.value;renderNutriSupl()">
-        ${athletes.map(a=>`<option value="${a.id}" ${a.id===at.id?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}
-      </select>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+        <select class="fc" style="min-width:240px" onchange="_suplSelAthlete=this.value;renderNutriSupl()">
+          ${athletes.map(a=>`<option value="${a.id}" ${a.id===at.id?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}
+        </select>
+        <button class="btn btn-gh btn-sm" onclick="printSuplIndividualPDF('${at.id}')">🖨️ PDF Individual</button>
+      </div>
       <div class="mom-grid">${cols}</div>
     </div>
   </div>`;
@@ -13588,6 +13605,8 @@ function renderNutriHome(){
     _card('nutri-planos','salad','#4ade80','Planos',
       semPlano?`${semPlano} sem plano ativo`:'Todas com plano ✓',
       semPlano?'#f87171':'#4ade80', _bdg(semPlano||'','#dc2626'),'22,163,74'),
+    _card('nutri-anamnese-diario','clipboard-text','#f472b6','Anamnese & Diário',
+      `${(APP.nutritionDietAnamnesis||[]).filter(a=>a.selfReportUpdatedAt).length} anamnese(s) preenchida(s)`,'var(--t2)','','244,114,182'),
     _card('nutri-gameday','trophy','#fb923c','Plano Dia de Jogo',
       APP.nutritionGameDayPlan?'Definido — válido para toda a equipa':'Ainda não definido (a usar texto genérico)',
       APP.nutritionGameDayPlan?'#fb923c':'#f87171', APP.nutritionGameDayPlan?'':_bdg('!','#dc2626'),'251,146,60'),
@@ -14514,6 +14533,270 @@ function editNutriPlano(id){
 }
 function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;if(_sync)cloudUpsert('nutrition_plans',p);saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
+
+// ─── ANAMNESE ALIMENTAR + DIÁRIO ALIMENTAR SEMANAL (sps-v195) ──────────────────
+// Pedido do Roger: "criar um espaço onde as atletas façam uma anamnese da sua alimentação
+// e também onde a nutri possa prescrever o diário alimentar aconselhado para a atleta".
+// Rascunho validado (rascunho_anamnese_diario_v1.html) antes de código. Anamnese: a atleta
+// preenche na App Atleta (ver atOpenDietAnamnese acima), a Nutri só lê + acrescenta notas
+// próprias — tabela dedicada nutrition_diet_anamnesis, mesmo padrão exato de
+// athlete_anamnesis (Histórico Clínico do Fisio), mas separada (domínios geridos por
+// cargos diferentes). Diário: evolução de nutritionPlans — o plano ativo ganha um campo
+// opcional week_meals{Seg..Dom:[6 refeições]}; sem week_meals, o plano continua a mostrar
+// só o resumo genérico de 'meals' (compatibilidade, sem regressão nos planos já criados).
+let _nadSelAthlete=null, _nadTab='anam', _nadSelDay=null;
+function renderNutriAnamneseDiario(){
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>_displayName(a).localeCompare(_displayName(b)));
+  if(!_nadSelAthlete&&athletes.length)_nadSelAthlete=athletes[0].id;
+  if(!_nadSelDay)_nadSelDay=WEEK_DAYS[(new Date().getDay()+6)%7];
+  document.getElementById('pg-nutri-anamnese-diario').innerHTML=`
+  <div style="font-size:17px;font-weight:900;margin-bottom:2px">🍽️ Anamnese &amp; Diário Alimentar</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Anamnese preenchida pela atleta (leitura) + diário alimentar aconselhado, prescrito pela Nutri, por dia da semana.</div>
+  ${athletes.length?`<select class="fc" style="min-width:240px;margin-bottom:16px" onchange="_nadSelAthlete=this.value;renderNutriAnamneseDiario()">
+    ${athletes.map(a=>`<option value="${a.id}" ${a.id===_nadSelAthlete?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}
+  </select>
+  <div class="tabs">
+    <div class="tab-btn" id="nad-tabbtn-anam" onclick="_nadShowTab('anam')">📋 Anamnese Alimentar</div>
+    <div class="tab-btn" id="nad-tabbtn-diario" onclick="_nadShowTab('diario')">📅 Diário Alimentar Semanal</div>
+  </div>
+  <div class="tp" id="nad-tab-anam">${_nadAnamneseTabHtml(_nadSelAthlete)}</div>
+  <div class="tp" id="nad-tab-diario">${_nadDiarioTabHtml(_nadSelAthlete)}</div>`
+  :'<div class="empty"><div class="ei">🍽️</div><p>Sem atletas no plantel</p></div>'}`;
+  if(athletes.length)_nadShowTab(_nadTab);
+}
+function _nadShowTab(id){
+  _nadTab=id;
+  document.querySelectorAll('#pg-nutri-anamnese-diario .tp').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('#pg-nutri-anamnese-diario .tab-btn').forEach(e=>e.classList.remove('on'));
+  const tp=document.getElementById('nad-tab-'+id);if(tp)tp.classList.add('on');
+  const tb=document.getElementById('nad-tabbtn-'+id);if(tb)tb.classList.add('on');
+}
+function _nadAnamneseTabHtml(athleteId){
+  const an=_getDietAnamnesis(athleteId);
+  const sr=an.selfReport||{};
+  const filled=!!an.selfReportUpdatedAt;
+  let groupsHtml='',lastGroup=null;
+  DIET_ANAM_FIELDS.forEach(f=>{
+    if(f.group!==lastGroup){groupsHtml+=`<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin:${lastGroup?'14px':'0'} 0 6px">${f.group}</div>`;lastGroup=f.group;}
+    groupsHtml+=_anamDetailField(f.label,sr[f.key]);
+  });
+  return `<div class="card">
+    <div class="ch"><span class="ct">📋 Anamnese Alimentar</span>
+      <span style="font-size:10.5px;color:var(--t2)">${filled?'Preenchida pela atleta · atualizado em '+fmtDate(an.selfReportUpdatedAt.slice(0,10)):'Ainda não preenchida pela atleta'}</span></div>
+    <div class="cb">
+      ${filled?groupsHtml:'<div style="font-size:12px;color:var(--t2)">Esta atleta ainda não preencheu a anamnese alimentar na app dela.</div>'}
+      <div style="margin-top:16px">
+        <label style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">📝 Notas da Nutri</label>
+        <textarea class="fc" id="nad-notes" rows="3" style="width:100%" placeholder="Observações, plano de acompanhamento...">${an.nutriNotes?escHtml(an.nutriNotes):''}</textarea>
+        <button class="btn btn-g btn-sm" style="margin-top:8px" onclick="saveNadNutriNotes('${athleteId}')">💾 Guardar Notas</button>
+      </div>
+    </div>
+  </div>`;
+}
+function saveNadNutriNotes(athleteId){
+  const sess=getSession();
+  if(!APP.nutritionDietAnamnesis)APP.nutritionDietAnamnesis=[];
+  let an=APP.nutritionDietAnamnesis.find(a=>a.athleteId===athleteId);
+  if(!an){an={id:athleteId,athleteId,selfReport:{},nutriNotes:'',nutriNotesUpdatedAt:null,nutriNotesUpdatedBy:null,nutriViewedAt:null};APP.nutritionDietAnamnesis.push(an);}
+  an.nutriNotes=document.getElementById('nad-notes')?.value.trim()||'';
+  an.nutriNotesUpdatedAt=new Date().toISOString();
+  an.nutriNotesUpdatedBy=sess?sess.name:'';
+  an.nutriNotesUpdatedById=sess?sess.userId:null;
+  saveData();
+  if(_sync)cloudUpsert('nutrition_diet_anamnesis',{...an,club_id:_cid});
+  toast('Notas guardadas ✓');
+}
+function _nadDayMeals(plan,day){
+  if(plan.weekMeals&&plan.weekMeals[day])return plan.weekMeals[day];
+  return MEALS.map(m=>({name:m,time:'',kcal:'',foods:''}));
+}
+function _nadDayHasContent(plan,day){
+  const m=plan.weekMeals&&plan.weekMeals[day];
+  return !!(m&&m.some(x=>x&&(x.foods||x.kcal||x.time)));
+}
+function _nadDiarioTabHtml(athleteId){
+  const plan=APP.nutritionPlans.find(p=>p.athleteId===athleteId&&p.active);
+  if(!plan){
+    return `<div class="card"><div class="cb" style="text-align:center;padding:30px 20px">
+      <div style="font-size:12.5px;color:var(--t2);margin-bottom:12px;line-height:1.5">Esta atleta ainda não tem um Plano Nutricional ativo — cria um primeiro em Planos Nutricionais (macros/objetivo) para depois poderes prescrever o diário alimentar dia a dia aqui.</div>
+      <button class="btn btn-g" onclick="_npAtId='${athleteId}';_showNpForm=true;navTo('nutri-planos')">+ Criar Plano Nutricional</button>
+    </div></div>`;
+  }
+  const day=_nadSelDay;
+  const meals=_nadDayMeals(plan,day);
+  const otherDaysWithContent=WEEK_DAYS.filter(d=>d!==day&&_nadDayHasContent(plan,d));
+  return `<div class="card">
+    <div class="ch"><span class="ct">📅 Diário Alimentar Semanal</span>
+      <button class="btn btn-gh btn-sm" onclick="printNutriAnamneseDiarioPDF('${athleteId}')">📄 PDF (Anamnese + Diário)</button></div>
+    <div class="cb">
+      <div class="macros" style="margin-bottom:16px">${plan.kcal?`<span class="mac">🔥 ${plan.kcal} kcal/dia</span>`:''}${plan.protein?`<span class="mac">🥩 ${plan.protein}g proteína</span>`:''}${plan.carbs?`<span class="mac">🍞 ${plan.carbs}g hidratos</span>`:''}${plan.fat?`<span class="mac">🧈 ${plan.fat}g gordura</span>`:''}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+        ${WEEK_DAYS.map(d=>`<button class="btn btn-xs ${d===day?'btn-g':'btn-gh'}" onclick="_nadSelDay='${d}';renderNutriAnamneseDiario()">${d}</button>`).join('')}
+        ${otherDaysWithContent.length?`
+        <select class="fc" id="nad-copy-from" style="font-size:11px;padding:4px 8px;margin-left:8px;width:auto">
+          ${otherDaysWithContent.map(d=>`<option value="${d}">${WEEK_DAY_FULL[d]}</option>`).join('')}
+        </select>
+        <button class="btn btn-gh btn-sm" onclick="nadCopyDay('${athleteId}','${day}')">📋 Copiar de...</button>`:''}
+      </div>
+      ${MEALS.map((mName,i)=>{
+        const m=meals[i]||{name:mName,time:'',kcal:'',foods:''};
+        return `<div class="meal"><div class="meal-n">${MEAL_ICONS[mName]||'🍴'} ${mName}</div>
+        <div class="fr3"><div class="form-g"><label class="fl">Hora</label><input class="fc" id="nad-mt-${i}" type="time" value="${m.time||''}"></div>
+        <div class="form-g"><label class="fl">kcal</label><input class="fc" id="nad-mk-${i}" type="number" placeholder="0" value="${m.kcal||''}"></div></div>
+        <div class="form-g"><textarea class="fc" id="nad-mf-${i}" rows="2" placeholder="Alimentos e quantidades...">${escHtml(m.foods||'')}</textarea></div>
+        </div>`;
+      }).join('')}
+      <button class="btn btn-g" style="margin-top:4px" onclick="saveNadDay('${athleteId}','${day}')">💾 Guardar ${WEEK_DAY_FULL[day]}</button>
+      ${otherDaysWithContent.length?`<div style="font-size:10.5px;color:var(--t2);margin-top:10px;line-height:1.4">💡 "Copiar de..." duplica as refeições de outro dia já preenchido para o dia atual — útil para dias de treino parecidos, sem ter de reescrever tudo.</div>`:''}
+    </div>
+  </div>`;
+}
+function saveNadDay(athleteId,day){
+  const plan=APP.nutritionPlans.find(p=>p.athleteId===athleteId&&p.active);
+  if(!plan)return;
+  const meals=MEALS.map((mName,i)=>({name:mName,time:document.getElementById('nad-mt-'+i).value,kcal:document.getElementById('nad-mk-'+i).value,foods:document.getElementById('nad-mf-'+i).value}));
+  if(!plan.weekMeals)plan.weekMeals={};
+  plan.weekMeals[day]=meals;
+  if(_sync)cloudUpsert('nutrition_plans',plan);
+  saveData();
+  toast('Diário de '+WEEK_DAY_FULL[day]+' guardado ✓');
+  renderNutriAnamneseDiario();
+}
+function nadCopyDay(athleteId,toDay){
+  const sel=document.getElementById('nad-copy-from');
+  const fromDay=sel?sel.value:null;
+  if(!fromDay)return;
+  const plan=APP.nutritionPlans.find(p=>p.athleteId===athleteId&&p.active);
+  if(!plan||!plan.weekMeals||!plan.weekMeals[fromDay])return;
+  plan.weekMeals[toDay]=JSON.parse(JSON.stringify(plan.weekMeals[fromDay]));
+  if(_sync)cloudUpsert('nutrition_plans',plan);
+  saveData();
+  toast('Copiado de '+WEEK_DAY_FULL[fromDay]+' ✓');
+  _nadSelDay=toDay;
+  renderNutriAnamneseDiario();
+}
+// PDF combinado Anamnese + Diário (2 "páginas" = 2 janelas de impressão em sequência,
+// chamadas sincronamente a partir do mesmo clique — _printWin só suporta uma orientação
+// por chamada, ver CLAUDE.md). Página 1: Anamnese em retrato A4. Página 2 (só se o plano
+// ativo já tiver week_meals): grelha semanal em paisagem A4.
+function printNutriAnamneseDiarioPDF(athleteId){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  const an=_getDietAnamnesis(athleteId);
+  const sr=an.selfReport||{};
+  const plan=APP.nutritionPlans.find(p=>p.athleteId===athleteId&&p.active);
+  const age=at.dob?ageYears(at.dob):null;
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const metaLine=`Anamnese ${an.selfReportUpdatedAt?'registada pela atleta em '+fmtDate(an.selfReportUpdatedAt.slice(0,10)):'ainda não registada pela atleta'}${an.nutriNotesUpdatedAt?' · Notas da Nutri atualizadas em '+fmtDate(an.nutriNotesUpdatedAt.slice(0,10)):''}`;
+  const fieldRow=(label,val)=>`<tr><td style="width:40%"><strong>${label}</strong></td><td>${val?escHtml(val):'—'}</td></tr>`;
+  const groups={};
+  DIET_ANAM_FIELDS.forEach(f=>{(groups[f.group]=groups[f.group]||[]).push(f);});
+  const groupTable=fields=>`<table>${fields.map(f=>fieldRow(f.label,sr[f.key])).join('')}</table>`;
+  const colHtml=names=>names.map(n=>`<h3>${n}</h3>${groupTable(groups[n]||[])}`).join('');
+  const nutriNoteHtml=an.nutriNotes?`<h3>Nota da Nutricionista</h3><div style="background:#f3f7f4;border-left:3px solid #1d6f3b;border-radius:4px;padding:8px 10px;font-size:9.5pt;font-style:italic;color:#333;margin-top:4px">${escHtml(an.nutriNotes)}</div>`:'';
+  const nutri=APP.users.find(u=>u.id===APP.config.nutriResponsavelId);
+  const body1=`
+  <div class="pr-title">Anamnese Alimentar</div>
+  <div class="profile-header">
+    ${photoHtml}
+    <div style="flex:1">
+      <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}</div>
+      <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'}${at.num?' · Nº '+at.num:''}${age?' · '+age+' anos':''}</div>
+      <div style="font-size:8.5pt;color:#1d6f3b;font-weight:700;margin-top:3px">${metaLine}</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">
+    <div>${colHtml(['Restrições e Alergias','Padrão Alimentar Habitual','Hidratação'])}</div>
+    <div>${colHtml(['Preferências','Suplementos Atuais','Observações'])}</div>
+  </div>
+  ${nutriNoteHtml}
+  ${nutri?`<div style="font-size:8pt;color:#555;margin-top:12px">Avaliado por: ${escHtml(nutri.name)}</div>`:''}`;
+  _printWin(`Anamnese Alimentar — ${at.name}`,body1);
+
+  if(plan&&plan.weekMeals){
+    const macroLineHtml=`<span style="font-size:8.5pt;color:#666">Meta: ${plan.kcal?plan.kcal+' kcal':'—'} · P ${plan.protein||'—'}g · H ${plan.carbs||'—'}g · G ${plan.fat||'—'}g</span>`;
+    const rows=MEALS.map((mName,i)=>{
+      const cells=WEEK_DAYS.map(d=>{
+        const m=(plan.weekMeals[d]||[])[i];
+        return `<td>${m&&m.foods?escHtml(m.foods):'—'}</td>`;
+      }).join('');
+      const withTime=WEEK_DAYS.map(d=>(plan.weekMeals[d]||[])[i]).find(m=>m&&m.time);
+      return `<tr><td><strong>${MEAL_ICONS[mName]||'🍴'} ${mName}</strong>${withTime?`<br><span style="font-size:7.5pt;color:#888">${withTime.time}</span>`:''}</td>${cells}</tr>`;
+    }).join('');
+    const body2=`
+    <div class="pr-title">Diário Alimentar Semanal — Plano aconselhado pela Nutri</div>
+    <table><thead><tr><th>Refeição</th>${WEEK_DAYS.map(d=>`<th>${WEEK_DAY_FULL[d]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+    _printWin(`Diário Alimentar Semanal — ${at.name}`,body2,macroLineHtml,false,true);
+  } else {
+    toast(plan?'Plano ativo ainda sem Diário Alimentar Semanal definido — só foi gerada a página de Anamnese.':'Esta atleta não tem Plano Nutricional ativo — só foi gerada a página de Anamnese.','err');
+  }
+}
+
+// ─── SUPLEMENTAÇÃO — BLOCO 2 (sps-v195): PDFs ──────────────────────────
+// Ficha individual (A4 retrato, agrupada por momento) e checklist de plantel (A3
+// horizontal, 1 coluna por suplemento prescrito no momento Matchday) — ver doc/rascunho
+// rascunho_pdfs_anamnese_suplementacao_v1.html, aprovado pelo Roger antes de código.
+function _suplInformedBadgeForPrint(v){return v==='certificado'?'<span class="badge bg-g">✅ Informed Sport</span>':'<span class="badge bg-y">⚠️ Por confirmar</span>';}
+function printSuplIndividualPDF(athleteId){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  const list=(APP.supplementPrescriptions||[]).filter(p=>p.athleteId===athleteId&&p.status!=='suspenso');
+  const age=at.dob?ageYears(at.dob):null;
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const overdueCount=list.filter(_suplReviewOverdue).length;
+  const toConfirmCount=list.filter(p=>{const s=p.supplementId?(APP.supplementCatalog||[]).find(x=>x.id===p.supplementId):null;return s&&s.informedSport!=='certificado';}).length;
+  const momBoxes=SUPL_MOMENTS.map(m=>{
+    const items=list.filter(p=>(p.moments||[]).includes(m.key));
+    const bodyHtml=items.length?items.map(p=>{
+      const supl=p.supplementId?(APP.supplementCatalog||[]).find(x=>x.id===p.supplementId):null;
+      const name=supl?supl.name:(p.customName||'—');
+      const catBadge=supl?`<span class="badge bg-p">${escHtml(_suplCategoryLabel(supl.category))}</span>`:'';
+      const isBadge=supl?_suplInformedBadgeForPrint(supl.informedSport):'';
+      const overdue=_suplReviewOverdue(p);
+      const reviewTxt=overdue?`<span class="badge bg-r">⚠️ Revisão vencida — ${fmtDateShort(p.reviewDate)}</span>`:(p.reviewDate?'Revisão: '+fmtDateShort(p.reviewDate):'Sem data de revisão definida');
+      return `<div style="margin-bottom:6px"><strong>${escHtml(name)}</strong> ${catBadge} ${isBadge}<br>
+        <span style="font-size:8pt;color:#666">Dose: ${escHtml(p.dose||'—')}${p.frequency?' · '+escHtml(p.frequency):''}${p.instructions?' · '+escHtml(p.instructions):''} · </span>${reviewTxt}</div>`;
+    }).join(''):'<div style="color:#999;font-style:italic;font-size:8.5pt">Sem prescrições ativas neste momento.</div>';
+    return `<div style="font-size:8.3pt;font-weight:800;color:#fff;background:#1d6f3b;padding:4px 7px;border-radius:5px 5px 0 0;margin-top:8px">${m.icon} ${m.label}</div>
+    <div style="border:1px solid #e2e2e2;border-top:none;border-radius:0 0 5px 5px;padding:7px 8px">${bodyHtml}</div>`;
+  }).join('');
+  const warnHtml=overdueCount?`<div style="background:#fffbea;border:1px solid #f0d78c;border-radius:6px;padding:8px 10px;font-size:8.2pt;color:#6b5420;margin-top:14px">⚠️ ${overdueCount} prescriç${overdueCount>1?'ões':'ão'} com revisão vencida — a Nutri deve reavaliar antes da atleta continuar a tomar. Este aviso aparece só nesta ficha (uso interno da equipa técnica).</div>`:'';
+  const body=`
+  <div class="pr-title">Suplementação — Ficha Individual</div>
+  <div class="profile-header">
+    ${photoHtml}
+    <div style="flex:1">
+      <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}</div>
+      <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'}${at.num?' · Nº '+at.num:''}${age?' · '+age+' anos':''}</div>
+      <div style="font-size:8.5pt;color:#1d6f3b;font-weight:700;margin-top:3px">${list.length} prescriç${list.length!==1?'ões':'ão'} ativa${list.length!==1?'s':''}${toConfirmCount?' · '+toConfirmCount+' por confirmar (Informed Sport)':''}</div>
+    </div>
+  </div>
+  ${momBoxes}
+  ${warnHtml}`;
+  _printWin(`Suplementação — ${at.name}`,body);
+}
+function printSuplPlantelPDF(){
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>(a.num||999)-(b.num||999)||_displayName(a).localeCompare(_displayName(b)));
+  const matchdayPrescs=(APP.supplementPrescriptions||[]).filter(p=>p.status!=='suspenso'&&(p.moments||[]).includes('matchday'));
+  const supplIds=[...new Set(matchdayPrescs.filter(p=>p.supplementId).map(p=>p.supplementId))];
+  const cols=supplIds.map(id=>(APP.supplementCatalog||[]).find(x=>x.id===id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const ck='<span style="display:inline-block;width:11px;height:11px;border:1.3px solid #555;border-radius:3px;vertical-align:middle"></span>';
+  const theadCols=cols.map(c=>{
+    const sample=matchdayPrescs.find(p=>p.supplementId===c.id);
+    const sub=sample?[sample.dose,sample.frequency].filter(Boolean).join(' · '):'';
+    return `<th>${escHtml(c.name)}${sub?`<br><span style="font-size:7pt;font-weight:400;color:#e0e0e0">${escHtml(sub)}</span>`:''}</th>`;
+  }).join('');
+  const rows=athletes.map(at=>{
+    const mine=matchdayPrescs.filter(p=>p.athleteId===at.id);
+    const cells=cols.map(c=>`<td style="text-align:center">${mine.some(p=>p.supplementId===c.id)?ck:'—'}</td>`).join('');
+    const outros=mine.filter(p=>!p.supplementId&&p.customName).map(p=>p.customName).join(', ');
+    return `<tr><td>${at.num||''}</td><td>${escHtml(_displayName(at))}</td>${cells}<td>${escHtml(outros)}</td><td style="text-align:center">${ck}</td></tr>`;
+  }).join('');
+  const body=`
+  <div class="pr-title">Suplementação — Checklist de Plantel (Matchday)</div>
+  <table><thead><tr><th style="width:4%">Nº</th><th style="width:16%">Atleta</th>${theadCols}<th style="width:10%">Outro</th><th style="width:8%">Confirmado</th></tr></thead>
+  <tbody>${rows||`<tr><td colspan="${4+cols.length}" style="text-align:center;color:#999">Sem atletas no plantel</td></tr>`}</tbody></table>
+  <div style="font-size:7.5pt;color:#999;margin-top:10px">Legenda: colunas de suplemento = prescrição ativa para o momento Matchday desta atleta (dose/frequência por baixo do nome); "Outro" = suplemento sem coluna própria; "Confirmado" = staff marca à mão quando a toma é feita.</div>`;
+  _printWin('Suplementação — Checklist de Plantel',body,null,null,'A3');
+}
 
 // ─── PLANO NUTRICIONAL — DIA DE JOGO ───────────────────────────────────
 // Pedido do Roger (17/09/2026): o texto do timeline "Dia de Jogo" que a atleta vê
@@ -17312,6 +17595,7 @@ function renderAtNutri(){
   document.getElementById('atp-nutri').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-salad" style="margin-right:6px;vertical-align:-3px;color:#fb923c" aria-hidden="true"></i>Nutrição</div>
   ${nextCHtml}
+  ${_dietAnamneseSummaryCard()}
   ${lastA?`<div class="g2" style="margin-bottom:14px">
     <div class="kpi"><div class="kpi-lbl">Peso</div><div class="kpi-val" style="font-size:20px">${lastA.weight||'—'}<span style="font-size:12px"> kg</span></div><div class="kpi-sub">${lastA.date}</div></div>
     <div class="kpi"><div class="kpi-lbl">IMC</div><div class="kpi-val" style="font-size:20px">${lastA.bmi||'—'}</div><div class="kpi-sub">${lastA.hydration?'Hidratação: '+lastA.hydration:''}</div></div>
@@ -17322,7 +17606,138 @@ function renderAtNutri(){
     ${(plan.meals||[]).map(m=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?`<span style="font-size:10px;color:var(--t2)">${m.time}</span>`:''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div>${m.foods?`<div class="meal-f">${m.foods}</div>`:''}</div>`).join('')}
   </div></div>`:
   `<div class="empty" style="margin-bottom:14px"><div class="ei"><i class="ti ti-salad" aria-hidden="true"></i></div><p>Sem plano nutricional ativo</p><div class="esub">O teu nutricionista ainda não definiu um plano</div></div>`}
+  ${_weekMealsSummaryCard(plan)}
+  ${_atSupplementacaoCardHtml()}
   ${_atNutriGamedayCardHtml()}`;
+  const _wmToday=WEEK_DAYS[(new Date().getDay()+6)%7];
+  if(plan&&plan.weekMeals){
+    const _wmHasContent=d=>{const m=plan.weekMeals[d];return !!(m&&m.some(x=>x&&(x.foods||x.kcal||x.time)));};
+    const _wmDefaultDay=_wmHasContent(_wmToday)?_wmToday:(WEEK_DAYS.find(_wmHasContent)||_wmToday);
+    setTimeout(()=>_atWmShowDay(_wmDefaultDay),0);
+  }
+}
+// Anamnese Alimentar — lado atleta (sps-v195, mesmo espírito do Histórico Clínico do
+// Fisio, ver _anamneseSummaryCard/atOpenAnamnese acima). Preenchida pela própria atleta,
+// notas da Nutri não são mostradas aqui (uso interno, mesma regra do Fisio).
+const DIET_ANAM_FIELDS=[
+  {key:'dietType',label:'Tipo de dieta',group:'Restrições e Alergias',ph:'Ex: Omnívora, Vegetariana...'},
+  {key:'allergies',label:'Alergias',group:'Restrições e Alergias',ph:'Ex: Nenhuma'},
+  {key:'intolerances',label:'Intolerâncias',group:'Restrições e Alergias',ph:'Ex: Lactose (ligeira)'},
+  {key:'mealsPerDay',label:'Refeições/dia',group:'Padrão Alimentar Habitual',ph:'Ex: 4'},
+  {key:'whoPrepares',label:'Quem prepara as refeições',group:'Padrão Alimentar Habitual',ph:'Ex: Família, eu própria...'},
+  {key:'eatsOutFreq',label:'Come fora de casa',group:'Padrão Alimentar Habitual',ph:'Ex: 1-2x por semana'},
+  {key:'waterPerDay',label:'Água/dia',group:'Hidratação',ph:'Ex: ~1.5L'},
+  {key:'otherDrinks',label:'Outras bebidas',group:'Hidratação',ph:'Ex: Café (1x/dia)'},
+  {key:'avoids',label:'Evita (por preferência)',group:'Preferências',ph:'Ex: Peixe, cogumelos'},
+  {key:'currentSupplements',label:'Suplementos atuais (por iniciativa própria)',group:'Suplementos Atuais',textarea:true,ph:'Nomes dos suplementos que já tomas por tua conta, fora da prescrição da Nutri'},
+  {key:'athleteObservations',label:'Observações',group:'Observações',textarea:true,ph:'Algo mais que queiras partilhar com a tua nutricionista'}
+];
+function _dietAnField(id,label,val,textarea,ph){
+  if(textarea)return `<div class="fg"><label class="lbl">${label}</label><textarea class="ctrl" id="${id}" rows="2" placeholder="${escHtml(ph||'—')}">${val?escHtml(val):''}</textarea></div>`;
+  return `<div class="fg"><label class="lbl">${label}</label><input class="ctrl" id="${id}" type="text" value="${val?escHtml(val):''}" placeholder="${escHtml(ph||'—')}"></div>`;
+}
+function _dietAnamGroupedFieldsHtml(sr){
+  let out='',lastGroup=null;
+  DIET_ANAM_FIELDS.forEach(f=>{
+    if(f.group!==lastGroup){out+=`<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin:${lastGroup?'14px':'0'} 0 6px">${f.group}</div>`;lastGroup=f.group;}
+    out+=_dietAnField('dan-'+f.key,f.label,sr[f.key],f.textarea,f.ph);
+  });
+  return out;
+}
+function _dietAnamneseSummaryCard(){
+  const an=_getDietAnamnesis(AID);
+  const filled=!!an.selfReportUpdatedAt;
+  return `<div class="card" style="margin-bottom:14px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:800">🍽️ Anamnese Alimentar</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">${filled?'Atualizado em '+fmtDate(an.selfReportUpdatedAt.slice(0,10)):'Ainda não preenchida'}</div>
+      </div>
+      <button class="btn btn-g btn-sm" onclick="atOpenDietAnamnese()">${filled?'✏️ Editar':'+ Preencher'}</button>
+    </div>
+  </div>`;
+}
+function atOpenDietAnamnese(){
+  const an=_getDietAnamnesis(AID);
+  const sr=an.selfReport||{};
+  openMod('🍽️ Anamnese Alimentar',
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:12px">Conta à tua nutricionista como é a tua alimentação habitual. Podes editar sempre que quiseres.</div>'
+    +_dietAnamGroupedFieldsHtml(sr)
+    +'<button class="btn btn-g" style="width:100%;margin-top:14px" onclick="atSaveDietAnamnese()">Guardar</button>'
+  ,'lg');
+}
+async function atSaveDietAnamnese(){
+  const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
+  const g=id=>document.getElementById(id)?.value.trim()||'';
+  const selfReport={};
+  DIET_ANAM_FIELDS.forEach(f=>{selfReport[f.key]=g('dan-'+f.key);});
+  if(!APP.nutritionDietAnamnesis)APP.nutritionDietAnamnesis=[];
+  let an=APP.nutritionDietAnamnesis.find(a=>a.athleteId===AID);
+  if(!an){an={id:AID,athleteId:AID,selfReport:{},nutriNotes:'',nutriNotesUpdatedAt:null,nutriNotesUpdatedBy:null,nutriViewedAt:null};APP.nutritionDietAnamnesis.push(an);}
+  an.selfReport=selfReport;
+  an.selfReportUpdatedAt=new Date().toISOString();
+  saveData();
+  if(_sync)await cloudUpsert('nutrition_diet_anamnesis',{...an,club_id:_cid});
+  closeMod();
+  toast('Anamnese alimentar guardada ✓');
+  renderAtNutri();
+}
+// Diário Alimentar Semanal — lado atleta: só aparece quando o plano ativo já tem
+// week_meals definido pela Nutri (ver renderNutriAnamneseDiario). Plano sem week_meals
+// continua a mostrar só o resumo genérico de 'meals' acima (sem regressão).
+const WEEK_DAYS=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+const WEEK_DAY_FULL={Seg:'Segunda-feira',Ter:'Terça-feira',Qua:'Quarta-feira',Qui:'Quinta-feira',Sex:'Sexta-feira',Sáb:'Sábado',Dom:'Domingo'};
+function _weekMealsSummaryCard(plan){
+  if(!plan||!plan.weekMeals)return'';
+  const todayKey=WEEK_DAYS[(new Date().getDay()+6)%7];
+  return `<details class="card" style="padding:14px;margin-bottom:14px" id="at-wm-details" open>
+    <summary style="cursor:pointer;font-size:13px;font-weight:800">📅 Diário Alimentar Semanal</summary>
+    <div style="margin-top:10px">
+      <div class="day-tabs" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">
+        ${WEEK_DAYS.map(d=>`<button class="btn btn-xs ${d===todayKey?'btn-g':'btn-gh'}" id="at-wm-btn-${d}" onclick="_atWmShowDay('${d}')">${d}</button>`).join('')}
+      </div>
+      <div id="at-wm-body"></div>
+    </div>
+  </details>`;
+}
+function _atWmShowDay(day){
+  const plan=APP.nutritionPlans.find(p=>p.athleteId===AID&&p.active);
+  const meals=(plan&&plan.weekMeals&&plan.weekMeals[day])||[];
+  document.querySelectorAll('#at-wm-details .day-tabs button').forEach(b=>{b.className='btn btn-xs btn-gh';});
+  const activeBtn=document.getElementById('at-wm-btn-'+day);if(activeBtn)activeBtn.className='btn btn-xs btn-g';
+  const body=document.getElementById('at-wm-body');if(!body)return;
+  const filled=meals.filter(m=>m&&(m.foods||m.kcal));
+  body.innerHTML=filled.length
+    ?meals.map(m=>(m&&(m.foods||m.kcal))?`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?`<span style="font-size:10px;color:var(--t2)">${m.time}</span>`:''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div>${m.foods?`<div class="meal-f">${escHtml(m.foods)}</div>`:''}</div>`:'').join('')
+    :`<div style="font-size:11px;color:var(--t2)">Sem refeições definidas para ${WEEK_DAY_FULL[day]||day}.</div>`;
+}
+// Suplementação — vista da atleta (Bloco 2, sps-v195): prescrições ativas/pausadas,
+// agrupadas por momento. Propositadamente SEM a data de revisão nem o aviso de "revisão
+// vencida" (uso interno da equipa técnica — ver Dashboard do Plantel/ficha PDF) e sem
+// prescrições suspensas (já não aplicáveis à atleta).
+function _atSupplementacaoCardHtml(){
+  const list=(APP.supplementPrescriptions||[]).filter(p=>p.athleteId===AID&&p.status!=='suspenso');
+  if(!list.length)return'';
+  const cols=SUPL_MOMENTS.map(m=>{
+    const items=list.filter(p=>(p.moments||[]).includes(m.key));
+    if(!items.length)return'';
+    return `<div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2)">${m.icon} ${m.label}</div>
+      ${items.map(p=>{
+        const supl=p.supplementId?(APP.supplementCatalog||[]).find(x=>x.id===p.supplementId):null;
+        const name=supl?supl.name:(p.customName||'—');
+        return `<div style="font-size:12.5px;line-height:1.4;margin-top:2px">
+          <strong>${escHtml(name)}</strong>${p.status==='pausado'?' <span class="bdg bg-y" style="font-size:9px">Pausado</span>':''}
+          ${p.dose||p.frequency?`<div style="font-size:11px;color:var(--t2)">${escHtml(p.dose||'')}${p.dose&&p.frequency?' · ':''}${escHtml(p.frequency||'')}</div>`:''}
+          ${p.instructions?`<div style="font-size:10.5px;color:var(--t2)">${escHtml(p.instructions)}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+  return `<details class="card" style="padding:14px;margin-bottom:14px">
+    <summary style="cursor:pointer;font-size:13px;font-weight:800">💊 Suplementação</summary>
+    <div style="margin-top:10px">${cols||'<div style="font-size:11px;color:var(--t2)">Sem prescrições ativas.</div>'}</div>
+  </details>`;
 }
 // "A tua Evolução" — card motivador na aba Nutrição da app da atleta (sps-v167), pensado
 // para NÃO expor dados de composição corporal diretamente. Proposto e discutido com o
@@ -18002,7 +18417,7 @@ async function pullCloud(){
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name,professionalId:r.professional_id,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bmi:r.imc,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,
         sumSkinfolds:r.sum_skinfolds,armCirc:r.arm_circ,thighCirc:r.thigh_circ,calfCirc:r.calf_circ,waistCirc:r.waist_circ,hipCirc:r.hip_circ,muscleKg:r.muscle_kg,athleteNote:r.athlete_note}))],
-      ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
+      ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,weekMeals:r.week_meals||null,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
@@ -18017,6 +18432,8 @@ async function pullCloud(){
       ['attendance_records','attendance',(d)=>APP.attendance=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,createdAt:r.created_at}))],
       ['staff_users','users',(d)=>{APP.users=d.map(r=>({...r,isAdmin:r.is_admin,passwordHash:r.password_hash,createdAt:r.created_at,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}));APP.users.forEach(u=>{if(u.role==='tecnico')u.role='treinador';});}],
       ['athlete_anamnesis','anamnesis',(d)=>APP.anamnesis=d.map(r=>({id:r.id,athleteId:r.athlete_id,selfReport:r.self_report||{},selfReportUpdatedAt:r.self_report_updated_at,clinicalNotes:r.clinical_notes||'',clinicalNotesUpdatedAt:r.clinical_notes_updated_at,clinicalNotesUpdatedBy:r.clinical_notes_updated_by,clinicalNotesUpdatedById:r.clinical_notes_updated_by_id,fisioViewedAt:r.fisio_viewed_at}))],
+      // Anamnese Alimentar (sps-v195) — mesmo padrão de athlete_anamnesis, tabela própria.
+      ['nutrition_diet_anamnesis','nutritionDietAnamnesis',(d)=>APP.nutritionDietAnamnesis=d.map(r=>({id:r.id,athleteId:r.athlete_id,selfReport:r.self_report||{},selfReportUpdatedAt:r.self_report_updated_at,nutriNotes:r.nutri_notes||'',nutriNotesUpdatedAt:r.nutri_notes_updated_at,nutriNotesUpdatedBy:r.nutri_notes_updated_by,nutriNotesUpdatedById:r.nutri_notes_updated_by_id,nutriViewedAt:r.nutri_viewed_at}))],
       // Treino Extra: registo autoiniciado pela atleta (ginásio, corrida, treino em casa...),
       // sem ligação a schedule_events — tabela dedicada própria, mesmo padrão de pse_records/
       // wellness_records (série temporal, não singleton). UA calculado mas propositadamente
@@ -18342,8 +18759,11 @@ const _CLOUD_TABLE_SCHEMA={
       'arm_circ','thigh_circ','calf_circ','waist_circ','hip_circ','whr','muscle_kg','athlete_note'],
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id',
       sumSkinfolds:'sum_skinfolds',armCirc:'arm_circ',thighCirc:'thigh_circ',calfCirc:'calf_circ',waistCirc:'waist_circ',hipCirc:'hip_circ',muscleKg:'muscle_kg',athleteNote:'athlete_note'}},
-  nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','active','start_date','created_at','registered_by','registered_by_id','responsavel_id','responsavel_name'],
-    rename:{athleteId:'athlete_id',startDate:'start_date',createdAt:'created_at',registeredBy:'registered_by',registeredById:'registered_by_id',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
+  // week_meals (sps-v195): grelha semanal (7 dias x 6 refeições) do Diário Alimentar
+  // evoluído, opcional — plano sem week_meals continua a usar só 'meals' (genérico,
+  // compatibilidade com planos antigos). Ver _npWeekMealsFor/renderNutriAnamneseDiario.
+  nutrition_plans:{cols:['id','athlete_id','name','objective','kcal','protein','carbs','fat','meals','week_meals','active','start_date','created_at','registered_by','registered_by_id','responsavel_id','responsavel_name'],
+    rename:{athleteId:'athlete_id',weekMeals:'week_meals',startDate:'start_date',createdAt:'created_at',registeredBy:'registered_by',registeredById:'registered_by_id',responsavelId:'responsavel_id',responsavelName:'responsavel_name'}},
   nutrition_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],
     rename:{athleteId:'athlete_id',registeredBy:'registered_by',registeredById:'registered_by_id',registeredAt:'registered_at',responsavelId:'responsavel_id',responsavelName:'responsavel_name',rsvpStatus:'rsvp_status',rsvpReason:'rsvp_reason',rsvpRespondedAt:'rsvp_responded_at'}},
   // Plano Dia de Jogo (Nutrição): singleton por clube (1 linha, id='gameday-'+club_id) —
@@ -18377,6 +18797,12 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{passwordHash:'password_hash',isAdmin:'is_admin',createdAt:'created_at',mustChangePwd:'must_change_pwd'}},
   athlete_anamnesis:{cols:['id','athlete_id','self_report','self_report_updated_at','clinical_notes','clinical_notes_updated_at','clinical_notes_updated_by','clinical_notes_updated_by_id','fisio_viewed_at'],
     rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',clinicalNotes:'clinical_notes',clinicalNotesUpdatedAt:'clinical_notes_updated_at',clinicalNotesUpdatedBy:'clinical_notes_updated_by',clinicalNotesUpdatedById:'clinical_notes_updated_by_id',fisioViewedAt:'fisio_viewed_at'}},
+  // Anamnese Alimentar (sps-v195): mesmo padrão exato de athlete_anamnesis (self_report
+  // preenchido pela atleta + notas só de quem acompanha), mas tabela própria para o domínio
+  // da Nutrição — evita misturar com o histórico clínico do Fisio (domínios geridos por
+  // cargos diferentes, ver doc "SPS — Dashboard do Plantel... e Anamnese Alimentar").
+  nutrition_diet_anamnesis:{cols:['id','athlete_id','self_report','self_report_updated_at','nutri_notes','nutri_notes_updated_at','nutri_notes_updated_by','nutri_notes_updated_by_id','nutri_viewed_at'],
+    rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',nutriNotes:'nutri_notes',nutriNotesUpdatedAt:'nutri_notes_updated_at',nutriNotesUpdatedBy:'nutri_notes_updated_by',nutriNotesUpdatedById:'nutri_notes_updated_by_id',nutriViewedAt:'nutri_viewed_at'}},
   extra_training_records:{cols:['id','athlete_id','date','type','duration','pse','ua','summary','guidance','submitted_at'],
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
   gym_records:{cols:['id','event_id','athlete_id','vals','rir_geral','obs','updated_at'],

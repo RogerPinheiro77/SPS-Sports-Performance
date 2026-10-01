@@ -2573,3 +2573,63 @@ atleta + PDFs (Anamnese+Diário por atleta, ficha individual de Suplementação,
 plantel A3 para Matchday).
 
 SW bump para `sps-v194`.
+
+## sps-v195 (01/10/2026): Anamnese Alimentar + Diário Alimentar evoluído + Suplementação — Bloco 2
+
+Pedido do Roger a seguir ao sps-v194 ("QUE FALTA AVANÇAR?" → "1. Anamnese Alimentar + Diário
+Alimentar evoluído, 2. Suplementação — Bloco 2, COM OS DOIS") — autorização para implementar
+as duas funcionalidades já com rascunhos aprovados (`rascunho_anamnese_diario_v1.html` e
+`rascunho_pdfs_anamnese_suplementacao_v1.html`), sem mais perguntas.
+
+1. **Anamnese Alimentar** — nova tabela `nutrition_diet_anamnesis` (`APP.
+   nutritionDietAnamnesis[]`), mesmo padrão já usado no Histórico Clínico do Fisio
+   (`athlete_anamnesis`/`_getAnamnesis`) mas numa tabela própria, para não misturar os dois
+   domínios: `_getDietAnamnesis(athleteId)` com fallback `{selfReport:{},nutriNotes:'',...}`.
+   Lado atleta (App Atleta → Nutrição): cartão "🍽️ Anamnese Alimentar" (`_dietAnamneseSummaryCard`)
+   + modal de preenchimento (`atOpenDietAnamnese`/`atSaveDietAnamnese`) com 11 campos agrupados
+   em 5 secções (Restrições e Alergias, Padrão Alimentar Habitual, Hidratação, Preferências,
+   Suplementos Atuais, Observações — `DIET_ANAM_FIELDS`). Lado Nutri: nova página
+   `nutri-anamnese-diario` (📋 aba Anamnese), leitura de todos os campos + campo de notas
+   próprio da Nutri (`saveNadNutriNotes`), não visível à atleta (mesma regra do Fisio).
+2. **Diário Alimentar evoluído**: campo aditivo `weekMeals` (jsonb) em `nutritionPlans` — o
+   campo `meals` plano existente fica intacto, zero regressão para planos antigos. Nova aba
+   "📅 Diário Alimentar Semanal" na mesma página `nutri-anamnese-diario`: grelha de 7 dias
+   (`WEEK_DAYS`) × 6 refeições (`MEALS`), com botão "📋 Copiar de..." para duplicar um dia já
+   preenchido para o dia selecionado (`nadCopyDay`) — só aparece (botão e dica) quando existe
+   pelo menos outro dia com conteúdo. Lado atleta: cartão "📅 Diário Alimentar Semanal"
+   (`_weekMealsSummaryCard`/`_atWmShowDay`) só aparece quando o plano ativo já tem `weekMeals`
+   definido pela Nutri, com o dia de hoje pré-selecionado — e quando hoje ainda não tem dados,
+   cai para o primeiro dia da semana que já tenha conteúdo (nunca mostra "vazio" se já há
+   algum dia preenchido).
+3. **PDF Anamnese + Diário** (`printNutriAnamneseDiarioPDF`, por atleta): 2 páginas, página 1
+   retrato (resumo da anamnese + nota da Nutri), página 2 paisagem (grelha semanal completa +
+   metas de macros no cabeçalho) — duas chamadas a `_printWin()` seguidas, na mesma função
+   síncrona (sem `setTimeout` entre elas), para não perder o gesto do utilizador e arriscar o
+   bloqueador de pop-ups do browser. Sem plano ativo, gera só a página 1 e avisa por `toast`.
+4. **Suplementação — Bloco 2 (vista da atleta)**: cartão novo na App Atleta
+   (`_atSupplementacaoCardHtml`), agrupado pelos 4 `SUPL_MOMENTS`, mostrando só prescrições
+   ativas/pausadas (nunca suspensas) — propositadamente **sem** data de revisão nem aviso de
+   "revisão vencida" (uso interno da equipa técnica, conforme o rascunho aprovado).
+5. **PDF ficha individual de Suplementação** (`printSuplIndividualPDF`, botão na aba
+   Prescrição por Atleta): A4 retrato, agrupada pelos 4 momentos, **com** o aviso de revisão
+   vencida (ficha de uso interno da equipa técnica — o inverso da vista da atleta).
+6. **PDF checklist de plantel** (`printSuplPlantelPDF`, botão "🖨️ PDF Plantel (A3 horizontal)"
+   na página de Suplementação): A3 paisagem, uma linha por atleta, uma coluna por suplemento
+   distinto prescrito no momento "Matchday" em todo o plantel (+ colunas "Outro" e
+   "Confirmado").
+7. Novo cartão "🍽️ Anamnese & Diário" na Home da Nutri, a contar quantas atletas já têm
+   anamnese preenchida.
+
+Testado com Node (`node --check`) e um novo ficheiro Playwright dedicado
+(`test_nutri_anamnese_diario_supl2_v195.js`, 45 asserções): preenchimento e leitura da
+anamnese (atleta → Nutri), notas da Nutri, aviso de plano em falta, grelha semanal com
+"Copiar de..." (ausente sem conteúdo, presente depois de preencher Segunda, cópia Segunda→
+Terça), PDF combinado de 2 páginas (retrato A4 + paisagem A4, com e sem plano ativo), PDF
+individual de Suplementação (agrupado por momento, com aviso de revisão vencida), PDF
+checklist de plantel (colunas certas, A3 paisagem), vista da atleta (anamnese, diário semanal
+com dia por defeito e fallback para dia com conteúdo, suplementos sem aviso interno), e cartão
+novo na Home. Regressão completa re-corrida (`test_supl_v193.js`, `test_na_plantel_v192.js`,
+`test_na_dashboard_v192.js`, `test_nutri_metricas_v190.js`, `test_hydration_v188.js`,
+`test_tatico_v191.js`, `test_mobile_v187.js`, `test_nutri_plantel_v194.js`) sem falhas.
+
+SW bump para `sps-v195`.
