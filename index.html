@@ -259,6 +259,21 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 .tab-btn.on{background:var(--bg2);color:var(--t1)}
 .tp{display:none}.tp.on{display:block}
 
+/* SUPLEMENTAÇÃO (sps-v193) — colunas por momento na Prescrição por Atleta */
+.mom-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:900px){.mom-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.mom-grid{grid-template-columns:1fr}}
+.mom-col{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:9px;min-height:120px}
+.mom-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--t2)}
+.supl-item{background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:9px 10px}
+.supl-item.overdue{border-color:rgba(220,38,38,.5);background:rgba(220,38,38,.08)}
+.supl-nm{font-size:12px;font-weight:800;margin-bottom:2px}
+.supl-dose{font-size:11px;color:var(--t2);margin-bottom:4px}
+.supl-ins{font-size:10.5px;color:var(--t3);line-height:1.35;margin-bottom:6px}
+.supl-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.add-mini{border:1px dashed var(--brd);border-radius:8px;padding:9px;text-align:center;font-size:11px;color:var(--t2);cursor:pointer}
+.add-mini:hover{border-color:var(--c1);color:var(--c1l)}
+
 /* ALERTS */
 .al{padding:10px 13px;border-radius:var(--rs);font-size:12px;margin-bottom:9px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}
 .al-r{background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);color:#f87171}
@@ -532,6 +547,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-planos"></div>
       <div class="pg" id="pg-nutri-gameday"></div>
       <div class="pg" id="pg-nutri-hidratacao"></div>
+      <div class="pg" id="pg-nutri-supl"></div>
       <div class="pg" id="pg-nutri-agenda-geral"></div>
       <div class="pg" id="pg-nutri-consultas"></div>
       <div class="pg" id="pg-nutri-manual"></div>
@@ -643,6 +659,7 @@ function defApp(){
     convocatorias:[],trainingPlans:[],wellness:[],pse:[],
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],nutritionAppointments:[],fisioAppointments:[],
     nutritionGameDayPlan:null,hydrationRecords:[],
+    supplementCatalog:[],supplementPrescriptions:[],
     anamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     mcTemplates:[],
     users:[]
@@ -1030,6 +1047,7 @@ const ALL_PAGES=[
   {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
   {id:'nutri-gameday',icon:'🏆',label:'Plano Dia de Jogo'},
   {id:'nutri-hidratacao',icon:'💧',label:'Matchday Hydration'},
+  {id:'nutri-supl',icon:'💊',label:'Suplementação'},
   {id:'nutri-agenda-geral',icon:'🗓️',label:'Agenda Geral'},
   {id:'nutri-consultas',icon:'📅',label:'Consultas'},
   {id:'nutri-dash',icon:'📊',label:'Dashboard Completo'},
@@ -1046,7 +1064,7 @@ const ROLE_DEFS={
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-hidratacao','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-manual'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-manual'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes'],readOnly:true,manageUsers:false}
 };
@@ -1155,7 +1173,7 @@ function _maybeEnterTaticoMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1231,7 +1249,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -13310,6 +13328,238 @@ function _hidratacaoCore(containerId){
 function renderNutriHidratacao(){_hydraRenderContainer='pg-nutri-hidratacao';_hidratacaoCore('pg-nutri-hidratacao');}
 function renderFisioHidratacao(){_hydraRenderContainer='pg-fisio-hidratacao';_hidratacaoCore('pg-fisio-hidratacao');}
 
+// ─── SUPLEMENTAÇÃO (sps-v193, Bloco 1) ──────────────────────────
+// Pedido do Roger (01/10/2026): catálogo reutilizável de suplementos + prescrição
+// individual por atleta, agrupada por momento (diário/pré-treino/pós-treino/matchday).
+// Rascunho validado em 1 ronda (HTML, antes de código) — ver doc Claude Docs "SPS —
+// Suplementação: Análise e Proposta" para a pesquisa de mercado e as decisões do Roger:
+// só a Nutri gere (sem equivalente no Fisio, ao contrário da Hidratação), catálogo
+// sinaliza certificação Informed Sport (risco de doping por contaminação — ~1 em 10
+// suplementos no mercado geral contém substância proibida não declarada), prescrições
+// podem ter data de revisão opcional com aviso visual quando vencida, impressão em PDF
+// (ficha individual + checklist de plantel) fica para o Bloco 2, tal como a visão da
+// atleta na App Atleta.
+const SUPL_CATEGORIES=[
+  {key:'alimento',label:'Alimento desportivo',cls:'bg-b'},
+  {key:'medico',label:'Suplemento médico',cls:'bg-p'},
+  {key:'ergogenica',label:'Ajuda ergogénica',cls:'bg-t'}
+];
+const SUPL_MOMENTS=[
+  {key:'diario',label:'Diário',icon:'☀️'},
+  {key:'pre',label:'Pré-Treino',icon:'🏃'},
+  {key:'pos',label:'Pós-Treino',icon:'💪'},
+  {key:'matchday',label:'Matchday',icon:'🏆'}
+];
+function _suplCategoryLabel(key){return (SUPL_CATEGORIES.find(c=>c.key===key)||{}).label||key||'—';}
+function _suplCategoryCls(key){return (SUPL_CATEGORIES.find(c=>c.key===key)||{}).cls||'bg-gr';}
+function _suplInformedBadge(v){return v==='certificado'?'<span class="bdg bg-g">✅ Certificado</span>':'<span class="bdg bg-r">⚠️ Por confirmar</span>';}
+
+let _suplTab='cat', _suplSelAthlete=null;
+function _suplShowTab(id){
+  _suplTab=id;
+  document.querySelectorAll('#pg-nutri-supl .tp').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('#pg-nutri-supl .tab-btn').forEach(e=>e.classList.remove('on'));
+  const tp=document.getElementById('supl-tab-'+id);if(tp)tp.classList.add('on');
+  const tb=document.getElementById('supl-tabbtn-'+id);if(tb)tb.classList.add('on');
+}
+function renderNutriSupl(){
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>_displayName(a).localeCompare(_displayName(b)));
+  if(!_suplSelAthlete&&athletes.length)_suplSelAthlete=athletes[0].id;
+  const lastTab=_suplTab;
+  document.getElementById('pg-nutri-supl').innerHTML=`
+  <div style="font-size:17px;font-weight:900;margin-bottom:2px">💊 Suplementação</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Catálogo de suplementos e prescrição individual por atleta, organizada por momento. Gerido apenas pela Nutri.</div>
+  <div class="tabs">
+    <div class="tab-btn" id="supl-tabbtn-cat" onclick="_suplShowTab('cat')">📋 Catálogo</div>
+    <div class="tab-btn" id="supl-tabbtn-presc" onclick="_suplShowTab('presc')">👤 Prescrição por Atleta</div>
+  </div>
+  <div class="tp" id="supl-tab-cat">${_suplCatalogHtml()}</div>
+  <div class="tp" id="supl-tab-presc">${_suplPrescricaoHtml(athletes)}</div>`;
+  _suplShowTab(lastTab);
+}
+function _suplCatalogHtml(){
+  const items=[...(APP.supplementCatalog||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const rows=items.map(it=>`<tr>
+    <td><strong>${escHtml(it.name)}</strong></td>
+    <td><span class="bdg ${_suplCategoryCls(it.category)}">${escHtml(_suplCategoryLabel(it.category))}</span></td>
+    <td>${escHtml(it.form||'—')}</td>
+    <td>${_suplInformedBadge(it.informedSport)}</td>
+    <td style="color:var(--t2)">${escHtml(it.notes||'')}</td>
+    <td><button class="btn btn-xs btn-gh" onclick="_openSuplItemModal('${it.id}')">Editar</button>
+        <button class="btn btn-xs btn-r" onclick="deleteSuplItem('${it.id}')">Apagar</button></td>
+  </tr>`).join('');
+  return `<div class="card">
+    <div class="ch"><span class="ct">📋 Catálogo de Suplementos</span>
+      <button class="btn btn-g btn-sm" onclick="_openSuplItemModal(null)">+ Novo Suplemento</button></div>
+    <div class="cb">
+      <div class="tw"><table><thead><tr><th>Suplemento</th><th>Categoria</th><th>Forma</th><th>Informed Sport</th><th>Notas</th><th>Ações</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="6" style="text-align:center;color:var(--t2);padding:20px">Catálogo vazio — começa por adicionar um suplemento.</td></tr>'}</tbody></table></div>
+      <div style="font-size:10.5px;color:var(--t2);margin-top:12px;line-height:1.4">⚠️ <strong>Informed Sport "Por confirmar"</strong> = ainda não verificada a certificação do lote. Recomenda-se não prescrever até confirmar, dado o risco de contaminação com substâncias proibidas.</div>
+    </div>
+  </div>`;
+}
+function _openSuplItemModal(id){
+  const it=id?(APP.supplementCatalog||[]).find(x=>x.id===id):null;
+  openMod((it?'Editar':'Novo')+' Suplemento',`
+  <div class="form-g"><label class="fl">Nome *</label><input class="fc" id="si-name" value="${escHtml(it?.name||'')}" placeholder="Ex: Creatina Monohidratada"></div>
+  <div class="fr">
+    <div class="form-g"><label class="fl">Categoria</label><select class="fc" id="si-cat">${SUPL_CATEGORIES.map(c=>`<option value="${c.key}" ${it?.category===c.key?'selected':''}>${c.label}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Forma</label><input class="fc" id="si-form" value="${escHtml(it?.form||'')}" placeholder="Pó, cápsula, líquido..."></div>
+  </div>
+  <div class="form-g"><label class="fl">Informed Sport</label><select class="fc" id="si-is">
+    <option value="confirmar" ${(!it||it.informedSport==='confirmar')?'selected':''}>⚠️ Por confirmar</option>
+    <option value="certificado" ${it?.informedSport==='certificado'?'selected':''}>✅ Certificado</option>
+  </select></div>
+  <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="si-notes" rows="2" placeholder="Marca recomendada, observações...">${escHtml(it?.notes||'')}</textarea></div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-g" onclick="saveSuplItem('${id||''}')">💾 Guardar</button>
+    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+  </div>`);
+  setTimeout(()=>{const el=document.getElementById('si-name');if(el)el.focus();},100);
+}
+function saveSuplItem(id){
+  const name=document.getElementById('si-name').value.trim();
+  if(!name)return toast('Nome obrigatório','err');
+  let it=id?(APP.supplementCatalog||[]).find(x=>x.id===id):null;
+  if(!it){it={id:'sc'+uid()};APP.supplementCatalog.push(it);}
+  Object.assign(it,{
+    name,
+    category:document.getElementById('si-cat').value,
+    form:document.getElementById('si-form').value.trim(),
+    informedSport:document.getElementById('si-is').value,
+    notes:document.getElementById('si-notes').value.trim()
+  });
+  saveData();
+  if(_sync)cloudUpsert('supplement_catalog',{...it,club_id:_cid});
+  toast('Suplemento guardado ✓');
+  closeMod();
+  renderNutriSupl();
+}
+function deleteSuplItem(id){
+  if(!confirm('Apagar este suplemento do catálogo? As prescrições já feitas com ele não são apagadas.'))return;
+  APP.supplementCatalog=(APP.supplementCatalog||[]).filter(x=>x.id!==id);
+  saveData();
+  if(_sync&&_supa){_supa.from('supplement_catalog').delete().eq('id',id).catch(err=>_warnSyncFailure('supplement_catalog (apagar)',err));}
+  toast('Apagado');
+  renderNutriSupl();
+}
+function _suplReviewOverdue(p){return !!(p.reviewDate&&p.reviewDate<today());}
+function _suplItemCardHtml(p){
+  const supl=p.supplementId?(APP.supplementCatalog||[]).find(x=>x.id===p.supplementId):null;
+  const name=supl?supl.name:(p.customName||'—');
+  const overdue=_suplReviewOverdue(p);
+  const statusCls=p.status==='pausado'?'bg-y':p.status==='suspenso'?'bg-gr':'bg-g';
+  const statusLabel=p.status==='pausado'?'Pausado':p.status==='suspenso'?'Suspenso':'Ativo';
+  return `<div class="supl-item${overdue?' overdue':''}">
+    <div class="supl-nm">${escHtml(name)}</div>
+    <div class="supl-dose">${escHtml(p.dose||'')}</div>
+    <div class="supl-ins">${escHtml(p.instructions||'')}</div>
+    <div class="supl-foot">
+      <span class="bdg ${statusCls}">${statusLabel}</span>
+      ${overdue?`<span class="bdg bg-r">⚠️ Revisão vencida (${fmtDateShort(p.reviewDate)})</span>`:(p.reviewDate?`<span style="font-size:9.5px;color:var(--t3)">Revisão ${fmtDateShort(p.reviewDate)}</span>`:'<span style="font-size:9.5px;color:var(--t3)">Sem prazo</span>')}
+      <button class="btn btn-xs btn-gh" onclick="_openSuplPrescModal('${p.athleteId}','${p.id}')">Editar</button>
+      <button class="btn btn-xs btn-r" onclick="deleteSuplPresc('${p.id}')">Apagar</button>
+    </div>
+  </div>`;
+}
+function _suplPrescricaoHtml(athletes){
+  if(!athletes.length)return '<div class="card"><div class="cb" style="text-align:center;color:var(--t2);padding:20px">Sem atletas.</div></div>';
+  const at=athletes.find(a=>a.id===_suplSelAthlete)||athletes[0];
+  const prescs=(APP.supplementPrescriptions||[]).filter(p=>p.athleteId===at.id);
+  const cols=SUPL_MOMENTS.map(m=>{
+    const items=prescs.filter(p=>(p.moments||[]).includes(m.key));
+    return `<div class="mom-col">
+      <div class="mom-h">${m.icon} ${m.label}</div>
+      ${items.map(_suplItemCardHtml).join('')}
+      <div class="add-mini" onclick="_openSuplPrescModal('${at.id}',null,'${m.key}')">+ Adicionar</div>
+    </div>`;
+  }).join('');
+  return `<div class="card">
+    <div class="ch"><span class="ct">👤 Prescrição por Atleta</span></div>
+    <div class="cb">
+      <select class="fc" style="min-width:240px;margin-bottom:16px" onchange="_suplSelAthlete=this.value;renderNutriSupl()">
+        ${athletes.map(a=>`<option value="${a.id}" ${a.id===at.id?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}
+      </select>
+      <div class="mom-grid">${cols}</div>
+    </div>
+  </div>`;
+}
+function _openSuplPrescModal(athleteId,prescId,defaultMoment){
+  const p=prescId?(APP.supplementPrescriptions||[]).find(x=>x.id===prescId):null;
+  const catalog=[...(APP.supplementCatalog||[])].sort((a,b)=>a.name.localeCompare(b.name));
+  const moments=p?(p.moments||[]):(defaultMoment?[defaultMoment]:[]);
+  const isOutro=!!(p&&!p.supplementId&&p.customName);
+  openMod((p?'Editar':'Nova')+' Prescrição — '+_displayName((APP.athletes||[]).find(a=>a.id===athleteId)||{}),`
+  <div class="form-g"><label class="fl">Suplemento</label><select class="fc" id="sp-supl" onchange="document.getElementById('sp-custom-wrap').style.display=this.value==='_outro'?'block':'none'">
+    <option value="">— Escolher do catálogo —</option>
+    ${catalog.map(c=>`<option value="${c.id}" ${p?.supplementId===c.id?'selected':''}>${escHtml(c.name)}</option>`).join('')}
+    <option value="_outro" ${isOutro?'selected':''}>Outro (texto livre)</option>
+  </select></div>
+  <div class="form-g" id="sp-custom-wrap" style="display:${isOutro?'block':'none'}"><label class="fl">Nome do suplemento</label><input class="fc" id="sp-custom" value="${escHtml(p?.customName||'')}" placeholder="Nome livre, fora do catálogo"></div>
+  <div class="fr">
+    <div class="form-g"><label class="fl">Dose / Quantidade</label><input class="fc" id="sp-dose" value="${escHtml(p?.dose||'')}" placeholder="Ex: 5g, 1 cápsula"></div>
+    <div class="form-g"><label class="fl">Frequência</label><input class="fc" id="sp-freq" value="${escHtml(p?.frequency||'')}" placeholder="Ex: todos os dias, só em jogo"></div>
+  </div>
+  <div class="form-g"><label class="fl">Momento(s)</label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">${SUPL_MOMENTS.map(m=>`<label style="display:flex;align-items:center;gap:5px;font-size:12px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;padding:6px 10px;cursor:pointer">
+      <input type="checkbox" id="sp-mom-${m.key}" ${moments.includes(m.key)?'checked':''}> ${m.icon} ${m.label}</label>`).join('')}</div>
+  </div>
+  <div class="form-g"><label class="fl">Instruções</label><textarea class="fc" id="sp-ins" rows="2" placeholder="Ex: 30 min antes, com água">${escHtml(p?.instructions||'')}</textarea></div>
+  <div class="fr3">
+    <div class="form-g"><label class="fl">Início</label><input class="fc" type="date" id="sp-start" value="${p?.startDate||today()}"></div>
+    <div class="form-g"><label class="fl">Revisão (opcional)</label><input class="fc" type="date" id="sp-review" value="${p?.reviewDate||''}"></div>
+    <div class="form-g"><label class="fl">Estado</label><select class="fc" id="sp-status">
+      <option value="ativo" ${(!p||p.status==='ativo')?'selected':''}>Ativo</option>
+      <option value="pausado" ${p?.status==='pausado'?'selected':''}>Pausado</option>
+      <option value="suspenso" ${p?.status==='suspenso'?'selected':''}>Suspenso</option>
+    </select></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-g" onclick="saveSuplPresc('${athleteId}','${prescId||''}')">💾 Guardar</button>
+    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+  </div>`,'lg');
+}
+function saveSuplPresc(athleteId,prescId){
+  const sess=getSession();
+  const suplVal=document.getElementById('sp-supl').value;
+  const customName=document.getElementById('sp-custom').value.trim();
+  if(!suplVal)return toast('Escolhe um suplemento do catálogo ou "Outro"','err');
+  if(suplVal==='_outro'&&!customName)return toast('Indica o nome do suplemento','err');
+  const moments=SUPL_MOMENTS.filter(m=>document.getElementById('sp-mom-'+m.key).checked).map(m=>m.key);
+  if(!moments.length)return toast('Escolhe pelo menos um momento','err');
+  let p=prescId?(APP.supplementPrescriptions||[]).find(x=>x.id===prescId):null;
+  if(!p){p={id:'sp'+uid(),athleteId,prescribedAt:new Date().toISOString()};APP.supplementPrescriptions.push(p);}
+  Object.assign(p,{
+    supplementId:suplVal==='_outro'?null:suplVal,
+    customName:suplVal==='_outro'?customName:'',
+    dose:document.getElementById('sp-dose').value.trim(),
+    frequency:document.getElementById('sp-freq').value.trim(),
+    moments,
+    instructions:document.getElementById('sp-ins').value.trim(),
+    startDate:document.getElementById('sp-start').value||null,
+    reviewDate:document.getElementById('sp-review').value||null,
+    status:document.getElementById('sp-status').value,
+    prescribedBy:sess?sess.name:(p.prescribedBy||''),
+    prescribedById:sess?sess.userId:(p.prescribedById||null),
+    updatedAt:new Date().toISOString()
+  });
+  saveData();
+  if(_sync)cloudUpsert('supplement_prescriptions',{...p,club_id:_cid});
+  toast('Prescrição guardada ✓');
+  closeMod();
+  _suplTab='presc';
+  renderNutriSupl();
+}
+function deleteSuplPresc(id){
+  if(!confirm('Apagar esta prescrição?'))return;
+  APP.supplementPrescriptions=(APP.supplementPrescriptions||[]).filter(x=>x.id!==id);
+  saveData();
+  if(_sync&&_supa){_supa.from('supplement_prescriptions').delete().eq('id',id).catch(err=>_warnSyncFailure('supplement_prescriptions (apagar)',err));}
+  toast('Apagada');
+  _suplTab='presc';
+  renderNutriSupl();
+}
+
 // Home do SPS-Nutri (sps-v130) — réplica 1:1 do espírito de renderFisioHome, ver nota
 // lá. Vira a página de entrada de ?nutri=1 (ver _maybeEnterNutriMode) e 1º item de
 // ROLE_DEFS.nutri.pages.
@@ -13341,6 +13591,8 @@ function renderNutriHome(){
       APP.nutritionGameDayPlan?'#fb923c':'#f87171', APP.nutritionGameDayPlan?'':_bdg('!','#dc2626'),'251,146,60'),
     _card('nutri-hidratacao','droplet','#38bdf8','Matchday Hydration',
       `${(APP.hydrationRecords||[]).length} registo(s)`,'var(--t2)','','56,189,248'),
+    _card('nutri-supl','pill','#c084fc','Suplementação',
+      `${(APP.supplementPrescriptions||[]).filter(p=>p.status!=='suspenso').length} prescrição(ões) ativa(s)`,'var(--t2)','','192,132,252'),
     _card('nutri-agenda-geral','calendar','#a78bfa','Agenda Geral',
       todayEvs?`${todayEvs} evento${todayEvs>1?'s':''} hoje`:'Sem eventos hoje',
       todayEvs?'#a78bfa':'var(--t2)', _bdg(todayEvs||'','#7c3aed'),'124,58,237'),
@@ -17535,6 +17787,11 @@ async function pullCloud(){
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
+      // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
+      // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
+      // Análise e Proposta". Só a Nutri gere (decisão do Roger) — sem equivalente no Fisio.
+      ['supplement_catalog','supplementCatalog',(d)=>APP.supplementCatalog=d.map(r=>({...r,informedSport:r.informed_sport}))],
+      ['supplement_prescriptions','supplementPrescriptions',(d)=>APP.supplementPrescriptions=d.map(r=>({...r,athleteId:r.athlete_id,supplementId:r.supplement_id,customName:r.custom_name,startDate:r.start_date,reviewDate:r.review_date,prescribedBy:r.prescribed_by,prescribedById:r.prescribed_by_id,prescribedAt:r.prescribed_at,updatedAt:r.updated_at,moments:r.moments||[]}))],
       ['physio_appointments','fisioAppointments',(d)=>APP.fisioAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['schedule_events','schedule',(d)=>APP.schedule=d.map(r=>({...r,teamId:r.team_id,createdAt:r.created_at,horaConcentracao:r.hora_concentracao,localConcentracao:r.local_concentracao,guestIds:r.guest_ids||[],gymSheet:r.gym_sheet||null,rsvp:r.rsvp||{}}))],
       ['training_plans','trainingPlans',(d)=>APP.trainingPlans=d.map(r=>({...r,athleteId:r.athlete_id,createdAt:r.created_at,doneAt:r.done_at,doneTime:r.done_time}))],
@@ -17881,6 +18138,14 @@ const _CLOUD_TABLE_SCHEMA={
   // usada em todas as outras tabelas.
   hydration_records:{cols:['id','athlete_id','game_id','pre_weight','post_weight','fluids_l','urine_l','duration_h','sweat_rate','weight_loss_pct','notes','registered_by','registered_by_id','updated_at'],
     rename:{athleteId:'athlete_id',gameId:'game_id',preWeight:'pre_weight',postWeight:'post_weight',fluidsL:'fluids_l',urineL:'urine_l',durationH:'duration_h',sweatRate:'sweat_rate',weightLossPct:'weight_loss_pct',registeredBy:'registered_by',registeredById:'registered_by_id',updatedAt:'updated_at'}},
+  // Suplementação (sps-v193, Bloco 1): catálogo reutilizável gerido pela Nutri + prescrição
+  // individual por atleta, agrupada por momento (diário/pré-treino/pós-treino/matchday). Duas
+  // tabelas dedicadas próprias (migração create_supplement_tables), mesmo padrão/RLS anon_all
+  // de hydration_records. Ver doc "SPS — Suplementação: Análise e Proposta".
+  supplement_catalog:{cols:['id','club_id','name','category','form','informed_sport','notes','created_at'],
+    rename:{informedSport:'informed_sport'}},
+  supplement_prescriptions:{cols:['id','club_id','athlete_id','supplement_id','custom_name','dose','moments','frequency','instructions','start_date','review_date','status','prescribed_by','prescribed_by_id','prescribed_at','updated_at'],
+    rename:{athleteId:'athlete_id',supplementId:'supplement_id',customName:'custom_name',startDate:'start_date',reviewDate:'review_date',prescribedBy:'prescribed_by',prescribedById:'prescribed_by_id',prescribedAt:'prescribed_at',updatedAt:'updated_at'}},
   physio_appointments:{cols:['id','athlete_id','date','time','duration','location','notes','status','reason','registered_by','registered_by_id','registered_at','responsavel_id','responsavel_name','rsvp_status','rsvp_reason','rsvp_responded_at'],
     rename:{athleteId:'athlete_id',registeredBy:'registered_by',registeredById:'registered_by_id',registeredAt:'registered_at',responsavelId:'responsavel_id',responsavelName:'responsavel_name',rsvpStatus:'rsvp_status',rsvpReason:'rsvp_reason',rsvpRespondedAt:'rsvp_responded_at'}},
   schedule_events:{cols:['id','type','title','date','time','location','notes','created_at','dur','team_id','hora_concentracao','local_concentracao','guest_ids','gym_sheet','rsvp'],

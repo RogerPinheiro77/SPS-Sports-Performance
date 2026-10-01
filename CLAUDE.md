@@ -2426,3 +2426,74 @@ atualizada de "A4 landscape" para "A3 landscape").
 
 **Ainda por fazer:** nada pendente para este pedido. Continua em aberto, à parte, o pedido do
 sps-v191 sobre "melhorar todas as funcionalidades" de selecionar/arrastar no Quadro Tático.
+
+## sps-v193 (01/10/2026): Suplementação — Bloco 1 (catálogo + prescrição por atleta)
+
+Novo pedido do Roger, depois do sps-v192: módulo de Suplementação na App Nutricionista —
+suplementos que a Nutri pode indicar/prescrever, no dia a dia, pré-treino, pós-treino e
+matchday, com um catálogo reutilizável para individualizar por atleta ("lista para
+individualizar... e também listas de opção, deixando sempre espaço para acrescentar").
+
+Pedido explicitamente aberto ("ANALISA, INVESTIGA ONLINE O QUE JÁ SE FAZ... DÁ A TUA VISÃO E
+FEEDBACK ANTES DE AVANÇARMOS") — antes de código, escrevi uma proposta num documento Claude
+Docs dedicado ("SPS — Suplementação: Análise e Proposta") com pesquisa de mercado (Nutrium,
+Trainingym+Nutrium, Hexis — nenhum tem catálogo+prescrição+momento estruturado como o que o
+Roger propôs), base científica (categorias do consenso do COI: alimentos desportivos,
+suplementos médicos, ajudas ergogénicas) e o maior risco que o mercado geral ignora:
+contaminação de suplementos com substâncias proibidas (~1 em 10, segundo a Informed Sport) —
+daí a sinalização de certificação Informed Sport no catálogo, sugestão minha incorporada à
+proposta. Perguntas em aberto respondidas pelo Roger, uma a uma: só a Nutri gere (sem
+equivalente no Fisio, ao contrário da Hidratação); a atleta vai ver a sua prescrição sempre
+atualizada num espaço dedicado na App Atleta (Bloco 2); catálogo sinaliza Informed Sport;
+suplementos podem ter data de início + revisão opcional, com aviso quando vencida (minha
+recomendação, aceite); impressão terá ficha individual E checklist de plantel (Bloco 2);
+entrega por blocos, como na Hidratação (minha recomendação, aceite).
+
+Rascunho visual (HTML, não código) com as duas vistas — Catálogo e Prescrição por Atleta —
+aprovado em 1 ronda.
+
+**O que mudou (Bloco 1 — catálogo + prescrição + ecrã agrupado por momento):**
+
+1. Duas tabelas novas no Supabase (migração `create_supplement_tables`, mesmo padrão/RLS
+   `anon_all` de `hydration_records`): `supplement_catalog` (id, club_id, name, category,
+   form, informed_sport, notes) e `supplement_prescriptions` (id, club_id, athlete_id,
+   supplement_id, custom_name, dose, moments jsonb, frequency, instructions, start_date,
+   review_date, status, prescribed_by/_id, prescribed_at, updated_at).
+2. `APP.supplementCatalog[]`/`APP.supplementPrescriptions[]` — novo par em `defApp()`, pull
+   em `pullCloud()`, schema+rename em `_CLOUD_TABLE_SCHEMA`, `cloudUpsert` em cada guardar e
+   `_supa.from(table).delete()` explícito em cada apagar (mesmo padrão de `exercises`/
+   `gym_sheets` — tabela "catálogo", não série temporal tipo `pse_records`).
+3. Nova página `nutri-supl` (💊 Suplementação) — só no cargo Nutri (`ROLE_DEFS.nutri.pages`,
+   decisão do Roger), com 2 abas:
+   - **Catálogo**: tabela (nome, categoria com badge de cor, forma, selo Informed Sport
+     ✅/⚠️, notas) + modal de criar/editar (`_openSuplItemModal`/`saveSuplItem`) + apagar.
+   - **Prescrição por Atleta**: seletor de atleta + 4 colunas por momento (`SUPL_MOMENTS`:
+     Diário/Pré-Treino/Pós-Treino/Matchday), cada suplemento prescrito pode valer para mais
+     do que um momento ao mesmo tempo (checkboxes, não exclusivo); cada cartão mostra dose,
+     instruções, estado (ativo/pausado/suspenso) e, quando a data de revisão já passou,
+     aviso vermelho "⚠️ Revisão vencida" (`_suplReviewOverdue`) em vez da data normal.
+     Suplemento pode vir do catálogo ou ser texto livre ("Outro", `customName`).
+4. Novo cartão "💊 Suplementação" na Home da Nutri (`renderNutriHome`), com contagem de
+   prescrições ativas.
+5. Classes CSS novas (`.mom-grid`/`.mom-col`/`.mom-h`/`.supl-item`/`.overdue`/`.supl-nm`/
+   `.supl-dose`/`.supl-ins`/`.supl-foot`/`.add-mini`) no mesmo sítio das outras secções do
+   `<style>` global, replicando o rascunho validado pelo Roger.
+
+**Por fazer (Bloco 2, já combinado com o Roger, fica para outro pedido):** espaço dedicado na
+App Atleta com a prescrição sempre atualizada (sem a informação de "revisão vencida", que é
+só para a Nutri); impressão em PDF (ficha individual por atleta + checklist de plantel para
+matchday).
+
+Testado com Node (`node --check`) e um novo ficheiro Playwright dedicado
+(`test_supl_v193.js`): página só visível ao cargo Nutri (ausente no Fisio); catálogo
+cria/lista suplementos com badges de categoria e Informed Sport corretos; prescrição liga um
+suplemento do catálogo a uma atleta num momento específico; um suplemento com data de revisão
+vencida mostra o aviso, um sem data mostra "Sem prazo"; prescrições de uma atleta não vazam
+para outra ao trocar o seletor (tab Catálogo continua no DOM, oculta por CSS — teste isola a
+aba Prescrição para não apanhar falsos positivos vindos da tabela do catálogo); apagar
+prescrição funciona; cartão da Home mostra a contagem. Regressão completa re-corrida
+(`test_na_plantel_v192.js`, `test_na_dashboard_v192.js`, `test_nutri_metricas_v190.js`,
+`test_hydration_v188.js`, `test_tatico_v191.js`, `test_mobile_v187.js`, `test_tatico.js`,
+`_verify_extra.js`, `_check_nutri_evo.js`) sem falhas.
+
+SW bump para `sps-v193`.
