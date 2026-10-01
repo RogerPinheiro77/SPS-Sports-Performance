@@ -2369,3 +2369,60 @@ identificadas na investigação: seleção múltipla/mover em grupo, guias de
 alinhamento/snap, desfazer para arrasto ou remoção acidental, destaque
 visual durante o arrasto) antes de implementar, seguindo a prática deste
 projeto de confirmar o âmbito de pedidos abertos antes de avançar.
+
+## sps-v192 (01/10/2026): PDF Plantel (2 últimas avaliações) + todas as métricas no snapshot do Dashboard
+
+Pedido do Roger, em Nutri → Avaliações: um botão para imprimir os dados antropométricos de
+todo o plantel, A4/A3 horizontal, comparando a avaliação mais recente de cada atleta com a
+anterior, com o código de cores e setas já estabelecido. Desenhado em 5 rondas de rascunho
+(ficheiros HTML enviados ao Roger, nunca código) antes de avançar para a implementação —
+prática já seguida no projeto para pedidos abertos:
+
+1. 1ª proposta: datas como grupos de coluna, 3 datas, métricas como sub-colunas.
+2. Mudou para: métrica em cima, 2 sub-colunas (Recente/Anterior) por baixo, repetindo a data
+   em cada célula.
+3. Roger: tirar a palavra "Recente"/"Anterior" das linhas, só a data, uma vez.
+4. Datas fixas só no cabeçalho de cada métrica (uma vez, não por linha).
+5. **Decisão final**: nem todo o plantel é avaliado no mesmo dia — datas fixas no cabeçalho
+   não davam para representar isso. Voltou a "Recente"/"Anterior" (genérico) no cabeçalho,
+   mas cada atleta usa sempre as SUAS PRÓPRIAS 2 avaliações mais recentes — sem obrigar a
+   bater certo com as outras linhas. Lista final: 12 métricas (Altura, Peso, IMC, %Gordura,
+   Massa Muscular, Soma Pregas, Rácio Cintura-Ancas, 4 Perímetros — mesmo conjunto já usado
+   no PDF de Evolução por atleta, + Altura). Larguras de coluna ajustadas à largura real de
+   uma folha A3 horizontal (nome 130px, cada coluna de dado 57px).
+
+**Implementação:**
+- Nova constante partilhada `_NA_ALL_METRICS` (12 métricas, com `key`/`label`/`unit`/`abs`
+  para IMC/`favDir`+`decimals` para as restantes) — fonte única usada agora pelas 3 vistas de
+  plantel (evita a lista de métricas divergir entre elas no futuro).
+- Nova função `printNaPlantelComparativoPDF()` — botão "🖨️ PDF Plantel (2 últimas)" em Nutri
+  → Avaliações, ao lado do "🖨️ PDF Evolução" já existente. Uma linha por atleta, 2 colunas
+  por métrica (Recente/Anterior), seta/cor de tendência na coluna "Recente" (IMC com badge de
+  cor por faixa, sem seta, igual ao resto da app). Atletas sem nenhuma avaliação ficam fora
+  da tabela (contados no rodapé); com só 1 avaliação, "Anterior" fica a "—". A3 horizontal.
+
+**Pedido seguinte do Roger, ainda na mesma sessão**: "o tal snapshot quero que tenha também
+todas as métricas" — referia-se ao cartão "📏 Métricas & Evolução" do Dashboard da Nutri e ao
+seu botão "📄 PDF Plantel" (sps-v189/v190), que só mostravam Peso/%Gordura/Massa Muscular.
+Estendidos para as mesmas 12 métricas de `_NA_ALL_METRICS` (1 coluna por métrica, só o valor
+mais recente + seta/cor de tendência — mantém o espírito de "relance rápido", ao contrário do
+PDF Plantel novo que compara 2 avaliações lado a lado):
+- `_nutriMetricasRows()` passou a calcular um objeto `metrics` com as 12 métricas por atleta
+  (mantendo `r.weight`/`r.bodyFat`/`r.muscleKg` como aliases no formato `{v,b}` de sempre, por
+  compatibilidade com código/testes já existentes).
+- `_nutriMetricasCardHtml()` e `printNutriMetricasPlantelPDF()` geram as colunas da tabela
+  dinamicamente a partir de `_NA_ALL_METRICS`, em vez de 3 colunas escritas à mão.
+- `printNutriMetricasPlantelPDF()` passou de A4 para A3 horizontal (14 colunas agora, A4 já
+  não dava espaço confortável — mesma decisão já tomada no PDF Plantel novo).
+
+SW bump para `sps-v192`. Testado: `node --check`; dois novos ficheiros Playwright
+(`test_na_plantel_v192.js` para o botão novo, `test_na_dashboard_v192.js` para o cartão/PDF
+do Dashboard — confirma as 12 métricas, a compatibilidade de `r.weight`/`r.bodyFat`/
+`r.muscleKg`, atletas sem avaliação excluídos/contados, "—" quando falta a avaliação
+anterior, IMC com badge de cor sem seta). Regressão completa re-corrida (v187/v188/v190/v191)
+sem falhas — o teste do sps-v190 precisou de 2 ajustes por causa desta mudança (janela de
+texto maior para capturar o rodapé do cartão, agora bem mais largo; verificação do PDF
+atualizada de "A4 landscape" para "A3 landscape").
+
+**Ainda por fazer:** nada pendente para este pedido. Continua em aberto, à parte, o pedido do
+sps-v191 sobre "melhorar todas as funcionalidades" de selecionar/arrastar no Quadro Tático.

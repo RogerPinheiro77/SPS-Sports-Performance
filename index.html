@@ -12407,6 +12407,30 @@ function renderFisioDash(){
 // já que é a Nutri quem edita estes dados. Nomes de função atualizados de _fisio* para
 // _nutri*/printNutri* para refletir o novo dono; lógica interna intocada.
 const NUTRI_METRICAS_STALE_DAYS=60;
+// Lista única das métricas avaliadas (sps-v192, 01/10/2026 — pedido do Roger: "o tal
+// snapshot quero que tenha também todas as métricas", referindo-se a este cartão/PDF que eu
+// próprio tinha descrito como "o snapshot rápido"). Antes só tinha Peso/%Gordura/Massa
+// Muscular; passa a ter as mesmas 12 métricas já usadas no PDF Plantel (2 últimas) e no PDF
+// de Evolução por atleta — fonte única para as 3 vistas não divergirem no futuro.
+const _NA_ALL_METRICS=[
+  {key:'height',label:'Altura',unit:'cm'},
+  {key:'weight',label:'Peso',unit:'kg'},
+  {key:'bmi',label:'IMC',unit:'',abs:true},
+  {key:'bodyFat',label:'% Gordura',unit:'%',favDir:-1},
+  {key:'muscleKg',label:'Massa Muscular',unit:'kg',favDir:1},
+  {key:'sumSkinfolds',label:'Soma Pregas',unit:'mm',favDir:-1},
+  {key:'whr',label:'Rácio C/A',unit:'',decimals:2},
+  {key:'armCirc',label:'Perím. Braço',unit:'cm'},
+  {key:'thighCirc',label:'Perím. Coxa',unit:'cm'},
+  {key:'calfCirc',label:'Perím. Gémeo',unit:'cm'},
+  {key:'waistCirc',label:'Perím. Cintura',unit:'cm'},
+  {key:'hipCirc',label:'Perím. Ancas',unit:'cm'}
+];
+function _naMetricAbsBadge(v,unit){
+  if(v==null)return '—';
+  const cls=v<18.5?'bg-y':v<25?'bg-g':v<30?'bg-y':'bg-r';
+  return `<span class="bdg ${cls}">${v}${unit}</span>`;
+}
 function _nutriMetricasRows(){
   const num=v=>(v===''||v==null||v===undefined||isNaN(+v))?null:+v;
   return APP.athletes.map(at=>{
@@ -12414,69 +12438,79 @@ function _nutriMetricasRows(){
     if(!avals.length)return null;
     const last=avals[avals.length-1], prev=avals.length>1?avals[avals.length-2]:null;
     const days=diffDays(last.date,today());
-    const badge=(key,favDir,decimals)=>_naTrendBadge(num(last[key]),prev?num(prev[key]):null,favDir,decimals);
+    const metrics={};
+    _NA_ALL_METRICS.forEach(m=>{
+      const v=num(last[m.key]);
+      metrics[m.key]=m.abs?{v}:{v,b:_naTrendBadge(v,prev?num(prev[m.key]):null,m.favDir,m.decimals)};
+    });
     return {
-      at,last,days,stale:days>NUTRI_METRICAS_STALE_DAYS,hasEvo:avals.length>=2,
-      weight:{v:num(last.weight),b:badge('weight')},
-      bodyFat:{v:num(last.bodyFat),b:badge('bodyFat',-1)},
-      muscleKg:{v:num(last.muscleKg),b:badge('muscleKg',1)}
+      at,last,days,stale:days>NUTRI_METRICAS_STALE_DAYS,hasEvo:avals.length>=2,metrics,
+      // aliases mantidos por compatibilidade — código/testes existentes (sps-v189/v190) já
+      // liam r.weight/r.bodyFat/r.muscleKg diretamente no formato {v,b}.
+      weight:metrics.weight,bodyFat:metrics.bodyFat,muscleKg:metrics.muscleKg
     };
   }).filter(Boolean).sort((a,b)=>_displayName(a.at).localeCompare(_displayName(b.at)));
 }
 function _nutriMetricasCardHtml(){
   const rows=_nutriMetricasRows();
   const semAval=APP.athletes.length-rows.length;
-  const cell=(r,unit)=>`${r.v!=null?r.v+unit:'—'}${_trendBadgeHtml(r.b,unit)}`;
+  const cell=(m,r)=>{
+    const d=r.metrics[m.key];
+    if(!d||d.v==null)return '—';
+    if(m.abs)return _naMetricAbsBadge(d.v,m.unit);
+    return `${d.v}${m.unit}${_trendBadgeHtml(d.b,m.unit)}`;
+  };
   const rowsHtml=rows.map(r=>`<tr>
     <td>${escHtml(_displayName(r.at))}</td>
     <td style="text-align:center;white-space:nowrap${r.stale?';color:#f87171;font-weight:700':''}">${fmtDate(r.last.date)}${r.stale?' ⚠️':''}</td>
-    <td style="text-align:center;white-space:nowrap">${cell(r.weight,'kg')}</td>
-    <td style="text-align:center;white-space:nowrap">${cell(r.bodyFat,'%')}</td>
-    <td style="text-align:center;white-space:nowrap">${cell(r.muscleKg,'kg')}</td>
+    ${_NA_ALL_METRICS.map(m=>`<td style="text-align:center;white-space:nowrap">${cell(m,r)}</td>`).join('')}
     <td style="text-align:center">${r.hasEvo?`<button class="btn btn-xs btn-gh" onclick="printNaEvolutionPDF('${r.at.id}')" title="PDF de evolução (A4 horizontal)">📄</button>`:`<span style="font-size:10px;color:var(--t2)">1ª avaliação</span>`}</td>
   </tr>`).join('');
   return `
   <div class="sh"><div class="sh-t">📏 Métricas & Evolução</div>
     <button class="btn btn-sm btn-gh" onclick="printNutriMetricasPlantelPDF()">📄 PDF Plantel</button>
   </div>
-  <div style="font-size:10px;color:var(--t2);margin:-6px 0 8px">Última avaliação antropométrica de cada atleta. Seta e cor comparam com a avaliação anterior da mesma atleta.</div>
-  ${rows.length?`<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px"><div class="tw"><table><thead><tr><th>Atleta</th><th>Última avaliação</th><th>Peso</th><th>%Gordura</th><th>Massa Muscular</th><th>Evolução</th></tr></thead>
+  <div style="font-size:10px;color:var(--t2);margin:-6px 0 8px">Última avaliação antropométrica de cada atleta (todas as métricas). Seta e cor comparam com a avaliação anterior da mesma atleta.</div>
+  ${rows.length?`<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px"><div class="tw"><table><thead><tr><th>Atleta</th><th>Última avaliação</th>${_NA_ALL_METRICS.map(m=>`<th>${m.label}</th>`).join('')}<th>Evolução</th></tr></thead>
   <tbody>${rowsHtml}</tbody></table></div></div>`
   :`<div class="empty" style="margin-bottom:14px"><div class="ei">📏</div><p>Sem avaliações registadas</p></div>`}
   ${semAval?`<div style="font-size:10px;color:var(--t2);margin:-6px 0 14px">${semAval} atleta${semAval>1?'s':''} sem avaliação antropométrica registada.</div>`:''}`;
 }
-// PDF de plantel (sps-v189, movido para a Nutri no sps-v190) — uma linha por atleta com a
-// última avaliação antropométrica, no espírito de printCondicaoPlantel() mas sem nenhuma
-// ligação a carga de treino (fontes de dados diferentes, donos diferentes — ver doc
-// "Métricas & Evolução no Dashboard Fisio"). A4 horizontal (_printWin(...,true)), tal como
-// o PDF de Evolução por atleta.
+// PDF de plantel (sps-v189, movido para a Nutri no sps-v190, todas as métricas no sps-v192)
+// — uma linha por atleta com a última avaliação antropométrica, no espírito de
+// printCondicaoPlantel() mas sem nenhuma ligação a carga de treino (fontes de dados
+// diferentes, donos diferentes — ver doc "Métricas & Evolução no Dashboard Fisio"). A3
+// horizontal (tabela larga com as 12 métricas, tal como o PDF Plantel (2 últimas)).
 function printNutriMetricasPlantelPDF(){
   const rows=_nutriMetricasRows();
   const title=`Métricas & Evolução — Plantel — ${fmtDate(today())}`;
-  const cell=(r,unit)=>{
-    if(r.v==null)return '—';
-    const b=r.b;
-    if(!b||!b.arrow)return `${r.v}${unit}`;
+  const cell=(m,r)=>{
+    const d=r.metrics[m.key];
+    if(!d||d.v==null)return '—';
+    if(m.abs)return _naMetricAbsBadge(d.v,m.unit);
+    const b=d.b;
+    if(!b||!b.arrow)return `${d.v}${m.unit}`;
     const sign=b.diff>0?'+':'';
-    const txt=`${b.arrow} ${sign}${b.diff}${unit}`;
-    return b.cls?`${r.v}${unit} <span class="badge ${b.cls}">${txt}</span>`:`${r.v}${unit} <span style="color:#888">${txt}</span>`;
+    const txt=`${b.arrow} ${sign}${b.diff}${m.unit}`;
+    return b.cls?`${d.v}${m.unit} <span class="badge ${b.cls}">${txt}</span>`:`${d.v}${m.unit} <span style="color:#888">${txt}</span>`;
   };
   const rowsHtml=rows.map(r=>`<tr>
     <td>${escHtml(_displayName(r.at))}</td>
     <td style="text-align:center${r.stale?';color:#c0392b;font-weight:700':''}">${fmtDate(r.last.date)}${r.stale?' ⚠️':''}</td>
-    <td style="text-align:center">${cell(r.weight,'kg')}</td>
-    <td style="text-align:center">${cell(r.bodyFat,'%')}</td>
-    <td style="text-align:center">${cell(r.muscleKg,'kg')}</td>
+    ${_NA_ALL_METRICS.map(m=>`<td style="text-align:center">${cell(m,r)}</td>`).join('')}
   </tr>`).join('');
   const semAval=APP.athletes.length-rows.length;
+  const colCount=2+_NA_ALL_METRICS.length;
   const body=`
     <div class="pr-title">${title}</div>
-    <p style="font-size:8pt;color:#666;margin-bottom:6px">Última avaliação antropométrica de cada atleta (Nutri → Avaliações). Seta e cor comparam com a avaliação anterior da mesma atleta.</p>
-    <table><thead><tr><th>Atleta</th><th>Última avaliação</th><th>Peso</th><th>%Gordura</th><th>Massa Muscular</th></tr></thead><tbody>${rowsHtml||'<tr><td colspan="5" style="text-align:center;color:#999">Sem avaliações registadas</td></tr>'}</tbody></table>
+    <p style="font-size:8pt;color:#666;margin-bottom:6px">Última avaliação antropométrica de cada atleta, todas as métricas (Nutri → Avaliações). Seta e cor comparam com a avaliação anterior da mesma atleta.</p>
+    <table style="font-size:7.5pt"><thead><tr><th>Atleta</th><th>Última avaliação</th>${_NA_ALL_METRICS.map(m=>`<th>${m.label}</th>`).join('')}</tr></thead><tbody>${rowsHtml||`<tr><td colspan="${colCount}" style="text-align:center;color:#999">Sem avaliações registadas</td></tr>`}</tbody></table>
     ${semAval?`<p style="font-size:8pt;color:#666;margin-top:6px">${semAval} atleta${semAval>1?'s':''} sem avaliação antropométrica registada.</p>`:''}
-    <p style="font-size:7pt;color:#999;margin-top:8px">Cor de tendência: verde/vermelho em %Gordura e Massa Muscular segundo a direção favorável para composição corporal de atletas (ver Nutrição → Guias de Referência); Peso mostra só a seta, sem juízo clínico. Apoio à decisão, não substitui avaliação clínica.</p>
+    <p style="font-size:7pt;color:#999;margin-top:8px">Cor de tendência: verde/vermelho em %Gordura, Massa Muscular e Soma de Pregas segundo a direção favorável para composição corporal de atletas; Altura/Peso/Rácio C/A/Perímetros mostram só a seta, sem juízo clínico; IMC usa cor por faixa (sem seta). Apoio à decisão, não substitui avaliação clínica.</p>
   `;
-  _printWin(title,body,null,null,true);
+  // A3 horizontal (sps-v192) — passou de 5 para 14 colunas (todas as métricas), A4 já não
+  // dava espaço confortável; mesma decisão já tomada para o PDF Plantel (2 últimas).
+  _printWin(title,body,null,null,'A3');
 }
 
 let _showEpForm=false, _editEpId=null;
@@ -13450,6 +13484,7 @@ function renderNutriAval(){
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     ${evoSelHtml}
     <button class="btn btn-gh" onclick="printNaEvolutionPDF()">🖨️ PDF Evolução</button>
+    <button class="btn btn-gh" onclick="printNaPlantelComparativoPDF()">🖨️ PDF Plantel (2 últimas)</button>
     <button class="btn btn-g" onclick="_showNaForm=!_showNaForm;renderNutriAval()">+ Nova Avaliação</button>
   </div></div>
   ${formHtml}${tableHtml}`;
@@ -13732,6 +13767,100 @@ function printNaEvolutionPDF(aid){
     </div>
   </div>`;
   _printWin(`Evolução Antropométrica — ${at.name}`,body,null,null,true);
+}
+// PDF "Plantel (2 últimas)" — Nutri → Avaliações (sps-v192, pedido do Roger, 01/10/2026).
+// Diferente do "📄 PDF Plantel" do Dashboard da Nutri (_nutriMetricasRows/printNutriMetricasPlantelPDF,
+// sps-v189/v190): aquele mostra só 1 avaliação + 3 métricas, pensado para um relance rápido;
+// este mostra as 2 avaliações mais recentes de cada atleta lado a lado, com TODAS as métricas
+// avaliadas (mesma lista do PDF de Evolução acima, + Altura) — pensado para imprimir e levar
+// para a equipa técnica analisar o plantel todo em bloco.
+// Desenhado em 5 rondas de rascunho com o Roger antes de codificar (ver CLAUDE.md sps-v192):
+// 1) datas como grupos de coluna → 2) métrica em cima/data em baixo, repetida por linha →
+// 3) tirar a palavra "Recente"/"Anterior", só a data → 4) data fixa só no cabeçalho (uma vez
+// por métrica) → 5) decisão final: nem todo o plantel é avaliado no mesmo dia, por isso o
+// cabeçalho volta a "Recente"/"Anterior" (genérico) e cada atleta usa sempre AS SUAS PRÓPRIAS
+// 2 avaliações mais recentes, independentemente da data batel ou não com as outras linhas.
+// A4/A3 horizontal (_printWin(...,'A3') — tabela larga de propósito, por isso A3 por omissão;
+// o Roger pode trocar para A4 na própria caixa de impressão se preferir).
+function printNaPlantelComparativoPDF(){
+  const num=v=>(v===''||v==null||v===undefined||isNaN(+v))?null:+v;
+  // Métricas partilhadas com o cartão/PDF "Métricas & Evolução" do Dashboard (_NA_ALL_METRICS,
+  // sps-v192) — mesma fonte única, para as duas vistas de plantel nunca divergirem.
+  const metrics=_NA_ALL_METRICS;
+  const athRows=APP.athletes.map(at=>{
+    const avals=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
+    if(!avals.length)return null;
+    return {at,recent:avals[0],prev:avals.length>1?avals[1]:null};
+  }).filter(Boolean).sort((a,b)=>_displayName(a.at).localeCompare(_displayName(b.at)));
+  const semAval=APP.athletes.length-athRows.length;
+
+  const bodyRowsHtml=athRows.map((row,i)=>`<tr>
+    <td class="nm">${escHtml(_displayName(row.at))}</td>
+    ${metrics.map(m=>{
+      const vR=num(row.recent[m.key]), vP=row.prev?num(row.prev[m.key]):null;
+      if(m.abs){
+        const bdg=v=>v==null?'<div class="dash">—</div>':`<div class="val">${_naMetricAbsBadge(v,m.unit)}</div>`;
+        return `<td class="g0">${bdg(vR)}</td><td>${bdg(vP)}</td>`;
+      }
+      const recentHtml=vR==null?'<div class="dash">—</div>'
+        :`<div class="val">${vR}${m.unit}${row.prev&&vP!=null?_trendBadgeHtml(_naTrendBadge(vR,vP,m.favDir,m.decimals),m.unit):''}</div>`;
+      const prevHtml=vP==null?'<div class="dash">—</div>':`<div class="val">${vP}${m.unit}</div>`;
+      return `<td class="g0">${recentHtml}</td><td>${prevHtml}</td>`;
+    }).join('')}
+  </tr>`).join('');
+
+  const colgroupHtml=`<col class="nmcol">${metrics.map(()=>'<col class="dcol"><col class="dcol">').join('')}`;
+  const grpHeaderHtml=metrics.map(m=>`<th colspan="2">${m.label}</th>`).join('');
+  const subHeaderHtml=metrics.map(()=>'<th class="g0">Recente</th><th>Anterior</th>').join('');
+
+  const title=`Avaliações Antropométricas — Plantel (últimas 2 avaliações) — ${fmtDate(today())}`;
+  const body=`
+  <style>
+    .na-plantel-comp table{table-layout:fixed}
+    .na-plantel-comp col.nmcol{width:34mm}
+    .na-plantel-comp col.dcol{width:15mm}
+    .na-plantel-comp thead tr.grp th{background:#1d6f3b;color:#fff;padding:5px 2px;text-align:center;font-size:7.3pt;font-weight:700;border-left:3px solid #e9f3ee}
+    .na-plantel-comp thead tr.grp th.nmcol{background:#15532c;text-align:left;padding-left:6px;border-left:none}
+    .na-plantel-comp thead tr.sub th{background:#e9f3ee;color:#1d6f3b;padding:3px 2px;text-align:center;font-size:6.6pt;font-weight:700;text-transform:uppercase;letter-spacing:.2px}
+    .na-plantel-comp thead tr.sub th.g0{border-left:3px solid #fff}
+    .na-plantel-comp td{padding:4px 2px;font-size:7.4pt;text-align:center}
+    .na-plantel-comp td.g0{border-left:3px solid #d8e6df}
+    .na-plantel-comp td.nm{text-align:left;font-weight:700;font-size:7.8pt;padding-left:6px;white-space:nowrap}
+    .na-plantel-comp .val{font-weight:700;font-size:7.4pt;white-space:nowrap}
+    .na-plantel-comp .dash{color:#ccc}
+    .na-plantel-comp .badge{font-size:6.2pt;padding:0 3px}
+    .na-plantel-comp .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:7.3pt;color:#555;margin:8px 0 2px;align-items:center}
+    .na-plantel-comp .legend .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:-1px}
+  </style>
+  <div class="na-plantel-comp">
+    <div class="pr-title">${title}</div>
+    <p style="font-size:8pt;color:#666;margin-bottom:8px">
+      "Recente" é sempre a última avaliação da atleta e "Anterior" a imediatamente anterior — cada atleta usa as
+      suas próprias datas (não precisam de coincidir entre atletas). Seta e cor comparam as duas avaliações entre si.
+    </p>
+    <table>
+      <colgroup>${colgroupHtml}</colgroup>
+      <thead>
+        <tr class="grp"><th class="nmcol" rowspan="2">Atleta</th>${grpHeaderHtml}</tr>
+        <tr class="sub">${subHeaderHtml}</tr>
+      </thead>
+      <tbody>${bodyRowsHtml||`<tr><td colspan="${1+metrics.length*2}" style="text-align:center;color:#999">Sem avaliações registadas</td></tr>`}</tbody>
+    </table>
+    <div class="legend">
+      <span><span class="sw" style="background:#d4edda;border:1px solid #155724"></span>favorável</span>
+      <span><span class="sw" style="background:#f8d7da;border:1px solid #721c24"></span>desfavorável</span>
+      <span><span class="sw" style="background:#fff3cd;border:1px solid #856404"></span>IMC por faixa</span>
+      <span><span class="sw" style="background:#eee;border:1px solid #999"></span>sem juízo clínico (Altura, Peso, Rácio C/A, Perímetros)</span>
+      <span style="color:#ccc">— sem avaliação anterior</span>
+    </div>
+    <p style="font-size:7.3pt;color:#999;margin-top:4px">
+      Cor de tendência em %Gordura, Massa Muscular e Soma de Pregas segundo a direção favorável para composição
+      corporal; Altura/Peso/Rácio Cintura-Ancas/Perímetros mostram só a seta, sem juízo clínico; IMC usa cor por
+      faixa (sem seta). Apoio à decisão, não substitui avaliação clínica.
+    </p>
+    ${semAval?`<p style="font-size:8pt;color:#666;margin-top:6px">${semAval} atleta${semAval>1?'s':''} sem avaliação antropométrica registada.</p>`:''}
+  </div>`;
+  _printWin(title,body,null,null,'A3');
 }
 // PDF de Avaliação Individual (sps-v168) — uma só avaliação, ao contrário do PDF de
 // Evolução acima (várias). Cores por guideline absoluta (banda científica) em %Gordura e
