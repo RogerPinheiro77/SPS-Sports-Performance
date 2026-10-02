@@ -8343,19 +8343,53 @@ function _sortGKFirst(list){
 // global (usado por todos os outros relatórios da app, ver função abaixo) nem
 // aos outros tipos de exportJogoPDF (Folha Tática, Relatório Pós-Jogo,
 // Relatório Completo), que continuam a poder ocupar várias páginas como
-// sempre — só estes dois é que precisam de caber numa folha só. Medido com
-// Chromium headless (Playwright) e dados realistas (plantel de 22 atletas,
-// logística toda preenchida): sem isto, tanto a Lista de Convocados como a
-// Ficha Pré-Jogo transbordavam para uma 2ª página.
-function _pdfCompactStyleHtml(){
+// sempre — só estes dois é que precisam de caber numa folha só.
+//
+// Afinado de novo a 02/10/2026 (pedido do Roger: "ajusta melhor o A4" e depois
+// "de acordo com a quantidade de atletas ajusta ao A4, certo?"). Até aqui a
+// compactação era um único tamanho fixo — ou comprimia demasiado sempre (1ª
+// versão, 28/09, 8.5pt/7.5pt, ilegível mesmo com poucas convocadas) ou era
+// legível de mais para plantéis grandes (2ª versão, mesmo dia, overflow com
+// 26+ convocadas). Agora a letra escala com o nº de linhas da própria tabela:
+// `_pdfRowScale(n,kind)` devolve um fator `t` (0 = tamanho base "confortável",
+// valores negativos = mais compacto, positivos = mais espaçoso) interpolado a
+// partir de pontos calibrados com Chromium headless + contagem real de páginas
+// (pypdf) — um por cada combinação nº de linhas × tamanho, não uma estimativa.
+// Poucas convocadas/suplentes → letra maior (não fica sobra vazia na folha);
+// muitas → letra mais pequena, sempre a tentar caber numa única A4; o teto e o
+// piso (`T_MAX`/`T_MIN` por tabela) evitam letra enorme para 10 convocadas ou
+// absurdamente pequena nos casos extremos. `_pdfCompactStyleHtml(t)` aplica
+// esse fator às mesmas propriedades sempre, para as duas tabelas.
+const _PDF_SCALE_PTS={
+  // Lista de Convocados — eixo: nº de linhas da tabela (plantel + convocadas de
+  // fora). Calibrado com plantéis de 10 a 31 atletas.
+  convocados:[[18,1.0],[20,1.0],[22,0.66],[24,0.33],[26,0.04],[28,-0.22],[30,-0.46]],
+  // Ficha Pré-Jogo — eixo: nº de linhas (onze + suplentes). Muito mais leve que
+  // a Lista de Convocados (sem logística desde 02/10/2026, ver exportJogoPDF),
+  // por isso aguenta bem mais linhas antes de precisar de encolher.
+  prejogo:[[23,1.0],[29,1.0],[31,0.85],[36,0.43],[41,0.1]]
+};
+function _pdfRowScale(n,kind){
+  const pts=_PDF_SCALE_PTS[kind]||_PDF_SCALE_PTS.convocados;
+  if(n<=pts[0][0])return pts[0][1];
+  if(n>=pts[pts.length-1][0])return pts[pts.length-1][1];
+  for(let i=0;i<pts.length-1;i++){
+    const [n0,t0]=pts[i],[n1,t1]=pts[i+1];
+    if(n>=n0&&n<=n1)return t0+(t1-t0)*(n-n0)/(n1-n0);
+  }
+  return 0;
+}
+function _pdfCompactStyleHtml(t){
+  if(t===undefined)t=0;
+  const L=(a,b)=>a+(b-a)*t; // interpola entre o valor "base" (t=0) e o "espaçoso" (t=1)
   return `<style>
-    .pr-compact{font-size:8.5pt}
-    .pr-compact h2{margin-bottom:3px;padding-bottom:3px;font-size:12pt}
-    .pr-compact h3{margin:5px 0 2px;padding-bottom:2px;font-size:9pt}
-    .pr-compact p{margin:0 0 1.5px;line-height:1.2}
-    .pr-compact table{margin-bottom:3px;line-height:1.05}
-    .pr-compact th{padding:1.5px 4px;font-size:7.5pt}
-    .pr-compact td{padding:1.5px 4px;font-size:7.5pt}
+    .pr-compact{font-size:${L(8.5,9.5).toFixed(2)}pt}
+    .pr-compact h2{margin-bottom:${L(3,5).toFixed(2)}px;padding-bottom:${L(3,4).toFixed(2)}px;font-size:${L(12,13).toFixed(2)}pt}
+    .pr-compact h3{margin:${L(5,7).toFixed(2)}px 0 ${L(2,3).toFixed(2)}px;padding-bottom:2px;font-size:${L(9,10).toFixed(2)}pt}
+    .pr-compact p{margin:0 0 ${L(1.5,2.5).toFixed(2)}px;line-height:${L(1.2,1.3).toFixed(3)}}
+    .pr-compact table{margin-bottom:${L(3,5).toFixed(2)}px;line-height:${L(1.05,1.15).toFixed(3)}}
+    .pr-compact th{padding:${L(1.5,3).toFixed(2)}px ${L(4,6).toFixed(2)}px;font-size:${L(7.5,8.5).toFixed(2)}pt}
+    .pr-compact td{padding:${L(1.5,3).toFixed(2)}px ${L(4,6).toFixed(2)}px;font-size:${L(7.5,8.5).toFixed(2)}pt}
     /* Cabeçalho/rodapé de _printWin() são partilhados por TODOS os relatórios da
        app — nunca alterados globalmente. Aqui usam-se seletores :has()/~ para só
        os encolher quando a própria página tiver o marcador .pr-compact (só a
@@ -8379,13 +8413,22 @@ function exportJogoPDF(gid,type){
   const haStr={casa:'Casa',fora:'Fora',neutro:'Neutro'}[g.ha]||'';
   const comp=g.comp?' — '+g.comp:'';
   let body='';
+  let _prejogoRows=0; // nº de linhas onze+suplentes, para _pdfRowScale (só usado quando type==='prejogo')
   if(type==='full'){
     const autoHtml=_gdAutoAnalysisHtml(g);
     if(autoHtml)body+=autoHtml;
   }
   if(type==='prejogo'||type==='full'){
+    // A logística do dia (palestras/transporte/refeições/notas) deixou de aparecer aqui a
+    // pedido do Roger, 02/10/2026: "na ficha pré jogo não preciso desta informação só na
+    // convocatória" — essa info já vive (e passou a incluir também as Notas, que só
+    // existiam aqui) na Lista de Convocados (exportConvocatoriaListPDF), que é o documento
+    // pensado para ser afixado/entregue com toda a logística. A Ficha Pré-Jogo fica só com
+    // o essencial tático (adversário, capitã, onze/suplentes+tarefas) — mantido também no
+    // Relatório Completo (type==='full'), que partilha este mesmo bloco.
     const ats=_sortGKFirst(g.lineup.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean));
     const sus=_sortGKFirst(g.subs.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean));
+    _prejogoRows=ats.length+sus.length;
     const cap=APP.athletes.find(a=>a.id===g.captain);
     const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
     const lR=ats.map((a,i)=>`<tr><td>${a.number||a.num||i+1}</td><td>${a.name}</td><td>${a.pos||'—'}</td><td>${(g.playerTasks||{})[a.id]||''}</td></tr>`).join('');
@@ -8394,12 +8437,6 @@ function exportJogoPDF(gid,type){
       <p><b>Adversário:</b> ${g.opp} (${haStr})${g.loc?' — '+g.loc:''}</p>
       ${cap?`<p><b>Capitã:</b> ${cap.name}${vc?' &nbsp;|&nbsp; <b>Vice-Capitã:</b> '+vc.name:''}</p>`:''}
       ${g.concentracaoLocal||g.concentracaoHora?`<p><b>Concentração:</b> ${g.concentracaoHora||''} ${g.concentracaoLocal||''}</p>`:''}
-      ${g.palestraPreJogoHora||g.palestraPreJogoLocal?`<p><b>Palestra Pré-Jogo:</b> ${g.palestraPreJogoHora||''} ${g.palestraPreJogoLocal||''}</p>`:''}
-      ${g.palestraPreAquecimentoHora?`<p><b>Palestra Pré-Aquecimento:</b> ${g.palestraPreAquecimentoHora}</p>`:''}
-      ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
-      ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
-      ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
-      ${g.preGameNotes?`<p><b>Notas:</b> ${g.preGameNotes}</p>`:''}
       <h3>Onze Inicial — ${g.formation}</h3>
       <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Posição</th><th>Tarefa Tática</th></tr></thead><tbody>${lR}</tbody></table>
       ${sus.length?`<h3>Suplentes</h3><table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse"><thead style="background:#eee"><tr><th>#</th><th>Nome</th><th>Posição</th><th></th></tr></thead><tbody>${sR}</tbody></table>`:''}
@@ -8463,7 +8500,7 @@ function exportJogoPDF(gid,type){
   }
   const _compact=type==='prejogo';
   _printWin(`${type==='full'?'Relatório Completo':type==='prejogo'?'Ficha Pré-Jogo':type==='campo'?'Folha Tática':'Relatório Pós-Jogo'} — ${g.opp} ${dateStr}`,
-    `${_compact?_pdfCompactStyleHtml():''}<div class="${_compact?'pr-compact':''}" style="font-family:Arial,sans-serif;padding:${_compact?'6px':'20px'}">
+    `${_compact?_pdfCompactStyleHtml(_pdfRowScale(_prejogoRows,'prejogo')):''}<div class="${_compact?'pr-compact':''}" style="font-family:Arial,sans-serif;padding:${_compact?'6px':'20px'}">
       <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:20px">
         <h1 style="font-size:20px;margin:0">${club}</h1>
         <p style="margin:6px 0 0;font-size:14px;color:#555">${g.opp} • ${dateStr}${comp}${g.loc?' • '+g.loc:''}</p>
@@ -8476,13 +8513,18 @@ function exportJogoPDF(gid,type){
 // listava quem tinha sido convocada, agora fica visível também quem NÃO foi,
 // o que é mais fácil de afixar/conferir do que uma lista só de "sins".
 //
-// "Convocada" aqui = está no onze inicial ou nos suplentes (g.lineup/g.subs),
-// NUNCA o array bruto g.convocatoria. Correção pedida pelo Roger no mesmo
-// dia: g.convocatoria é só o "banco de candidatas" a partir do qual se monta
-// o onze/suplentes no Pré-Jogo (pode ficar com nomes por afinar que nunca
-// chegaram a onze/banco — inclui inclusive uma atleta "Teste" fictícia,
-// deixada no plantel de outra tarefa) — o que o Pré-Jogo mostra como
-// convocação final, e o que o Roger considera correto, é sempre onze+banco.
+// "Convocada" aqui = está marcada na aba Convocatória do jogo (g.convocatoria),
+// INDEPENDENTE de já ter onze/banco definidos (g.lineup/g.subs). Entre 25/09 e
+// 02/10/2026 esteve ao contrário (só onze+banco contava), a pedido do próprio
+// Roger, para não aparecer convocada uma atleta "Teste" fictícia que tinha
+// ficado esquecida em g.convocatoria sem nunca ter chegado a onze/banco. Mas o
+// Roger pediu de volta a 02/10/2026: quer poder imprimir a lista logo depois
+// de convocar, com o visto em todas as convocadas, mesmo antes de montar o
+// onze/banco no Pré-Jogo (que normalmente só acontece mais perto do jogo). O
+// risco antigo (nomes residuais em g.convocatoria) já não se verifica: hoje
+// toggleConvocado() remove sempre o id de g.convocatoria/lineup/subs ao
+// desconvocar, e _purgeAthleteRefs() limpa tudo ao apagar uma atleta — por
+// isso voltar a usar g.convocatoria aqui é seguro.
 function exportConvocatoriaListPDF(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
   _initG(g);
@@ -8490,7 +8532,7 @@ function exportConvocatoriaListPDF(gid){
   const club=APP.config.clubName||'Clube';
   const dateStr=fmtDate(g.date)+(g.time?' '+g.time.slice(0,5):'');
   const comp=g.comp?' — '+g.comp:'';
-  const squadSet=new Set([...g.lineup,...g.subs]);
+  const squadSet=new Set(g.convocatoria);
   const ownAthletes=APP.athletes.filter(a=>a.teamId===g.teamId);
   const guestAthletes=APP.athletes.filter(a=>a.teamId!==g.teamId&&squadSet.has(a.id));
   const ats=[...ownAthletes,...guestAthletes].sort((a,b)=>a.name.localeCompare(b.name));
@@ -8510,6 +8552,9 @@ function exportConvocatoriaListPDF(gid){
     ${g.transporte?`<p><b>Transporte:</b> ${g.transporte}</p>`:''}
     ${g.refeicaoAntes?`<p><b>Refeição antes:</b> ${g.refeicaoAntes}</p>`:''}
     ${g.refeicaoApos?`<p><b>Refeição após:</b> ${g.refeicaoApos}</p>`:''}
+    ${/* Notas (g.preGameNotes) passou a aparecer só aqui, nunca na Ficha Pré-Jogo —
+       pedido do Roger, 02/10/2026 (ver comentário em exportJogoPDF). */''}
+    ${g.preGameNotes?`<p><b>Notas:</b> ${g.preGameNotes}</p>`:''}
     <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed">
       <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th style="width:30px">Nº</th><th style="width:60px">Posição</th><th style="width:48px;font-size:9pt">Convocada</th><th style="width:36px"></th><th style="width:150px">Assinatura</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -8517,7 +8562,7 @@ function exportConvocatoriaListPDF(gid){
     <p style="margin-top:10px;font-size:9pt;color:#666">Convocadas: ${nConv} de ${ats.length}${cap?' · Capitã: '+cap.name:''}${vc?' · Vice-Capitã: '+vc.name:''}</p>
   `;
   _printWin(`Lista de Convocados — ${g.opp} ${dateStr}`,
-    `${_pdfCompactStyleHtml()}<div class="pr-compact" style="font-family:Arial,sans-serif;padding:6px">
+    `${_pdfCompactStyleHtml(_pdfRowScale(ats.length,'convocados'))}<div class="pr-compact" style="font-family:Arial,sans-serif;padding:6px">
       <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:20px">
         <h1 style="font-size:20px;margin:0">${club}</h1>
         <p style="margin:6px 0 0;font-size:14px;color:#555">${g.opp} • ${dateStr}${comp}${g.loc?' • '+g.loc:''}</p>

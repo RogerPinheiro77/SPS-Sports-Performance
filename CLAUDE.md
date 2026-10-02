@@ -2862,3 +2862,71 @@ Guião de Jogo Fora (hoje a Cronologia da atleta mostra só os dados concretos d
 nunca o texto do Guião, que é propositadamente só da equipa técnica).
 
 SW bump para `sps-v199`.
+
+## sps-v200 (02/10/2026): Lista de Convocados volta a `g.convocatoria` + Ficha Pré-Jogo sem
+## logística + tamanho de letra dinâmico (ajusta ao nº de atletas) nos dois PDFs
+
+Pedido do Roger, em Relatórios → Convocatórias: "estava decidido depois de eu convocar,
+mesmo não sendo partilhado com as atletas, que fica agendado, quero poder imprimir a lista
+de convocados com os vistos de todas as que convoquei, quero também que fique ajustado num
+PDF A4. Vê como está isso" — seguido, já com o preview em mãos, de dois pedidos de ajuste
+("mostra primeiro como ficará e ajusta melhor o A4", depois "na ficha pré jogo não preciso
+desta informação só na convocatória", e por fim a confirmação de que o ajuste de letra devia
+ser mesmo dinâmico: "de acordo com a quantidade de atletas ajusta ao A4, certo?").
+
+**1) Critério do visto na Lista de Convocados — volta a `g.convocatoria`:**
+
+Desde o sps-v178 (25/09/2026), o visto só aparecia para quem estava em onze+banco
+(`g.lineup`/`g.subs`) — correção pedida na altura para não mostrar convocada uma atleta
+"Teste" fictícia esquecida em `g.convocatoria` sem nunca ter chegado a onze/banco. O Roger
+pediu agora o inverso: poder imprimir logo depois de convocar, com o visto em todas as
+convocadas, mesmo antes de montar o onze/banco (que normalmente só acontece mais perto do
+jogo). `exportConvocatoriaListPDF()` voltou a usar `new Set(g.convocatoria)` como critério —
+seguro hoje porque `toggleConvocado()` já remove sempre o id de `g.convocatoria`/`lineup`/
+`subs` ao desconvocar, e `_purgeAthleteRefs()` limpa tudo ao apagar uma atleta (ambos já
+existiam antes do sps-v178; o problema de then era só um registo órfão nunca limpo). O botão
+"Lista de Convocados" em Relatórios já não dependia de `g.convocatoriaLaunched` (publicação à
+equipa) — isso já funcionava, não precisou de alteração.
+
+**2) Ficha Pré-Jogo deixa de mostrar logística (fica só na Convocatória):**
+
+`exportJogoPDF(gid,'prejogo')` deixou de mostrar Palestra Pré-Jogo, Palestra
+Pré-Aquecimento, Transporte, Refeição antes/após e Notas — fica só com Adversário, Capitã/
+Vice-Capitã, Concentração e onze/suplentes+tarefas tática. Essa logística continua (e as
+Notas, `g.preGameNotes`, passaram a aparecer também) só na Lista de Convocados, pensada para
+ser afixada/entregue com tudo incluído. O Relatório Completo (`type==='full'`, partilha o
+mesmo bloco de código) manteve a logística — é a compilação completa de fim de jogo, não o
+documento operacional do dia.
+
+**3) Tamanho de letra dinâmico, ajustado ao nº de linhas — não um tamanho fixo:**
+
+A compactação de A4 (`_pdfCompactStyleHtml`, sps-v183/28-09) era até aqui um único tamanho
+fixo — ou ficava sempre pequena de mais (letra pouco legível mesmo com poucas convocadas) ou
+arriscava transbordar com plantéis grandes. Passou a escalar com o nº de linhas de cada
+tabela: `_pdfRowScale(n,kind)` interpola um fator `t` a partir de pontos calibrados com
+Chromium headless + contagem real de páginas (pypdf) — nunca uma estimativa — um para a
+Lista de Convocados (eixo: nº de atletas na tabela) e outro para a Ficha Pré-Jogo (eixo:
+onze+suplentes, bem mais tolerante desde que perdeu a logística no ponto 2). Poucas
+convocadas → letra maior (sem folga vazia na folha); muitas → letra mais pequena, sempre a
+tentar caber numa A4. `_pdfCompactStyleHtml(t)` passou a receber esse fator e aplicá-lo a
+todas as propriedades (fonte/margens/padding/espaçamento de linha) — `t=0` reproduz
+exatamente os valores originais do sps-v183.
+
+Calibração (Chromium headless, `page.pdf()`+contagem de páginas com `pypdf`, nunca por
+estimativa de altura): Lista de Convocados testada de 10 a 35 atletas — cabe numa A4 até 30;
+Ficha Pré-Jogo testada de 14 a 41 linhas (onze+suplentes) — cabe até 36+ (muito mais folgada
+depois de perder a logística). Pontos acima desse limite ficam no tamanho mais compacto
+calibrado (mesma limitação que já existia antes, nunca uma regressão) — plantéis desse
+tamanho são invulgares para o Moreirense (plantel real: 23+2).
+
+SW bump para `sps-v200`. Testado com o código REAL extraído do `index.html`: harness Node
+confirmando `_pdfRowScale`/`_pdfCompactStyleHtml` (interpolação correta nos pontos
+calibrados, `t=0` idêntico ao tamanho original); geradores de dados fictícios (tamanho do
+plantel real do Moreirense + vários tamanhos sintéticos, 10 a 41 linhas) + Chromium headless
+(Playwright) + `pypdf` confirmando 1 página em todos os tamanhos testados dentro do intervalo
+calibrado, para os dois PDFs; inspeção visual (PNG) confirmando letra maior com poucas
+convocadas e o critério do visto a refletir `g.convocatoria` mesmo sem onze/banco definido.
+Previews reais enviados ao Roger (10/25/30 atletas) antes de publicar, com confirmação
+explícita antes do deploy.
+
+**Ainda por fazer:** nada pendente para este pedido.
