@@ -554,6 +554,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-consultas"></div>
       <div class="pg" id="pg-nutri-manual"></div>
       <div class="pg" id="pg-codigo-conduta"></div>
+      <div class="pg" id="pg-guiao-jogo-fora"></div>
       <div class="pg" id="pg-config"></div>
       <div class="pg" id="pg-relatorios"></div>
     </div>
@@ -666,6 +667,7 @@ function defApp(){
     anamnesis:[],nutritionDietAnamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     mcTemplates:[],
     codeOfConduct:null,
+    guiaoJogoFora:null,
     users:[]
   };
 }
@@ -1036,6 +1038,8 @@ const ALL_PAGES=[
   {id:'treinos-ind',icon:'🏋️',label:'Treinos Individuais'},
   {sec:'Clube'},
   {id:'codigo-conduta',icon:'📜',label:'Código de Conduta'},
+  {sec:'Estágios'},
+  {id:'guiao-jogo-fora',icon:'🧭',label:'Guião de Jogo Fora'},
   {sec:'Exportações'},
   {id:'relatorios',icon:'📥',label:'Relatórios'},
   {sec:'Fisioterapia'},
@@ -1069,12 +1073,12 @@ const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 const ROLE_DEFS={
   treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
-  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios'],readOnly:false,manageUsers:false},
-  treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
-  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual'],readOnly:false,manageUsers:false},
-  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta'],readOnly:false,manageUsers:false},
-  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes','codigo-conduta'],readOnly:true,manageUsers:false}
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios','guiao-jogo-fora'],readOnly:false,manageUsers:false},
+  treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas','guiao-jogo-fora'],readOnly:false,manageUsers:false},
+  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash','guiao-jogo-fora'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual','guiao-jogo-fora'],readOnly:false,manageUsers:false},
+  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta','guiao-jogo-fora'],readOnly:false,manageUsers:false},
+  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes','codigo-conduta','guiao-jogo-fora'],readOnly:true,manageUsers:false}
 };
 // SPS-Gameday standalone (?gameday=1, sps-v78) — só faz sentido entrar direto no Gameday
 // para cargos que têm acesso a Jogos E podem registar eventos (não os só-consulta, ex.
@@ -1181,7 +1185,7 @@ function _maybeEnterTaticoMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1257,7 +1261,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -15392,17 +15396,56 @@ function resetCodigoCondutaTexto(){
 // Exportação em PDF (mesmo mecanismo _printWin já usado em todos os outros
 // relatórios/fichas da app — abre numa janela e chama print(), sem biblioteca
 // de PDF própria). As variáveis CSS do resto da app (var(--t2) etc.) não
-// existem na janela de impressão, por isso sõa convertidas para cores fixas
+// existem na janela de impressão, por isso são convertidas para cores fixas
 // só neste export, sem tocar no texto guardado.
-function _cocPdfFix(html){
+function _editavelPdfFix(html){
   return (html||'')
     .replace(/var\(--t2\)/g,'#666').replace(/var\(--t1\)/g,'#111')
     .replace(/var\(--bg3\)/g,'#f5f5f5').replace(/var\(--c1l?\)/g,'#1d6f3b')
     .replace(/var\(--brd\)/g,'#ddd');
 }
+// Seletor de pontos para PDF (sps-v198): pedido do Roger — "permitir que através de
+// visto possa selecionar o que vou exportar (PDF)". Genérico, reaproveitado por
+// qualquer conteúdo "editável por pontos" (Código de Conduta, Guião de Jogo Fora,
+// e o que vier a seguir) — nunca reimplementado por funcionalidade.
+let _pdfPickerPending=null;
+function _printWithSectionPicker(title,allSections,pdfFn){
+  _pdfPickerPending={allSections,pdfFn};
+  const checks=allSections.map(s=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--brd)">
+      <input type="checkbox" id="pdf-sec-${s.id}" checked style="width:16px;height:16px;flex-shrink:0">
+      <i class="ti ${s.icon}" style="font-size:14px;color:var(--c1l)" aria-hidden="true"></i>
+      ${escHtml(s.title)}
+    </label>`).join('');
+  const body=`
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Escolhe os pontos a incluir no PDF.</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn btn-gh btn-sm" onclick="_pdfPickerSetAll(true)">Selecionar Todos</button>
+      <button class="btn btn-gh btn-sm" onclick="_pdfPickerSetAll(false)">Limpar</button>
+    </div>
+    ${checks}
+    <button class="btn btn-g" style="width:100%;margin-top:12px" onclick="_confirmPdfSectionPicker()">🖨️ Gerar PDF</button>
+  `;
+  openMod(title,body,'lg');
+}
+function _pdfPickerSetAll(val){
+  if(!_pdfPickerPending)return;
+  _pdfPickerPending.allSections.forEach(s=>{ const el=document.getElementById('pdf-sec-'+s.id); if(el)el.checked=val; });
+}
+function _confirmPdfSectionPicker(){
+  if(!_pdfPickerPending)return;
+  const{allSections,pdfFn}=_pdfPickerPending;
+  const chosen=allSections.filter(s=>{ const el=document.getElementById('pdf-sec-'+s.id); return el&&el.checked; });
+  if(!chosen.length){toast('Seleciona pelo menos um ponto.','err');return;}
+  closeMod();
+  pdfFn(chosen);
+  _pdfPickerPending=null;
+}
 function printCodigoCondutaPDF(){
+  _printWithSectionPicker('🖨️ Exportar Código de Conduta',_cocSections(),_printCodigoCondutaPDF);
+}
+function _printCodigoCondutaPDF(secoes){
   const cc=APP.codeOfConduct;
-  const secoes=_cocSections();
   const statusLine=cc&&cc.active
     ?`Em vigor desde ${fmtDate((cc.publishedAt||'').slice(0,10))} · versão ${cc.version||1}`
     :'Documento em preparação — ainda não ativo na App Atleta';
@@ -15410,7 +15453,7 @@ function printCodigoCondutaPDF(){
     <div class="pr-title">📜 Código de Conduta</div>
     <div style="font-size:9pt;color:#666;margin-bottom:16px">${statusLine}</div>
     ${secoes.map(s=>`<h3><i class="ti ${s.icon}" style="margin-right:4px;vertical-align:-2px"></i>${escHtml(s.title)}</h3>
-    <div style="font-size:9.5pt;line-height:1.5;margin-bottom:10px">${_cocPdfFix(s.html)}</div>`).join('')}
+    <div style="font-size:9.5pt;line-height:1.5;margin-bottom:10px">${_editavelPdfFix(s.html)}</div>`).join('')}
   `;
   _printWin('Código de Conduta',body);
 }
@@ -15437,6 +15480,252 @@ function desativarCodigoConduta(){
   APP.codeOfConduct=cc;
   if(_sync)cloudUpsert('code_of_conduct',cc);
   saveData();toast('Código de Conduta desativado.');renderCodigoConduta();
+}
+
+// ─── GUIÃO DE JOGO FORA ─────────────────────────────────────────────────
+// Pedido do Roger (02/10/2026), dentro da aba Estágios: protocolo operacional
+// completo de jogo fora — 48-72h antes, véspera (concentração hora-a-hora),
+// dia de jogo (wake up, pré-jogo em T-, jogo, intervalo, pós-jogo, regresso,
+// chegada) e dia+1 (recovery day). Mesma arquitetura exata do Código de
+// Conduta (_CODIGO_CONDUTA_SECOES/_cocSections/_cocEditMode): texto base em
+// código, edição por ponto gravada como override em APP.guiaoJogoFora.sections
+// (tabela singleton away_game_guide), fundida em runtime por _guiaoSections().
+// Decisões tomadas com o Roger (02/10/2026):
+// - Separado da ficha de dados de CADA estágio concreto (datas/quartos/
+//   transporte de uma deslocação específica) — isto é só o guião de
+//   referência, válido para toda a época; a ficha por estágio é a próxima
+//   fase, ligada à App Atleta.
+// - "Regras do Estágio" NÃO duplica o texto do Código de Conduta — fica como
+//   checklist curto, com nota do(s) ponto(s) do Código a consultar para o
+//   detalhe (ver _GUIAO_REGRAS_REF).
+const _GUIAO_JOGO_FORA_SECOES=[
+  {id:'antes-48h',icon:'ti-clipboard-check',title:'1. 48–72h Antes do Jogo',html:`
+    <p>Checklist a confirmar pela equipa técnica antes de cada deslocação:</p>
+    <ul style="margin:6px 0 0 18px;padding:0;font-size:12px;line-height:1.8">
+      <li>Definição da convocatória</li>
+      <li>Confirmação de disponibilidade no SPS Atleta</li>
+      <li>Informação sobre local do jogo</li>
+      <li>Horário de concentração</li>
+      <li>Horário previsto de saída</li>
+      <li>Local do estágio</li>
+      <li>Informação sobre refeições</li>
+      <li>Informação sobre transporte</li>
+      <li>Plano de recuperação</li>
+      <li>Briefing da equipa técnica</li>
+      <li>Verificação de material/equipamento</li>
+      <li>Avaliação de atletas condicionadas</li>
+    </ul>`},
+  {id:'vespera',icon:'ti-moon',title:'2. Véspera — Concentração',html:`
+    <p><b>18:00 — Concentração</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Chegada das atletas</li><li>Registo de presença</li><li>Entrega/confirmação de quartos</li>
+      <li>Entrega de equipamento</li><li>Check-in no hotel</li>
+    </ul>
+    <p style="margin-top:10px"><b>18:30 — Reunião de Equipa</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Objetivos do jogo</li><li>Organização coletiva</li><li>Plano estratégico</li>
+      <li>Bolas paradas</li><li>Comportamentos individuais</li><li>Regras logísticas do estágio</li>
+    </ul>
+    <p style="margin-top:10px"><b>19:00 — Ativação / Mobilidade</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Mobilidade</li><li>Ativação</li><li>Trabalho preventivo individual</li>
+      <li>Estratégias definidas pela fisioterapia/performance</li>
+    </ul>
+    <p style="margin-top:10px"><b>19:30 — Jantar</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Refeição definida pela nutrição</li><li>Hidratação</li><li>Sem utilização excessiva do telemóvel</li>
+    </ul>
+    <p style="margin-top:10px"><b>20:30 — Tempo Livre Controlado</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Recuperação</li><li>Preparação individual</li><li>Organização do material para o dia seguinte</li>
+    </ul>
+    <p style="margin-top:10px"><b>21:30 — Check-in nos Quartos</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Permanecer no hotel</li><li>Ambiente de descanso</li><li>Evitar atividades que prejudiquem o sono</li>
+    </ul>
+    <p style="margin-top:10px"><b>22:30 — Rotina de Sono</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Redução de estímulos</li><li>Telemóveis em modo silencioso</li><li>Preparação para dormir</li>
+    </ul>
+    <p style="margin-top:10px;color:var(--t2)"><b>23:00 — Silêncio / Descanso</b></p>`},
+  {id:'dia-jogo-manha',icon:'ti-sun',title:'3. Dia de Jogo — Manhã',html:`
+    <p><b>07:30 — Wake Up</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Higiene pessoal</li><li>Hidratação</li>
+      <li>Autoavaliação SPS: Sono, Fadiga, Stress, Dor, Bem-estar, Estado geral</li>
+    </ul>
+    <p style="margin-top:10px"><b>08:00 — Pequeno-almoço</b></p>
+    <p style="margin-top:4px;font-size:12px">Refeição definida pela nutrição. Prioridades: hidratos de carbono, proteína adequada, hidratação; evitar alimentos desconhecidos ou de difícil digestão.</p>
+    <p style="margin-top:10px"><b>09:00 — Check-in Performance</b></p>
+    <p style="margin-top:4px;font-size:12px">Fisioterapia/performance verifica: estado das atletas, queixas, limitações, necessidades individuais, estratégias preventivas.</p>
+    <p style="margin-top:10px"><b>09:30 — Tempo Livre / Recuperação</b></p>
+    <p style="margin-top:4px;font-size:12px">Descanso, hidratação, preparação mental — evitar esforço físico desnecessário.</p>
+    <p style="margin-top:10px"><b>10:30 — Reunião Técnica (Match Plan)</b></p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Modelo de jogo</li><li>Estratégia</li><li>Organização ofensiva</li><li>Organização defensiva</li>
+      <li>Transição ataque-defesa</li><li>Transição defesa-ataque</li><li>Bolas paradas</li>
+      <li>Funções individuais</li><li>Plano A / Plano B</li>
+    </ul>
+    <p style="margin-top:10px"><b>11:00 — Tempo Livre</b></p>
+    <p style="margin-top:4px;font-size:12px">Regresso aos quartos / zonas definidas.</p>
+    <p style="margin-top:10px"><b>12:30 — Almoço</b></p>
+    <p style="margin-top:4px;font-size:12px">Refeição pré-jogo.</p>
+    <p style="margin-top:10px"><b>13:15 — Recuperação / Descanso</b></p>
+    <p style="margin-top:4px;font-size:12px">Período de baixa estimulação.</p>`},
+  {id:'pre-jogo',icon:'ti-hourglass',title:'4. Pré-Jogo',html:`
+    <p style="color:var(--t2);font-size:11.5px">O horário deve ser calculado a partir da hora do jogo, e não fixado.</p>
+    <p style="margin-top:10px"><b>T − 3h30</b> — Última refeição principal</p>
+    <p style="margin-top:8px"><b>T − 2h30</b> — Hidratação + preparação individual</p>
+    <p style="margin-top:8px"><b>T − 2h00</b> — Reunião / ativação cognitiva</p>
+    <p style="margin-top:8px"><b>T − 1h45</b> — Saída para o estádio</p>
+    <p style="margin-top:8px"><b>T − 1h15</b> — Chegada ao estádio</p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Entrada no balneário</li><li>Distribuição de equipamentos</li><li>Preparação individual</li><li>Fisioterapia</li>
+    </ul>
+    <p style="margin-top:10px"><b>T − 60'</b> — Pré-ativação</p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Mobilidade</li><li>Ativação</li><li>Prevenção individual</li><li>Trabalho específico</li>
+    </ul>
+    <p style="margin-top:10px"><b>T − 40'</b> — Aquecimento coletivo</p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Ativação</li><li>Técnica</li><li>Posse</li><li>Acelerações</li><li>Mudanças de direção</li>
+      <li>Finalização</li><li>Exercícios específicos do modelo</li>
+    </ul>
+    <p style="margin-top:10px"><b>T − 10'</b> — Últimas instruções</p>
+    <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+      <li>Organização inicial</li><li>Responsabilidades individuais</li><li>Bola parada</li><li>Palavra-chave do jogo</li>
+    </ul>
+    <p style="margin-top:10px"><b>T − 0'</b> — Jogo</p>`},
+  {id:'intervalo',icon:'ti-clock-pause',title:'5. Intervalo',html:`
+    <p><b>0–3'</b> — Recuperação, hidratação, respiração.</p>
+    <p style="margin-top:8px"><b>3–8'</b> — Feedback da equipa técnica: o que está a acontecer, ajustes, comportamentos prioritários.</p>
+    <p style="margin-top:8px"><b>8–12'</b> — Preparação para a 2.ª parte: estratégia, bola parada, substituições previstas, reativação.</p>
+    <p style="margin-top:8px"><b>12–15'</b> — Regresso ao campo.</p>`},
+  {id:'pos-jogo',icon:'ti-droplet',title:'6. Pós-Jogo',html:`
+    <p><b>+0' a +10'</b> — Cool-down inicial: recuperação, hidratação, comunicação com staff.</p>
+    <p style="margin-top:8px"><b>+10' a +20'</b> — Fisioterapia/performance: triagem rápida de dor, impacto, queixas musculares, necessidade de intervenção.</p>
+    <p style="margin-top:8px"><b>+20' a +30'</b> — Banho / troca de equipamento.</p>
+    <p style="margin-top:8px"><b>+30' a +45'</b> — Refeição / recovery: hidratação, hidratos de carbono, proteína, eletrólitos (dependendo da hora e distância).</p>
+    <p style="margin-top:8px"><b>+45' a +60'</b> — Briefing pós-jogo: curto e objetivo. Não transformar o balneário numa sessão de análise prolongada.</p>`},
+  {id:'regresso',icon:'ti-bus',title:'7. Regresso',html:`
+    <p>Durante a viagem:</p>
+    <ul style="margin:6px 0 0 18px;padding:0;font-size:12px;line-height:1.8">
+      <li>Hidratação</li><li>Recovery nutrition</li><li>Ambiente controlado</li><li>Descanso</li><li>Auscultação das atletas</li>
+    </ul>`},
+  {id:'chegada',icon:'ti-map-pin-check',title:'8. Chegada a Moreira de Cónegos',html:`
+    <p>Antes da saída, no SPS Atleta — Autoavaliação pós-jogo:</p>
+    <ul style="margin:6px 0 0 18px;padding:0;font-size:12px;line-height:1.8">
+      <li>RPE/PSE</li><li>Dor</li><li>Fadiga</li><li>Bem-estar</li>
+    </ul>
+    <p style="margin-top:8px;color:var(--t2);font-size:11.5px">A equipa de performance recebe automaticamente os dados.</p>`},
+  {id:'dia-mais-1',icon:'ti-refresh',title:'9. Dia +1 — Recovery Day',html:`
+    <p><b>No SPS, lado Atleta:</b> Wellness, Dor, Fadiga, Sono, PSE do jogo.</p>
+    <p style="margin-top:8px"><b>Fisioterapia:</b> triagem, lesões, intervenções.</p>
+    <p style="margin-top:8px"><b>Preparação física:</b> carga do jogo, minutos, necessidade de recuperação.</p>
+    <p style="margin-top:8px"><b>Nutrição:</b> estratégia de recuperação.</p>
+    <p style="margin-top:8px"><b>Equipa técnica:</b> análise da carga, minutos jogados, planeamento do microciclo.</p>`},
+  {id:'regras-estagio',icon:'ti-shield-check',title:'10. Regras do Estágio',html:`
+    <p style="margin-bottom:6px">Durante o estágio, todas as atletas devem:</p>
+    <div class="tw"><table><thead><tr><th>Regra</th><th>Ver Código de Conduta</th></tr></thead><tbody>
+      <tr><td>Respeitar horários</td><td>Ponto 6 — Pontualidade e Assiduidade</td></tr>
+      <tr><td>Respeitar colegas e staff</td><td>Ponto 9 / 21 — Balneário e Convivência / Igualdade e Respeito</td></tr>
+      <tr><td>Manter os espaços organizados</td><td>Ponto 9 — Balneário e Convivência</td></tr>
+      <tr><td>Cumprir o plano alimentar</td><td>Ponto 12 — Nutrição, Hidratação e Recuperação</td></tr>
+      <tr><td>Cumprir as indicações de recuperação</td><td>Ponto 11 / 12 — Saúde e Bem-Estar / Nutrição</td></tr>
+      <tr><td>Comunicar imediatamente qualquer dor ou indisposição</td><td>Ponto 11 — Saúde, Performance e Bem-Estar</td></tr>
+      <tr><td>Manter comportamento adequado nas áreas comuns</td><td>Ponto 9 — Balneário e Convivência</td></tr>
+      <tr><td>Respeitar os períodos de descanso</td><td>Ponto 9 — Balneário e Convivência</td></tr>
+      <tr><td>Não abandonar o local de estágio sem autorização</td><td>Ponto 16 — Viagens, Estágios e Concentrações</td></tr>
+      <tr><td>Utilizar o SPS Atleta nos momentos definidos</td><td>Ponto 6 / 13 — Assiduidade / SPS e Responsabilidade da Atleta</td></tr>
+      <tr><td>Manter confidencialidade sobre informação interna</td><td>Ponto 23 — Confidencialidade e Proteção de Informação</td></tr>
+      <tr><td>Representar o Moreirense FC com profissionalismo</td><td>Ponto 3 / 30 — Identidade e Valores / Responsabilidade Individual</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:8px;color:var(--t2);font-size:11.5px">Texto completo de cada ponto: ver página Código de Conduta.</p>`},
+];
+function _guiaoSections(){
+  const g=APP.guiaoJogoFora;
+  const overrides={};
+  ((g&&g.sections)||[]).forEach(s=>{ if(s&&s.id)overrides[s.id]=s; });
+  return _GUIAO_JOGO_FORA_SECOES.map(def=>overrides[def.id]?{...def,...overrides[def.id]}:def);
+}
+let _guiaoEditMode=false;
+function renderGuiaoJogoFora(){
+  const g=APP.guiaoJogoFora;
+  const isAdmin=!!(getSession()&&getSession().isAdmin);
+  const secoes=_guiaoSections();
+  const customized=!!(g&&g.sections&&g.sections.length);
+  if(_guiaoEditMode&&isAdmin){ _renderGuiaoJogoForaEdit(secoes,customized); return; }
+  const editedHtml=customized?`<div style="font-size:11px;color:var(--t2);margin-bottom:4px"><i class="ti ti-edit" style="margin-right:3px;vertical-align:-2px" aria-hidden="true"></i>Texto personalizado${g.sectionsUpdatedBy?' por '+escHtml(g.sectionsUpdatedBy):''}${g.sectionsUpdatedAt?' em '+fmtDate(g.sectionsUpdatedAt.slice(0,10)):''}.</div>`:'';
+  const toolbarHtml=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+    ${isAdmin?`<button class="btn btn-gh" onclick="_guiaoEditMode=true;renderGuiaoJogoFora()">✏️ Editar Texto</button>`:''}
+    <button class="btn btn-gh" onclick="printGuiaoJogoForaPDF()">🖨️ Exportar PDF</button>
+  </div>`;
+  document.getElementById('pg-guiao-jogo-fora').innerHTML=`
+  <div class="sh"><div class="sh-t">🧭 Guião de Jogo Fora</div></div>
+  <div class="card" style="margin-bottom:14px"><div class="cb">
+    <div style="font-size:11.5px;color:var(--t2)">Protocolo operacional de deslocação e dia de jogo — da convocatória ao dia+1 de recovery. Guia de referência para toda a equipa técnica, multidisciplinar.</div>
+    ${editedHtml}
+    ${toolbarHtml}
+  </div></div>
+  ${secoes.map(s=>`<details style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
+    <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
+    <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
+  </details>`).join('')}`;
+}
+function _renderGuiaoJogoForaEdit(secoes,customized){
+  const fieldsHtml=secoes.map((s,i)=>`
+    <div class="card" style="margin-bottom:8px"><div class="cb">
+      <div class="form-g"><label class="fl">${i+1}. Título</label><input class="fc" id="guiao-title-${s.id}" value="${escHtml(s.title)}"></div>
+      <div class="form-g"><label class="fl">Texto (HTML simples: &lt;p&gt;, &lt;b&gt;, &lt;ul&gt;/&lt;li&gt;, tabelas...)</label><textarea class="fc" id="guiao-html-${s.id}" rows="6" style="font-family:monospace;font-size:11px">${escHtml(s.html)}</textarea></div>
+    </div></div>`).join('');
+  document.getElementById('pg-guiao-jogo-fora').innerHTML=`
+  <div class="sh"><div class="sh-t">✏️ A Editar — Guião de Jogo Fora</div></div>
+  <div class="al al-b" style="margin-bottom:12px">Edita o título e o texto de qualquer ponto do protocolo.</div>
+  <div class="card" style="margin-bottom:14px"><div class="cb">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-g" onclick="saveGuiaoJogoForaTexto()">💾 Guardar Alterações</button>
+      <button class="btn btn-gh" onclick="_guiaoEditMode=false;renderGuiaoJogoFora()">✕ Cancelar</button>
+      ${customized?`<button class="btn btn-gh" style="color:#f87171;border-color:#f87171" onclick="resetGuiaoJogoForaTexto()">↺ Repor Texto Original</button>`:''}
+    </div>
+  </div></div>
+  ${fieldsHtml}`;
+}
+function saveGuiaoJogoForaTexto(){
+  const sess=getSession();
+  if(!sess||!sess.isAdmin){toast('Só um administrador pode editar o Guião.','err');return;}
+  const sections=_GUIAO_JOGO_FORA_SECOES.map(def=>{
+    const titleEl=document.getElementById('guiao-title-'+def.id);
+    const htmlEl=document.getElementById('guiao-html-'+def.id);
+    const title=(titleEl&&titleEl.value.trim())||def.title;
+    const html=(htmlEl&&htmlEl.value.trim())||def.html;
+    return{id:def.id,icon:def.icon,title,html};
+  });
+  const prev=APP.guiaoJogoFora;
+  const g={...(prev||{id:'guide-'+(_cid||'default')}),sections,sectionsUpdatedAt:new Date().toISOString(),sectionsUpdatedBy:sess.name};
+  APP.guiaoJogoFora=g;
+  if(_sync)cloudUpsert('away_game_guide',g);
+  saveData();_guiaoEditMode=false;toast('Guião de Jogo Fora guardado ✓');renderGuiaoJogoFora();
+}
+function resetGuiaoJogoForaTexto(){
+  if(!confirm('Repor o texto original do Guião? Perdes todas as edições feitas na Plataforma.'))return;
+  const sess=getSession();
+  const prev=APP.guiaoJogoFora;
+  const g={...(prev||{id:'guide-'+(_cid||'default')}),sections:null,sectionsUpdatedAt:null,sectionsUpdatedBy:null};
+  APP.guiaoJogoFora=g;
+  if(_sync)cloudUpsert('away_game_guide',g);
+  saveData();_guiaoEditMode=false;toast('Texto original do Guião reposto.');renderGuiaoJogoFora();
+}
+function printGuiaoJogoForaPDF(){
+  _printWithSectionPicker('🖨️ Exportar Guião de Jogo Fora',_guiaoSections(),_printGuiaoJogoForaPDF);
+}
+function _printGuiaoJogoForaPDF(secoes){
+  const body=`
+    <div class="pr-title">🧭 Guião de Jogo Fora</div>
+    <div style="font-size:9pt;color:#666;margin-bottom:16px">Protocolo operacional de deslocação e dia de jogo</div>
+    ${secoes.map(s=>`<h3><i class="ti ${s.icon}" style="margin-right:4px;vertical-align:-2px"></i>${escHtml(s.title)}</h3>
+    <div style="font-size:9.5pt;line-height:1.5;margin-bottom:10px">${_editavelPdfFix(s.html)}</div>`).join('')}
+  `;
+  _printWin('Guião de Jogo Fora',body);
 }
 
 // ─── RELATÓRIOS ──────────────────────────────────────────────
@@ -18804,6 +19093,7 @@ async function pullCloud(){
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
       ['code_of_conduct','codeOfConduct',(d)=>{const r=d[0];APP.codeOfConduct=r?{id:r.id,active:r.active,version:r.version,publishedAt:r.published_at,publishedBy:r.published_by,publishedById:r.published_by_id,sections:r.sections||null,sectionsUpdatedAt:r.sections_updated_at,sectionsUpdatedBy:r.sections_updated_by}:null;}],
+      ['away_game_guide','guiaoJogoFora',(d)=>{const r=d[0];APP.guiaoJogoFora=r?{id:r.id,sections:r.sections||null,sectionsUpdatedAt:r.sections_updated_at,sectionsUpdatedBy:r.sections_updated_by}:null;}],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
@@ -19161,6 +19451,15 @@ const _CLOUD_TABLE_SCHEMA={
   // Pedido do Roger, 02/10/2026.
   code_of_conduct:{cols:['id','active','version','published_at','published_by','published_by_id','sections','sections_updated_at','sections_updated_by'],
     rename:{publishedAt:'published_at',publishedBy:'published_by',publishedById:'published_by_id',sectionsUpdatedAt:'sections_updated_at',sectionsUpdatedBy:'sections_updated_by'}},
+  // Guião de Jogo Fora (sps-v198): protocolo operacional de dia de jogo fora/estágio
+  // (48-72h antes → dia+1), texto editável pela equipa técnica — mesmo padrão exato de
+  // code_of_conduct (singleton por clube, só os pontos alterados em `sections`, o
+  // resto do texto fica em _GUIAO_JOGO_FORA_SECOES no código). Sem `active`/`version`/
+  // aceitação — é um guia operacional interno da equipa técnica, não exige "visto" do
+  // Roger nem aparece na App Atleta (decisão: separado da ficha de dados de cada
+  // estágio concreto, essa sim ligada à App Atleta). Pedido do Roger, 02/10/2026.
+  away_game_guide:{cols:['id','sections','sections_updated_at','sections_updated_by'],
+    rename:{sectionsUpdatedAt:'sections_updated_at',sectionsUpdatedBy:'sections_updated_by'}},
   // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
   // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
   // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela criada no Supabase

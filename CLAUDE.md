@@ -2743,3 +2743,59 @@ gravar edições. Regressão do fluxo de ativação/aceitação do sps-v196 (`te
 re-corrida sem falhas.
 
 SW bump para `sps-v197`.
+
+## sps-v198 (02/10/2026): aba Estágios — Guião de Jogo Fora (editável + PDF com seleção de pontos)
+
+Pedido do Roger: "VAMOS PASSAR A ABA ESTÁGIOS" seguido do documento completo "GUIA DE
+JOGO FORA — MOREIRENSE FC FEMININO" (48-72h antes → véspera → dia de jogo → pré-jogo →
+jogo → intervalo → pós-jogo → regresso → dia+1 recovery → regras do estágio), com o
+pedido explícito de ser "editável e exportável (PDF) na Plataforma" e de "permitir que
+através de visto possa selecionar o que vou exportar (PDF)". Decisões tomadas antes de
+implementar (`AskUserQuestion`): (1) o Guião (texto de referência da época) fica
+separado dos dados concretos de cada estágio (datas/quartos/transporte de uma
+deslocação específica, fase seguinte, ligada à App Atleta); (2) as "Regras do Estágio"
+não duplicam o texto do Código de Conduta — ficam como checklist curto com nota do
+ponto do Código a consultar.
+
+1. **Nova página "Guião de Jogo Fora"** (secção "Estágios" em `ALL_PAGES`), visível a
+   toda a equipa multidisciplinar (treinador/adj automaticamente, + `prep_fisico`,
+   `treinador_gr`, `fisio`, `nutri`, `team_manager`, `diretor` — o guião cobre
+   fisioterapia, nutrição e preparação física, não só o treinador).
+2. **Conteúdo** (`_GUIAO_JOGO_FORA_SECOES`, 10 pontos): transcrição fiel do documento
+   do Roger — 48-72h antes (checklist), véspera hora-a-hora (18:00 concentração → 23:00
+   silêncio), dia de jogo manhã (07:30 wake up + autoavaliação SPS → 13:15 recuperação),
+   pré-jogo em T-menos (T-3h30 → T-0, calculado a partir da hora do jogo, nunca fixo),
+   jogo, intervalo (0-15' em blocos de ~5'), pós-jogo (+0' a +60'), regresso, chegada
+   (autoavaliação pós-jogo no SPS Atleta), dia+1 recovery day (por área: atleta/fisio/
+   prep física/nutrição/equipa técnica), e regras do estágio (tabela de 12 regras → ponto
+   do Código de Conduta a consultar, sem duplicar texto).
+3. **Editável** (`_guiaoEditMode`, `_renderGuiaoJogoForaEdit`, `saveGuiaoJogoForaTexto`,
+   `resetGuiaoJogoForaTexto`): EXATA mesma arquitetura e UI do Código de Conduta
+   (sps-v197) — texto base em código, edição por ponto gravada como override em
+   `APP.guiaoJogoFora.sections` (tabela singleton nova `away_game_guide`, migração
+   `create_away_game_guide_table`, mesmo RLS `anon_all`), fundida em runtime por
+   `_guiaoSections()`. Sem `active`/`version`/aceitação — é um guia operacional da
+   equipa técnica, não exige visto nem aparece na App Atleta (ver decisão 1 acima).
+4. **Seletor de pontos para PDF, genérico** (`_printWithSectionPicker`,
+   `_pdfPickerSetAll`, `_confirmPdfSectionPicker`): modal com um checkbox por ponto
+   (todos marcados por defeito) + "Selecionar Todos"/"Limpar", antes de gerar o PDF —
+   só os pontos marcados entram no documento. Construído como utilitário reutilizável
+   (não específico de uma funcionalidade) e **também retrofitado ao Código de
+   Conduta** (`printCodigoCondutaPDF` passou a abrir o mesmo seletor antes de gerar o
+   PDF) — consistência entre os dois, sem pedir isso duas vezes ao Roger.
+   `printGuiaoJogoForaPDF`/`_printGuiaoJogoForaPDF` geram o PDF via `_printWin()` (mesmo
+   mecanismo de sempre), usando `_editavelPdfFix()` (renomeado de `_cocPdfFix`, agora
+   genérico) para as variáveis CSS que não existem na janela de impressão.
+
+Testado com Node (`node --check`) e um harness dedicado (`test_guiao.js`): wiring de
+`ALL_PAGES`/`ROLE_DEFS`/`_NAV_TITLES`/`_ALL_PAGE_IDS` para os 6 cargos com acesso,
+conteúdo (10 pontos, ids únicos, numerados, todos os campos presentes), vista normal
+(botões Editar+PDF), fluxo de edição completo (abrir, editar um ponto, guardar,
+`_guiaoSections()` reflete o override e preserva os outros pontos como default),
+seletor de PDF abre ANTES de qualquer janela, desmarcar um ponto efetivamente exclui-o
+do PDF gerado (e o ponto editado aparece), confirmar sem nenhum selecionado bloqueia com
+toast em vez de abrir janela vazia, reposição ao texto original, bloqueio de não-admin,
+e regressão do Código de Conduta a continuar a funcionar através do seletor partilhado.
+Tabela `away_game_guide` criada e verificada no Supabase.
+
+SW bump para `sps-v198`.
