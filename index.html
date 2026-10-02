@@ -555,6 +555,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-manual"></div>
       <div class="pg" id="pg-codigo-conduta"></div>
       <div class="pg" id="pg-guiao-jogo-fora"></div>
+      <div class="pg" id="pg-estagios"></div>
       <div class="pg" id="pg-config"></div>
       <div class="pg" id="pg-relatorios"></div>
     </div>
@@ -667,7 +668,7 @@ function defApp(){
     anamnesis:[],nutritionDietAnamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     mcTemplates:[],
     codeOfConduct:null,
-    guiaoJogoFora:null,
+    guiaoJogoFora:null,estagios:[],
     users:[]
   };
 }
@@ -1040,6 +1041,7 @@ const ALL_PAGES=[
   {id:'codigo-conduta',icon:'📜',label:'Código de Conduta'},
   {sec:'Estágios'},
   {id:'guiao-jogo-fora',icon:'🧭',label:'Guião de Jogo Fora'},
+  {id:'estagios',icon:'🧳',label:'Estágios'},
   {sec:'Exportações'},
   {id:'relatorios',icon:'📥',label:'Relatórios'},
   {sec:'Fisioterapia'},
@@ -1073,12 +1075,12 @@ const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 const ROLE_DEFS={
   treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
-  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios','guiao-jogo-fora'],readOnly:false,manageUsers:false},
-  treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas','guiao-jogo-fora'],readOnly:false,manageUsers:false},
-  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash','guiao-jogo-fora'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual','guiao-jogo-fora'],readOnly:false,manageUsers:false},
-  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta','guiao-jogo-fora'],readOnly:false,manageUsers:false},
-  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes','codigo-conduta','guiao-jogo-fora'],readOnly:true,manageUsers:false}
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
+  treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
+  fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
+  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
+  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:true,manageUsers:false}
 };
 // SPS-Gameday standalone (?gameday=1, sps-v78) — só faz sentido entrar direto no Gameday
 // para cargos que têm acesso a Jogos E podem registar eventos (não os só-consulta, ex.
@@ -1185,7 +1187,7 @@ function _maybeEnterTaticoMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1261,7 +1263,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -15728,6 +15730,393 @@ function _printGuiaoJogoForaPDF(secoes){
   _printWin('Guião de Jogo Fora',body);
 }
 
+// ─── ESTÁGIOS — dados concretos de cada deslocação ───────────────────────
+// Pedido do Roger, 02/10/2026, logo a seguir ao Guião de Jogo Fora (sps-v198):
+// aqui vivem os dados concretos de UM estágio real — datas, local, transporte,
+// refeições, quartos e convocatória — separado do texto de referência do Guião
+// (decisão "Separados (recomendado)", AskUserQuestion). Pode ligar-se opcionalmente
+// a um Jogo Fora já existente, herdando adversário/hora na Cronologia da atleta
+// (decisão "Ligação opcional a um Jogo (recomendado)"). A confirmação de presença
+// é só da própria atleta — sem consentimento de encarregado de educação (decisão
+// "Só confirmação da atleta", AskUserQuestion) — mesmo padrão exato de rsvp/seenBy
+// já usado em APP.convocatorias (ver atRsvpYes/_rsvpOf), só que aqui o registo vive
+// na própria linha do estágio (tabela dedicada `estagios`), nunca no meta blob.
+let _estagioDetailId=null,_estagioTab='dados',_showEstagioForm=false;
+
+function _initEstagio(e){
+  if(e.gameId===undefined)e.gameId='';
+  if(!e.quartos)e.quartos=[];
+  if(!e.convocatoria)e.convocatoria=[];
+  if(!e.seenBy)e.seenBy=[];
+  if(!e.rsvp)e.rsvp={};
+}
+function _syncEstagio(e){if(_sync)cloudUpsert('estagios',e);}
+
+function renderEstagios(){
+  if(_estagioDetailId){_renderEstagioDetail();return;}
+  const td=today();
+  const list=[...(APP.estagios||[])].sort((a,b)=>(b.dataInicio||'').localeCompare(a.dataInicio||''));
+  const formHtml=_showEstagioForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">Novo Estágio</div><button class="btn btn-sm btn-gh" onclick="_showEstagioForm=false;renderEstagios()">✕</button></div>
+    <div class="form-g"><label class="fl">Título *</label><input class="fc" id="ef-titulo" placeholder="Ex: Estágio — Jornada 12 vs Sporting"></div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Data de Início *</label><input class="fc" type="date" id="ef-inicio"></div>
+      <div class="form-g"><label class="fl">Data de Fim *</label><input class="fc" type="date" id="ef-fim"></div>
+    </div>
+    <div class="form-g"><label class="fl">Ligar a um Jogo Fora (opcional)</label><select class="fc" id="ef-game"><option value="">Nenhum — estágio independente</option>${APP.games.filter(g=>g.ha==='fora').sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`<option value="${g.id}">${fmtDate(g.date)} vs ${escHtml(g.opp)}</option>`).join('')}</select></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveNovoEstagio()">💾 Criar Estágio</button><button class="btn btn-gh" onclick="_showEstagioForm=false;renderEstagios()">Cancelar</button></div>
+  </div>`:'';
+  const rows=list.map(e=>{
+    const upcoming=(e.dataFim||e.dataInicio||'')>=td;
+    const g=e.gameId?APP.games.find(x=>x.id===e.gameId):null;
+    const nConv=(e.convocatoria||[]).length;
+    const nYes=Object.values(e.rsvp||{}).filter(r=>r.status==='yes').length;
+    return `<tr style="cursor:pointer" onclick="openEstagio('${e.id}')">
+      <td>${escHtml(e.titulo||'Estágio')}${g?`<br><span style="font-size:10px;color:var(--t2)">vs ${escHtml(g.opp)}</span>`:''}</td>
+      <td>${fmtDate(e.dataInicio||'')}${e.dataFim&&e.dataFim!==e.dataInicio?' – '+fmtDate(e.dataFim):''}</td>
+      <td>${escHtml(e.local||'—')}</td>
+      <td style="text-align:center">${nConv}</td>
+      <td style="text-align:center">${nConv?nYes+'/'+nConv:'—'}</td>
+      <td>${upcoming?'<span class="bdg bg-g">Agendado</span>':'<span class="bdg" style="background:var(--bg4);color:var(--t2)">Concluído</span>'}</td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-xs btn-r" onclick="deleteEstagio('${e.id}')">🗑️</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('pg-estagios').innerHTML=`
+  <div class="sh"><div class="sh-t">🧳 Estágios</div>
+  <button class="btn btn-g" onclick="_showEstagioForm=!_showEstagioForm;renderEstagios()">+ Novo Estágio</button></div>
+  ${formHtml}
+  ${list.length?`<div class="tw"><table><thead><tr><th>Estágio</th><th>Datas</th><th>Local</th><th>Convocadas</th><th>Confirmadas</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<div class="empty"><div class="ei">🧳</div><p>Sem estágios registados</p></div>`}`;
+}
+
+function saveNovoEstagio(){
+  const titulo=(document.getElementById('ef-titulo')?.value||'').trim();
+  const inicio=document.getElementById('ef-inicio')?.value||'';
+  const fim=document.getElementById('ef-fim')?.value||'';
+  const gameId=document.getElementById('ef-game')?.value||'';
+  if(!titulo||!inicio||!fim)return toast('Preenche título e datas','err');
+  const sess=getSession();
+  const g=gameId?APP.games.find(x=>x.id===gameId):null;
+  const e={id:uid(),teamId:g?g.teamId:(APP.teams[0]?.id||''),gameId,titulo,local:'',
+    dataInicio:inicio,dataFim:fim,transporteIda:'',transporteVolta:'',refeicoes:'',notes:'',
+    quartos:[],convocatoria:[],seenBy:[],rsvp:{},createdAt:new Date().toISOString(),createdBy:sess?.name||'',createdById:sess?.id||''};
+  if(!APP.estagios)APP.estagios=[];
+  APP.estagios.push(e);
+  _syncEstagio(e);saveData();_showEstagioForm=false;toast('Estágio criado ✓');openEstagio(e.id);
+}
+
+function openEstagio(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  _initEstagio(e);
+  _estagioDetailId=id;_estagioTab='dados';
+  renderEstagios();
+}
+
+async function deleteEstagio(id){
+  if(!confirm('Apagar este estágio e todos os seus dados?'))return;
+  APP.estagios=(APP.estagios||[]).filter(x=>x.id!==id);
+  if(_estagioDetailId===id)_estagioDetailId=null;
+  saveData();
+  if(_sync&&_supa){try{await _supa.from('estagios').delete().eq('id',id);}catch(err){_warnSyncFailure('estagios (apagar)',err);}}
+  toast('Estágio apagado');renderEstagios();
+}
+
+function _renderEstagioDetail(){
+  const e=(APP.estagios||[]).find(x=>x.id===_estagioDetailId);
+  if(!e){_estagioDetailId=null;renderEstagios();return;}
+  _initEstagio(e);
+  const g=e.gameId?APP.games.find(x=>x.id===e.gameId):null;
+  const tDefs={dados:'📋 Dados',convocatoria:'👥 Convocatória',quartos:'🛏️ Quartos',confirmacoes:'✅ Confirmações'};
+  const tabBtns=Object.keys(tDefs).map(t=>`<button class="tab-btn ${_estagioTab===t?'on':''}" onclick="_estagioTab='${t}';_renderEstagioDetail()">${tDefs[t]}</button>`).join('');
+  let tc='';
+  if(_estagioTab==='dados')tc=_estagioDadosHtml(e,g);
+  else if(_estagioTab==='convocatoria')tc=_estagioConvocatoriaHtml(e);
+  else if(_estagioTab==='quartos')tc=_estagioQuartosHtml(e);
+  else if(_estagioTab==='confirmacoes')tc=_estagioConfirmacoesHtml(e);
+  document.getElementById('pg-estagios').innerHTML=`
+  <div class="sh">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-sm btn-gh" onclick="_estagioDetailId=null;renderEstagios()">← Voltar</button>
+      <div>
+        <div class="sh-t">${escHtml(e.titulo||'Estágio')}</div>
+        <div style="font-size:12px;color:var(--t2)">${fmtDate(e.dataInicio||'')}${e.dataFim&&e.dataFim!==e.dataInicio?' – '+fmtDate(e.dataFim):''}${g?' • vs '+escHtml(g.opp):''}</div>
+      </div>
+    </div>
+    <button class="btn btn-r btn-sm" onclick="deleteEstagio('${e.id}')">🗑️ Apagar</button>
+  </div>
+  <div class="tabs" style="flex-wrap:wrap;margin-bottom:16px">${tabBtns}</div>
+  <div>${tc}</div>`;
+}
+
+function saveEstagioField(id,field,value){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  e[field]=value;
+  _syncEstagio(e);saveData();
+  if(field==='titulo'||field==='dataInicio'||field==='dataFim'||field==='gameId')_renderEstagioDetail();
+}
+
+function _estagioDadosHtml(e,g){
+  const gameOpts=`<option value="">Nenhum — estágio independente</option>${APP.games.filter(x=>x.ha==='fora').sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<option value="${x.id}" ${e.gameId===x.id?'selected':''}>${fmtDate(x.date)} vs ${escHtml(x.opp)}</option>`).join('')}`;
+  return `<div class="ipanel">
+    <div class="form-g"><label class="fl">Título</label><input class="fc" value="${escHtml(e.titulo||'')}" onblur="saveEstagioField('${e.id}','titulo',this.value)"></div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Data de Início</label><input class="fc" type="date" value="${e.dataInicio||''}" onblur="saveEstagioField('${e.id}','dataInicio',this.value)"></div>
+      <div class="form-g"><label class="fl">Data de Fim</label><input class="fc" type="date" value="${e.dataFim||''}" onblur="saveEstagioField('${e.id}','dataFim',this.value)"></div>
+    </div>
+    <div class="form-g"><label class="fl">Local</label><input class="fc" value="${escHtml(e.local||'')}" placeholder="Hotel / Local de estágio" onblur="saveEstagioField('${e.id}','local',this.value)"></div>
+    <div class="form-g"><label class="fl">Ligar a um Jogo Fora (opcional)</label><select class="fc" onchange="saveEstagioField('${e.id}','gameId',this.value)">${gameOpts}</select>
+      ${g?`<div style="font-size:11px;color:var(--t2);margin-top:4px">Adversário e hora do jogo aparecem automaticamente na Cronologia da atleta: vs ${escHtml(g.opp)}${g.time?' · '+g.time.slice(0,5):''}</div>`:''}
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Transporte (Ida)</label><input class="fc" value="${escHtml(e.transporteIda||'')}" placeholder="Ex: Autocarro, saída 14h00" onblur="saveEstagioField('${e.id}','transporteIda',this.value)"></div>
+      <div class="form-g"><label class="fl">Transporte (Volta)</label><input class="fc" value="${escHtml(e.transporteVolta||'')}" placeholder="Ex: Autocarro, saída 20h30" onblur="saveEstagioField('${e.id}','transporteVolta',this.value)"></div>
+    </div>
+    <div class="form-g"><label class="fl">Refeições</label><textarea class="fc" rows="2" placeholder="Ex: Incluídas no hotel, horário combinado com o staff" onblur="saveEstagioField('${e.id}','refeicoes',this.value)">${escHtml(e.refeicoes||'')}</textarea></div>
+    <div class="form-g"><label class="fl">Notas (uso interno)</label><textarea class="fc" rows="2" onblur="saveEstagioField('${e.id}','notes',this.value)">${escHtml(e.notes||'')}</textarea></div>
+    <button class="btn btn-g" onclick="printEstagioPDF('${e.id}')">🖨️ Exportar PDF</button>
+  </div>`;
+}
+
+function _estagioConvocatoriaHtml(e){
+  const convSet=new Set(e.convocatoria||[]);
+  const athletes=APP.athletes.filter(a=>a.teamId===e.teamId).sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=athletes.map(a=>{
+    const isC=convSet.has(a.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${isC?'var(--bg2)':'var(--bg3)'};border:1px solid var(--brd);border-radius:6px;margin-bottom:4px">
+      <input type="checkbox" ${isC?'checked':''} onchange="toggleEstagioConvocada('${e.id}','${a.id}',this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
+      <div style="width:22px;height:22px;background:var(--pri);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.num||'?'}</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600">${escHtml(_displayName(a))}</div><div style="font-size:10px;color:var(--t2)">${a.pos||'—'}</div></div>
+    </div>`;
+  }).join('');
+  return `<div class="ipanel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="sh-t" style="font-size:15px">👥 Convocatória (${convSet.size})</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-xs btn-g" onclick="convocarTodasEstagio('${e.id}')">✓ Convocar Todas</button>
+        <button class="btn btn-xs btn-r" onclick="desconvocarTodasEstagio('${e.id}')">Desconvocar Todas</button>
+      </div>
+    </div>
+    ${athletes.length?rows:'<div class="empty"><p>Sem atletas registadas nesta equipa</p></div>'}
+  </div>`;
+}
+function toggleEstagioConvocada(id,aid,checked){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;_initEstagio(e);
+  if(checked){if(!e.convocatoria.includes(aid))e.convocatoria.push(aid);}
+  else{
+    e.convocatoria=e.convocatoria.filter(x=>x!==aid);
+    // Remover de qualquer quarto já atribuído — não deixar "fantasmas" num quarto
+    // depois de retirada da convocatória.
+    (e.quartos||[]).forEach(q=>{q.athleteIds=(q.athleteIds||[]).filter(x=>x!==aid);});
+    if(e.rsvp)delete e.rsvp[aid];
+  }
+  _syncEstagio(e);saveData();_renderEstagioDetail();
+}
+function convocarTodasEstagio(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;_initEstagio(e);
+  e.convocatoria=APP.athletes.filter(a=>a.teamId===e.teamId).map(a=>a.id);
+  _syncEstagio(e);saveData();toast('Todas as atletas convocadas ✓');_renderEstagioDetail();
+}
+function desconvocarTodasEstagio(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;_initEstagio(e);
+  if(!confirm('Limpar toda a convocatória deste estágio?'))return;
+  e.convocatoria=[];(e.quartos||[]).forEach(q=>q.athleteIds=[]);e.rsvp={};
+  _syncEstagio(e);saveData();toast('Convocatória limpa');_renderEstagioDetail();
+}
+
+function _estagioQuartosHtml(e){
+  const convIds=e.convocatoria||[];
+  const assignedIds=new Set();
+  (e.quartos||[]).forEach(q=>(q.athleteIds||[]).forEach(aid=>assignedIds.add(aid)));
+  const unassigned=convIds.filter(aid=>!assignedIds.has(aid)).map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const roomsHtml=(e.quartos||[]).map(q=>{
+    const members=(q.athleteIds||[]).map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+    return `<div class="ipanel" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong style="font-size:13px">🛏️ ${escHtml(q.nome||'Quarto')}</strong>
+        <button class="btn btn-xs btn-r" onclick="removeEstagioQuarto('${e.id}','${q.id}')">🗑️ Apagar Quarto</button>
+      </div>
+      ${members.map(a=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+        <span style="font-size:12px;flex:1">${escHtml(_displayName(a))}</span>
+        <button class="btn btn-xs btn-gh" onclick="unassignEstagioQuarto('${e.id}','${q.id}','${a.id}')">Remover</button>
+      </div>`).join('')||'<div style="font-size:11px;color:var(--t2)">Sem atletas atribuídas</div>'}
+      ${unassigned.length?`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        <select class="fc" id="eq-add-${q.id}" style="width:auto;font-size:11px"><option value="">+ Atribuir atleta...</option>${unassigned.map(a=>`<option value="${a.id}">${escHtml(_displayName(a))}</option>`).join('')}</select>
+        <button class="btn btn-xs btn-g" onclick="assignEstagioQuarto('${e.id}','${q.id}')">Adicionar</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+  return `<div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="sh-t" style="font-size:15px">🛏️ Quartos</div>
+      <button class="btn btn-xs btn-g" onclick="addEstagioQuarto('${e.id}')">+ Novo Quarto</button>
+    </div>
+    ${(e.quartos||[]).length?roomsHtml:'<div class="empty"><p>Sem quartos criados ainda</p></div>'}
+    ${unassigned.length?`<div class="ipanel" style="margin-top:10px"><strong style="font-size:12px;color:var(--t2)">POR ATRIBUIR (${unassigned.length}):</strong><div style="margin-top:6px">${unassigned.map(a=>`<span style="font-size:11px;padding:2px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${escHtml(_displayName(a))}</span>`).join('')}</div></div>`:''}
+  </div>`;
+}
+function addEstagioQuarto(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;_initEstagio(e);
+  const nome=prompt('Nome/número do quarto:');if(!nome)return;
+  e.quartos.push({id:uid(),nome,athleteIds:[]});
+  _syncEstagio(e);saveData();_renderEstagioDetail();
+}
+function removeEstagioQuarto(id,qid){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  if(!confirm('Apagar este quarto?'))return;
+  e.quartos=(e.quartos||[]).filter(q=>q.id!==qid);
+  _syncEstagio(e);saveData();_renderEstagioDetail();
+}
+function assignEstagioQuarto(id,qid){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  const sel=document.getElementById('eq-add-'+qid);const aid=sel?sel.value:'';if(!aid)return;
+  const q=(e.quartos||[]).find(x=>x.id===qid);if(!q)return;
+  // Remove de qualquer outro quarto antes (uma atleta só pode estar num quarto de cada vez).
+  (e.quartos||[]).forEach(x=>{x.athleteIds=(x.athleteIds||[]).filter(a=>a!==aid);});
+  if(!q.athleteIds.includes(aid))q.athleteIds.push(aid);
+  _syncEstagio(e);saveData();_renderEstagioDetail();
+}
+function unassignEstagioQuarto(id,qid,aid){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  const q=(e.quartos||[]).find(x=>x.id===qid);if(!q)return;
+  q.athleteIds=(q.athleteIds||[]).filter(x=>x!==aid);
+  _syncEstagio(e);saveData();_renderEstagioDetail();
+}
+
+function _estagioConfirmacoesHtml(e){
+  const athletes=(e.convocatoria||[]).map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const nYes=athletes.filter(a=>e.rsvp[a.id]&&e.rsvp[a.id].status==='yes').length;
+  const nNo=athletes.filter(a=>e.rsvp[a.id]&&e.rsvp[a.id].status==='no').length;
+  const rows=athletes.map(a=>{
+    const r=e.rsvp[a.id];
+    const seen=(e.seenBy||[]).some(s=>s.athleteId===a.id);
+    const badge=r?(r.status==='yes'?'<span class="bdg bg-g">✅ Vai</span>':`<span class="bdg bg-r" title="${escHtml(ATT_REASONS[r.reason]||r.reason||'')}">❌ Não vai</span>`):'<span class="bdg" style="background:var(--bg4);color:var(--t2)">⏳ Por confirmar</span>';
+    return `<tr><td>${escHtml(_displayName(a))}</td><td>${badge}</td><td>${seen?'👁️ Vista':'—'}</td></tr>`;
+  }).join('');
+  return `<div class="ipanel">
+    <div class="sh-t" style="font-size:15px;margin-bottom:8px">✅ Confirmações (${nYes} vão · ${nNo} não vão · ${athletes.length-nYes-nNo} por confirmar)</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">A confirmação é feita pela própria atleta, na app, dentro de "O Meu Estágio".</div>
+    ${athletes.length?`<div class="tw"><table><thead><tr><th>Atleta</th><th>Resposta</th><th>Visto</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="empty"><p>Sem atletas convocadas ainda</p></div>'}
+  </div>`;
+}
+
+function printEstagioPDF(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  const g=e.gameId?APP.games.find(x=>x.id===e.gameId):null;
+  const athletes=(e.convocatoria||[]).map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const roomOf=aid=>{const q=(e.quartos||[]).find(x=>(x.athleteIds||[]).includes(aid));return q?q.nome:'—';};
+  const rows=athletes.map((a,i)=>`<tr><td>${i+1}</td><td>${escHtml(_displayName(a))}</td><td>${escHtml(roomOf(a.id))}</td><td></td></tr>`).join('');
+  const body=`
+    <div class="pr-title">🧳 ${escHtml(e.titulo||'Estágio')}</div>
+    <div style="font-size:9pt;color:#666;margin-bottom:10px">${fmtDate(e.dataInicio||'')}${e.dataFim&&e.dataFim!==e.dataInicio?' – '+fmtDate(e.dataFim):''}${g?' • vs '+escHtml(g.opp):''}</div>
+    <table style="width:100%;font-size:9.5pt;margin-bottom:14px"><tbody>
+      <tr><td style="font-weight:700;width:140px">Local</td><td>${escHtml(e.local||'—')}</td></tr>
+      <tr><td style="font-weight:700">Transporte (Ida)</td><td>${escHtml(e.transporteIda||'—')}</td></tr>
+      <tr><td style="font-weight:700">Transporte (Volta)</td><td>${escHtml(e.transporteVolta||'—')}</td></tr>
+      <tr><td style="font-weight:700">Refeições</td><td>${escHtml(e.refeicoes||'—')}</td></tr>
+    </tbody></table>
+    <h3>Convocatória (${athletes.length})</h3>
+    <table style="width:100%;font-size:9pt;border-collapse:collapse"><thead><tr style="border-bottom:1px solid #ccc"><th style="text-align:left;padding:3px">Nº</th><th style="text-align:left;padding:3px">Nome</th><th style="text-align:left;padding:3px">Quarto</th><th style="text-align:left;padding:3px">Assinatura</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+  `;
+  _printWin('Estágio — '+(e.titulo||''),body);
+}
+
+// ── Estágios (lado atleta) — "O Meu Estágio" ──────────────────────────────
+// Cronologia (dados concretos da deslocação) / O Meu Quarto (colegas de quarto) /
+// Confirmação (Vou/Não vou — mesmo padrão exato de atRsvpYes/_rsvpOf, ver acima,
+// só que o registo vive na própria linha do estágio, não em APP.convocatorias).
+let _atEstagioTab='cronologia',_estagioRsvpDeclining=new Set();
+function _atEstagioAtivo(){
+  const td=today();
+  return (APP.estagios||[]).filter(e=>(e.convocatoria||[]).includes(AID)&&(e.dataFim||e.dataInicio||'')>=td).sort((a,b)=>(a.dataInicio||'').localeCompare(b.dataInicio||''))[0]||null;
+}
+function atOpenEstagio(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  if(!(e.convocatoria||[]).includes(AID))return;
+  if(!e.seenBy)e.seenBy=[];
+  if(!e.seenBy.some(s=>s.athleteId===AID)){e.seenBy.push({athleteId:AID,seenAt:new Date().toISOString()});_syncEstagio(e);saveData();}
+  _atEstagioTab='cronologia';
+  _atRenderEstagioModal(id);
+}
+function _atRenderEstagioModal(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  const labels={cronologia:'🗓️ Cronologia',quarto:'🛏️ O Meu Quarto',confirmacao:'✅ Confirmação'};
+  const tabBtns=Object.keys(labels).map(t=>`<button class="tab-btn ${_atEstagioTab===t?'on':''}" onclick="_atEstagioTab='${t}';_atRenderEstagioModal('${id}')">${labels[t]}</button>`).join('');
+  let tc='';
+  if(_atEstagioTab==='cronologia')tc=_atEstagioCronologiaHtml(e);
+  else if(_atEstagioTab==='quarto')tc=_atEstagioQuartoHtml(e);
+  else if(_atEstagioTab==='confirmacao')tc=_atEstagioConfirmacaoHtml(e);
+  openMod('🧳 '+(e.titulo||'Estágio'),`<div class="tabs" style="margin-bottom:12px;flex-wrap:wrap">${tabBtns}</div><div>${tc}</div>`,'lg');
+}
+function _atEstagioCronologiaHtml(e){
+  const g=e.gameId?APP.games.find(x=>x.id===e.gameId):null;
+  const row=(label,val)=>val?`<div style="padding:8px 0;border-bottom:1px solid var(--brd)"><div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">${label}</div><div style="font-size:13px;margin-top:2px">${escHtml(val)}</div></div>`:'';
+  const hasInfo=e.local||e.transporteIda||e.transporteVolta||e.refeicoes;
+  return `<div>
+    ${g?`<div class="al al-b"><i class="ti ti-ball-football" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>vs ${escHtml(g.opp)}${g.time?' · '+g.time.slice(0,5):''}${g.loc?' · '+escHtml(g.loc):''}</div>`:''}
+    ${row('Datas',fmtDate(e.dataInicio||'')+(e.dataFim&&e.dataFim!==e.dataInicio?' – '+fmtDate(e.dataFim):''))}
+    ${row('Local',e.local)}
+    ${row('Transporte (Ida)',e.transporteIda)}
+    ${row('Transporte (Volta)',e.transporteVolta)}
+    ${row('Refeições',e.refeicoes)}
+    ${!hasInfo?'<div class="empty"><p>A equipa técnica ainda não preencheu os detalhes deste estágio.</p></div>':''}
+  </div>`;
+}
+function _atEstagioQuartoHtml(e){
+  const q=(e.quartos||[]).find(x=>(x.athleteIds||[]).includes(AID));
+  if(!q)return '<div class="empty"><div class="ei">🛏️</div><p>Ainda não foi definido o teu quarto.</p></div>';
+  const roommates=(q.athleteIds||[]).filter(aid=>aid!==AID).map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean);
+  return `<div class="ipanel">
+    <div class="sh-t" style="font-size:15px;margin-bottom:8px">🛏️ ${escHtml(q.nome||'Quarto')}</div>
+    ${roommates.length?`<div style="font-size:11px;color:var(--t2);margin-bottom:6px">Vais partilhar com:</div>${roommates.map(a=>`<div style="padding:4px 0;font-size:13px">${escHtml(_displayName(a))}</div>`).join('')}`:'<div style="font-size:12px;color:var(--t2)">Sem colegas de quarto atribuídas.</div>'}
+  </div>`;
+}
+function _atEstagioConfirmacaoHtml(e){
+  const r=(e.rsvp&&e.rsvp[AID])||null;
+  if(r)return `<div class="ipanel" style="text-align:center">
+    <div style="font-size:14px;font-weight:700;margin-bottom:8px">${r.status==='yes'?'✅ Confirmaste presença':'❌ Confirmaste ausência'}</div>
+    ${r.reason?`<div style="font-size:12px;color:var(--t2);margin-bottom:10px">Motivo: ${escHtml(ATT_REASONS[r.reason]||r.reason)}</div>`:''}
+    <button class="btn btn-gh btn-sm" onclick="atEstagioRsvpReset('${e.id}')">Alterar resposta</button>
+  </div>`;
+  if(_estagioRsvpDeclining.has(e.id)){
+    return `<div class="ipanel">
+      <div class="form-g"><label class="fl">Motivo</label><select class="fc" id="est-rsvp-reason-${e.id}"><option value="">Escolhe...</option>${Object.entries(ATT_REASONS).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-r" onclick="atEstagioRsvpDeclineConfirm('${e.id}')">Confirmar</button><button class="btn btn-gh" onclick="atEstagioRsvpDeclineCancel('${e.id}')">Cancelar</button></div>
+    </div>`;
+  }
+  return `<div class="ipanel" style="text-align:center">
+    <div style="font-size:13px;margin-bottom:12px">Vais a este estágio?</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-g" onclick="atEstagioRsvpYes('${e.id}')">✅ Vou</button>
+      <button class="btn btn-r" onclick="atEstagioRsvpDeclineStart('${e.id}')">❌ Não vou</button>
+    </div>
+  </div>`;
+}
+function atEstagioRsvpYes(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  if(!e.rsvp)e.rsvp={};
+  e.rsvp[AID]={status:'yes',reason:'',respondedAt:new Date().toISOString()};
+  _estagioRsvpDeclining.delete(id);
+  _syncEstagio(e);saveData();toast('Confirmaste presença ✓');_atRenderEstagioModal(id);if(_atPage==='home')renderAtHome();
+}
+function atEstagioRsvpDeclineStart(id){_estagioRsvpDeclining.add(id);_atRenderEstagioModal(id);}
+function atEstagioRsvpDeclineCancel(id){_estagioRsvpDeclining.delete(id);_atRenderEstagioModal(id);}
+function atEstagioRsvpDeclineConfirm(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  const sel=document.getElementById('est-rsvp-reason-'+id);
+  const reason=sel?sel.value:'';
+  if(!reason)return toast('Escolhe um motivo','err');
+  if(!e.rsvp)e.rsvp={};
+  e.rsvp[AID]={status:'no',reason,respondedAt:new Date().toISOString()};
+  _estagioRsvpDeclining.delete(id);
+  _syncEstagio(e);saveData();toast('Resposta registada');_atRenderEstagioModal(id);if(_atPage==='home')renderAtHome();
+}
+function atEstagioRsvpReset(id){
+  const e=(APP.estagios||[]).find(x=>x.id===id);if(!e)return;
+  if(e.rsvp)delete e.rsvp[AID];
+  _syncEstagio(e);saveData();_atRenderEstagioModal(id);if(_atPage==='home')renderAtHome();
+}
+
 // ─── RELATÓRIOS ──────────────────────────────────────────────
 let _repWellMode='diario',_repPseMode='diario',_repAtMode='semanal';
 function renderRelatorios(){
@@ -17605,6 +17994,8 @@ function renderAtHome(){
   const hasNutriPlan=!!(APP.nutritionPlans||[]).find(p=>p.athleteId===AID&&p.active);
   const cocActive=!!(APP.codeOfConduct&&APP.codeOfConduct.active);
   const cocPending=cocActive&&at.cocAckVersion!==(APP.codeOfConduct.version||1);
+  const estAtivo=_atEstagioAtivo();
+  const estRsvp=estAtivo?((estAtivo.rsvp&&estAtivo.rsvp[AID])||null):null;
 
   const _bdg=(n,color)=>n?`<div style="position:absolute;top:7px;right:7px;background:${color};color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${n}</div>`:'';
   const _card=(page,icon,iconColor,title,sub,subColor,badge,rgb)=>`
@@ -17681,6 +18072,14 @@ function renderAtHome(){
       <div style="font-size:11px;color:var(--t2);margin-top:2px">${cocPending?'Pendente — toca para ler e confirmar "Li e aceito"':'Já confirmaste esta versão ✓ — toca para reler'}</div>
     </div>
     ${cocPending?'<i class="ti ti-chevron-right" style="font-size:18px;color:var(--t2)" aria-hidden="true"></i>':''}
+  </div>`:''}
+  ${estAtivo?`<div onclick="atOpenEstagio('${estAtivo.id}')" style="background:${!estRsvp?'rgba(245,158,11,.18)':'rgba(56,189,248,.12)'};border:1.5px solid ${!estRsvp?'rgba(245,158,11,.55)':'rgba(56,189,248,.35)'};border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
+    <i class="ti ${!estRsvp?'ti-alert-triangle':'ti-briefcase'}" style="font-size:26px;color:${!estRsvp?'#fbbf24':'#38bdf8'};flex-shrink:0" aria-hidden="true"></i>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:800">🧳 ${escHtml(estAtivo.titulo||'Estágio')}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:2px">${fmtDate(estAtivo.dataInicio||'')}${estAtivo.dataFim&&estAtivo.dataFim!==estAtivo.dataInicio?' – '+fmtDate(estAtivo.dataFim):''} · ${!estRsvp?'Confirma a tua presença':estRsvp.status==='yes'?'Confirmaste presença ✓':'Confirmaste ausência'}</div>
+    </div>
+    ${!estRsvp?'<i class="ti ti-chevron-right" style="font-size:18px;color:var(--t2)" aria-hidden="true"></i>':''}
   </div>`:''}
   ${_isBirthdayToday(at.dob)?`<div style="background:linear-gradient(135deg,rgba(244,114,182,.22),rgba(251,191,36,.22));border:1.5px solid rgba(244,114,182,.55);border-radius:14px;padding:16px;margin-bottom:14px;text-align:center">
     <div style="font-size:30px;line-height:1;margin-bottom:6px">🎉🎂🎉</div>
@@ -19094,6 +19493,7 @@ async function pullCloud(){
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
       ['code_of_conduct','codeOfConduct',(d)=>{const r=d[0];APP.codeOfConduct=r?{id:r.id,active:r.active,version:r.version,publishedAt:r.published_at,publishedBy:r.published_by,publishedById:r.published_by_id,sections:r.sections||null,sectionsUpdatedAt:r.sections_updated_at,sectionsUpdatedBy:r.sections_updated_by}:null;}],
       ['away_game_guide','guiaoJogoFora',(d)=>{const r=d[0];APP.guiaoJogoFora=r?{id:r.id,sections:r.sections||null,sectionsUpdatedAt:r.sections_updated_at,sectionsUpdatedBy:r.sections_updated_by}:null;}],
+      ['estagios','estagios',(d)=>APP.estagios=d.map(r=>({id:r.id,teamId:r.team_id,gameId:r.game_id||'',titulo:r.titulo,local:r.local,dataInicio:r.data_inicio,dataFim:r.data_fim,transporteIda:r.transporte_ida,transporteVolta:r.transporte_volta,refeicoes:r.refeicoes,notes:r.notes,quartos:r.quartos||[],convocatoria:r.convocatoria||[],seenBy:r.seen_by||[],rsvp:r.rsvp||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id}))],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
@@ -19460,6 +19860,12 @@ const _CLOUD_TABLE_SCHEMA={
   // estágio concreto, essa sim ligada à App Atleta). Pedido do Roger, 02/10/2026.
   away_game_guide:{cols:['id','sections','sections_updated_at','sections_updated_by'],
     rename:{sectionsUpdatedAt:'sections_updated_at',sectionsUpdatedBy:'sections_updated_by'}},
+  // Estágios — dados concretos de cada deslocação (sps-v199): tabela dedicada própria,
+  // mesmo padrão exato de games/trainings (upsert por linha, nunca no blob clubs.meta) —
+  // ao contrário do Guião (singleton de texto), pode haver muitos estágios. Pedido do
+  // Roger, 02/10/2026, decisão "Separados (recomendado)" entre Guião e dados concretos.
+  estagios:{cols:['id','team_id','game_id','titulo','local','data_inicio','data_fim','transporte_ida','transporte_volta','refeicoes','notes','quartos','convocatoria','seen_by','rsvp','created_at','created_by','created_by_id'],
+    rename:{teamId:'team_id',gameId:'game_id',dataInicio:'data_inicio',dataFim:'data_fim',transporteIda:'transporte_ida',transporteVolta:'transporte_volta',seenBy:'seen_by',createdAt:'created_at',createdBy:'created_by',createdById:'created_by_id'}},
   // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
   // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
   // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela criada no Supabase

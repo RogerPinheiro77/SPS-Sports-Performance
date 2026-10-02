@@ -2799,3 +2799,66 @@ e regressão do Código de Conduta a continuar a funcionar através do seletor p
 Tabela `away_game_guide` criada e verificada no Supabase.
 
 SW bump para `sps-v198`.
+
+## sps-v199 (02/10/2026): aba Estágios — dados concretos de cada deslocação (convocatória,
+## quartos, confirmação) + "O Meu Estágio" na App Atleta
+
+Pedido do Roger a seguir ao sps-v198 ("SIM", para avançar com a parte que tinha ficado
+separada do Guião de Jogo Fora pela decisão "Separados (recomendado)"): a ficha de dados
+concretos de cada estágio real — datas, local, transporte, refeições, quartos e
+convocatória — ligada à App Atleta. Duas decisões tomadas antes de implementar
+(`AskUserQuestion`): (1) cada Estágio pode ligar-se opcionalmente a um Jogo Fora já
+existente, herdando adversário/hora na Cronologia da atleta ("Ligação opcional a um Jogo
+(recomendado)"); (2) a confirmação de presença é só da própria atleta, sem consentimento de
+encarregado de educação ("Só confirmação da atleta (recomendado p/ já)").
+
+1. **Nova página "Estágios"** (🧳), na mesma secção "Estágios" criada no sps-v198 — mesmos
+   6 cargos com acesso que já tinham o Guião (`prep_fisico`, `treinador_gr`, `fisio`,
+   `nutri`, `team_manager`, `diretor`), além de `treinador`/`treinador_adj` automaticamente.
+2. **Tabela dedicada própria `estagios`** (migração `create_estagios_table`, RLS `anon_all`
+   igual às restantes) — ao contrário do Guião (singleton de texto), pode haver muitos
+   estágios, por isso segue o padrão de `games`/`trainings` (upsert por linha,
+   `_CLOUD_TABLE_SCHEMA`/`pullCloud()` atualizados a par, nunca no blob `clubs.meta`).
+   Campos: `titulo`, `local`, `dataInicio`/`dataFim`, `transporteIda`/`transporteVolta`,
+   `refeicoes`, `notes`, `gameId` (opcional), `quartos` (array `{id,nome,athleteIds}`),
+   `convocatoria` (array de ids, mesmo padrão "banco" de `g.convocatoria`), `seenBy`/`rsvp`
+   (mesmo padrão exato de `APP.convocatorias`, mas vivendo na própria linha do estágio).
+3. **Ecrã da Plataforma** (`renderEstagios`): lista de estágios (+ Novo Estágio) → detalhe
+   com 4 separadores — Dados (campos + seletor opcional de Jogo Fora + botão PDF),
+   Convocatória (checklist por atleta, Convocar/Desconvocar Todas, mesmo padrão de
+   `toggleConvocado`), Quartos (criar quarto por `prompt()`, atribuir/remover atletas —
+   uma atleta só pode estar num quarto de cada vez; sair da convocatória limpa
+   automaticamente o quarto atribuído), Confirmações (leitura do `rsvp`/`seenBy`, a
+   confirmação em si é feita só pela atleta).
+4. **PDF do Estágio** (`printEstagioPDF`): dados da deslocação + lista de convocadas com
+   quarto atribuído + coluna de assinatura — reaproveita `_printWin()`, sem seletor de
+   secções (não é texto editável tipo Guião/Código, é uma ficha de dados).
+5. **App Atleta — "O Meu Estágio"**: cartão na Home (`_atEstagioAtivo`, aparece só quando a
+   atleta está convocada num estágio cujo fim ainda não passou), amarelo "Confirma a tua
+   presença" enquanto pendente, azul depois de responder — mesmo padrão visual do cartão do
+   Código de Conduta. Abre `atOpenEstagio` (regista `seenBy`, bloqueado para quem não está
+   convocada) com 3 separadores: Cronologia (datas/local/transporte/refeições + adversário/
+   hora quando ligado a um Jogo — nunca o texto do Guião, que continua só da equipa
+   técnica), O Meu Quarto (nome do quarto + colegas, ou aviso se ainda não definido),
+   Confirmação (Vou/Não vou com motivo — mesmo padrão exato de `atRsvpYes`/`_rsvpOf`, só
+   que o registo vive na própria linha do estágio em vez de `APP.convocatorias`).
+
+Testado com Node (`node --check`) e um harness dedicado (`test_estagios.js`, 22
+asserções): wiring de `ALL_PAGES`/`ROLE_DEFS`/`_NAV_TITLES` para os 6 cargos, criação de
+estágio ligado a um Jogo Fora (herda equipa/adversário), edição de campos, convocatória
+(toggle individual + Convocar/Desconvocar Todas), quartos (criar, atribuir, reatribuição
+exclusiva — sai do quarto anterior —, deconvocar limpa o quarto), fluxo completo de RSVP da
+atleta (vou/não vou com motivo, bloqueio sem motivo, reset), `seenBy` registado ao abrir,
+`_atEstagioAtivo` só devolve estágios futuros/em curso em que a atleta está convocada
+(nunca estágios passados, nunca para quem não foi convocada), PDF sem exceção com os dados
+corretos, apagar estágio, e regressão completa do Guião/Código de Conduta (`test_guiao.js`)
+e de outras suites que tocam `renderAtHome`/`ALL_PAGES` (`test_coc3.js`,
+`test_mobile_v187.js`, `test_nutri_plantel_v194.js`, `test_tatico_v191.js`) sem falhas.
+
+**Ainda por fazer:** nada pendente para este pedido. Fica registado, para possível pedido
+futuro do Roger: consentimento do encarregado de educação na Confirmação (decisão
+explícita de não incluir já, "Só confirmação da atleta"), e qualquer ligação mais rica ao
+Guião de Jogo Fora (hoje a Cronologia da atleta mostra só os dados concretos do estágio,
+nunca o texto do Guião, que é propositadamente só da equipa técnica).
+
+SW bump para `sps-v199`.
