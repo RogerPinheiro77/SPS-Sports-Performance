@@ -553,6 +553,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-agenda-geral"></div>
       <div class="pg" id="pg-nutri-consultas"></div>
       <div class="pg" id="pg-nutri-manual"></div>
+      <div class="pg" id="pg-codigo-conduta"></div>
       <div class="pg" id="pg-config"></div>
       <div class="pg" id="pg-relatorios"></div>
     </div>
@@ -664,6 +665,7 @@ function defApp(){
     supplementCatalog:[],supplementPrescriptions:[],
     anamnesis:[],nutritionDietAnamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     mcTemplates:[],
+    codeOfConduct:null,
     users:[]
   };
 }
@@ -1032,6 +1034,8 @@ const ALL_PAGES=[
   {id:'biblioteca',icon:'📚',label:'Biblioteca de Exercícios'},
   {id:'fichas-ginasio',icon:'🏋️‍♀️',label:'Fichas de Ginásio'},
   {id:'treinos-ind',icon:'🏋️',label:'Treinos Individuais'},
+  {sec:'Clube'},
+  {id:'codigo-conduta',icon:'📜',label:'Código de Conduta'},
   {sec:'Exportações'},
   {id:'relatorios',icon:'📥',label:'Relatórios'},
   {sec:'Fisioterapia'},
@@ -1069,8 +1073,8 @@ const ROLE_DEFS={
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual'],readOnly:false,manageUsers:false},
-  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios'],readOnly:false,manageUsers:false},
-  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes'],readOnly:true,manageUsers:false}
+  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta'],readOnly:false,manageUsers:false},
+  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes','codigo-conduta'],readOnly:true,manageUsers:false}
 };
 // SPS-Gameday standalone (?gameday=1, sps-v78) — só faz sentido entrar direto no Gameday
 // para cargos que têm acesso a Jogos E podem registar eventos (não os só-consulta, ex.
@@ -1177,7 +1181,7 @@ function _maybeEnterTaticoMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1253,7 +1257,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -15093,6 +15097,241 @@ function renderNutriManual(openId){
   </details>`).join('')}`;
 }
 
+// ─── CÓDIGO DE CONDUTA ──────────────────────────────────────────────────
+// Pedido do Roger (02/10/2026): "QUERO QUE O CODIGO FIQUE PRONTO NA PLATAFORMA
+// COM UM ESPAÇO/ABA PARA ELE E QUE SÓ COM O MEU VISTO PARA FICAR ATIVO É QUE
+// APARECE NA APP ATLETAS NUMA SECÇÃO/CARD PRÓPRIA PARA O MESMO". Conteúdo
+// decidido ponto a ponto com o Roger na doc "Código de Conduta & Estágios —
+// Análise e Proposta" (32 pontos do Moreirense FC Feminino 2026/27).
+// Arquitetura (mesmos padrões já usados no resto da app, nunca inventados de novo):
+// - Texto fica em código (array estático), como _NUTRI_MANUAL_SECOES acima —
+//   não é conteúdo editável pela equipa técnica, é a política do clube.
+// - Estado de ativação (active/version/publishedAt/publishedBy) é um singleton
+//   por clube numa tabela dedicada própria (code_of_conduct), mesmo padrão de
+//   APP.nutritionGameDayPlan — NUNCA no blob clubs.meta.
+// - Ativar/desativar é restrito a quem tem isAdmin=true (hoje, só o Roger) —
+//   mesma guarda usada em _canManageUsers(), nunca por cargo (ROLE_DEFS).
+// - Aceitação por atleta ("Li e aceito") fica em 2 campos simples no próprio
+//   registo da atleta (cocAckVersion/cocAckAt) — reaproveita o cloudUpsert('athletes')
+//   já existente, sem precisar de tabela nova (só 2 campos, não é série temporal).
+// - Na App Atleta só aparece quando APP.codeOfConduct?.active===true — enquanto
+//   não houver visto do Roger, fica visível apenas aqui, na Plataforma.
+const _CODIGO_CONDUTA_SECOES=[
+  {id:'objetivo',icon:'ti-target',title:'1. Objetivo do Código',html:`
+    <p>Este Código define os valores, direitos, deveres e regras de conduta da Equipa Principal feminina do Moreirense FC, dentro e fora do clube. O objetivo é claro: garantir um ambiente de respeito, responsabilidade e fair-play, com regras conhecidas por todas e aplicadas de forma justa a todas, para que o foco esteja sempre no desenvolvimento desportivo e humano de cada atleta.</p>
+    <p style="margin-top:8px">É um documento interno do clube — não substitui os regulamentos da FPF/UEFA nem a lei portuguesa.</p>`},
+  {id:'ambito',icon:'ti-map-pin',title:'2. Âmbito de Aplicação',html:`
+    <p>Aplica-se a toda a Equipa Principal (sénior feminino) — atualmente 23 atletas — em todos os contextos: treinos, jogos, viagens, estágios e concentrações, instalações do clube, transportes, redes sociais e comunicação digital, e qualquer situação em que a atleta represente o Moreirense.</p>
+    <p style="margin-top:8px">Pelo menos uma atleta do plantel é menor de idade. Por isso, o Código assume por defeito as regras mais conservadoras sempre que há menores em causa (proibição total de álcool, consentimento do encarregado de educação, acompanhamento reforçado em deslocações) — regras que não desaparecem quando essa atleta fizer 18 anos: continuam a aplicar-se a qualquer menor que entre no plantel depois.</p>`},
+  {id:'identidade',icon:'ti-shield',title:'3. Identidade e Valores',html:`
+    <p><b>Valores do clube:</b> fair-play, respeito, responsabilidade e lealdade — a base de tudo o resto neste Código.</p>
+    <p style="margin-top:8px"><b>História e missão:</b> cada atleta representa a história e o projeto do futebol feminino do Moreirense, com orgulho e sentido de pertença.</p>
+    <p style="margin-top:8px"><b>Identidade técnica:</b> a ideia de jogo e a filosofia técnica do clube fazem parte da identidade que a atleta representa em campo.</p>
+    <p style="margin-top:8px"><b>Símbolos:</b> respeito pelo escudo, cores e símbolos do Moreirense em qualquer contexto público.</p>`},
+  {id:'direitos-deveres',icon:'ti-scale',title:'4. Direitos e Deveres da Atleta',html:`
+    <p><b>Direitos:</b> condições de treino adequadas, assistência médica, ser ouvida pela equipa técnica, igualdade de tratamento entre todas as atletas, e privacidade dos seus dados pessoais e de saúde.</p>
+    <p style="margin-top:8px"><b>Deveres:</b> pontualidade, zelo pelo equipamento, assiduidade (nos treinos e no preenchimento da plataforma), e representar bem o clube dentro e fora de campo.</p>`},
+  {id:'compromisso',icon:'ti-trophy',title:'5. Compromisso Desportivo',html:`
+    <p><b>Decisões técnicas:</b> aceitar a convocatória, posição e minutos decididos pela equipa técnica, mesmo quando discorda.</p>
+    <p style="margin-top:8px"><b>Equipa acima do individual:</b> colocar os objetivos da equipa acima dos interesses pessoais; espírito de sacrifício e entrega.</p>
+    <p style="margin-top:8px"><b>Plano e planeamento:</b> cumprir o plano de treino e o planeamento da temporada definidos pela equipa técnica.</p>`},
+  {id:'pontualidade',icon:'ti-clock',title:'6. Pontualidade e Assiduidade',html:`
+    <p><b>Pontualidade:</b> chegar a horas a treinos, jogos, viagens e qualquer atividade da equipa.</p>
+    <p style="margin-top:8px"><b>Faltas:</b> a atleta avisa atempadamente, sempre que não possa comparecer a um treino, jogo ou atividade da equipa — quer o treinador, quer o team manager.</p>
+    <p style="margin-top:8px"><b>Assiduidade na plataforma:</b> responsabilidade de preencher com regularidade o Wellness diário e o PSE após cada treino/jogo, a Avaliação Física, a Anamnese Alimentar, e manter atualizado o Histórico Clínico — além da marcação de presença nos treinos de ginásio e demais atividades extra. Dados em falta dificultam o acompanhamento pela equipa técnica e pela equipa médica.</p>`},
+  {id:'conduta-treinos',icon:'ti-barbell',title:'7. Conduta nos Treinos',html:`
+    <p><b>Indicações técnicas:</b> cumprir as indicações da equipa técnica em treino, mesmo discordando — a discordância segue o canal de Conflitos e Resolução de Problemas (ponto 20).</p>
+    <p style="margin-top:8px"><b>Dress code e equipamento:</b> cumprimento do dress code definido pela equipa técnica para o treino, com equipamento sempre completo, oficial e em bom estado.</p>
+    <p style="margin-top:8px"><b>Grupo de capitãs:</b> qualquer elemento do grupo dá o exemplo e reforça junto das colegas o cumprimento das normas do dia a dia.</p>
+    <p style="margin-top:8px"><b>Preservação dos espaços:</b> ginásio e demais espaços de treino ficam arrumados e limpos após o uso.</p>`},
+  {id:'conduta-jogos',icon:'ti-ball-football',title:'8. Conduta nos Jogos',html:`
+    <p><b>Telemóveis:</b> a partir do momento em que entram para equipar, os telemóveis ficam em modo silêncio e as atletas deixam de os poder utilizar — excepto se for necessário colocar playlist ou áudios de preparação, ou outra situação autorizada pela equipa técnica.</p>
+    <p style="margin-top:8px"><b>Braçadeira de capitã:</b> usada por quem estiver em campo, segundo a ordem hierárquica do grupo de capitãs; representa a equipa junto da arbitragem e ajuda a equipa técnica a gerir a disciplina em campo.</p>
+    <p style="margin-top:8px"><b>Respeito:</b> por staff, colegas, adversárias e árbitros, em qualquer circunstância do jogo.</p>`},
+  {id:'balneario-convivencia',icon:'ti-users',title:'9. Balneário e Convivência',html:`
+    <p><b>Preservação e asseio:</b> balneário e demais espaços do clube ficam arrumados e limpos após o uso — lixo no lugar próprio, material e equipamento devolvidos ao sítio. A mesma regra aplica-se aos transportes (viaturas do clube ou alugadas) e, em estágio, ao quarto e às zonas comuns; qualquer dano ou falta de asseio é responsabilidade de quem o causou. Em casa ou fora, a regra é sempre a mesma.</p>
+    <p style="margin-top:8px"><b>Refeições — telemóveis:</b> ficam num espaço à parte, definido pela equipa técnica — regra que se aplica também à própria equipa técnica, sem exceção.</p>
+    <p style="margin-top:8px"><b>Refeições — levantar da mesa:</b> sempre em equipa; a capitã pede a autorização, depois de consultar a equipa técnica.</p>
+    <p style="margin-top:8px"><b>Celebrações e convívios da equipa</b> (vitórias, festejos de fim de época, aniversários, e qualquer convívio organizado pela equipa técnica ou pelo clube):</p>
+    <div class="tw" style="margin-top:6px"><table><tbody>
+      <tr><td style="font-weight:700;white-space:nowrap">Álcool</td><td>Proibição total em convívios de equipa, para todas as atletas, independentemente da idade; nunca na noite de concentração antes de um jogo.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">Transporte seguro</td><td>Ninguém conduz depois de beber; a equipa técnica garante alternativa (boleia entre atletas, táxi) sempre que necessário.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">Respeito e imagem</td><td>O comportamento em espaços públicos continua a representar o Moreirense; sem fotos ou vídeos de colegas publicados sem autorização.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">Inclusão</td><td>Ninguém é excluída de um convívio por não beber, nem pressionada a participar.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">Organizado vs. privado</td><td>Um convívio organizado pela equipa técnica/clube segue estas regras com supervisão; uma saída privada entre atletas fica fora do âmbito direto do Código, mas o dever de representar bem o clube mantém-se.</td></tr>
+    </tbody></table></div>`},
+  {id:'equipa-tecnica',icon:'ti-user-check',title:'10. Relação com Equipa Técnica e Staff',html:`
+    <p><b>Indicações técnicas:</b> cumprir as indicações da equipa técnica em treino e jogo, mesmo discordando.</p>
+    <p style="margin-top:8px"><b>A quem reportar:</b> atleta → grupo de capitãs → equipa técnica → team manager, para assuntos do dia a dia.</p>
+    <p style="margin-top:8px"><b>Dever de ouvir:</b> tal como a atleta tem o direito de ser ouvida (ponto 4), a equipa técnica tem o dever de a ouvir.</p>`},
+  {id:'saude-bem-estar',icon:'ti-heart',title:'11. Saúde, Performance e Bem-Estar',html:`
+    <p><b>Reportar de imediato:</b> qualquer lesão, dor ou mal-estar é comunicado à equipa técnica/médica de imediato, sem esconder para jogar.</p>
+    <p style="margin-top:8px"><b>Saúde mental também é saúde:</b> dificuldades emocionais podem ser reportadas com a mesma abertura que uma lesão física.</p>
+    <p style="margin-top:8px"><b>Plano de recuperação:</b> seguir o plano de recuperação/fisioterapia definido pela equipa médica, sem voltar antes de autorizada.</p>`},
+  {id:'nutricao',icon:'ti-salad',title:'12. Nutrição, Hidratação e Recuperação',html:`
+    <p><b>Plano nutricional:</b> cumprir o plano alimentar definido pela nutricionista/equipa técnica.</p>
+    <p style="margin-top:8px"><b>Hidratação:</b> responsabilidade de se hidratar adequadamente antes, durante e depois de treinos e jogos.</p>
+    <p style="margin-top:8px"><b>Recuperação e sono:</b> cumprir as rotinas de recuperação (sono, descanso) recomendadas pela equipa técnica/médica.</p>
+    <p style="margin-top:8px"><b>Suplementação:</b> só tomar suplementos prescritos ou autorizados pela equipa técnica, nunca por conta própria.</p>`},
+  {id:'sps-monitorizacao',icon:'ti-device-mobile',title:'13. SPS — Monitorização e Responsabilidade da Atleta',html:`
+    <p>A app SPS só ajuda a equipa técnica e médica a cuidar de cada atleta se os dados estiverem atualizados. Por isso, é dever de cada atleta:</p>
+    <div class="tw" style="margin-top:6px"><table><tbody>
+      <tr><td style="font-weight:700;white-space:nowrap">Wellness</td><td>Preencher todos os dias, de preferência de manhã.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">PSE</td><td>Registar depois de cada treino ou jogo.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">Avaliação Física e Anamnese Alimentar</td><td>Preencher sempre que solicitado pela equipa técnica/nutrição.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">Histórico Clínico</td><td>Manter atualizado (lesões, condições, medicação habitual).</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">Presenças</td><td>Marcação de presença nos treinos de ginásio e demais atividades extra.</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:8px">Dados em falta dificultam o acompanhamento pela equipa técnica e pela equipa médica — esta assiduidade na plataforma é também um dever de equipa.</p>`},
+  {id:'ciclo-menstrual',icon:'ti-lock',title:'14. Ciclo Menstrual e Privacidade dos Dados',html:`
+    <p><b>Acesso restrito:</b> só a equipa médica/nutricionista vê estes dados na plataforma — não fica visível a todo o staff técnico.</p>
+    <p style="margin-top:8px"><b>Finalidade:</b> os dados servem apenas para ajustar carga de treino e prevenção de lesão, nunca partilhados fora desse propósito.</p>
+    <p style="margin-top:8px"><b>Confidencialidade entre colegas:</b> proibido qualquer comentário ou partilha sobre o ciclo de uma colega dentro do grupo/equipa.</p>`},
+  {id:'equipamento',icon:'ti-shirt',title:'15. Equipamento e Património',html:`
+    <p><b>Equipamento:</b> sempre completo, oficial e em bom estado.</p>
+    <p style="margin-top:8px"><b>Perda ou dano:</b> a responsabilidade por perda ou dano de equipamento/material do clube por negligência é da atleta.</p>
+    <p style="margin-top:8px"><b>Uso restrito ao contexto desportivo:</b> o equipamento oficial do clube não é usado para fins não relacionados com a atividade desportiva.</p>`},
+  {id:'viagens-estagios',icon:'ti-bus',title:'16. Viagens, Estágios e Concentrações',html:`
+    <p>Em deslocações com pernoita, aplicam-se regras próprias de transporte, alojamento (incluindo atribuição de quartos, decidida pela equipa técnica), refeições e regresso — com consentimento do encarregado de educação para a atleta menor, recolhido em papel e registado depois pelo staff.</p>
+    <p style="margin-top:8px"><b>Grupo de capitãs em viagens e estágios:</b> qualquer elemento do grupo serve de ponto de contacto da equipa técnica para questões do grupo (quartos, horários, etc.), e vela pelo cumprimento do Código.</p>
+    <p style="margin-top:8px;color:var(--t2);font-size:11.5px">O modelo completo de estágio (cronologia, quarto, refeições) está a ser desenvolvido como uma funcionalidade própria na App Atleta — "O Meu Estágio" — e ficará disponível aqui assim que implementado.</p>`},
+  {id:'redes-sociais',icon:'ti-brand-instagram',title:'17. Redes Sociais e Comunicação Digital',html:`
+    <p><b>O que a atleta publica:</b> fica sujeito ao bom senso e ao dever de representar bem o clube; sem fotos ou vídeos de colegas publicados sem autorização.</p>
+    <p style="margin-top:8px"><b>Grupos/chats da equipa:</b> as mesmas normas de conduta aplicam-se dentro dos grupos/chats da equipa como fora deles; usam-se só para assuntos relacionados com a atividade desportiva; não reencaminhar ou publicar conversas/mensagens de grupos internos sem autorização de quem as escreveu.</p>`},
+  {id:'imagem-clube',icon:'ti-camera',title:'18. Imagem e Representação do Clube',html:`
+    <p><b>Uso da imagem pelo clube:</b> o clube pode usar a imagem da atleta nas suas próprias plataformas oficiais (site, redes sociais, app, materiais de divulgação), sempre dentro do âmbito desportivo.</p>
+    <p style="margin-top:8px"><b>Atleta menor:</b> até aos 16 anos, a autorização prévia é do encarregado de educação; dos 16 aos 18, a própria atleta pode autorizar, mas é boa prática informar a família; sem identificação pelo nome de menores em publicações sem esse consentimento.</p>
+    <p style="margin-top:8px"><b>Brio na imagem:</b> cuidado na apresentação pessoal dentro e fora de campo; fora do equipamento oficial, roupa adequada ao contexto e à imagem do clube.</p>`},
+  {id:'adeptos-imprensa',icon:'ti-microphone-2',title:'19. Relação com Adeptos, Comunicação Social e Terceiros',html:`
+    <p><b>Entrevistas e imprensa:</b> qualquer entrevista ou declaração à imprensa passa sempre pelo clube/equipa técnica antes de ser dada.</p>
+    <p style="margin-top:8px"><b>Trato com adeptos:</b> respeito e disponibilidade razoável (autógrafos, fotos), sem obrigação de exceder o razoável.</p>
+    <p style="margin-top:8px"><b>Patrocínios e terceiros:</b> nenhum acordo pessoal com patrocinadores ou terceiros que conflitue com os patrocínios do clube, sem autorização.</p>
+    <p style="margin-top:8px"><b>Assuntos internos:</b> não comentar publicamente decisões técnicas, colegas ou assuntos internos do plantel.</p>`},
+  {id:'conflitos',icon:'ti-messages',title:'20. Conflitos e Resolução de Problemas',html:`
+    <p>Antes de chegar a um processo disciplinar, os conflitos seguem uma escalada em três passos:</p>
+    <div class="tw" style="margin-top:6px"><table><tbody>
+      <tr><td style="font-weight:700;white-space:nowrap">1. Resolver diretamente</td><td>Tentar resolver entre as partes, com respeito, sem envolver terceiros.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">2. Grupo de capitãs</td><td>Se não resolver diretamente, recorrer ao grupo de capitãs como mediador informal.</td></tr>
+      <tr><td style="font-weight:700;white-space:nowrap">3. Equipa técnica</td><td>Se o conflito persistir, sobe à equipa técnica para mediar.</td></tr>
+    </tbody></table></div>`},
+  {id:'igualdade-ambiente',icon:'ti-heart-handshake',title:'21. Igualdade, Respeito e Ambiente Seguro',html:`
+    <p><b>Ambiente livre de medo:</b> nenhuma atleta deve sentir medo ou insegurança dentro do clube, em qualquer contexto.</p>
+    <p style="margin-top:8px"><b>Igualdade de tratamento:</b> entre todas as atletas, sem exceção.</p>
+    <p style="margin-top:8px"><b>Atleta menor:</b> cuidado redobrado com a segurança e bem-estar da atleta menor em todos os contextos.</p>
+    <p style="margin-top:8px">Esta secção liga diretamente ao ponto seguinte (Assédio, Bullying e Discriminação) e ao Canal de Comunicação/Denúncia (ponto 29).</p>`},
+  {id:'assedio',icon:'ti-alert-triangle',title:'22. Assédio, Bullying e Discriminação',html:`
+    <p><b>Tolerância zero:</b> o clube não tolera assédio, bullying ou discriminação (idade, etnia, orientação, ou qualquer outro motivo) dentro da equipa.</p>
+    <p style="margin-top:8px"><b>Dever de denunciar:</b> qualquer atleta que seja vítima ou testemunha tem o dever de reportar, sem medo de represálias.</p>
+    <p style="margin-top:8px"><b>Proteção contra represálias:</b> quem denuncia de boa-fé não sofre qualquer consequência negativa por isso.</p>
+    <p style="margin-top:8px"><b>Como denunciar:</b> segue o Canal de Comunicação/Denúncia (ponto 29).</p>`},
+  {id:'confidencialidade',icon:'ti-lock-access',title:'23. Confidencialidade e Proteção de Informação',html:`
+    <p><b>Sigilo tático:</b> não partilhar informação tática, planos de jogo ou estratégia fora do grupo.</p>
+    <p style="margin-top:8px"><b>Sigilo médico de colegas:</b> não partilhar informação médica, de lesões ou pessoal de colegas conhecida dentro do balneário/equipa.</p>
+    <p style="margin-top:8px"><b>Assuntos internos do clube:</b> não partilhar decisões de gestão, contratos ou outros assuntos internos a que tenha acesso.</p>
+    <p style="margin-top:8px"><b>Dados pessoais e de saúde:</b> inclui o ciclo menstrual (ponto 14) e todo o histórico clínico — acesso restrito a quem precisa de o ver.</p>`},
+  {id:'antidopagem',icon:'ti-pill',title:'24. Substâncias Proibidas e Antidopagem',html:`
+    <p><b>Regras oficiais:</b> cumprimento das regras antidopagem da ADoP/FPF/WADA, incluindo testes quando aplicáveis.</p>
+    <p style="margin-top:8px"><b>Suplementos:</b> proibido tomar qualquer substância ou suplemento não autorizado/prescrito pela equipa técnica/médica.</p>
+    <p style="margin-top:8px"><b>Medicação:</b> a atleta informa sempre a equipa médica de qualquer medicação que esteja a tomar, para verificar conformidade antidopagem.</p>
+    <p style="margin-top:8px"><b>Drogas recreativas:</b> proibição total de substâncias ilícitas, sem exceção.</p>`},
+  {id:'infracoes',icon:'ti-alert-circle',title:'25. Infrações Disciplinares',html:`
+    <p>O incumprimento de qualquer dever estabelecido neste Código constitui uma infração disciplinar, classificada por grau de gravidade (ponto 26) e tratada segundo o procedimento disciplinar definido (ponto 27).</p>`},
+  {id:'classificacao',icon:'ti-list-numbers',title:'26. Classificação das Infrações',html:`
+    <div class="tw"><table><thead><tr><th>Nível</th><th>Exemplos</th></tr></thead><tbody>
+      <tr><td style="font-weight:700;color:#4ade80">Leve</td><td>Atrasos, incumprimento das normas do dia a dia, telemóveis, etc.</td></tr>
+      <tr><td style="font-weight:700;color:#f59e0b">Moderada</td><td>Reincidência de casos leves, ou faltas mais sérias no dia a dia (ex.: incumprimento repetido do dress code, telemóveis, assiduidade na plataforma).</td></tr>
+      <tr><td style="font-weight:700;color:#dc2626">Grave</td><td>Quebra séria do Código (ex.: exclusão do plantel).</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:8px"><b>Reincidência:</b> reincidência na mesma infração agrava automaticamente o nível da medida seguinte (leve → moderada → grave).</p>`},
+  {id:'procedimento',icon:'ti-gavel',title:'27. Procedimento Disciplinar',html:`
+    <div class="tw"><table><thead><tr><th>Nível</th><th>Quem decide</th></tr></thead><tbody>
+      <tr><td style="font-weight:700;color:#4ade80">Leve</td><td>Equipa técnica.</td></tr>
+      <tr><td style="font-weight:700;color:#f59e0b">Moderada</td><td>Equipa técnica.</td></tr>
+      <tr><td style="font-weight:700;color:#dc2626">Grave</td><td>Direção do clube, em conjunto com a equipa técnica.</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:8px"><b>Direito de resposta:</b> a atleta tem sempre direito a dar a sua versão antes de uma medida ser aplicada.</p>
+    <p style="margin-top:8px"><b>Registo:</b> toda a decisão disciplinar fica registada (data, motivo, decisão), à semelhança do histórico já guardado para outras ocorrências na plataforma.</p>`},
+  {id:'medidas',icon:'ti-balance',title:'28. Medidas e Consequências',html:`
+    <div class="tw"><table><thead><tr><th>Nível</th><th>Medida</th></tr></thead><tbody>
+      <tr><td style="font-weight:700;color:#4ade80">Leve</td><td>Advertência verbal ou escrita.</td></tr>
+      <tr><td style="font-weight:700;color:#f59e0b">Moderada</td><td>Advertência escrita e possível suspensão parcial (ex.: minutos reduzidos, exclusão de um treino extra).</td></tr>
+      <tr><td style="font-weight:700;color:#dc2626">Grave</td><td>Pode incluir exclusão do plantel.</td></tr>
+    </tbody></table></div>
+    <p style="margin-top:8px">A reincidência agrava automaticamente o nível da medida seguinte (ver ponto 26).</p>`},
+  {id:'canal-denuncia',icon:'ti-message-report',title:'29. Canal de Comunicação/Denúncia',html:`
+    <p><b>A quem reportar:</b> qualquer queixa, denúncia de assédio/bullying ou outra preocupação vai sempre ao treinador e ao team manager, em conjunto.</p>
+    <p style="margin-top:8px"><b>Confidencialidade:</b> tratada com a confidencialidade possível, respeitando a proteção contra represálias (ponto 22).</p>
+    <p style="margin-top:8px"><b>Casos graves:</b> seguem depois para a direção do clube, conforme o Procedimento Disciplinar (ponto 27).</p>`},
+  {id:'responsabilidade',icon:'ti-user-shield',title:'30. Responsabilidade Individual',html:`
+    <p><b>Princípio geral:</b> cada atleta é pessoalmente responsável por conhecer e cumprir este Código, independentemente da idade.</p>
+    <p style="margin-top:8px"><b>Ignorância não é desculpa:</b> não conhecer uma norma do Código não é justificação para a incumprir.</p>
+    <p style="margin-top:8px"><b>Também fora do clube:</b> a responsabilidade de representar bem o clube aplica-se também fora do contexto direto da equipa (ver Celebrações, ponto 9).</p>`},
+  {id:'declaracao',icon:'ti-signature',title:'31. Declaração de Compromisso da Atleta',html:`
+    <blockquote style="margin:0;padding:12px 16px;background:var(--bg3);border-left:3px solid var(--c1);border-radius:8px;font-size:12.5px;line-height:1.6;font-style:italic">
+      "Li e compreendi o Código de Conduta do Moreirense FC Feminino, incluindo as regras sobre celebrações e álcool, assédio/bullying e discriminação, substâncias proibidas e antidopagem, confidencialidade, e uso da minha imagem pelo clube. Comprometo-me a cumpri-lo em todos os contextos — treinos, jogos, viagens e estágios — e sei que posso reportar qualquer preocupação ao treinador e ao team manager, sem receio de represálias."
+    </blockquote>
+    <p style="margin-top:8px">Para a atleta menor, este "visto e aceito" soma-se ao consentimento do encarregado de educação, recolhido em papel pelo clube.</p>`},
+  {id:'assinaturas',icon:'ti-checkbox',title:'32. Assinaturas',html:`
+    <p>A assinatura deste Código é feita diretamente na App Atleta, com o botão <b>"Li e aceito"</b> — regista-se a data/hora da confirmação, ligada à versão do Código em vigor nesse momento. Se o Código for revisto no futuro, qualquer atleta com uma confirmação de uma versão anterior volta a aparecer como pendente, sem perder o histórico de aceitações anteriores.</p>
+    <p style="margin-top:8px">A ativação deste Código na App Atleta só acontece depois do visto do Roger, aqui na Plataforma — enquanto não for ativado, fica visível apenas à equipa técnica.</p>`},
+];
+function _cocAckStats(){
+  const ats=APP.athletes||[];
+  const v=(APP.codeOfConduct&&APP.codeOfConduct.version)||1;
+  const ack=ats.filter(a=>a.cocAckVersion===v);
+  return{total:ats.length,ack:ack.length,pending:ats.filter(a=>a.cocAckVersion!==v)};
+}
+function renderCodigoConduta(){
+  const cc=APP.codeOfConduct;
+  const isAdmin=!!(getSession()&&getSession().isAdmin);
+  const active=!!(cc&&cc.active);
+  const st=_cocAckStats();
+  const statusHtml=active
+    ?`<div class="al al-g"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i><div><b>Ativo na App Atleta</b> desde ${fmtDate((cc.publishedAt||'').slice(0,10))}${cc.publishedBy?' · visto de '+escHtml(cc.publishedBy):''} — versão ${cc.version||1}.</div></div>`
+    :`<div class="al al-y"><i class="ti ti-alert-triangle" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i><div><b>Ainda não está ativo.</b> As atletas só veem o Código na app depois de ativado aqui.</div></div>`;
+  const adminBtn=isAdmin
+    ?(active
+        ?`<button class="btn btn-gh" style="color:#f87171;border-color:#f87171" onclick="desativarCodigoConduta()">⏸️ Desativar na App Atleta</button>`
+        :`<button class="btn btn-g" onclick="ativarCodigoConduta()">✅ Dar o Visto — Ativar na App Atleta</button>`)
+    :`<div class="al al-b" style="font-size:11px">Só quem tem acesso de administrador pode ativar ou desativar o Código na App Atleta.</div>`;
+  const ackHtml=active?`<div style="margin-top:4px;font-size:11.5px;color:var(--t2)">${st.ack}/${st.total} atletas já confirmaram "Li e aceito" nesta versão.${st.pending.length&&st.pending.length<=8?' Pendentes: '+st.pending.map(a=>escHtml(_displayName(a))).join(', ')+'.':''}</div>`:'';
+  document.getElementById('pg-codigo-conduta').innerHTML=`
+  <div class="sh"><div class="sh-t">📜 Código de Conduta</div></div>
+  <div class="card" style="margin-bottom:14px"><div class="cb">
+    ${statusHtml}
+    ${ackHtml}
+    <div style="margin-top:10px">${adminBtn}</div>
+  </div></div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir. Este é o texto oficial — 32 pontos, decididos com o Roger — que a atleta vê e aceita na app, assim que ativado.</div>
+  ${_CODIGO_CONDUTA_SECOES.map(s=>`<details style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
+    <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
+    <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
+  </details>`).join('')}`;
+}
+function ativarCodigoConduta(){
+  const sess=getSession();
+  if(!sess||!sess.isAdmin){toast('Só um administrador pode ativar o Código.','err');return;}
+  if(!confirm('Ativar o Código de Conduta na App Atleta? Todas as atletas vão vê-lo e ser pedidas a confirmar "Li e aceito".'))return;
+  const prev=APP.codeOfConduct;
+  const cc={
+    id:(prev&&prev.id)||('coc-'+(_cid||'default')),
+    active:true,version:(prev&&prev.version)||1,
+    publishedAt:new Date().toISOString(),publishedBy:sess.name,publishedById:sess.userId
+  };
+  APP.codeOfConduct=cc;
+  if(_sync)cloudUpsert('code_of_conduct',cc);
+  saveData();toast('Código de Conduta ativado na App Atleta ✓');renderCodigoConduta();
+}
+function desativarCodigoConduta(){
+  const sess=getSession();
+  if(!sess||!sess.isAdmin){toast('Só um administrador pode desativar o Código.','err');return;}
+  if(!confirm('Desativar o Código de Conduta? Deixa de aparecer na App Atleta até voltares a dar o visto.'))return;
+  const cc={...(APP.codeOfConduct||{id:'coc-'+(_cid||'default'),version:1}),active:false};
+  APP.codeOfConduct=cc;
+  if(_sync)cloudUpsert('code_of_conduct',cc);
+  saveData();toast('Código de Conduta desativado.');renderCodigoConduta();
+}
+
 // ─── RELATÓRIOS ──────────────────────────────────────────────
 let _repWellMode='diario',_repPseMode='diario',_repAtMode='semanal';
 function renderRelatorios(){
@@ -16435,6 +16674,33 @@ function atOpenManual(openId){
     </details>`).join('');
   openMod('📖 Manual da App',body,'lg');
 }
+// ── Código de Conduta (lado atleta) ───────────────────────────────────────
+// Só acessível quando APP.codeOfConduct?.active===true (gate feito no card da
+// Home — ver renderAtHome). Mesmo padrão de acordeão do Manual da App; a
+// diferença é o botão "Li e aceito" no fim, que grava cocAckVersion/cocAckAt
+// diretamente no registo da atleta (não precisa de tabela própria — só 2 campos).
+function atOpenCodigoConduta(openId){
+  const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
+  const cc=APP.codeOfConduct;
+  if(!cc||!cc.active){toast('O Código de Conduta ainda não está disponível.','err');return;}
+  const ack=at.cocAckVersion===(cc.version||1);
+  const body=`<div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir. Lê com atenção antes de confirmar.</div>`
+    +_CODIGO_CONDUTA_SECOES.map(s=>`<details ${openId===s.id?'open':''} style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
+      <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
+      <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
+    </details>`).join('')
+    +(ack
+      ?`<div class="al al-g" style="margin-top:10px"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Confirmaste "Li e aceito" em ${fmtDate((at.cocAckAt||'').slice(0,10))}.</div>`
+      :`<button class="btn btn-g" style="margin-top:10px;width:100%" onclick="atAceitarCodigoConduta()">✓ Li e aceito o Código de Conduta</button>`);
+  openMod('📜 Código de Conduta',body,'lg');
+}
+function atAceitarCodigoConduta(){
+  const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
+  const cc=APP.codeOfConduct;if(!cc||!cc.active)return;
+  at.cocAckVersion=cc.version||1;at.cocAckAt=new Date().toISOString();
+  if(_sync)cloudUpsert('athletes',at);
+  saveData();toast('Código de Conduta aceite ✓');closeMod();if(ROLE==='atleta'&&_atPage==='home')renderAtHome();
+}
 // ── Alteração voluntária de password (lado atleta, dentro da app) ────────────
 function atOpenChangePwd(){
   const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
@@ -16941,6 +17207,8 @@ function renderAtHome(){
   const openEvals=(APP.evalPeriods||[]).filter(p=>(p.status==='open')&&(!p.teamId||p.teamId===at.teamId)&&!(APP.evalResponses||[]).find(r=>r.periodId===p.id&&r.athleteId===AID&&r.type==='auto'));
   const pendingTreinos=(APP.trainingPlans||[]).filter(p=>p.athleteId===AID&&!p.done).length;
   const hasNutriPlan=!!(APP.nutritionPlans||[]).find(p=>p.athleteId===AID&&p.active);
+  const cocActive=!!(APP.codeOfConduct&&APP.codeOfConduct.active);
+  const cocPending=cocActive&&at.cocAckVersion!==(APP.codeOfConduct.version||1);
 
   const _bdg=(n,color)=>n?`<div style="position:absolute;top:7px;right:7px;background:${color};color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${n}</div>`:'';
   const _card=(page,icon,iconColor,title,sub,subColor,badge,rgb)=>`
@@ -17010,6 +17278,14 @@ function renderAtHome(){
       <div style="font-size:10px;color:var(--t2)">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
     </div>
   </div>
+  ${cocActive?`<div onclick="atOpenCodigoConduta()" style="background:${cocPending?'rgba(245,158,11,.18)':'rgba(22,163,74,.12)'};border:1.5px solid ${cocPending?'rgba(245,158,11,.55)':'rgba(22,163,74,.35)'};border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
+    <i class="ti ${cocPending?'ti-alert-triangle':'ti-file-text'}" style="font-size:26px;color:${cocPending?'#fbbf24':'#4ade80'};flex-shrink:0" aria-hidden="true"></i>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:800">📜 Código de Conduta</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:2px">${cocPending?'Pendente — toca para ler e confirmar "Li e aceito"':'Já confirmaste esta versão ✓ — toca para reler'}</div>
+    </div>
+    ${cocPending?'<i class="ti ti-chevron-right" style="font-size:18px;color:var(--t2)" aria-hidden="true"></i>':''}
+  </div>`:''}
   ${_isBirthdayToday(at.dob)?`<div style="background:linear-gradient(135deg,rgba(244,114,182,.22),rgba(251,191,36,.22));border:1.5px solid rgba(244,114,182,.55);border-radius:14px;padding:16px;margin-bottom:14px;text-align:center">
     <div style="font-size:30px;line-height:1;margin-bottom:6px">🎉🎂🎉</div>
     <div style="font-size:16px;font-weight:900">Parabéns, ${escHtml(_shortName(at))}!</div>
@@ -18410,7 +18686,7 @@ async function pullCloud(){
   if(!_supa||!_cid)return;
   try{
     const pulls=[
-      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash,nat:r.nationality||r.nat,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd}))],
+      ['athletes','athletes',(d)=>APP.athletes=d.map(r=>({...r,teamId:r.team_id,passwordHash:r.password_hash||r.passwordHash,nat:r.nationality||r.nat,mustChangePwd:r.must_change_pwd!==undefined?r.must_change_pwd:r.mustChangePwd,cocAckVersion:r.coc_ack_version,cocAckAt:r.coc_ack_at}))],
       ['wellness_records','wellness',(d)=>APP.wellness=d.map(r=>({...r,athleteId:r.athlete_id,submittedAt:r.submitted_at,cycleImpact:r.cycle_impact}))],
       ['pse_records','pse',(d)=>APP.pse=d.map(r=>({...r,athleteId:r.athlete_id,sessionType:r.session_type,submittedAt:r.submitted_at,eventId:r.event_id}))],
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at,registeredById:r.registered_by_id,phaseHistory:r.phase_history||[],responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
@@ -18420,6 +18696,7 @@ async function pullCloud(){
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,weekMeals:r.week_meals||null,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
+      ['code_of_conduct','codeOfConduct',(d)=>{const r=d[0];APP.codeOfConduct=r?{id:r.id,active:r.active,version:r.version,publishedAt:r.published_at,publishedBy:r.published_by,publishedById:r.published_by_id}:null;}],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
@@ -18741,8 +19018,8 @@ async function pushAppMeta(_pushRetry){
 // tal e qual (incluindo campos camelCase que não existem como coluna), o que fazia o
 // Supabase rejeitar o pedido inteiro — ou seja, o sync individual nunca funcionava de facto.
 const _CLOUD_TABLE_SCHEMA={
-  athletes:{cols:['id','name','alcunha','pos','num','dob','nationality','height','foot','photo','club','created_at','team_id','password_hash','email','weight','birth_country','situation','full_name','history','must_change_pwd'],
-    rename:{teamId:'team_id',passwordHash:'password_hash',nat:'nationality',clubHistory:'history',mustChangePwd:'must_change_pwd'}},
+  athletes:{cols:['id','name','alcunha','pos','num','dob','nationality','height','foot','photo','club','created_at','team_id','password_hash','email','weight','birth_country','situation','full_name','history','must_change_pwd','coc_ack_version','coc_ack_at'],
+    rename:{teamId:'team_id',passwordHash:'password_hash',nat:'nationality',clubHistory:'history',mustChangePwd:'must_change_pwd',cocAckVersion:'coc_ack_version',cocAckAt:'coc_ack_at'}},
   wellness_records:{cols:['id','athlete_id','date','sleep','fatigue','stress','pain','mood','score','cycle','cycle_impact','submitted_at'],
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at',cycleImpact:'cycle_impact'}},
   pse_records:{cols:['id','athlete_id','date','pse','duration','ua','session_type','submitted_at','event_id'],
@@ -18770,6 +19047,13 @@ const _CLOUD_TABLE_SCHEMA={
   // ver saveNutriGameday/_djNutriText/_diaJogoTimeline. Pedido do Roger, 17/09/2026.
   nutrition_gameday_plan:{cols:['id','wake','pre_game_meal','hydration','snack','post_game','updated_at','updated_by','updated_by_id'],
     rename:{preGameMeal:'pre_game_meal',postGame:'post_game',updatedAt:'updated_at',updatedBy:'updated_by',updatedById:'updated_by_id'}},
+  // Código de Conduta (sps-v196): singleton por clube (1 linha, id='coc-'+club_id),
+  // mesmo padrão exato de nutrition_gameday_plan — só o estado de ativação/versão
+  // vive aqui; o texto dos 32 pontos fica em código (_CODIGO_CONDUTA_SECOES), nunca
+  // na BD. Ativar/desativar é restrito a isAdmin (ver ativarCodigoConduta/renderCodigoConduta).
+  // Pedido do Roger, 02/10/2026.
+  code_of_conduct:{cols:['id','active','version','published_at','published_by','published_by_id'],
+    rename:{publishedAt:'published_at',publishedBy:'published_by',publishedById:'published_by_id'}},
   // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
   // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
   // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela criada no Supabase

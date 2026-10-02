@@ -2633,3 +2633,62 @@ novo na Home. Regressão completa re-corrida (`test_supl_v193.js`, `test_na_plan
 `test_tatico_v191.js`, `test_mobile_v187.js`, `test_nutri_plantel_v194.js`) sem falhas.
 
 SW bump para `sps-v195`.
+
+## sps-v196 (02/10/2026): Código de Conduta — implementação real na Plataforma + App Atleta
+
+Pedido do Roger: "QUERO QUE O CODIGO FIQUE PRONTO NA PLATAFORMA COM UM ESPAÇO/ABA PARA ELE
+E QUE SÓ COM O MEU VISTO PARA FICAR ATIVO É QUE APARECE NA APP ATLETAS NUMA SECÇÃO/CARD
+PRÓPRIA PARA O MESMO" — depois de fechado, ponto a ponto (`AskUserQuestion`, um a um), todo
+o conteúdo dos 32 pontos do Código de Conduta do Moreirense FC Feminino 2026/27 na doc
+"Código de Conduta & Estágios — Análise e Proposta". Esta versão implementa de facto o que
+até aqui era só a proposta, seguindo os padrões já estabelecidos no resto da app (nunca
+inventados de novo):
+
+1. **Texto dos 32 pontos** (`_CODIGO_CONDUTA_SECOES`, ~linha 15100): array estático em
+   código — igual a `_NUTRI_MANUAL_SECOES`/`_MANUAL_SECOES` — não é conteúdo editável pela
+   equipa técnica, é a política do clube tal como decidida com o Roger. Cada ponto numerado
+   1 a 32, em acordeão (`<details>`).
+2. **Nova página na Plataforma** (`codigo-conduta`, 📜): registada em `ALL_PAGES` (secção
+   nova "Clube"), `_NAV_TITLES`, `renders` (`navTo`), `pg-codigo-conduta`. Acesso automático
+   para `treinador`/`treinador_adj` (via `_ALL_PAGE_IDS`); adicionado explicitamente a
+   `team_manager` e `diretor`. `renderCodigoConduta()` mostra o estado atual (ativo/inativo,
+   versão, quem e quando ativou) + estatística de quantas atletas já confirmaram "Li e
+   aceito" + a lista de acordeões com os 32 pontos.
+3. **Ativação restrita ao Roger** (`ativarCodigoConduta`/`desativarCodigoConduta`): gate por
+   `getSession().isAdmin` — mesma guarda de `_canManageUsers()` — nunca por `ROLE_DEFS`
+   (um cargo poder ver a página não dá poder para ativar). Sem isso, a página mostra só um
+   aviso, sem botão.
+4. **Estado de ativação em tabela dedicada própria** (`APP.codeOfConduct`, default `null`):
+   singleton por clube (`id:'coc-'+clubId`), mesmo padrão exato de
+   `APP.nutritionGameDayPlan`/`nutrition_gameday_plan` — nunca no blob `clubs.meta` (lição
+   repetida de incidentes #1-4). Tabela Supabase `code_of_conduct` (migração
+   `create_code_of_conduct_table`), `_CLOUD_TABLE_SCHEMA`/`pullCloud()` atualizados a par.
+5. **Aceitação por atleta** ("Li e aceito"): 2 campos simples direto no registo da atleta —
+   `cocAckVersion`/`cocAckAt` (colunas `coc_ack_version`/`coc_ack_at` em `athletes`) — em vez
+   de tabela nova, por serem só 2 campos (não é série temporal). Reaproveita o
+   `cloudUpsert('athletes',...)` já existente.
+6. **App Atleta**: cartão de destaque na Home (`renderAtHome`), visível só quando
+   `APP.codeOfConduct?.active===true` — amarelo "Pendente" se `cocAckVersion` não é a versão
+   em vigor, verde "Já confirmaste" caso contrário. Toca para abrir `atOpenCodigoConduta()`
+   (mesmo acordeão, modal `lg`) com botão "✓ Li e aceito" no fim quando ainda pendente
+   (`atAceitarCodigoConduta`, grava `cocAckVersion`/`cocAckAt` e fecha o modal). Se o Código
+   for revisto no futuro (incrementar `version` em `APP.codeOfConduct`), qualquer atleta com
+   `cocAckVersion` de uma versão anterior volta a aparecer como pendente, sem perder o
+   histórico de aceitação anterior.
+
+Testado com Node (`node --check` ao script extraído) e um harness Node com stubs de DOM/
+sessionStorage a correr o fluxo completo dentro do próprio `vm` (sem Playwright, por não
+haver elementos visuais novos complexos): staff não-admin vê só o aviso, staff admin vê o
+botão e consegue ativar (`APP.codeOfConduct` fica com `active:true`/`version`/`publishedBy`
+corretos), estatística de aceitação (1/2) correta depois de ativar, cartão da Home da atleta
+aparece "Pendente" para quem ainda não aceitou e "Já confirmaste" para quem já tinha
+`cocAckVersion` igual à versão em vigor, aceitar grava os campos e atualiza o cartão, e
+desativar esconde o cartão da App Atleta por completo. `_CODIGO_CONDUTA_SECOES` validado com
+32 entradas, ids únicos, títulos numerados 1..32 em ordem, e todos os campos `id`/`icon`/
+`title`/`html` preenchidos.
+
+Tabela `code_of_conduct` criada no Supabase (migração `create_code_of_conduct_table`, RLS
+`anon_all` igual às restantes) e colunas `coc_ack_version`/`coc_ack_at` adicionadas à tabela
+`athletes` já existente, na mesma migração.
+
+SW bump para `sps-v196`.
