@@ -15281,10 +15281,30 @@ function _cocAckStats(){
   const ack=ats.filter(a=>a.cocAckVersion===v);
   return{total:ats.length,ack:ack.length,pending:ats.filter(a=>a.cocAckVersion!==v)};
 }
+// Pedido do Roger (02/10/2026): "QUERO QUE O CODIGO DE CONDUTA SEJA EDITAVEL E
+// EXPORTAVEL(PDF) NA PLATAFORMA" — o texto deixa de ser só fixo em código: a
+// equipa técnica (isAdmin) pode editar título/texto de cada um dos 32 pontos
+// diretamente na Plataforma. _CODIGO_CONDUTA_SECOES continua a ser a base/
+// fallback (nunca é apagado) — a edição grava só os pontos alterados em
+// APP.codeOfConduct.sections (array completo, por id), guardado na mesma
+// tabela singleton code_of_conduct. _cocSections() funde os dois: qualquer
+// ponto sem edição continua a mostrar o texto original, e qualquer ponto novo
+// que venha a ser acrescentado ao código no futuro aparece automaticamente
+// mesmo que a edição guardada seja antiga.
+function _cocSections(){
+  const cc=APP.codeOfConduct;
+  const overrides={};
+  ((cc&&cc.sections)||[]).forEach(s=>{ if(s&&s.id)overrides[s.id]=s; });
+  return _CODIGO_CONDUTA_SECOES.map(def=>overrides[def.id]?{...def,...overrides[def.id]}:def);
+}
+let _cocEditMode=false;
 function renderCodigoConduta(){
   const cc=APP.codeOfConduct;
   const isAdmin=!!(getSession()&&getSession().isAdmin);
   const active=!!(cc&&cc.active);
+  const secoes=_cocSections();
+  const customized=!!(cc&&cc.sections&&cc.sections.length);
+  if(_cocEditMode&&isAdmin){ _renderCodigoCondutaEdit(secoes,customized); return; }
   const st=_cocAckStats();
   const statusHtml=active
     ?`<div class="al al-g"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i><div><b>Ativo na App Atleta</b> desde ${fmtDate((cc.publishedAt||'').slice(0,10))}${cc.publishedBy?' · visto de '+escHtml(cc.publishedBy):''} — versão ${cc.version||1}.</div></div>`
@@ -15295,18 +15315,104 @@ function renderCodigoConduta(){
         :`<button class="btn btn-g" onclick="ativarCodigoConduta()">✅ Dar o Visto — Ativar na App Atleta</button>`)
     :`<div class="al al-b" style="font-size:11px">Só quem tem acesso de administrador pode ativar ou desativar o Código na App Atleta.</div>`;
   const ackHtml=active?`<div style="margin-top:4px;font-size:11.5px;color:var(--t2)">${st.ack}/${st.total} atletas já confirmaram "Li e aceito" nesta versão.${st.pending.length&&st.pending.length<=8?' Pendentes: '+st.pending.map(a=>escHtml(_displayName(a))).join(', ')+'.':''}</div>`:'';
+  const editedHtml=customized?`<div style="margin-top:4px;font-size:11px;color:var(--t2)"><i class="ti ti-edit" style="margin-right:3px;vertical-align:-2px" aria-hidden="true"></i>Texto personalizado${cc.sectionsUpdatedBy?' por '+escHtml(cc.sectionsUpdatedBy):''}${cc.sectionsUpdatedAt?' em '+fmtDate(cc.sectionsUpdatedAt.slice(0,10)):''}.</div>`:'';
+  const toolbarHtml=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    ${adminBtn}
+    ${isAdmin?`<button class="btn btn-gh" onclick="_cocEditMode=true;renderCodigoConduta()">✏️ Editar Texto</button>`:''}
+    <button class="btn btn-gh" onclick="printCodigoCondutaPDF()">🖨️ Exportar PDF</button>
+  </div>`;
   document.getElementById('pg-codigo-conduta').innerHTML=`
   <div class="sh"><div class="sh-t">📜 Código de Conduta</div></div>
   <div class="card" style="margin-bottom:14px"><div class="cb">
     ${statusHtml}
     ${ackHtml}
-    <div style="margin-top:10px">${adminBtn}</div>
+    ${editedHtml}
+    ${toolbarHtml}
   </div></div>
-  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir. Este é o texto oficial — 32 pontos, decididos com o Roger — que a atleta vê e aceita na app, assim que ativado.</div>
-  ${_CODIGO_CONDUTA_SECOES.map(s=>`<details style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
+  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir. Este é o texto oficial — 32 pontos — que a atleta vê e aceita na app, assim que ativado.</div>
+  ${secoes.map(s=>`<details style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
     <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
     <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
   </details>`).join('')}`;
+}
+function _renderCodigoCondutaEdit(secoes,customized){
+  const fieldsHtml=secoes.map((s,i)=>`
+    <div class="card" style="margin-bottom:8px"><div class="cb">
+      <div class="form-g"><label class="fl">${i+1}. Título</label><input class="fc" id="coc-title-${s.id}" value="${escHtml(s.title)}"></div>
+      <div class="form-g"><label class="fl">Texto (HTML simples: &lt;p&gt;, &lt;b&gt;, &lt;br&gt;, tabelas...)</label><textarea class="fc" id="coc-html-${s.id}" rows="5" style="font-family:monospace;font-size:11px">${escHtml(s.html)}</textarea></div>
+    </div></div>`).join('');
+  document.getElementById('pg-codigo-conduta').innerHTML=`
+  <div class="sh"><div class="sh-t">✏️ A Editar — Código de Conduta</div></div>
+  <div class="al al-b" style="margin-bottom:12px">Edita o título e o texto de qualquer um dos 32 pontos. Se o Código já estiver ativo, marca a opção abaixo para pedir às atletas que confirmem "Li e aceito" outra vez.</div>
+  <div class="card" style="margin-bottom:14px"><div class="cb">
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+      <input type="checkbox" id="coc-bump-version" checked style="width:16px;height:16px">
+      Esta alteração exige nova aceitação das atletas (aumenta a versão)
+    </label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn btn-g" onclick="saveCodigoCondutaTexto()">💾 Guardar Alterações</button>
+      <button class="btn btn-gh" onclick="_cocEditMode=false;renderCodigoConduta()">✕ Cancelar</button>
+      ${customized?`<button class="btn btn-gh" style="color:#f87171;border-color:#f87171" onclick="resetCodigoCondutaTexto()">↺ Repor Texto Original</button>`:''}
+    </div>
+  </div></div>
+  ${fieldsHtml}`;
+}
+function saveCodigoCondutaTexto(){
+  const sess=getSession();
+  if(!sess||!sess.isAdmin){toast('Só um administrador pode editar o Código.','err');return;}
+  const bump=!!document.getElementById('coc-bump-version')?.checked;
+  const sections=_CODIGO_CONDUTA_SECOES.map(def=>{
+    const titleEl=document.getElementById('coc-title-'+def.id);
+    const htmlEl=document.getElementById('coc-html-'+def.id);
+    const title=(titleEl&&titleEl.value.trim())||def.title;
+    const html=(htmlEl&&htmlEl.value.trim())||def.html;
+    return{id:def.id,icon:def.icon,title,html};
+  });
+  const prev=APP.codeOfConduct;
+  const cc={
+    ...(prev||{id:'coc-'+(_cid||'default'),active:false,version:1}),
+    version:bump?(((prev&&prev.version)||1)+1):((prev&&prev.version)||1),
+    sections,sectionsUpdatedAt:new Date().toISOString(),sectionsUpdatedBy:sess.name
+  };
+  APP.codeOfConduct=cc;
+  if(_sync)cloudUpsert('code_of_conduct',cc);
+  saveData();_cocEditMode=false;
+  toast('Texto do Código guardado'+(bump&&cc.active?' — versão atualizada, atletas vão confirmar de novo ✓':' ✓'));
+  renderCodigoConduta();
+}
+function resetCodigoCondutaTexto(){
+  if(!confirm('Repor o texto original dos 32 pontos? Perdes todas as edições feitas na Plataforma.'))return;
+  const sess=getSession();
+  const prev=APP.codeOfConduct;
+  const cc={...(prev||{id:'coc-'+(_cid||'default'),active:false,version:1}),sections:null,sectionsUpdatedAt:null,sectionsUpdatedBy:null};
+  APP.codeOfConduct=cc;
+  if(_sync)cloudUpsert('code_of_conduct',cc);
+  saveData();_cocEditMode=false;toast('Texto original do Código reposto.');renderCodigoConduta();
+}
+// Exportação em PDF (mesmo mecanismo _printWin já usado em todos os outros
+// relatórios/fichas da app — abre numa janela e chama print(), sem biblioteca
+// de PDF própria). As variáveis CSS do resto da app (var(--t2) etc.) não
+// existem na janela de impressão, por isso sõa convertidas para cores fixas
+// só neste export, sem tocar no texto guardado.
+function _cocPdfFix(html){
+  return (html||'')
+    .replace(/var\(--t2\)/g,'#666').replace(/var\(--t1\)/g,'#111')
+    .replace(/var\(--bg3\)/g,'#f5f5f5').replace(/var\(--c1l?\)/g,'#1d6f3b')
+    .replace(/var\(--brd\)/g,'#ddd');
+}
+function printCodigoCondutaPDF(){
+  const cc=APP.codeOfConduct;
+  const secoes=_cocSections();
+  const statusLine=cc&&cc.active
+    ?`Em vigor desde ${fmtDate((cc.publishedAt||'').slice(0,10))} · versão ${cc.version||1}`
+    :'Documento em preparação — ainda não ativo na App Atleta';
+  const body=`
+    <div class="pr-title">📜 Código de Conduta</div>
+    <div style="font-size:9pt;color:#666;margin-bottom:16px">${statusLine}</div>
+    ${secoes.map(s=>`<h3><i class="ti ${s.icon}" style="margin-right:4px;vertical-align:-2px"></i>${escHtml(s.title)}</h3>
+    <div style="font-size:9.5pt;line-height:1.5;margin-bottom:10px">${_cocPdfFix(s.html)}</div>`).join('')}
+  `;
+  _printWin('Código de Conduta',body);
 }
 function ativarCodigoConduta(){
   const sess=getSession();
@@ -15314,6 +15420,7 @@ function ativarCodigoConduta(){
   if(!confirm('Ativar o Código de Conduta na App Atleta? Todas as atletas vão vê-lo e ser pedidas a confirmar "Li e aceito".'))return;
   const prev=APP.codeOfConduct;
   const cc={
+    ...(prev||{}),
     id:(prev&&prev.id)||('coc-'+(_cid||'default')),
     active:true,version:(prev&&prev.version)||1,
     publishedAt:new Date().toISOString(),publishedBy:sess.name,publishedById:sess.userId
@@ -16685,7 +16792,7 @@ function atOpenCodigoConduta(openId){
   if(!cc||!cc.active){toast('O Código de Conduta ainda não está disponível.','err');return;}
   const ack=at.cocAckVersion===(cc.version||1);
   const body=`<div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir. Lê com atenção antes de confirmar.</div>`
-    +_CODIGO_CONDUTA_SECOES.map(s=>`<details ${openId===s.id?'open':''} style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
+    +_cocSections().map(s=>`<details ${openId===s.id?'open':''} style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
       <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
       <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
     </details>`).join('')
@@ -18696,7 +18803,7 @@ async function pullCloud(){
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,weekMeals:r.week_meals||null,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
-      ['code_of_conduct','codeOfConduct',(d)=>{const r=d[0];APP.codeOfConduct=r?{id:r.id,active:r.active,version:r.version,publishedAt:r.published_at,publishedBy:r.published_by,publishedById:r.published_by_id}:null;}],
+      ['code_of_conduct','codeOfConduct',(d)=>{const r=d[0];APP.codeOfConduct=r?{id:r.id,active:r.active,version:r.version,publishedAt:r.published_at,publishedBy:r.published_by,publishedById:r.published_by_id,sections:r.sections||null,sectionsUpdatedAt:r.sections_updated_at,sectionsUpdatedBy:r.sections_updated_by}:null;}],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
@@ -19052,8 +19159,8 @@ const _CLOUD_TABLE_SCHEMA={
   // vive aqui; o texto dos 32 pontos fica em código (_CODIGO_CONDUTA_SECOES), nunca
   // na BD. Ativar/desativar é restrito a isAdmin (ver ativarCodigoConduta/renderCodigoConduta).
   // Pedido do Roger, 02/10/2026.
-  code_of_conduct:{cols:['id','active','version','published_at','published_by','published_by_id'],
-    rename:{publishedAt:'published_at',publishedBy:'published_by',publishedById:'published_by_id'}},
+  code_of_conduct:{cols:['id','active','version','published_at','published_by','published_by_id','sections','sections_updated_at','sections_updated_by'],
+    rename:{publishedAt:'published_at',publishedBy:'published_by',publishedById:'published_by_id',sectionsUpdatedAt:'sections_updated_at',sectionsUpdatedBy:'sections_updated_by'}},
   // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
   // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
   // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela criada no Supabase

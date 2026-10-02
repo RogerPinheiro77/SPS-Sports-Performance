@@ -2692,3 +2692,54 @@ Tabela `code_of_conduct` criada no Supabase (migração `create_code_of_conduct_
 `athletes` já existente, na mesma migração.
 
 SW bump para `sps-v196`.
+
+## sps-v197 (02/10/2026): Código de Conduta — texto editável na Plataforma + exportação PDF
+
+Pedido do Roger a seguir ao sps-v196: "PRECISO QUE O CODIGO DE CONDUTA SEJA EDITAVEL E
+EXPORTAVEL(PDF) NA PLATAFORMA". Até aqui o texto dos 32 pontos era só fixo em código
+(`_CODIGO_CONDUTA_SECOES`), igual ao padrão do Manual Nutricional — deixou de bastar,
+porque é texto de política do clube e o Roger precisa de poder ajustar a redação sem
+pedir um deploy novo de cada vez.
+
+1. **Edição por ponto, não reescrita do ficheiro**: `_CODIGO_CONDUTA_SECOES` continua a
+   ser a base/fallback (nunca apagado do código) — a edição grava só os pontos alterados
+   em `APP.codeOfConduct.sections` (array completo, por `id`), na mesma tabela singleton
+   `code_of_conduct` (colunas novas `sections` jsonb, `sections_updated_at`,
+   `sections_updated_by`; migração `add_code_of_conduct_editable_sections`).
+   `_cocSections()` funde os dois em runtime: qualquer ponto sem edição mostra sempre o
+   texto original, e um ponto novo que vier a ser acrescentado ao código no futuro
+   aparece automaticamente mesmo com uma edição antiga guardada.
+2. **Modo de edição na Plataforma** (`_cocEditMode`, `_renderCodigoCondutaEdit`,
+   `saveCodigoCondutaTexto`, `resetCodigoCondutaTexto`): botão "✏️ Editar Texto"
+   (isAdmin, mesma guarda de `ativarCodigoConduta`) transforma os 32 acordeões num
+   formulário com título (`<input>`) + texto HTML simples (`<textarea>`) por ponto, um
+   único botão "💾 Guardar Alterações" no fim (mesmo padrão de `renderNutriGameday`:
+   vários campos, um save só). Checkbox "Esta alteração exige nova aceitação das
+   atletas" (marcado por defeito) incrementa `version` ao guardar — reabre o pendente de
+   "Li e aceito" para todo o plantel, sem perder o histórico de quem já tinha aceitado a
+   versão anterior. Botão "↺ Repor Texto Original" (só aparece havendo edição) limpa
+   `sections` e volta ao texto de código.
+3. **Exportação em PDF** (`printCodigoCondutaPDF`): reaproveita `_printWin()`, o mesmo
+   mecanismo de todos os outros relatórios da app (abre numa janela, chama `print()`,
+   sem biblioteca de PDF própria) — nunca inventado de novo. Usa sempre `_cocSections()`
+   (texto editado, se houver), por isso o PDF reflete sempre o que a atleta vê na app.
+   `_cocPdfFix()` troca as variáveis CSS do resto da app (`var(--t2)`, etc., que não
+   existem na janela de impressão) por cores fixas, só nesta exportação — nunca no texto
+   guardado.
+4. **Correção de regressão**: `ativarCodigoConduta`/`desativarCodigoConduta` faziam
+   `const cc={id,active,...}` a partir do zero, o que apagava silenciosamente qualquer
+   `sections` já guardado sempre que o Roger ativava/desativava o Código depois de o
+   editar. Corrigido para `{...(prev||{}),...}` antes de sobrepor os campos próprios —
+   mesma classe de bug já documentada noutros incidentes de push/pull desta app.
+
+Testado com Node (`node --check`) e um harness dedicado (`test_coc_edit.js`, vm com stubs
+de DOM/sessionStorage/window.open): fusão `_cocSections()` (override + fallback por
+ponto), fluxo completo de edição (abrir modo de edição, alterar título/texto de um ponto,
+guardar com `version++`), confirmação de que ativar/desativar já não apaga as edições
+(regressão), exportação em PDF sem lançar excepção e já com o texto editado, "Repor Texto
+Original" a limpar o override sem desativar o Código, vista da atleta (`atOpenCodigoConduta`)
+a refletir sempre o texto atual via `_cocSections()`, e bloqueio de quem não é admin a
+gravar edições. Regressão do fluxo de ativação/aceitação do sps-v196 (`test_coc3.js`)
+re-corrida sem falhas.
+
+SW bump para `sps-v197`.
