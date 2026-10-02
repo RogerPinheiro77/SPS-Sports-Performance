@@ -2929,4 +2929,13 @@ convocadas e o critério do visto a refletir `g.convocatoria` mesmo sem onze/ban
 Previews reais enviados ao Roger (10/25/30 atletas) antes de publicar, com confirmação
 explícita antes do deploy.
 
-**Ainda por fazer:** nada pendente para este pedido.
+**Nota de limpeza de dados (02/10/2026), por fazer pelo próprio Roger ("depois eu trato
+disso"):** ao avisar da reversão para `g.convocatoria`, o Roger apontou o risco do sps-v178
+(atleta fictícia "Teste", `mso9x6ooc0im`, ficar com visto por engano). Essa atleta em
+concreto já não existe no plantel — mas, ao verificar por SQL, encontrou-se **outra** atleta
+de teste ainda no plantel principal (T1): **"TESTE00"** (`mupoy7co57f9`). Não está convocada
+em nenhum jogo neste momento (sem risco imediato), mas sem a filtragem por onze/banco que
+existia antes do sps-v200, se um dia for marcada como convocada por engano volta a aparecer
+com visto na Lista de Convocados. Recomendado ao Roger apagá-la (Plantel → Scouting); ele
+confirmou que trata disso por si mesmo mais tarde — não é uma tarefa para a próxima sessão
+tratar por iniciativa própria, só verificar se já foi feito caso o tema volte a surgir.
