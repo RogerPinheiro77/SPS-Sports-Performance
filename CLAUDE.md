@@ -3162,3 +3162,26 @@ não incluído de propósito: um modo "apresentação automática" que avança o
 intervenção (hoje é só manual, por setas/teclado); mostrar as Tarefas Individuais (Set
 Pieces) ou a Descrição (Playbook) como legenda opcional dentro do próprio ecrã cheio
 (hoje é só o diagrama, como pedido — "só aparece a imagem").
+
+## Pendente — pedido do Roger (06/10/2026, fim de sessão, para retomar "amanhã")
+
+Ainda por investigar/implementar, registado a pedido explícito dele antes de fechar a
+sessão ("fica com isto registado e amanhã avançamos"):
+
+1. **Rever a forma como edita o Guião de Jogo Fora e o Código de Conduta** — ambos usam
+   o mesmo modo de edição por ponto introduzido no sps-v197/v198
+   (`_renderCodigoCondutaEdit`/`_renderGuiaoJogoForaEdit`, formulário com todos os pontos
+   + um único botão "💾 Guardar Alterações" no fim). O Roger não detalhou ainda o que
+   quer mudar nesse fluxo — por esclarecer com ele antes de mexer.
+2. **Gravação automática + edição sempre disponível em "entradas de edição novas"** —
+   pedido mais genérico, que ele disse ter detetado em particular na App Nutri: sempre
+   que há uma nova entrada/registo a editar, quer que grave automaticamente (sem
+   depender de um botão "Guardar" explícito) e que fique sempre editável depois. Por
+   esclarecer com ele exatamente que ecrã(s) da App Nutri o incomodou (há vários padrões
+   diferentes nessa app — formulários com botão único tipo Guião/Código de Conduta,
+   campos com `onblur` que já gravam sozinhos tipo Avaliações Antropométricas, etc.) e se
+   o pedido é só para a Nutri ou para o padrão geral da plataforma.
+
+Nenhum destes dois pontos foi ainda investigado em código — a próxima sessão deve
+começar por pedir ao Roger para concretizar o que o incomoda em cada um, antes de propor
+solução (mesma prática já seguida neste projeto para pedidos abertos).
