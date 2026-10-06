@@ -291,6 +291,19 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
 .mx{width:25px;height:25px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--t2);cursor:pointer}
 .mx:hover{color:var(--t1)}
 
+/* MODO APRESENTAÇÃO (sps-v202) — ecrã cheio, só o diagrama, para Playbook/Set Pieces */
+.pres-ov{position:fixed;inset:0;background:#05070c;z-index:5500;display:none;flex-direction:column;align-items:center;justify-content:center;padding:0}
+.pres-ov.on{display:flex}
+.pres-stage{width:92vw;height:85vh;display:flex;align-items:center;justify-content:center}
+.pres-stage svg{width:100%;height:100%}
+.pres-close{position:absolute;top:14px;right:14px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:18px;cursor:pointer;z-index:2}
+.pres-close:hover{background:rgba(255,255,255,.18)}
+.pres-counter{position:absolute;top:16px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.85);font-size:13px;font-weight:700;background:rgba(255,255,255,.08);padding:4px 14px;border-radius:14px;z-index:2}
+.pres-arrow{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:22px;cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center}
+.pres-arrow:hover{background:rgba(255,255,255,.18)}
+.pres-arrow.prev{left:14px}
+.pres-arrow.next{right:14px}
+
 /* PLANTEL GRID */
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:11px}
 .at-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:13px;text-align:center;cursor:pointer;transition:all .2s}
@@ -603,6 +616,15 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="mh"><div class="mt" id="modal-title"></div><button class="mx" onclick="closeMod()">✕</button></div>
     <div id="modal-body"></div>
   </div>
+</div>
+
+<!-- MODO APRESENTAÇÃO (sps-v202) — ecrã cheio, só o diagrama (Playbook/Set Pieces) -->
+<div class="pres-ov" id="pres-ov" onclick="_presBackdropClick(event)">
+  <div class="pres-counter" id="pres-counter" style="display:none"></div>
+  <button class="pres-close" onclick="presClose()" title="Fechar (Esc)">✕</button>
+  <button class="pres-arrow prev" id="pres-prev" onclick="presPrev()" title="Anterior" style="display:none">‹</button>
+  <div class="pres-stage" id="pres-stage"></div>
+  <button class="pres-arrow next" id="pres-next" onclick="presNext()" title="Seguinte" style="display:none">›</button>
 </div>
 
 <!-- TOAST -->
@@ -1282,6 +1304,60 @@ function toggleSb(){
 function toast(msg,type='ok'){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+(type==='err'?'err':'ok');setTimeout(()=>t.className='',2400);}
 function openMod(title,bodyHtml,size=''){const b=document.getElementById('modal-box');b.className='mbox'+(size?' '+size:'');document.getElementById('modal-title').textContent=title;document.getElementById('modal-body').innerHTML=bodyHtml;document.getElementById('modal-ov').classList.add('on');}
 function closeMod(e){if(e&&e.target!==document.getElementById('modal-ov'))return;document.getElementById('modal-ov').classList.remove('on');}
+
+// ── Modo Apresentação (sps-v202) ─────────────────────────────────────────────
+// Motor genérico partilhado por Playbook e Set Pieces (_pbBoardHtml/_jogoCampoHtml):
+// ecrã cheio, só o diagrama (SVG não-interativo, sem drag), com navegação entre
+// "frames" (passos da galeria, ou um único frame sintético com o estado atual se
+// ainda não houver nenhum registo). Puramente de leitura — nunca escreve em
+// pb/g/APP; abrir, navegar e fechar não alteram nenhum dado, só o estado efémero
+// desta UI (_pres*). O nome de cada marcador vem sempre do estado AO VIVO
+// (pb.athleteAssign ou o plantel/lineup do jogo), nunca de um campo gravado dentro
+// de um snapshot antigo — ver _presSvgFor.
+let _presFrames=[],_presIdx=0,_presKind=null,_presCtx=null,_presKeyHandler=null;
+function _presOpen(kind,ctx,frames){
+  _presKind=kind;_presCtx=ctx;_presFrames=(frames&&frames.length)?frames:[{}];_presIdx=0;
+  _presRender();
+  document.getElementById('pres-ov').classList.add('on');
+  if(_presKeyHandler)document.removeEventListener('keydown',_presKeyHandler);
+  _presKeyHandler=function(e){
+    if(e.key==='Escape')presClose();
+    else if(e.key==='ArrowLeft')presPrev();
+    else if(e.key==='ArrowRight')presNext();
+  };
+  document.addEventListener('keydown',_presKeyHandler);
+}
+function presClose(){
+  document.getElementById('pres-ov').classList.remove('on');
+  document.getElementById('pres-stage').innerHTML='';
+  if(_presKeyHandler){document.removeEventListener('keydown',_presKeyHandler);_presKeyHandler=null;}
+  _presFrames=[];_presIdx=0;_presKind=null;_presCtx=null;
+}
+function _presBackdropClick(e){if(e.target!==document.getElementById('pres-ov'))return;presClose();}
+function presPrev(){if(_presIdx<=0)return;_presIdx--;_presRender();}
+function presNext(){if(_presIdx>=_presFrames.length-1)return;_presIdx++;_presRender();}
+// Reaproveita os geradores de SVG já existentes (_pbSnapshotSvg/_pitchSnapshotSvg),
+// só a trocar a largura/altura fixas em px (pensadas para miniaturas/PDF) pelo
+// estilo 100%/100% do palco — o viewBox existente faz o resto do trabalho (letterbox
+// automático em campo-inteiro ou meio-campo).
+function _presSvgFor(frame){
+  let svg='';
+  if(_presKind==='pb')svg=_pbSnapshotSvg(frame,300,_presCtx.pb.athleteAssign);
+  else if(_presKind==='pitch')svg=_pitchSnapshotSvg(_presCtx.mode,frame,300,true);
+  return svg.replace(/style="[^"]*"/,'style="width:100%;height:100%;display:block"');
+}
+function _presRender(){
+  const n=_presFrames.length;
+  document.getElementById('pres-stage').innerHTML=_presSvgFor(_presFrames[_presIdx]||{});
+  const counterEl=document.getElementById('pres-counter');
+  if(n>1){counterEl.style.display='';counterEl.textContent='Passo '+(_presIdx+1)+' de '+n;}
+  else counterEl.style.display='none';
+  const prevBtn=document.getElementById('pres-prev'),nextBtn=document.getElementById('pres-next');
+  if(n>1){
+    prevBtn.style.display='';nextBtn.style.display='';
+    prevBtn.disabled=_presIdx<=0;nextBtn.disabled=_presIdx>=n-1;
+  }else{prevBtn.style.display='none';nextBtn.style.display='none';}
+}
 function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fmtDateShort(d){if(!d)return'—';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('pt-PT',{day:'2-digit',month:'short'});}
 // Hora local (HH:MM) a partir de um timestamp ISO completo (ex: submittedAt) — usado onde
@@ -6259,6 +6335,26 @@ function _pitchSnapshotsFor(g,mode){
   if(!g.setpieceSnapshots[mode])g.setpieceSnapshots[mode]=[];
   return g.setpieceSnapshots[mode];
 }
+// Frame sintético com o estado atual do quadro (mesma forma de um item de
+// g.setpieceSnapshots[mode]/g.tacticoSnapshots), usado pelo Modo Apresentação quando
+// ainda não há nenhum registo na galeria — só leitura, nunca gravado nem associado a g.
+function _pitchCurrentFrame(g,mode){
+  const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode);
+  const maxY=_pitchMaxY(mode);
+  const sortedLineup=(g.lineup||[]).map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
+    .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+  const positions={},tasks={};
+  sortedLineup.forEach(({aid},i)=>{
+    const def=_pitchDefaultPos(mode,i,g.formation);
+    const raw=posMap[aid]||{x:def[0],y:def[1]};
+    positions[aid]={x:raw.x,y:Math.min(raw.y,maxY)};
+    if(taskMap[aid])tasks[aid]=taskMap[aid];
+  });
+  const opponents=_pitchOpponents(g,mode).map(o=>({id:o.id,num:o.num,x:o.x,y:o.y}));
+  const ball=_pitchBallMap(g)[mode]?{...(_pitchBallMap(g)[mode])}:null;
+  const fullView=!!_pitchFullView[mode];
+  return {id:'_live',minRaw:null,note:'',positions,tasks,opponents,ball,fullView,lineup:sortedLineup.map(x=>x.aid)};
+}
 function _pitchSnapshot(gid,mode){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   if(!g.lineup||!g.lineup.length)return toast('Define o onze no Pré-Jogo primeiro','err');
@@ -6310,10 +6406,24 @@ function _pitchDeleteSnapshot(gid,mode,snapId){
   if(idx>=0)snaps.splice(idx,1);
   saveData();_renderJogoDetailFull();
 }
+// Modo Apresentação (sps-v202) — ecrã cheio, só o diagrama, para mostrar no campo/
+// treino. Frames = a galeria deste sub-separador (se houver), senão o estado atual
+// sozinho. Partilhado pelos 4 sub-separadores (Tático/Canto Def./Canto Of./Livre) e
+// pela app standalone ?tatico=1, por serem todos a mesma _jogoCampoHtml.
+function pitchOpenPresentation(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const snaps=_pitchSnapshotsFor(g,mode);
+  const frames=(snaps&&snaps.length)?snaps:[_pitchCurrentFrame(g,mode)];
+  _presOpen('pitch',{g,mode},frames);
+}
 // SVG de um snapshot guardado (fundo/campo idêntico ao quadro ao vivo — ver
 // _jogoCampoHtml — e mesmo esquema de cor GR/jogadora de linha). w controla o tamanho;
-// usado tanto nas miniaturas da galeria como no PDF (tamanho maior).
-function _pitchSnapshotSvg(mode,snap,w){
+// usado tanto nas miniaturas da galeria como no PDF (tamanho maior). forceNames
+// (opcional, sps-v202): mostra sempre o nome por baixo do círculo, independente do
+// sub-separador — só usado pelo Modo Apresentação (_presSvgFor); omitido (todas as
+// chamadas já existentes), o comportamento fica exatamente igual ao de sempre (nome só
+// no Tático, via isTatico).
+function _pitchSnapshotSvg(mode,snap,w,forceNames){
   w=w||190;
   const isTatico=mode==='tatico';
   // Miniatura mostra a mesma vista (campo inteiro/meio) que estava ativa quando o
@@ -6349,7 +6459,8 @@ function _pitchSnapshotSvg(mode,snap,w){
     const fill=isGK?'#27ae60':'#ffd700';
     const tf=isGK?'#fff':'#1a1a2e';
     dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||'?'}</text>`;
-    if(isTatico)dots+=`<text x="${p.x}" y="${(p.y+16).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
+    if(forceNames)dots+=`<text x="${p.x}" y="${(p.y+17).toFixed(1)}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
+    else if(isTatico)dots+=`<text x="${p.x}" y="${(p.y+16).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
   });
   // Adversárias — um X vermelho (sps-v185, 29/09/2026: pedido do Roger, trocou o círculo
   // numerado original por um X, mais rápido de identificar/desenhar num quadro de bolas
@@ -6486,6 +6597,7 @@ function _jogoCampoHtml(g){
       <button class="btn btn-sm btn-gh" onclick="pitchAddOpponent('${g.id}','${mode}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
       <button class="btn btn-sm ${ballPos?'btn-r':'btn-gh'}" onclick="pitchToggleBall('${g.id}','${mode}')" title="Adicionar/remover marcador da bola">⚽ ${ballPos?'Remover Bola':'Bola'}</button>
       ${mode!=='tatico'?`<button class="btn btn-sm btn-gh" onclick="pbSaveFromGameBoard('${g.id}','${mode}')" title="Guardar este quadro na biblioteca do Playbook">💾 Guardar na Biblioteca</button>`:''}
+      <button class="btn btn-sm btn-gh" onclick="pitchOpenPresentation('${g.id}','${mode}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
       ${opponentsList.length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para remover</span>`:''}
     </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
@@ -16569,6 +16681,17 @@ function pbToggleView(pbid){
 // Galeria de posicionamentos (sequência de passos) — mesma mecânica de _pitchSnapshot/
 // _oppSnapshot: cada "print" entra numa galeria cronológica, carregável para continuar a
 // ajustar a partir dali.
+// Frame sintético com o estado atual do quadro (mesma forma de um item de
+// pb.snapshots), usado pelo Modo Apresentação quando a jogada ainda não tem nenhum
+// registo na galeria — nunca escreve em pb, nunca é guardado (ver pbOpenPresentation).
+function _pbCurrentFrame(pb){
+  _pbInit(pb);
+  const positions={};
+  for(let i=1;i<=11;i++){const def=_pbDefaultPos(i-1,pb.fullView);positions[i]=pb.positions[i]?{...pb.positions[i]}:{x:def[0],y:def[1]};}
+  const opponents=(pb.opponents||[]).map(o=>({...o}));
+  const ball=pb.ball?{...pb.ball}:null;
+  return {id:'_live',note:'',positions,opponents,ball,fullView:pb.fullView};
+}
 function _pbSnapshot(pbid){
   const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
   _pbInit(pb);
@@ -16600,10 +16723,23 @@ function _pbDeleteSnapshot(pbid,snapId){
   pb.updatedAt=new Date().toISOString();
   _syncPlaybook(pb);saveData();_renderPbDetail();
 }
+// Modo Apresentação (sps-v202) — ecrã cheio, só o diagrama, para mostrar no campo/
+// treino. Frames = a galeria (se houver), senão o estado atual sozinho. Nomes vêm
+// sempre de pb.athleteAssign ao vivo (ver _presSvgFor) — nunca de um snapshot antigo.
+function pbOpenPresentation(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  const frames=(pb.snapshots&&pb.snapshots.length)?pb.snapshots:[_pbCurrentFrame(pb)];
+  _presOpen('pb',{pb},frames);
+}
 // SVG de um snapshot/estado atual (não-interativo) — usado na galeria (miniatura) e no PDF
 // (maior). Mesmo esquema de cor/proporção dos marcadores já usado em _pitchSnapshotSvg/
 // _oppSnapshotSvg, para nunca divergir visualmente do resto da app.
-function _pbSnapshotSvg(snap,w){
+// athleteAssign (opcional, sps-v202): quando passado, cada marcador com atribuição
+// ganha um rótulo com o nome por baixo do círculo (usado só pelo Modo Apresentação —
+// ver _presSvgFor). Omitido (todas as chamadas já existentes), o comportamento fica
+// exatamente igual ao de sempre: só o número, nunca o nome.
+function _pbSnapshotSvg(snap,w,athleteAssign){
   w=w||190;
   const viewH=snap.fullView?420:200;
   const h=Math.round(w*(viewH/300));
@@ -16625,6 +16761,10 @@ function _pbSnapshotSvg(snap,w){
     const fill=isGK?'#27ae60':'#ffd700';
     const tf=isGK?'#fff':'#1a1a2e';
     dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="${tf}">${i}</text>`;
+    if(athleteAssign&&athleteAssign[i]){
+      const a=APP.athletes.find(x=>x.id===athleteAssign[i]);
+      if(a)dots+=`<text x="${p.x}" y="${(p.y+17).toFixed(1)}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
+    }
   }
   const oppArm=rad*0.55;
   (snap.opponents||[]).forEach(o=>{
@@ -16652,6 +16792,7 @@ function _pbBoardHtml(pb){
       <button class="tab-btn ${pb.fullView?'on':''}" onclick="pbToggleView('${pb.id}')" title="Alternar campo inteiro/meio campo">${pb.fullView?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
       <button class="btn btn-sm btn-gh" onclick="pbAddOpponent('${pb.id}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
       <button class="btn btn-sm ${pb.ball?'btn-r':'btn-gh'}" onclick="pbToggleBall('${pb.id}')" title="Adicionar/remover marcador da bola">⚽ ${pb.ball?'Remover Bola':'Bola'}</button>
+      <button class="btn btn-sm btn-gh" onclick="pbOpenPresentation('${pb.id}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
       ${(pb.opponents||[]).length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para remover</span>`:''}
     </div>
     <div class="jc-pitch-wrap" style="flex-shrink:0;max-width:300px">

@@ -3072,3 +3072,93 @@ autoexplicativa, visível na Biblioteca do Roger com esse título, e ele própri
 apagá-la com um clique no 🗑️ da lista (mesmo padrão já usado para a atleta de teste
 "TESTE00", ver nota do sps-v200 — não é uma tarefa para a próxima sessão tratar por
 iniciativa própria, só confirmar se já foi feito caso o tema volte a surgir).
+
+## sps-v202 (06/10/2026): Modo Apresentação — ecrã cheio para Playbook e Set Pieces
+
+**Pedido do Roger** (verbatim): "CERTO ISTO É O MODO QUANDO EU EDITO, DEPOIS QUERO UM
+MODO APRESENTAÇAO EM QUE SO APARECE A IMAGEM O MAIS EXPANDIDA POSSIVEL NO ECRA, QUER NA
+PLATAFORMA QUER NA 'APP' SET PIECES, PARA MOSTRAR QUANDO ESTOU NO CAMPO OU NO TREINO AS
+ATLETAS" — depois do quadro de desenho do Playbook (sps-v201), o Roger quis um modo
+separado, só para mostrar (nunca para editar), em ecrã cheio, tanto no Playbook como no
+quadro de Bolas Paradas ("Set Pieces", `_jogoCampoHtml`/`?tatico=1`). Duas perguntas
+feitas antes de implementar (`AskUserQuestion`), decisão recomendada escolhida nas
+duas: (1) os marcadores mostram o NOME da atleta quando disponível — no Playbook, só
+quando o marcador tem atleta atribuída via "Atletas do Plantel" (`pb.athleteAssign`),
+senão fica só o número (como hoje); no quadro de Bolas Paradas, SEMPRE (os marcadores já
+são atletas reais, `g.lineup`); (2) se a jogada/quadro tiver vários passos guardados na
+galeria, o Modo Apresentação deixa navegar entre eles com setas, sem saír do ecrã cheio.
+
+**O que foi construído:**
+1. **Motor genérico partilhado** (`_presOpen`/`_presRender`/`presPrev`/`presNext`/
+   `presClose`/`_presBackdropClick`, junto a `openMod`/`closeMod`): um único overlay
+   `position:fixed;inset:0` persistente no HTML (`#pres-ov`, `z-index:5500`, toggle de
+   classe `.on`, mesmo idioma de `#modal-ov`/`openMod`/`closeMod`), com um ✕, duas setas
+   (prev/next) e um contador "Passo X de N" — tudo escondido quando só há 1 frame.
+   Puramente de leitura: abrir, navegar e fechar nunca escrevem em `pb`/`g`/`APP`, só no
+   estado efémero `_presFrames`/`_presIdx`/`_presKind`/`_presCtx` desta UI.
+2. **Frames**: cada chamador constrói um array ordenado — a galeria existente
+   (`pb.snapshots` ou `_pitchSnapshotsFor(g,mode)`) quando há pelo menos 1 registo,
+   senão um único frame sintético com o estado atual do quadro, construído por uma
+   função nova e só de leitura (`_pbCurrentFrame(pb)`/`_pitchCurrentFrame(g,mode)` —
+   mesma lógica de `_pbSnapshot`/`_pitchSnapshot`, sem o `.push()`/`saveData()` final).
+3. **Diagrama**: reaproveita os geradores de SVG já existentes
+   (`_pbSnapshotSvg`/`_pitchSnapshotSvg`) em vez de inventar um novo — o único ajuste é
+   trocar o `style="width:Npx;height:Npx"` fixo (pensado para miniaturas/PDF) por
+   `width:100%;height:100%` no momento de montar o palco (`_presSvgFor`), deixando o
+   `viewBox` já existente fazer o letterbox automático (campo inteiro ou meio-campo,
+   dentro de um palco a ~92vw/85vh).
+4. **Nomes — sempre ao vivo, nunca de um snapshot antigo**:
+   - `_pbSnapshotSvg(snap,w,athleteAssign)` ganhou um 3º parâmetro opcional: quando
+     passado (`pb.athleteAssign`, ao vivo), cada marcador atribuído ganha um rótulo com
+     o nome por baixo do círculo (font-size 11, `rgba(255,255,255,.9)`, mesma convenção
+     do `showName` do quadro ao vivo). Omitido — todas as chamadas já existentes
+     (galeria/PDF) —, comportamento 100% igual ao de sempre (só número).
+   - `_pitchSnapshotSvg(mode,snap,w,forceNames)` ganhou um 4º parâmetro opcional: com
+     `forceNames=true`, mostra o nome em QUALQUER sub-separador (não só Tático),
+     também font-size 11. Omitido, comportamento idêntico ao de sempre (`isTatico`
+     continua a ser a única condição, inalterada). `showName` em si (a flag interna do
+     quadro ao vivo, só ligada ao sub-separador Tático) não foi tocado.
+5. **Botões novos**: "🖥️ Modo Apresentação" na fiada de controlos do Playbook
+   (`_pbBoardHtml`, chama `pbOpenPresentation(pb.id)`) e na mesma fiada do Set Pieces
+   (`_jogoCampoHtml`, chama `pitchOpenPresentation(g.id,mode)`) — como `_jogoCampoHtml`
+   é partilhada pelos 4 sub-separadores E pela app standalone `?tatico=1` (confirmado
+   no sps-v191: `?tatico=1` chama-se "SPS Set Pieces Board" no seu próprio manifest),
+   um único ponto de alteração cobre tudo o que o Roger pediu ("quer na plataforma quer
+   na app Set Pieces"), sem wiring extra.
+6. Sem novas colunas/tabelas no Supabase — qual passo está visível e se o overlay está
+   aberto é só estado efémero de UI, nunca persistido.
+7. SW bump para `sps-v202`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Harness Node
+dedicado novo (`test_presentation_v202.js`, vm com stubs de DOM que trackeiam
+`classList`/`addEventListener`/`removeEventListener` de verdade) cobrindo o motor
+genérico: `_pbSnapshotSvg`/`_pitchSnapshotSvg` com e sem os novos parâmetros opcionais
+(regressão explícita de que nenhuma chamada existente muda de comportamento);
+`_pbCurrentFrame`/`_pitchCurrentFrame` (forma e defaults corretos); frames = galeria
+(ordem cronológica preservada) vs. sintético (sem nenhum registo); navegação
+`presPrev`/`presNext` com clamp nos dois extremos (sem wraparound) e UI do
+contador/setas a esconder com 1 frame só; navegação por teclado
+(ArrowLeft/ArrowRight) e Escape a fechar; `_presBackdropClick` só fecha quando o alvo
+do clique é o próprio overlay (nunca quando é o palco); limpeza do listener de keydown
+ao fechar (confirmado ao nível do `document.removeEventListener` real, não só uma
+variável interna a zero) e que um ArrowRight residual depois de fechar não tem
+qualquer efeito; e que abrir/navegar/fechar nunca muta `pb`/`g` (diff do JSON completo
+antes/depois). Extensões às suites existentes: `test_playbook_v201.js` (secção 13,
+integração com uma jogada real desta suite — nome vindo de `pb.athleteAssign` ao vivo,
+botão presente, sem mutação) e `test_playbook_dom_v201.js` (Playwright, browser real —
+overlay abre/fecha, SVG com nome, navegação por rato/teclado, ✕/Escape/backdrop todos
+fecham, listener de teclado sem fantasma, 3 ciclos abrir/fechar sem mutar a jogada);
+`test_tatico_v191.js` ganhou um "Teste 3" equivalente para o Set Pieces via `?tatico=1`
+(nomes sempre visíveis mesmo no sub-separador cornerDef, que normalmente não mostra
+nomes; galeria com 2 passos; mesmas verificações de navegação/fecho/sem-mutação).
+Regressão completa re-corrida sem falhas: `test_playbook_v201.js`,
+`test_playbook_dom_v201.js`, `test_tatico_v191.js`, `test_mobile_v187.js`,
+`test_estagios.js`, `test_guiao.js`, `test_coc3.js` — incluindo a invariante já
+existente de que o quadro NORMAL do Playbook (`_pbMarkersHtml`) e o `showName` do
+Tático continuam exatamente como antes.
+
+**Ainda por fazer:** nada pendente para este pedido. Possível pedido futuro do Roger,
+não incluído de propósito: um modo "apresentação automática" que avança os passos sem
+intervenção (hoje é só manual, por setas/teclado); mostrar as Tarefas Individuais (Set
+Pieces) ou a Descrição (Playbook) como legenda opcional dentro do próprio ecrã cheio
+(hoje é só o diagrama, como pedido — "só aparece a imagem").
