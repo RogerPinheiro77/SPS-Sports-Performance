@@ -556,6 +556,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-codigo-conduta"></div>
       <div class="pg" id="pg-guiao-jogo-fora"></div>
       <div class="pg" id="pg-estagios"></div>
+      <div class="pg" id="pg-playbook"></div>
       <div class="pg" id="pg-config"></div>
       <div class="pg" id="pg-relatorios"></div>
     </div>
@@ -657,7 +658,7 @@ const _gdForceLocalGameIds=new Set();
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null,hydrationGuidelines:null},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null,hydrationGuidelines:null,playbookSubmomentos:null},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],macrocycles:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
@@ -669,6 +670,7 @@ function defApp(){
     mcTemplates:[],
     codeOfConduct:null,
     guiaoJogoFora:null,estagios:[],
+    playbook:[],
     users:[]
   };
 }
@@ -1026,6 +1028,8 @@ const ALL_PAGES=[
   {id:'competicoes',icon:'🏆',label:'Competições'},
   {id:'treinos',icon:'📋',label:'Unidades de Treino'},
   {id:'formacao',icon:'🌱',label:'Formação'},
+  {sec:'Playbook'},
+  {id:'playbook',icon:'📘',label:'Playbook'},
   {sec:'Análise'},
   {id:'condicao-plantel',icon:'🚦',label:'Condição do Plantel'},
   {id:'pse-wellness',icon:'📊',label:'PSE & Wellness'},
@@ -1075,8 +1079,8 @@ const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 const ROLE_DEFS={
   treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
-  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
-  treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios','guiao-jogo-fora','estagios','playbook'],readOnly:false,manageUsers:false},
+  treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas','guiao-jogo-fora','estagios','playbook'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
@@ -1187,7 +1191,7 @@ function _maybeEnterTaticoMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',playbook:'Playbook',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1263,7 +1267,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,playbook:renderPlaybook,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
   window.scrollTo(0,0);
@@ -6481,6 +6485,7 @@ function _jogoCampoHtml(g){
       <button class="tab-btn ${_pitchFullView[mode]?'on':''}" onclick="_pitchToggleView('${g.id}','${mode}')" title="Alternar campo inteiro/meio campo">${_pitchFullView[mode]?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
       <button class="btn btn-sm btn-gh" onclick="pitchAddOpponent('${g.id}','${mode}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
       <button class="btn btn-sm ${ballPos?'btn-r':'btn-gh'}" onclick="pitchToggleBall('${g.id}','${mode}')" title="Adicionar/remover marcador da bola">⚽ ${ballPos?'Remover Bola':'Bola'}</button>
+      ${mode!=='tatico'?`<button class="btn btn-sm btn-gh" onclick="pbSaveFromGameBoard('${g.id}','${mode}')" title="Guardar este quadro na biblioteca do Playbook">💾 Guardar na Biblioteca</button>`:''}
       ${opponentsList.length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para remover</span>`:''}
     </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
@@ -16162,6 +16167,635 @@ function atEstagioRsvpReset(id){
   _syncEstagio(e);saveData();_atRenderEstagioModal(id);if(_atPage==='home')renderAtHome();
 }
 
+// ─── PLAYBOOK ─────────────────────────────────────────────────────────────
+// Biblioteca tática reutilizável (sps-v201) — pedido do Roger: um "playbook" ao estilo
+// NFL cobrindo jogo posicional, combinações, organização ofensiva, variantes de pressing
+// e bolas paradas, com ligação ao Quadro Tático/Bolas Paradas de um Jogo real já
+// existente. 3 decisões confirmadas antes de implementar: (1) taxonomia de topo = os 5
+// "momentos do jogo" já usados nesta app, com submomentos livres por categoria (gestor
+// simples, não lista fixa); (2) acesso: treinador/treinador_adj automático + prep_fisico +
+// treinador_gr; (3) Bloco 1 completo de uma vez.
+//
+// Tabela dedicada própria `playbook` (mesmo padrão exato de `estagios`/`games` — upsert
+// por linha, nunca no blob clubs.meta, porque cada jogada é editada com frequência:
+// arrastar marcadores, registar passos). `APP.config.playbookSubmomentos` é o único dado
+// deste bloco que vive dentro do blob `clubs.meta.config` — mesmo padrão exato de
+// `naGuidelines`/`hydrationGuidelines` (configuração de baixa frequência de escrita,
+// inicializada lazy na 1ª utilização).
+//
+// O quadro de desenho (_pb*) é uma função nova e aditiva — nunca edita _pitchXxx/_oppXxx
+// (o motor do Quadro Tático/Adversário de um Jogo real, já em produção), com UMA única
+// excepção propositada: o botão "💾 Guardar na Biblioteca" dentro de _jogoCampoHtml (ver
+// esse ponto, procurar "Guardar na Biblioteca" — é o único hook aditivo tocado aí).
+// Marcadores próprios: réplica fiel do padrão _oppXxx — SEMPRE 11 marcadores numerados,
+// arrastáveis, nunca adicionados/removidos (nº1 fica verde por convenção de
+// guarda-redes, como _OPP_ROSTER_DEFAULT já assume para o adversário). Adversárias: réplica
+// do padrão _pitchOpponents — lista adicionável/removível (até 11), para o formato já
+// ser diretamente compatível com g.pitchOpponents[mode] ao aplicar a um Jogo (ponto 8a) ou
+// ao guardar a partir de um Jogo (ponto 8b), sem conversão nenhuma dos dois lados.
+const PB_CATEGORIES=[
+  ['orgOf','Org. Ofensiva'],['orgDef','Org. Defensiva'],
+  ['transAtaque','Transição Ataque'],['transDefesa','Transição Defesa'],
+  ['bolasParadas','Bolas Paradas']
+];
+const PB_SUBMOMENTOS_DEFAULT={
+  orgOf:['Jogo Posicional','Combinações','Construção','Sobrecargas'],
+  orgDef:['Bloco Alto','Bloco Médio','Bloco Baixo','Pressing à Bola','Pressing ao Homem'],
+  transAtaque:['Contra-ataque','Transição Rápida'],
+  transDefesa:['Contra-pressing','Reorganização'],
+  bolasParadas:['Cantos','Livres','Lançamentos']
+};
+function _pbInitConfig(){
+  if(!APP.config.playbookSubmomentos)APP.config.playbookSubmomentos=JSON.parse(JSON.stringify(PB_SUBMOMENTOS_DEFAULT));
+  PB_CATEGORIES.forEach(([k])=>{if(!APP.config.playbookSubmomentos[k])APP.config.playbookSubmomentos[k]=[];});
+}
+function _syncPlaybook(pb){if(_sync)cloudUpsert('playbook',pb);}
+function _pbInit(pb){
+  if(!pb.positions)pb.positions={};
+  if(!pb.opponents)pb.opponents=[];
+  if(pb.ball===undefined)pb.ball=null;
+  if(typeof pb.fullView!=='boolean')pb.fullView=pb.category!=='bolasParadas';
+  if(!pb.snapshots)pb.snapshots=[];
+  if(!pb.athleteAssign)pb.athleteAssign={};
+}
+
+// ── Gestor de submomentos por categoria — prompt() simples (mesmo padrão já usado em
+// editCompetitionLinks/criação de quartos em Estágios), aberto da lista ou do editor.
+function pbManageSubmomentosOpen(){
+  _pbInitConfig();
+  const body=PB_CATEGORIES.map(([cat,label])=>{
+    const subs=APP.config.playbookSubmomentos[cat]||[];
+    const chips=subs.map(s=>`<span style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--brd);border-radius:12px;display:inline-flex;align-items:center;gap:4px;margin:2px">${escHtml(s)}<span style="cursor:pointer;color:var(--t2)" onclick="removePbSubmomento('${cat}','${escHtml(s)}')" title="Remover">✕</span></span>`).join('');
+    return `<div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:4px">${label}</div>
+      <div>${chips||'<span style="font-size:11px;color:var(--t2)">Sem submomentos</span>'}</div>
+      <button class="btn btn-xs btn-gh" style="margin-top:4px" onclick="addPbSubmomento('${cat}')">+ Adicionar</button>
+    </div>`;
+  }).join('');
+  openMod('⚙️ Gerir Submomentos do Playbook',body);
+}
+function addPbSubmomento(cat){
+  _pbInitConfig();
+  const nome=(prompt('Novo submomento:')||'').trim();if(!nome)return;
+  if(!APP.config.playbookSubmomentos[cat].includes(nome))APP.config.playbookSubmomentos[cat].push(nome);
+  saveData();pbManageSubmomentosOpen();
+  if(_pbDetailId)_renderPbDetail();else renderPlaybook();
+}
+function removePbSubmomento(cat,nome){
+  _pbInitConfig();
+  if(!confirm('Remover este submomento da lista?'))return;
+  APP.config.playbookSubmomentos[cat]=(APP.config.playbookSubmomentos[cat]||[]).filter(s=>s!==nome);
+  saveData();pbManageSubmomentosOpen();
+  if(_pbDetailId)_renderPbDetail();else renderPlaybook();
+}
+function addPbSubmomentoInline(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInitConfig();
+  const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||'';
+  const nome=(prompt('Novo submomento para '+catLabel+':')||'').trim();if(!nome)return;
+  if(!APP.config.playbookSubmomentos[pb.category].includes(nome))APP.config.playbookSubmomentos[pb.category].push(nome);
+  pb.submomento=nome;pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+function _pbSubmomentoSelectHtml(pb){
+  _pbInitConfig();
+  const subs=APP.config.playbookSubmomentos[pb.category]||[];
+  const opts=subs.map(s=>`<option value="${escHtml(s)}" ${pb.submomento===s?'selected':''}>${escHtml(s)}</option>`).join('');
+  return `<select class="fc" onchange="if(this.value==='__new__'){addPbSubmomentoInline('${pb.id}');}else{savePbField('${pb.id}','submomento',this.value);}">
+    <option value="">— Escolhe —</option>
+    ${opts}
+    <option value="__new__">+ Novo submomento...</option>
+  </select>`;
+}
+
+// ── Lista + filtros + criar/apagar ──────────────────────────────────────────
+let _pbFilterCat='',_pbFilterSub='',_pbFilterText='',_pbDetailId=null,_showPbForm=false;
+function renderPlaybook(){
+  if(_pbDetailId){_renderPbDetail();return;}
+  _pbInitConfig();
+  const list=[...(APP.playbook||[])].filter(pb=>{
+    if(_pbFilterCat&&pb.category!==_pbFilterCat)return false;
+    if(_pbFilterSub&&pb.submomento!==_pbFilterSub)return false;
+    if(_pbFilterText){
+      const q=_pbFilterText.toLowerCase();
+      const hay=((pb.title||'')+' '+(pb.formation||'')).toLowerCase();
+      if(!hay.includes(q))return false;
+    }
+    return true;
+  }).sort((a,b)=>(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''));
+  const catOpts=PB_CATEGORIES.map(([k,l])=>`<option value="${k}" ${_pbFilterCat===k?'selected':''}>${l}</option>`).join('');
+  const subOpts=_pbFilterCat?(APP.config.playbookSubmomentos[_pbFilterCat]||[]).map(s=>`<option value="${escHtml(s)}" ${_pbFilterSub===s?'selected':''}>${escHtml(s)}</option>`).join(''):'';
+  const formHtml=_showPbForm?`
+  <div class="ipanel">
+    <div class="sh"><div class="sh-t">Nova Jogada</div><button class="btn btn-sm btn-gh" onclick="_showPbForm=false;renderPlaybook()">✕</button></div>
+    <div class="form-g"><label class="fl">Título *</label><input class="fc" id="pbf-titulo" placeholder="Ex: Canto curto — variante 1"></div>
+    <div class="form-g"><label class="fl">Momento *</label><select class="fc" id="pbf-cat">${PB_CATEGORIES.map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveNovaPbJogada()">💾 Criar Jogada</button><button class="btn btn-gh" onclick="_showPbForm=false;renderPlaybook()">Cancelar</button></div>
+  </div>`:'';
+  const rows=list.map(pb=>{
+    const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||pb.category;
+    return `<tr style="cursor:pointer" onclick="openPbJogada('${pb.id}')">
+      <td>${escHtml(pb.title||'Jogada')}</td>
+      <td>${escHtml(catLabel)}</td>
+      <td>${escHtml(pb.submomento||'—')}</td>
+      <td>${escHtml(pb.formation||'—')}</td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-xs btn-r" onclick="deletePbJogada('${pb.id}')">🗑️</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('pg-playbook').innerHTML=`
+  <div class="sh"><div class="sh-t">📘 Playbook</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-gh btn-sm" onclick="pbManageSubmomentosOpen()">⚙️ Gerir Submomentos</button>
+      <button class="btn btn-g" onclick="_showPbForm=!_showPbForm;renderPlaybook()">+ Nova Jogada</button>
+    </div>
+  </div>
+  ${formHtml}
+  <div class="ipanel" style="margin-bottom:12px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select class="fc" style="width:auto" onchange="_pbFilterCat=this.value;_pbFilterSub='';renderPlaybook()"><option value="">Todos os momentos</option>${catOpts}</select>
+      <select class="fc" style="width:auto" onchange="_pbFilterSub=this.value;renderPlaybook()" ${!_pbFilterCat?'disabled':''}><option value="">Todos os submomentos</option>${subOpts}</select>
+      <input class="fc" style="width:auto;flex:1;min-width:160px" placeholder="Pesquisar título/formação..." value="${escHtml(_pbFilterText)}" onblur="_pbFilterText=this.value;renderPlaybook()">
+    </div>
+  </div>
+  ${list.length?`<div class="tw"><table><thead><tr><th>Jogada</th><th>Momento</th><th>Submomento</th><th>Formação</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<div class="empty"><div class="ei">📘</div><p>Sem jogadas na biblioteca ainda</p></div>`}`;
+}
+function saveNovaPbJogada(){
+  const titulo=(document.getElementById('pbf-titulo')?.value||'').trim();
+  const cat=document.getElementById('pbf-cat')?.value||'orgOf';
+  if(!titulo)return toast('Indica um título','err');
+  const sess=getSession();
+  const pb={id:uid(),teamId:(APP.teams[0]&&APP.teams[0].id)||'',title:titulo,category:cat,submomento:'',formation:'',description:'',videoUrl:'',
+    positions:{},opponents:[],ball:null,fullView:cat!=='bolasParadas',snapshots:[],
+    createdAt:new Date().toISOString(),createdBy:sess?.name||'',createdById:sess?.id||'',updatedAt:new Date().toISOString()};
+  if(!APP.playbook)APP.playbook=[];
+  APP.playbook.push(pb);
+  _syncPlaybook(pb);saveData();_showPbForm=false;toast('Jogada criada ✓');openPbJogada(pb.id);
+}
+function openPbJogada(id){
+  const pb=(APP.playbook||[]).find(x=>x.id===id);if(!pb)return;
+  _pbInit(pb);
+  _pbDetailId=id;
+  renderPlaybook();
+}
+async function deletePbJogada(id){
+  if(!confirm('Apagar esta jogada da Biblioteca?'))return;
+  APP.playbook=(APP.playbook||[]).filter(x=>x.id!==id);
+  if(_pbDetailId===id)_pbDetailId=null;
+  saveData();
+  if(_sync&&_supa){try{await _supa.from('playbook').delete().eq('id',id);}catch(err){_warnSyncFailure('playbook (apagar)',err);}}
+  toast('Jogada apagada');renderPlaybook();
+}
+function savePbField(id,field,value){
+  const pb=(APP.playbook||[]).find(x=>x.id===id);if(!pb)return;
+  pb[field]=value;
+  if(field==='category')pb.submomento='';
+  // Troca de equipa (só visível quando há mais de uma) — as atribuições anteriores
+  // referem-se a atletas do plantel antigo, por isso são limpas (pedido implícito:
+  // nunca mostrar uma atleta de outra equipa associada a um marcador).
+  if(field==='teamId'){_pbInit(pb);pb.athleteAssign={};}
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();
+  if(field==='category'||field==='title'||field==='teamId')_renderPbDetail();
+}
+
+// ── Editor/detalhe ──────────────────────────────────────────────────────────
+function _renderPbDetail(){
+  const pb=(APP.playbook||[]).find(x=>x.id===_pbDetailId);
+  if(!pb){_pbDetailId=null;renderPlaybook();return;}
+  _pbInit(pb);
+  const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||'';
+  document.getElementById('pg-playbook').innerHTML=`
+  <div class="sh">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-sm btn-gh" onclick="_pbDetailId=null;renderPlaybook()">← Voltar</button>
+      <div>
+        <div class="sh-t">${escHtml(pb.title||'Jogada')}</div>
+        <div style="font-size:12px;color:var(--t2)">${escHtml(catLabel)}${pb.submomento?' • '+escHtml(pb.submomento):''}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-gh btn-sm" onclick="printPlaybookPDF('${pb.id}')">🖨️ PDF</button>
+      <button class="btn btn-r btn-sm" onclick="deletePbJogada('${pb.id}')">🗑️ Apagar</button>
+    </div>
+  </div>
+  <div class="ipanel" style="margin-bottom:12px">
+    <div class="form-g"><label class="fl">Título</label><input class="fc" value="${escHtml(pb.title||'')}" onblur="savePbField('${pb.id}','title',this.value)"></div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Momento</label><select class="fc" onchange="savePbField('${pb.id}','category',this.value)">${PB_CATEGORIES.map(([k,l])=>`<option value="${k}" ${pb.category===k?'selected':''}>${l}</option>`).join('')}</select></div>
+      <div class="form-g"><label class="fl">Submomento</label>${_pbSubmomentoSelectHtml(pb)}</div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Formação</label><input class="fc" value="${escHtml(pb.formation||'')}" placeholder="Ex: 4-3-3" onblur="savePbField('${pb.id}','formation',this.value)"></div>
+      <div class="form-g"><label class="fl">Vídeo (opcional)</label><input class="fc" value="${escHtml(pb.videoUrl||'')}" placeholder="https://..." onblur="savePbField('${pb.id}','videoUrl',this.value)"></div>
+      ${APP.teams.length>1?`<div class="form-g"><label class="fl">Equipa</label><select class="fc" onchange="savePbField('${pb.id}','teamId',this.value)">${APP.teams.map(t=>`<option value="${t.id}" ${pb.teamId===t.id?'selected':''}>${escHtml(t.name)}</option>`).join('')}</select></div>`:''}
+    </div>
+    <div class="form-g"><label class="fl">Descrição</label><textarea class="fc" rows="3" onblur="savePbField('${pb.id}','description',this.value)">${escHtml(pb.description||'')}</textarea></div>
+    ${pb.category==='bolasParadas'?`<button class="btn btn-gh" onclick="pbApplyToGameModalOpen('${pb.id}')">📋 Aplicar a um Jogo</button>`:''}
+  </div>
+  ${_pbBoardHtml(pb)}
+  ${_pbAthleteListHtml(pb)}
+  `;
+}
+// ── Lista "Atletas do Plantel" — pedido explícito do Roger: desenhar o diagrama com
+// marcadores numéricos genéricos (1-11) e só depois, aqui, atribuir qualquer atleta do
+// plantel a cada número para poder "fazer prints" com os nomes reais. Grava de imediato
+// (onchange), sem botão de guardar à parte. O quadro em si nunca mostra nomes — só o
+// número — a atribuição fica só nesta lista e no PDF (ver printPlaybookPDF).
+function _pbAthleteListHtml(pb){
+  _pbInit(pb);
+  const squad=APP.athletes.filter(a=>a.teamId===pb.teamId).sort((a,b)=>(+(a.number||a.num)||999)-(+(b.number||b.num)||999));
+  const rowsHtml=Array.from({length:11},(_,idx)=>idx+1).map(i=>{
+    const cur=pb.athleteAssign[i]||'';
+    const opts=`<option value="">— (nenhuma)</option>${squad.map(a=>`<option value="${a.id}" ${cur===a.id?'selected':''}>${escHtml(_displayName(a))}${a.number||a.num?' #'+(a.number||a.num):''}</option>`).join('')}`;
+    return `<div class="fr" style="align-items:center;margin-bottom:4px">
+      <div style="width:90px;font-size:12px;font-weight:700;color:var(--t2)">Marcador ${i}</div>
+      <select class="fc" style="flex:1" onchange="pbSetAthleteAssign('${pb.id}',${i},this.value)">${opts}</select>
+    </div>`;
+  }).join('');
+  return `<div class="ipanel" style="margin-top:12px">
+    <div class="sh-t" style="font-size:15px;margin-bottom:10px">👥 Atletas do Plantel</div>
+    ${!squad.length?'<p style="font-size:11px;color:var(--t2)">Sem atletas nesta equipa.</p>':''}
+    ${rowsHtml}
+    <p style="font-size:11px;color:var(--t2);margin-top:6px">Associa cada marcador (1-11) a uma atleta do plantel para os nomes reais aparecerem no PDF. O quadro acima mantém sempre os números.</p>
+  </div>`;
+}
+function pbSetAthleteAssign(pbid,num,val){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  pb.athleteAssign[num]=val||'';
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();
+}
+
+// ── Quadro de desenho próprio do Playbook (_pb*) — aditivo, nunca toca em _pitchXxx/_oppXxx.
+// Marcadores próprios: réplica fiel de _oppMarkersHtml (sempre 11, nº1 verde/GR). Adversárias:
+// réplica de _pitchOpponents (lista adicionável/removível, até 11) — mesmo formato de
+// g.pitchOpponents[mode], para a ligação ao Jogo real (pontos 8a/8b) não precisar de converter
+// nada desse lado. Bola: círculo branco, toggle. Vista campo-inteiro/meio-campo por jogada.
+const _PB_FULL_DEFAULT=[[150,395],[40,330],[105,330],[195,330],[260,330],[40,210],[105,210],[195,210],[260,210],[105,90],[195,90]];
+function _pbDefaultPos(i,fullView){
+  if(fullView)return _PB_FULL_DEFAULT[i]||[150,210];
+  return [40+(i%4)*70,110+Math.floor(i/4)*35];
+}
+function _pbMaxY(fullView){return fullView?400:190;}
+function _pbViewH(fullView){return fullView?420:200;}
+function _pbMarkersHtml(pb){
+  const rad=7,numFs=7,sw=1.5;
+  let html='';
+  for(let i=1;i<=11;i++){
+    const def=_pbDefaultPos(i-1,pb.fullView);
+    const pos=pb.positions[i]||{x:def[0],y:def[1]};
+    const isGK=i===1;
+    const fill=isGK?'#27ae60':'#ffd700';
+    const tf=isGK?'#fff':'#1a1a2e';
+    html+=`<g data-mid="${i}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','own',${i})">
+      <circle r="${rad+3}" fill="transparent"/>
+      <circle r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/>
+      <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="${tf}">${i}</text>
+    </g>`;
+  }
+  return html;
+}
+function _pbOpponentsHtml(pb){
+  const rad=7,sw=1.5,arm=rad*0.6;
+  return (pb.opponents||[]).map(o=>`<g data-mid="${o.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','opponent','${o.id}')" onclick="pbRemoveOpponent(event,'${pb.id}','${o.id}')">
+    <circle r="${rad+3}" fill="transparent"/>
+    <line x1="${(-arm).toFixed(1)}" y1="${(-arm).toFixed(1)}" x2="${arm.toFixed(1)}" y2="${arm.toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>
+    <line x1="${(-arm).toFixed(1)}" y1="${arm.toFixed(1)}" x2="${arm.toFixed(1)}" y2="${(-arm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>
+    <title>Adversária — toca para remover</title>
+  </g>`).join('');
+}
+function _pbBallHtml(pb){
+  if(!pb.ball)return '';
+  return `<g data-mid="ball" transform="translate(${pb.ball.x},${pb.ball.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','ball','ball')" onclick="event.stopPropagation();if(!_pbWasDrag)pbToggleBall('${pb.id}');_pbWasDrag=false;">
+    <circle r="10" fill="transparent"/>
+    <circle r="4.9" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>
+    <title>Bola — toca para remover</title>
+  </g>`;
+}
+let _pbDragging=null,_pbWasDrag=false;
+function _pbMarkerPos(pb,kind,mid){
+  if(kind==='opponent'){const o=(pb.opponents||[]).find(x=>x.id===mid);return o?{x:o.x,y:o.y}:null;}
+  if(kind==='ball')return pb.ball||null;
+  return pb.positions[mid]||null;
+}
+function _pbSetMarkerPos(pb,kind,mid,x,y){
+  if(kind==='opponent'){const o=(pb.opponents||[]).find(o2=>o2.id===mid);if(o){o.x=x;o.y=y;}return;}
+  if(kind==='ball'){if(pb.ball)pb.ball={x,y};return;}
+  pb.positions[mid]={x,y};
+}
+function pbDragStart(e,pbid,kind,mid){
+  e.preventDefault();e.stopPropagation();
+  _pbWasDrag=false;
+  const svg=document.getElementById('pb-pitch-'+pbid);if(!svg)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  const pos=_pbMarkerPos(pb,kind,mid)||{x:150,y:210};
+  _pbDragging={pbid,kind,mid,sx:svgP.x,sy:svgP.y,ox:pos.x,oy:pos.y};
+}
+function pbDragMove(e){
+  if(!_pbDragging)return;
+  const svg=document.getElementById('pb-pitch-'+_pbDragging.pbid);if(!svg)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const dx=svgP.x-_pbDragging.sx,dy=svgP.y-_pbDragging.sy;
+  if(Math.abs(dx)>4||Math.abs(dy)>4)_pbWasDrag=true;
+  const pb=(APP.playbook||[]).find(x=>x.id===_pbDragging.pbid);
+  const maxY=_pbMaxY(pb?pb.fullView:false);
+  const nx=Math.max(16,Math.min(284,_pbDragging.ox+dx));
+  const ny=Math.max(16,Math.min(maxY,_pbDragging.oy+dy));
+  const el=svg.querySelector('[data-mid="'+_pbDragging.mid+'"]');
+  if(el)el.setAttribute('transform','translate('+nx.toFixed(1)+','+ny.toFixed(1)+')');
+}
+function pbDragEnd(e){
+  if(!_pbDragging)return;
+  if(_pbWasDrag&&e.clientX!==undefined){
+    const svg=document.getElementById('pb-pitch-'+_pbDragging.pbid);
+    if(svg){
+      const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+      const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+      const dx=svgP.x-_pbDragging.sx,dy=svgP.y-_pbDragging.sy;
+      const pb=(APP.playbook||[]).find(x=>x.id===_pbDragging.pbid);
+      if(pb){
+        const maxY=_pbMaxY(pb.fullView);
+        const nx=Math.max(16,Math.min(284,_pbDragging.ox+dx));
+        const ny=Math.max(16,Math.min(maxY,_pbDragging.oy+dy));
+        _pbSetMarkerPos(pb,_pbDragging.kind,_pbDragging.mid,nx,ny);
+        pb.updatedAt=new Date().toISOString();
+        _syncPlaybook(pb);saveData();
+      }
+    }
+  }
+  _pbDragging=null;
+}
+function pbAddOpponent(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  if(pb.opponents.length>=11)return toast('Máximo de 11 adversárias','err');
+  const maxY=_pbMaxY(pb.fullView);
+  const i=pb.opponents.length;
+  const x=40+(i%4)*70;
+  const yBase=pb.fullView?260:150;
+  const y=Math.min(maxY,yBase+Math.floor(i/4)*30);
+  pb.opponents.push({id:'opp'+Date.now()+Math.floor(Math.random()*1000),num:pb.opponents.length+1,x,y});
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+function pbRemoveOpponent(e,pbid,oid){
+  if(e&&e.stopPropagation)e.stopPropagation();
+  if(_pbWasDrag){_pbWasDrag=false;return;}
+  if(!confirm('Remover esta marcadora adversária?'))return;
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  pb.opponents=(pb.opponents||[]).filter(o=>o.id!==oid);
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+function pbToggleBall(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  if(pb.ball){pb.ball=null;}
+  else{const maxY=_pbMaxY(pb.fullView);pb.ball={x:150,y:Math.min(maxY,pb.fullView?210:100)};}
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+function pbToggleView(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  pb.fullView=!pb.fullView;
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+// Galeria de posicionamentos (sequência de passos) — mesma mecânica de _pitchSnapshot/
+// _oppSnapshot: cada "print" entra numa galeria cronológica, carregável para continuar a
+// ajustar a partir dali.
+function _pbSnapshot(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  const noteEl=document.getElementById('pb-note-'+pbid);
+  const note=noteEl?noteEl.value:'';
+  const positions={};
+  for(let i=1;i<=11;i++){const def=_pbDefaultPos(i-1,pb.fullView);positions[i]=pb.positions[i]?{...pb.positions[i]}:{x:def[0],y:def[1]};}
+  const opponents=(pb.opponents||[]).map(o=>({...o}));
+  const ball=pb.ball?{...pb.ball}:null;
+  pb.snapshots.push({id:uid(),note,positions,opponents,ball,fullView:pb.fullView});
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();toast('Posicionamento registado ✓');_renderPbDetail();
+}
+function _pbLoadSnapshot(pbid,snapId){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  const snap=(pb.snapshots||[]).find(s=>s.id===snapId);if(!snap)return;
+  pb.positions={};
+  Object.keys(snap.positions).forEach(k=>{pb.positions[k]={...snap.positions[k]};});
+  pb.opponents=(snap.opponents||[]).map(o=>({...o}));
+  pb.ball=snap.ball?{...snap.ball}:null;
+  if(typeof snap.fullView==='boolean')pb.fullView=snap.fullView;
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();toast('Posicionamento carregado — ajusta e regista de novo');_renderPbDetail();
+}
+function _pbDeleteSnapshot(pbid,snapId){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  if(!confirm('Apagar este registo da galeria?'))return;
+  pb.snapshots=(pb.snapshots||[]).filter(s=>s.id!==snapId);
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+// SVG de um snapshot/estado atual (não-interativo) — usado na galeria (miniatura) e no PDF
+// (maior). Mesmo esquema de cor/proporção dos marcadores já usado em _pitchSnapshotSvg/
+// _oppSnapshotSvg, para nunca divergir visualmente do resto da app.
+function _pbSnapshotSvg(snap,w){
+  w=w||190;
+  const viewH=snap.fullView?420:200;
+  const h=Math.round(w*(viewH/300));
+  const rad=7,numFs=7,sw=1.5;
+  const bg=`<rect width="300" height="420" fill="#2d7a2d" rx="8"/>
+    <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <circle cx="150" cy="210" r="38" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <circle cx="150" cy="210" r="3" fill="rgba(255,255,255,.45)"/>
+    <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="105" y="15" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>`;
+  let dots='';
+  for(let i=1;i<=11;i++){
+    const def=_pbDefaultPos(i-1,snap.fullView);
+    const p=(snap.positions||{})[i]||{x:def[0],y:def[1]};
+    const isGK=i===1;
+    const fill=isGK?'#27ae60':'#ffd700';
+    const tf=isGK?'#fff':'#1a1a2e';
+    dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="${tf}">${i}</text>`;
+  }
+  const oppArm=rad*0.55;
+  (snap.opponents||[]).forEach(o=>{
+    dots+=`<line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y-oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y+oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/><line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y+oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y-oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>`;
+  });
+  if(snap.ball)dots+=`<circle cx="${snap.ball.x}" cy="${snap.ball.y}" r="${Math.round(rad*0.6)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>`;
+  return `<svg viewBox="0 0 300 ${viewH}" style="width:${w}px;height:${h}px;display:block;border-radius:6px">${bg}${dots}</svg>`;
+}
+function _pbGalleryHtml(pb){
+  if(!pb.snapshots||!pb.snapshots.length)return '<p style="font-size:11px;color:var(--t2)">Ainda sem registos.</p>';
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap">${pb.snapshots.map(s=>`<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:6px;width:92px;text-align:center;flex-shrink:0">
+    <div onclick="_pbLoadSnapshot('${pb.id}','${s.id}')" style="cursor:pointer" title="Toca para continuar a partir daqui">${_pbSnapshotSvg(s,80)}</div>
+    ${s.note?`<div style="font-size:8px;color:var(--t2);margin-top:2px;line-height:1.3">${escHtml(s.note)}</div>`:''}
+    <button class="btn btn-xs btn-r" style="margin-top:4px;padding:1px 4px;font-size:9px" onclick="_pbDeleteSnapshot('${pb.id}','${s.id}')">🗑️</button>
+  </div>`).join('')}</div>`;
+}
+function _pbBoardHtml(pb){
+  const PW=300,PH=420;
+  return `<div class="ipanel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="sh-t" style="font-size:15px">🎨 Quadro Tático</div>
+      <span style="font-size:11px;color:var(--t2)">Arrasta os marcadores • nº1 = guarda-redes</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button class="tab-btn ${pb.fullView?'on':''}" onclick="pbToggleView('${pb.id}')" title="Alternar campo inteiro/meio campo">${pb.fullView?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
+      <button class="btn btn-sm btn-gh" onclick="pbAddOpponent('${pb.id}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
+      <button class="btn btn-sm ${pb.ball?'btn-r':'btn-gh'}" onclick="pbToggleBall('${pb.id}')" title="Adicionar/remover marcador da bola">⚽ ${pb.ball?'Remover Bola':'Bola'}</button>
+      ${(pb.opponents||[]).length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para remover</span>`:''}
+    </div>
+    <div class="jc-pitch-wrap" style="flex-shrink:0;max-width:300px">
+      <svg id="pb-pitch-${pb.id}" viewBox="0 0 ${PW} ${_pbViewH(pb.fullView)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousemove="pbDragMove(event)" onmouseup="pbDragEnd(event)" onmouseleave="pbDragEnd(event)">
+        <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
+        <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <circle cx="150" cy="210" r="38" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <circle cx="150" cy="210" r="3" fill="rgba(255,255,255,.45)"/>
+        <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="105" y="15" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        ${_pbMarkersHtml(pb)}
+        ${_pbOpponentsHtml(pb)}
+        ${_pbBallHtml(pb)}
+      </svg>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">GALERIA — SEQUÊNCIA DE PASSOS</div>
+      <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Ajusta o quadro acima e regista sempre que mudar — fica uma sequência de passos para o PDF.</p>
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px">
+        <textarea class="fc" id="pb-note-${pb.id}" rows="1" style="flex:1;min-width:160px;font-size:11px" placeholder="Nota (opcional)..."></textarea>
+        <button class="btn btn-g btn-sm" onclick="_pbSnapshot('${pb.id}')">📸 Registar Posicionamento</button>
+      </div>
+      ${_pbGalleryHtml(pb)}
+    </div>
+  </div>`;
+}
+
+// ── Ligação bidirecional às Bolas Paradas de um Jogo real (pedido explícito do Roger) ──
+// 8a) "Aplicar a um Jogo": marcador genérico N → o N-ésimo atleta do onze+banco desse
+// jogo, ordenado por número de camisola (mesma convenção já usada em _pitchSnapshot,
+// variável sortedLineup) — escreve diretamente em g.setpiecePositions[mode]/
+// g.pitchOpponents[mode]/g.pitchBall[mode].
+function _pbSortedSquad(g){
+  const ids=[...(g.lineup||[]),...(g.subs||[])];
+  return ids.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
+    .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+}
+function pbApplyToGameModalOpen(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  const gameOpts=[...APP.games].sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`<option value="${g.id}">${fmtDate(g.date)} vs ${escHtml(g.opp)}</option>`).join('');
+  const body=`<div class="form-g"><label class="fl">Jogo</label><select class="fc" id="pb-apply-game">${gameOpts||'<option value="">Sem jogos criados</option>'}</select></div>
+    <div class="form-g"><label class="fl">Quadro de Bolas Paradas</label><select class="fc" id="pb-apply-mode">
+      <option value="cornerDef">🔴 Canto Defensivo</option>
+      <option value="cornerOf">🔵 Canto Ofensivo</option>
+      <option value="freeKick">🎯 Livre</option>
+    </select></div>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Os marcadores desta jogada são mapeados para o onze+banco do jogo escolhido, por ordem de número de camisola.</p>
+    <button class="btn btn-g" onclick="pbApplyToGameConfirm('${pb.id}')">✅ Aplicar</button>`;
+  openMod('📋 Aplicar a um Jogo',body);
+}
+function pbApplyToGameConfirm(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  const gid=document.getElementById('pb-apply-game')?.value;
+  const mode=document.getElementById('pb-apply-mode')?.value||'cornerDef';
+  const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
+  const squad=_pbSortedSquad(g);
+  if(!squad.length)return toast('Este jogo ainda não tem onze/banco definidos','err');
+  const posMap=_pitchPos(g,mode);
+  const maxY=_pitchMaxY(mode);
+  Object.keys(pb.positions||{}).forEach(numStr=>{
+    const sq=squad[(+numStr)-1];if(!sq)return;
+    const p=pb.positions[numStr];
+    posMap[sq.aid]={x:p.x,y:Math.min(p.y,maxY)};
+  });
+  g.pitchOpponents=g.pitchOpponents||{tatico:[],cornerDef:[],cornerOf:[],freeKick:[]};
+  g.pitchOpponents[mode]=(pb.opponents||[]).map(o=>({...o}));
+  const bm=_pitchBallMap(g);bm[mode]=pb.ball?{...pb.ball}:null;
+  if(typeof pb.fullView==='boolean')_pitchFullView[mode]=pb.fullView;
+  saveData();closeMod();toast('Aplicado ao jogo ✓');
+}
+// 8b) "Guardar na Biblioteca" — único ponto que toca em _jogoCampoHtml (o botão em si está
+// lá, procurar "Guardar na Biblioteca"). Conversão inversa da de cima: posições por aid
+// (onze titular, ordenado por número de camisola — mesma convenção) → marcadores genéricos
+// 1..N; adversárias/bola/vista copiadas diretamente (já são genéricas nos dois lados).
+function pbSaveFromGameBoard(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!g.lineup||!g.lineup.length)return toast('Define o onze no Pré-Jogo primeiro','err');
+  const titulo=(prompt('Título para esta jogada da Biblioteca:')||'').trim();if(!titulo)return;
+  const sortedLineup=g.lineup.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
+    .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+  const posMap=_pitchPos(g,mode);
+  const positions={};
+  sortedLineup.forEach(({aid},i)=>{
+    if(i>=11)return;
+    const def=_pitchDefaultPos(mode,i,g.formation);
+    const raw=posMap[aid]||{x:def[0],y:def[1]};
+    positions[i+1]={x:raw.x,y:raw.y};
+  });
+  const opponents=_pitchOpponents(g,mode).map(o=>({id:o.id,num:o.num,x:o.x,y:o.y}));
+  const ball=_pitchBallMap(g)[mode]?{...(_pitchBallMap(g)[mode])}:null;
+  const fullView=!!_pitchFullView[mode];
+  const sess=getSession();
+  const pb={id:uid(),teamId:g.teamId,title:titulo,category:'bolasParadas',submomento:'',formation:g.formation||'',description:'',videoUrl:'',
+    positions,opponents,ball,fullView,snapshots:[],
+    createdAt:new Date().toISOString(),createdBy:sess?.name||'',createdById:sess?.id||'',updatedAt:new Date().toISOString()};
+  if(!APP.playbook)APP.playbook=[];
+  APP.playbook.push(pb);
+  _syncPlaybook(pb);saveData();toast('Guardado na Biblioteca ✓');
+}
+
+// ── Export PDF — reaproveita _printWin(), diagrama único ou sequência de passos se houver
+// galeria (mesmo estilo/proporções de _oppSnapshotSvg/_pitchSnapshotSvg).
+function printPlaybookPDF(id){
+  const pb=(APP.playbook||[]).find(x=>x.id===id);if(!pb)return;
+  _pbInit(pb);
+  const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||pb.category;
+  const hasSteps=pb.snapshots&&pb.snapshots.length;
+  const stepsHtml=hasSteps?pb.snapshots.map((s,i)=>`<div style="display:inline-block;width:160px;margin:0 10px 14px 0;vertical-align:top;text-align:center">
+      ${_pbSnapshotSvg(s,150)}
+      <div style="font-size:8pt;font-weight:700;margin-top:4px">Passo ${i+1}</div>
+      ${s.note?`<div style="font-size:7.5pt;color:#555;margin-top:2px">${escHtml(s.note)}</div>`:''}
+    </div>`).join('')
+    :`<div style="margin:0 auto;max-width:170mm">${_pbSnapshotSvg({positions:pb.positions,opponents:pb.opponents,ball:pb.ball,fullView:pb.fullView},220)}</div>`;
+  // Legenda Nº/Atleta — pedido do Roger (06/10/2026): mesmo espírito da legenda de
+  // printJogoCampo/_oppPdfBodyHtml, para poder imprimir a jogada com os nomes reais em
+  // vez de só números. Marcadores sem atleta atribuída ficam com "—".
+  const legendRows=Array.from({length:11},(_,i)=>i+1).map(i=>{
+    const aid=pb.athleteAssign&&pb.athleteAssign[i];
+    const a=aid?APP.athletes.find(x=>x.id===aid):null;
+    return `<tr><td style="padding:3px 6px;font-size:8pt;width:24px;text-align:center;font-weight:700">${i}</td><td style="padding:3px 6px;font-size:8pt">${a?escHtml(_displayName(a)):'—'}</td></tr>`;
+  }).join('');
+  const body=`
+    <div class="pr-title">📘 ${escHtml(pb.title||'Jogada')}</div>
+    <table style="width:100%;font-size:9.5pt;margin-bottom:14px"><tbody>
+      <tr><td style="font-weight:700;width:140px">Momento</td><td>${escHtml(catLabel)}</td></tr>
+      <tr><td style="font-weight:700">Submomento</td><td>${escHtml(pb.submomento||'—')}</td></tr>
+      <tr><td style="font-weight:700">Formação</td><td>${escHtml(pb.formation||'—')}</td></tr>
+      ${pb.videoUrl?`<tr><td style="font-weight:700">Vídeo</td><td>${escHtml(pb.videoUrl)}</td></tr>`:''}
+    </tbody></table>
+    ${pb.description?`<h3>Descrição</h3><p style="font-size:9.5pt;white-space:pre-wrap;margin-bottom:14px">${escHtml(pb.description)}</p>`:''}
+    <h3>${hasSteps?'Sequência de Passos':'Diagrama'}</h3>
+    <div>${stepsHtml}</div>
+    <h3>Legenda — Atletas</h3>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr><th style="padding:3px 6px;font-size:8pt">Nº</th><th style="padding:3px 6px;font-size:8pt">Atleta</th></tr></thead>
+      <tbody>${legendRows}</tbody>
+    </table>
+  `;
+  _printWin('Playbook — '+(pb.title||''),body);
+}
+
 // ─── RELATÓRIOS ──────────────────────────────────────────────
 let _repWellMode='diario',_repPseMode='diario',_repAtMode='semanal';
 function renderRelatorios(){
@@ -19539,6 +20173,9 @@ async function pullCloud(){
       ['code_of_conduct','codeOfConduct',(d)=>{const r=d[0];APP.codeOfConduct=r?{id:r.id,active:r.active,version:r.version,publishedAt:r.published_at,publishedBy:r.published_by,publishedById:r.published_by_id,sections:r.sections||null,sectionsUpdatedAt:r.sections_updated_at,sectionsUpdatedBy:r.sections_updated_by}:null;}],
       ['away_game_guide','guiaoJogoFora',(d)=>{const r=d[0];APP.guiaoJogoFora=r?{id:r.id,sections:r.sections||null,sectionsUpdatedAt:r.sections_updated_at,sectionsUpdatedBy:r.sections_updated_by}:null;}],
       ['estagios','estagios',(d)=>APP.estagios=d.map(r=>({id:r.id,teamId:r.team_id,gameId:r.game_id||'',titulo:r.titulo,local:r.local,dataInicio:r.data_inicio,dataFim:r.data_fim,transporteIda:r.transporte_ida,transporteVolta:r.transporte_volta,refeicoes:r.refeicoes,notes:r.notes,quartos:r.quartos||[],convocatoria:r.convocatoria||[],seenBy:r.seen_by||[],rsvp:r.rsvp||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id}))],
+      // Playbook (sps-v201): biblioteca tática reutilizável — tabela dedicada própria,
+      // mesmo padrão exato de estagios/games (upsert por linha, nunca no blob clubs.meta).
+      ['playbook','playbook',(d)=>APP.playbook=d.map(r=>({id:r.id,teamId:r.team_id,title:r.title,category:r.category,submomento:r.submomento,formation:r.formation,description:r.description,videoUrl:r.video_url,positions:r.positions||{},opponents:r.opponents||[],ball:r.ball||null,fullView:!!r.full_view,snapshots:r.snapshots||[],athleteAssign:r.athlete_assign||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id,updatedAt:r.updated_at}))],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
@@ -19911,6 +20548,11 @@ const _CLOUD_TABLE_SCHEMA={
   // Roger, 02/10/2026, decisão "Separados (recomendado)" entre Guião e dados concretos.
   estagios:{cols:['id','team_id','game_id','titulo','local','data_inicio','data_fim','transporte_ida','transporte_volta','refeicoes','notes','quartos','convocatoria','seen_by','rsvp','created_at','created_by','created_by_id'],
     rename:{teamId:'team_id',gameId:'game_id',dataInicio:'data_inicio',dataFim:'data_fim',transporteIda:'transporte_ida',transporteVolta:'transporte_volta',seenBy:'seen_by',createdAt:'created_at',createdBy:'created_by',createdById:'created_by_id'}},
+  // Playbook (sps-v201): biblioteca tática reutilizável — tabela dedicada própria, mesmo
+  // padrão exato de estagios/games. club_id vem sempre do payload base do cloudUpsert
+  // (ver essa função), incluído aqui só por paridade visual com supplement_catalog.
+  playbook:{cols:['id','club_id','team_id','title','category','submomento','formation','description','video_url','positions','opponents','ball','full_view','snapshots','athlete_assign','created_at','created_by','created_by_id','updated_at'],
+    rename:{teamId:'team_id',videoUrl:'video_url',fullView:'full_view',athleteAssign:'athlete_assign',createdAt:'created_at',createdBy:'created_by',createdById:'created_by_id',updatedAt:'updated_at'}},
   // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
   // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
   // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela criada no Supabase

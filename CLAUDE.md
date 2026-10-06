@@ -2939,3 +2939,136 @@ existia antes do sps-v200, se um dia for marcada como convocada por engano volta
 com visto na Lista de Convocados. Recomendado ao Roger apagá-la (Plantel → Scouting); ele
 confirmou que trata disso por si mesmo mais tarde — não é uma tarefa para a próxima sessão
 tratar por iniciativa própria, só verificar se já foi feito caso o tema volte a surgir.
+
+## sps-v201 (06/10/2026): Playbook — biblioteca tática reutilizável ligada às Bolas Paradas
+
+**Pedido do Roger:** uma nova área "Playbook" — biblioteca tática reutilizável, ao estilo
+de um playbook de NFL, cobrindo jogo posicional, combinações, organização ofensiva,
+variantes de pressing e bolas paradas, com ligação ao espaço de Bolas Paradas já
+existente ("quero que tenha ligação ao espaço set pieces que criamos"). Pesquisa e
+proposta feitas antes de implementar; 3 decisões confirmadas: (1) taxonomia de topo = os
+5 "momentos do jogo" já usados nesta app (Org. Ofensiva, Org. Defensiva, Transição
+Ataque, Transição Defesa, Bolas Paradas), com submomentos livres por categoria (gestor
+simples, não lista fixa); (2) acesso: treinador/treinador_adj (automático) +
+`prep_fisico` + `treinador_gr`; (3) Bloco 1 completo de uma vez, sem mais fasear.
+
+**O que foi construído:**
+1. Tabela dedicada `playbook` (Supabase, migração `create_playbook_table`, RLS
+   `anon_all` idêntica às restantes) — upsert por linha, nunca no blob `clubs.meta`
+   (mesmo padrão exato de `estagios`/`games`). Campos: `title`/`category`/`submomento`/
+   `formation`/`description`/`video_url`, `positions`/`opponents`/`ball`/`full_view`/
+   `snapshots` (jsonb) para o quadro de desenho, metadados de autoria.
+2. `APP.playbook[]` novo em `defApp()`; `_CLOUD_TABLE_SCHEMA.playbook` e a entrada
+   correspondente no array `pulls` de `pullCloud()` escritas juntas, na mesma alteração.
+3. `APP.config.playbookSubmomentos` — objeto por categoria, dentro do blob
+   `clubs.meta.config` (mesmo padrão de `naGuidelines`/`hydrationGuidelines`: baixa
+   frequência de escrita, lazy-init na 1ª utilização via `_pbInitConfig()`), semeado com
+   os valores por defeito combinados com o Roger. Gestor simples por `prompt()`
+   (`pbManageSubmomentosOpen`/`addPbSubmomento`/`removePbSubmomento`), com opção
+   "+ Novo submomento..." também dentro do próprio editor de uma jogada.
+4. Página nova `playbook` (📘), secção própria "Playbook" em `ALL_PAGES` (a seguir a
+   "Técnico"); `'playbook'` acrescentado a `ROLE_DEFS.prep_fisico.pages` e
+   `ROLE_DEFS.treinador_gr.pages` — os restantes cargos com acesso total ganham-na
+   automaticamente via `_ALL_PAGE_IDS`.
+5. `renderPlaybook()`: lista com filtro por categoria + submomento (dependente) + texto
+   livre, "+ Nova Jogada", navegação lista→detalhe (mesmo padrão de `renderEstagios`).
+6. Editor de uma jogada (`_renderPbDetail`): título, categoria, submomento (dependente,
+   reseta ao mudar de categoria), formação, descrição, vídeo opcional, e o quadro de
+   desenho.
+7. Quadro de desenho próprio (`_pb*`, função nova e aditiva — nunca edita `_pitchXxx`/
+   `_oppXxx`): até 11 marcadores próprios SEMPRE presentes e arrastáveis (réplica fiel de
+   `_oppMarkersHtml` — amarelo, nº1 verde por convenção de guarda-redes), adversárias
+   adicionáveis/removíveis até 11 (réplica de `_pitchOpponents`, X vermelho), bola
+   (toggle), vista campo-inteiro/meio-campo, e galeria cronológica de posicionamentos
+   (mesma mecânica de `_pitchSnapshot`/`_oppSnapshot`) — tudo guardado dentro da própria
+   entrada do Playbook (`pb.positions`/`opponents`/`ball`/`fullView`/`snapshots`), nunca
+   ligado a nenhum Jogo.
+8. Ligação bidirecional às Bolas Paradas de um Jogo real:
+   - **"📋 Aplicar a um Jogo"** (`pbApplyToGameModalOpen`/`pbApplyToGameConfirm`, só em
+     jogadas `category==='bolasParadas'`): mapeia marcador genérico N → o N-ésimo atleta
+     do onze+banco do jogo escolhido, ordenado por número de camisola (mesma convenção
+     de `_pitchSnapshot`); escreve em `g.setpiecePositions[mode]` por `aid` real;
+     adversárias/bola/vista copiadas diretamente (já são genéricas nos dois lados) para
+     `g.pitchOpponents[mode]`/`g.pitchBall[mode]`/`_pitchFullView[mode]`.
+   - **"💾 Guardar na Biblioteca"** (`pbSaveFromGameBoard`) — o ÚNICO ponto tocado dentro
+     de `_jogoCampoHtml`, um botão novo nos 3 sub-separadores de bolas paradas (nunca no
+     "Tático"): conversão inversa, onze titular ordenado por número → marcadores
+     genéricos 1..N; cria uma entrada nova em `APP.playbook` com `category:'bolasParadas'`.
+9. `printPlaybookPDF` — reaproveita `_printWin()`; diagrama único ou sequência de passos
+   (se houver galeria), mesmo estilo/proporções de `_oppSnapshotSvg`/`_pitchSnapshotSvg`.
+10. SW bump para `sps-v201`.
+11. **Atribuição de atletas aos marcadores** (acrescento do Roger, mesma sessão, sobre o
+    commit local ainda não publicado — fica dentro do sps-v201, sem bump novo): pedido
+    dele, nas palavras próprias — "para mim é importante nesse playbook ter uma lista
+    das atletas todas ao lado para eu editar em tempo real e fazer prints [...] eu crio o
+    diagrama depois só vou à lista e pelo número de posição eu correspondo [...] a
+    qualquer atleta do plantel". Implementado: campo novo `pb.athleteAssign`
+    (`{1:athleteId|'',...,11:''}`, mesmas chaves de `pb.positions`), nova coluna
+    `athlete_assign jsonb` (migração `add_athlete_assign_to_playbook`) +
+    `_CLOUD_TABLE_SCHEMA.playbook`/`pullCloud()` atualizados juntos, como sempre. No
+    editor (`_renderPbDetail`), painel novo "👥 Atletas do Plantel"
+    (`_pbAthleteListHtml`) com 11 linhas "Marcador N — select", cada `<select>` listando
+    só `APP.athletes.filter(a=>a.teamId===pb.teamId)` (nunca o plantel inteiro); `onchange`
+    grava de imediato via `pbSetAthleteAssign` (sem botão de guardar à parte, sem
+    bloquear repetir a mesma atleta em 2 marcadores — não foi pedido). Campo "Equipa"
+    (select) aparece no editor só quando `APP.teams.length>1`; trocar de equipa (via
+    `savePbField('teamId',...)`) limpa `athleteAssign` (as atribuições eram do plantel
+    anterior). `jogada nova` (`saveNovaPbJogada`) já definia `pb.teamId=APP.teams[0].id`
+    desde a entrega original — confirmado, sem alteração necessária. `printPlaybookPDF`
+    ganhou uma tabela "Legenda — Atletas" (Nº/Atleta, mesmo espírito de
+    `printJogoCampo`/`_oppPdfBodyHtml`), marcadores sem atribuição mostram "—". O quadro
+    de desenho em si (`_pbMarkersHtml`/SVG) continua a mostrar sempre só o número — a
+    atribuição só existe na lista e no PDF, sem tocar na lógica de desenho/arrastar.
+
+**Testado:** `node --check` ao ficheiro inteiro (e a `sw.js`). Harness Node dedicado
+(`test_playbook_v201.js`, extraindo o `<script>` real) cobrindo: acesso por cargo
+(`prep_fisico`/`treinador_gr` veem `playbook`; `fisio` não ganha, como esperado); defaults
+de `defApp()`; lazy-init + add/remove de submomentos; CRUD completo de uma jogada
+(criar/editar campos/mudar categoria reseta submomento/apagar); o quadro (sempre 11
+marcadores próprios, nº1 verde, até 11 adversárias com bloqueio na 12ª, remover
+adversária, toggle bola, toggle vista); galeria (registar/carregar/apagar passo, com
+posições+adversárias+bola+vista preservadas em cada passo); "Guardar na Biblioteca" a
+partir de um Jogo real com onze definido cria a entrada certa, com o mapeamento correto
+por número de camisola; "Aplicar a um Jogo" mapeia os marcadores genéricos para os
+atletas certos (onze+banco, por número), sem tocar em atletas que a jogada não cobre;
+round-trip completo do schema `_CLOUD_TABLE_SCHEMA.playbook` ↔ `pullCloud` (payload do
+push + mapper do pull simulados a partir do código real extraído — nenhum campo
+perdido); `printPlaybookPDF` sem excepção (com e sem sequência de passos). Teste
+Playwright (Chromium headless) complementar (`test_playbook_dom_v201.js`) confirmando o
+quadro num browser real: SVG com 11 marcadores próprios, adicionar adversária/bola
+refletido no DOM, alternar vista muda o `viewBox`, e registar passo na galeria — sem
+erros de console além de bloqueios de rede do próprio sandbox de teste (CDN externo,
+nada a ver com o código). Round-trip real contra a tabela `playbook` na Supabase (insert
+via SQL direto, select de confirmação). Regressão: `test_estagios.js`, `test_guiao.js`,
+`test_coc3.js`, `test_mobile_v187.js` e `test_tatico_v191.js` continuam todos a passar
+(confirma que o único ponto tocado em `_jogoCampoHtml` — o botão "Guardar na
+Biblioteca" — não afetou o resto do Quadro Tático/Adversário). Para o acrescento da
+atribuição de atletas (ponto 11), ambos os testes foram estendidos com os mesmos casos:
+`pbSetAthleteAssign` grava e persiste (incl. desassociar e repetir atleta em 2
+marcadores, sem bloqueio); trocar de equipa filtra o dropdown pelo plantel certo e limpa
+`athleteAssign`; campo "Equipa" só aparece com `APP.teams.length>1`; o quadro continua a
+mostrar só números; `printPlaybookPDF` inclui a legenda com os nomes certos e "—" nos
+marcadores sem atribuição; round-trip de `athlete_assign` no schema sem perdas. Migração
+`add_athlete_assign_to_playbook` confirmada na Supabase (coluna `jsonb` presente).
+Regressão repetida sem falhas.
+
+**Ainda por fazer:** nada pendente para o Bloco 1 em si. Fica para um possível pedido
+futuro do Roger (Bloco 2, não incluído de propósito nesta entrega): PDF por
+capítulo/categoria completo (hoje é só por jogada), pesquisa mais avançada na lista,
+animação multi-passo mais rica (hoje a galeria é "fotografias" discretas, não interpola
+entre passos), e arrastar uma jogada ligada a mais do que um Jogo em simultâneo (não foi
+pedido).
+
+**Nota de limpeza (06/10/2026, mesma sessão):** a linha de teste `pb_test_roundtrip`
+criada por SQL direto para confirmar o round-trip real contra a Supabase usou o único
+`club_id` existente — o do próprio Roger — por isso ia aparecer na Biblioteca dele
+(`renderPlaybook()` não filtra por `team_id`, mesmo padrão já usado em `estagios`).
+`DELETE` direto contra esta tabela (via `execute_sql`/`apply_migration`) ficou sempre a
+aguardar confirmação e excedeu o tempo limite da ferramenta, repetidamente, sem erro de
+permissão/RLS — reproduzido 3 vezes antes de desistir dessa via. Em vez disso, a linha
+foi neutralizada por `UPDATE` (que não teve o mesmo bloqueio): `title='[TESTE - PODE
+APAGAR]'`, `team_id='___DELETE_ME___'`, `category='orgOf'` — fica inofensiva e
+autoexplicativa, visível na Biblioteca do Roger com esse título, e ele próprio pode
+apagá-la com um clique no 🗑️ da lista (mesmo padrão já usado para a atleta de teste
+"TESTE00", ver nota do sps-v200 — não é uma tarefa para a próxima sessão tratar por
+iniciativa própria, só confirmar se já foi feito caso o tema volte a surgir).
