@@ -3555,3 +3555,16 @@ padrão já descrito acima).
 SW bump para `sps-v205`.
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
+
+Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão
+no Playbook**. Ainda não investigado nesta sessão — `printPlaybookPDF` já existe desde o
+sps-v201 (diagrama único ou sequência de passos da galeria, reaproveitando `_printWin()`,
+mesmo estilo de `_oppSnapshotSvg`/`_pitchSnapshotSvg`, com legenda de atletas desde o
+próprio sps-v201) e ganhou pernas brancas/boneco "colete" de borla no sps-v204/v205 (usa
+`_pbSnapshotSvg`, que por sua vez usa `_bibMarkerSvg`). Não há ainda nenhum detalhe do
+que está mal ou em falta no PDF — a próxima sessão deve perguntar ao Roger o que
+especificamente precisa de ajuste (layout, falta de alguma informação, tamanho/cabimento
+numa folha, etc.) antes de tocar em código, seguindo a prática já estabelecida neste
+projeto de confirmar o âmbito de pedidos abertos antes de implementar.
