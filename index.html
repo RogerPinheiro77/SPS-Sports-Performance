@@ -1308,19 +1308,9 @@ function closeMod(e){if(e&&e.target!==document.getElementById('modal-ov'))return
 // ── Helpers SVG partilhados — marcador "colete" + bola + traço livre (sps-v204) ──────────
 // Funções neutras e puras (sem efeitos secundários, sem saber nada de Playbook/_pb* nem de
 // Set Pieces/_pitch*), usadas por ambos os quadros para desenhar o boneco/bola novos sem
-// duplicar lógica de desenho entre os dois namespaces. Ver CLAUDE.md sps-v204.
-// legColor: versão mais escura da própria cor do marcador (nunca um valor fixo) — ver
-// _bibDarken. facing: graus (0-359), só roda as "pernas"/alças — o círculo e a etiqueta
-// nunca rodam (etiqueta sempre legível).
-function _bibDarken(hex,amt){
-  const h=(hex||'').replace('#','');
-  if(h.length!==6)return hex||'#000000';
-  const r=Math.max(0,Math.round(parseInt(h.slice(0,2),16)*(1-amt)));
-  const g=Math.max(0,Math.round(parseInt(h.slice(2,4),16)*(1-amt)));
-  const b=Math.max(0,Math.round(parseInt(h.slice(4,6),16)*(1-amt)));
-  const toHex=n=>n.toString(16).padStart(2,'0');
-  return '#'+toHex(r)+toHex(g)+toHex(b);
-}
+// duplicar lógica de desenho entre os dois namespaces. Ver CLAUDE.md sps-v204/sps-v205.
+// facing: graus (0-359), só roda as "pernas"/alças — o círculo e a etiqueta nunca rodam
+// (etiqueta sempre legível).
 // Luminância simples (mesma lógica já usada para decidir a cor do número no GR vs jogadora
 // de linha) — cor clara ganha texto escuro, cor escura ganha texto branco.
 function _bibTextColor(fill){
@@ -1330,10 +1320,17 @@ function _bibTextColor(fill){
   const lum=(0.299*r+0.587*g+0.114*b)/255;
   return lum>0.6?'#1a1a2e':'#fff';
 }
-function _bibMarkerSvg(fill,legColor,label,rad,facing){
+// sps-v205 (pedido do Roger): as "pernas" deixam de usar uma versão escura da própria cor
+// do marcador (fill) e passam a ser sempre brancas — contrastam melhor com o verde do
+// campo do que uma cor escura, sobretudo em marcadores de cor escura/roxo/azul. Ganham um
+// contorno fino verde-escuro (#15803d) para não desaparecerem dentro de um círculo também
+// branco. Tamanho também ligeiramente maior do que a v204 original (rad*1.45/0.28 →
+// rad*1.7/0.36), a pedido do Roger depois de comparar mockups lado a lado.
+function _bibMarkerSvg(fill,label,rad,facing){
   facing=facing||0;
-  const legAngle=35,legLen=rad*1.45,legW=rad*0.28;
-  const leg=(ang)=>`<rect x="${(-legW/2).toFixed(2)}" y="0" width="${legW.toFixed(2)}" height="${legLen.toFixed(2)}" rx="${(legW/2).toFixed(2)}" fill="${legColor}" transform="rotate(${ang})"></rect>`;
+  const legAngle=35,legLen=rad*1.7,legW=rad*0.36;
+  const legStroke=Math.max(0.4,rad*0.06);
+  const leg=(ang)=>`<rect x="${(-legW/2).toFixed(2)}" y="0" width="${legW.toFixed(2)}" height="${legLen.toFixed(2)}" rx="${(legW/2).toFixed(2)}" fill="#ffffff" stroke="#15803d" stroke-width="${legStroke.toFixed(2)}" transform="rotate(${ang})"></rect>`;
   const textFill=_bibTextColor(fill);
   return `<g transform="rotate(${facing})">${leg(legAngle)}${leg(-legAngle)}</g>`+
          `<circle r="${rad}" fill="${fill}" stroke="#fff" stroke-width="1.5"></circle>`+
@@ -1397,7 +1394,7 @@ function _bibRenderPreviewSvg(ns,boardId,kind,mid,overrideField,overrideValue){
   if(overrideField==='facing')facing=+overrideValue||0;
   const rad=16;
   const label=kind==='own'?d.label:null;
-  return `<svg viewBox="-28 -28 56 56" width="110" height="110" style="display:inline-block">${_bibMarkerSvg(color,_bibDarken(color,0.25),label,rad,facing)}</svg>`;
+  return `<svg viewBox="-28 -28 56 56" width="110" height="110" style="display:inline-block">${_bibMarkerSvg(color,label,rad,facing)}</svg>`;
 }
 // oninput (ao arrastar o range/escolher cor) — só atualiza o preview dentro do modal, sem
 // tocar nos dados nem gravar (evita saveData()/sync a cada pixel arrastado).
@@ -6743,7 +6740,7 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
     const custom=(snap.markerColors&&snap.markerColors[aid])||'';
     const fill=custom||(isGK?'#27ae60':'#ffd700');
     const facing=p.facing||0;
-    dots+=`<g transform="translate(${p.x},${p.y})">${_bibMarkerSvg(fill,_bibDarken(fill,0.25),a.number||a.num||'?',rad,facing)}</g>`;
+    dots+=`<g transform="translate(${p.x},${p.y})">${_bibMarkerSvg(fill,a.number||a.num||'?',rad,facing)}</g>`;
     if(forceNames)dots+=`<text x="${p.x}" y="${(p.y+17).toFixed(1)}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
     else if(isTatico)dots+=`<text x="${p.x}" y="${(p.y+16).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
   });
@@ -6753,7 +6750,7 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
   // valores por defeito em vez de rebentar.
   (snap.opponents||[]).forEach(o=>{
     const fill=o.color||'#e63946';const facing=o.facing||0;
-    dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,_bibDarken(fill,0.25),null,rad,facing)}</g>`;
+    dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,null,rad,facing)}</g>`;
   });
   if(snap.ball){
     dots+=`<g transform="translate(${snap.ball.x},${snap.ball.y})">${_ballIconSvg(Math.round(rad*0.6))}</g>`;
@@ -6823,7 +6820,7 @@ function _jogoCampoHtml(g){
     const task=taskMap[aid]||'';
     return `<g class="pitch-pl" data-aid="${aid}" data-kind="player" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}','player')" onclick="event.stopPropagation();if(!_pitchWasDrag)_openMarkerOptionsModal('pitch','${g.id}|${mode}','own','${aid}');_pitchWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
-      ${_bibMarkerSvg(fill,_bibDarken(fill,0.25),a.number||a.num||i+1,rad,facing)}
+      ${_bibMarkerSvg(fill,a.number||a.num||i+1,rad,facing)}
       ${showName?`<text text-anchor="middle" y="25" font-size="11" fill="rgba(255,255,255,.9)">${nm}</text>`:''}
       ${isCap?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ffd700" font-weight="bold">C</text>`:''}
       ${isVc?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ddd" font-weight="bold">VC</text>`:''}
@@ -6839,7 +6836,7 @@ function _jogoCampoHtml(g){
     const fill=o.color||'#e63946';const facing=o.facing||0;
     return `<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="event.stopPropagation();if(!_pitchWasDrag)_openMarkerOptionsModal('pitch','${g.id}|${mode}','opponent','${o.id}');_pitchWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
-      ${_bibMarkerSvg(fill,_bibDarken(fill,0.25),null,rad,facing)}
+      ${_bibMarkerSvg(fill,null,rad,facing)}
       <title>Adversária — toca para opções</title>
     </g>`;
   }).join('');
@@ -16832,7 +16829,6 @@ function _renderPbDetail(){
     ${pb.category==='bolasParadas'?`<button class="btn btn-gh" onclick="pbApplyToGameModalOpen('${pb.id}')">📋 Aplicar a um Jogo</button>`:''}
   </div>
   ${_pbBoardHtml(pb)}
-  ${_pbAthleteListHtml(pb)}
   `;
   setTimeout(()=>_initPbEvents(pb.id),80);
 }
@@ -16841,23 +16837,26 @@ function _renderPbDetail(){
 // plantel a cada número para poder "fazer prints" com os nomes reais. Grava de imediato
 // (onchange), sem botão de guardar à parte. O quadro em si nunca mostra nomes — só o
 // número — a atribuição fica só nesta lista e no PDF (ver printPlaybookPDF).
+// sps-v205 (pedido do Roger): deixa de ser um ".ipanel" próprio por baixo do quadro — passa
+// a ser a coluna lateral DENTRO do mesmo painel do Quadro Tático (chamada por
+// _pbBoardHtml), espelhando a coluna "TAREFAS INDIVIDUAIS" do Campo Tático dos Jogos
+// (_jogoCampoHtml), para dar mais largura ao campo em vez de empurrar a lista para baixo.
+// Devolve só o conteúdo da coluna (título + linhas), sem wrapper de painel.
 function _pbAthleteListHtml(pb){
   _pbInit(pb);
   const squad=APP.athletes.filter(a=>a.teamId===pb.teamId).sort((a,b)=>(+(a.number||a.num)||999)-(+(b.number||b.num)||999));
   const rowsHtml=Array.from({length:11},(_,idx)=>idx+1).map(i=>{
     const cur=pb.athleteAssign[i]||'';
     const opts=`<option value="">— (nenhuma)</option>${squad.map(a=>`<option value="${a.id}" ${cur===a.id?'selected':''}>${escHtml(_displayName(a))}${a.number||a.num?' #'+(a.number||a.num):''}</option>`).join('')}`;
-    return `<div class="fr" style="align-items:center;margin-bottom:4px">
-      <div style="width:90px;font-size:12px;font-weight:700;color:var(--t2)">Marcador ${i}</div>
-      <select class="fc" style="flex:1" onchange="pbSetAthleteAssign('${pb.id}',${i},this.value)">${opts}</select>
+    return `<div style="margin-bottom:7px">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:2px">Marcador ${i}</div>
+      <select class="fc" onchange="pbSetAthleteAssign('${pb.id}',${i},this.value)">${opts}</select>
     </div>`;
   }).join('');
-  return `<div class="ipanel" style="margin-top:12px">
-    <div class="sh-t" style="font-size:15px;margin-bottom:10px">👥 Atletas do Plantel</div>
+  return `<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px;letter-spacing:.5px">👥 ATLETAS DO PLANTEL</div>
     ${!squad.length?'<p style="font-size:11px;color:var(--t2)">Sem atletas nesta equipa.</p>':''}
     ${rowsHtml}
-    <p style="font-size:11px;color:var(--t2);margin-top:6px">Associa cada marcador (1-11) a uma atleta do plantel para os nomes reais aparecerem no PDF. O quadro acima mantém sempre os números.</p>
-  </div>`;
+    <p style="font-size:11px;color:var(--t2);margin-top:4px">Associa cada marcador (1-11) a uma atleta do plantel para os nomes reais aparecerem no PDF. O quadro mantém sempre os números.</p>`;
 }
 function pbSetAthleteAssign(pbid,num,val){
   const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
@@ -16894,7 +16893,7 @@ function _pbMarkersHtml(pb){
     const fill=pos.color||(i===1?'#27ae60':'#ffd700');
     html+=`<g class="pb-mk" data-kind="own" data-mid="${i}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','own',${i})" onclick="event.stopPropagation();if(!_pbWasDrag)_openMarkerOptionsModal('pb','${pb.id}','own',${i});_pbWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
-      ${_bibMarkerSvg(fill,_bibDarken(fill,0.25),i,rad,facing)}
+      ${_bibMarkerSvg(fill,i,rad,facing)}
     </g>`;
   }
   return html;
@@ -16908,7 +16907,7 @@ function _pbOpponentsHtml(pb){
     const facing=o.facing||0;const fill=o.color||'#e63946';
     return `<g class="pb-mk" data-kind="opponent" data-mid="${o.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','opponent','${o.id}')" onclick="event.stopPropagation();if(!_pbWasDrag)_openMarkerOptionsModal('pb','${pb.id}','opponent','${o.id}');_pbWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
-      ${_bibMarkerSvg(fill,_bibDarken(fill,0.25),null,rad,facing)}
+      ${_bibMarkerSvg(fill,null,rad,facing)}
       <title>Adversária — toca para opções</title>
     </g>`;
   }).join('');
@@ -17257,7 +17256,7 @@ function _pbSnapshotSvg(snap,w,athleteAssign){
     const isGK=i===1;
     const fill=p.color||(isGK?'#27ae60':'#ffd700');
     const facing=p.facing||0;
-    dots+=`<g transform="translate(${p.x},${p.y})">${_bibMarkerSvg(fill,_bibDarken(fill,0.25),i,rad,facing)}</g>`;
+    dots+=`<g transform="translate(${p.x},${p.y})">${_bibMarkerSvg(fill,i,rad,facing)}</g>`;
     if(athleteAssign&&athleteAssign[i]){
       const a=APP.athletes.find(x=>x.id===athleteAssign[i]);
       if(a)dots+=`<text x="${p.x}" y="${(p.y+17).toFixed(1)}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
@@ -17265,7 +17264,7 @@ function _pbSnapshotSvg(snap,w,athleteAssign){
   }
   (snap.opponents||[]).forEach(o=>{
     const fill=o.color||'#e63946';const facing=o.facing||0;
-    dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,_bibDarken(fill,0.25),null,rad,facing)}</g>`;
+    dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,null,rad,facing)}</g>`;
   });
   if(snap.ball)dots+=`<g transform="translate(${snap.ball.x},${snap.ball.y})">${_ballIconSvg(Math.round(rad*0.6))}</g>`;
   return `<svg viewBox="0 0 300 ${viewH}" style="width:${w}px;height:${h}px;display:block;border-radius:6px">${bg}${dots}</svg>`;
@@ -17309,27 +17308,32 @@ function _pbBoardHtml(pb){
       <button class="btn btn-sm btn-gh" onclick="pbOpenPresentation('${pb.id}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
       ${(pb.opponents||[]).length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para opções</span>`:''}
     </div>
-    <div class="jc-pitch-wrap" style="flex-shrink:0;max-width:300px">
-      <svg id="pb-pitch-${pb.id}" viewBox="0 0 ${PW} ${_pbViewH(pb.fullView)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pbArrowStart(event,'${pb.id}')" onmousemove="pbDragMove(event);pbArrowMove(event)" onmouseup="pbDragEnd(event);pbArrowEnd(event)" onmouseleave="pbDragEnd(event);pbArrowEnd(event)">
-        <defs><marker id="pb-arrowhead-${pb.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
-        <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
-        <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <circle cx="150" cy="210" r="38" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <circle cx="150" cy="210" r="3" fill="rgba(255,255,255,.45)"/>
-        <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <rect x="105" y="15" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        ${arrowList.map(a=>{
-          const color=a.color||'#fff';const dash=a.style==='dashed'?'6,4':'none';
-          if(a.kind==='freehand')return `<path d="${_freehandPathD(a.points)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></path>`;
-          return `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></line>`;
-        }).join('')}
-        ${_pbMarkersHtml(pb)}
-        ${_pbOpponentsHtml(pb)}
-        ${_pbBallHtml(pb)}
-      </svg>
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div class="jc-pitch-wrap" style="flex-shrink:0">
+        <svg id="pb-pitch-${pb.id}" viewBox="0 0 ${PW} ${_pbViewH(pb.fullView)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pbArrowStart(event,'${pb.id}')" onmousemove="pbDragMove(event);pbArrowMove(event)" onmouseup="pbDragEnd(event);pbArrowEnd(event)" onmouseleave="pbDragEnd(event);pbArrowEnd(event)">
+          <defs><marker id="pb-arrowhead-${pb.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
+          <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
+          <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+          <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+          <circle cx="150" cy="210" r="38" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+          <circle cx="150" cy="210" r="3" fill="rgba(255,255,255,.45)"/>
+          <rect x="88" y="15" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+          <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+          <rect x="105" y="15" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+          <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+          ${arrowList.map(a=>{
+            const color=a.color||'#fff';const dash=a.style==='dashed'?'6,4':'none';
+            if(a.kind==='freehand')return `<path d="${_freehandPathD(a.points)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></path>`;
+            return `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></line>`;
+          }).join('')}
+          ${_pbMarkersHtml(pb)}
+          ${_pbOpponentsHtml(pb)}
+          ${_pbBallHtml(pb)}
+        </svg>
+      </div>
+      <div style="flex:1;min-width:230px">
+        ${_pbAthleteListHtml(pb)}
+      </div>
     </div>
     <div style="margin-top:12px">
       <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;letter-spacing:.5px">GALERIA — SEQUÊNCIA DE PASSOS</div>

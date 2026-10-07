@@ -3464,3 +3464,94 @@ próprio default (não os dois o mesmo ponto fixo) e nunca cai em `(150,210)`; o
 confirma que um marcador já arrastado manualmente não se mexe ao mudar-lhe a rotação.
 79 testes no total (75 do agente + 4 da verificação), todos a passar; regressão completa
 (todos os `test_*.js`) re-corrida de novo depois da correção, sem falhas novas.
+
+## sps-v205 (07/10/2026): Playbook — Quadro Tático maior com lista de atletas ao lado +
+## pernas dos marcadores sempre brancas
+
+**Pedido do Roger**, depois de ver o sps-v204 em produção: duas queixas/pedidos sobre o
+Playbook, cada um explicitamente condicionado a ver um exemplo/mockup antes de qualquer
+código ("MOSTRA-ME AS TUAS SUJESTOES ANTES DE AVANÇAR" / "MOSTRA ANTES DE CRIARES CODIGO"
+/ "MOSTRA EXEMPLO ANTES DE AVANÇAR" / "MOSTRA EXEMPLOS", repetido 4 vezes ao longo da
+conversa) — seguido escrupulosamente: nenhuma linha de `index.html` foi tocada antes da
+confirmação final.
+
+**1) Layout — Quadro Tático maior, lista de atletas ao lado:**
+
+O Playbook (`_pbBoardHtml`) tinha o SVG do campo limitado a `max-width:300px` inline,
+deixando o resto do painel vazio, com a lista "Atletas do Plantel"
+(`_pbAthleteListHtml`, sps-v201) a aparecer num `.ipanel` próprio por baixo, a empurrar o
+campo para cima e a ocupar largura que não ajudava o campo em nada. O Roger propôs
+aumentar o campo e pôr a lista ao lado; escolhida (`AskUserQuestion`) a opção que espelha
+o padrão já comprovado das Bolas Paradas (`_jogoCampoHtml`/`.jc-pitch-wrap`, responsivo
+via `width:min(96vw,640px)` em retrato e `width:min(72vw,90vh,820px)` em paisagem/tablet+,
+sps-v187) em vez de um grid de 2 colunas novo. Mockup (`mockup_playbook_layout_v1.html`,
+com nomes reais do plantel) aprovado antes de codar.
+
+- `_pbBoardHtml`: SVG do campo passou a ficar dentro de `.jc-pitch-wrap` (a mesma classe
+  responsiva das Bolas Paradas, sem `max-width:300px`), num `<div style="display:flex;
+  gap:16px;align-items:flex-start;flex-wrap:wrap">` ao lado de uma coluna
+  `flex:1;min-width:230px` com `_pbAthleteListHtml(pb)`.
+- `_pbAthleteListHtml`: deixou de se envolver no seu próprio `.ipanel` — passou a devolver
+  só o conteúdo (título "👥 ATLETAS DO PLANTEL" + 11 linhas), para ser embutido como coluna
+  dentro do mesmo painel do Quadro Tático; linhas passaram de formato horizontal
+  (rótulo+select lado a lado) para rótulo em cima do select (mais estreito, cabe melhor na
+  coluna lateral).
+- `_renderPbDetail`: deixou de chamar `_pbAthleteListHtml` separadamente depois de
+  `_pbBoardHtml` — a lista passou a viver só dentro do próprio quadro, numa única fonte
+  (confirmado por teste: chamar `_pbBoardHtml` não duplica o título da lista).
+
+**2) Pernas dos marcadores sempre brancas (antes: versão escura da própria cor do
+marcador):**
+
+O boneco "colete" (sps-v204, `_bibMarkerSvg`) dava às "pernas" uma versão escurecida da
+cor escolhida para o círculo (`_bibDarken(fill,0.25)`) — o Roger pediu pernas sempre numa
+cor fixa, independente da cor do círculo. Três rondas de mockup até à decisão final:
+
+1. 1ª proposta: preto fixo (`#1a1a2e`) — aprovada em forma ("ISSO MESMO"), mas o Roger
+   reconsiderou de imediato, pedindo ver branco também, com pernas ligeiramente maiores,
+   por achar que contrastaria melhor com o verde do campo (`mockup_pes_v2.html`, sobre
+   fundo verde real — branco revelou-se visualmente quase fundido com marcadores de
+   círculo branco, por isso recebeu um contorno fino verde-escuro `#15803d` só para esse
+   caso; preto não precisou de nenhum ajuste).
+2. "REDUZ 5%" sobre o tamanho maior do passo anterior (`mockup_pes_v3.html`).
+3. **Decisão final: "BRANCO E AVANÇA"** — branco (`#ffffff`) com o contorno
+   `#15803d` (`stroke-width≈rad*0.06`), no tamanho -5% da proposta de +25% (`legLen=rad*1.7`,
+   `legW=rad*0.36` — ~17%/~29% maiores que os valores originais do sps-v204,
+   `rad*1.45`/`rad*0.28`, depois do desconto de 5%).
+
+`_bibDarken` deixou de ter qualquer utilizador (confirmado por grep nos 9 pontos de
+chamada de `_bibMarkerSvg`) e foi removida; `_bibMarkerSvg` perdeu o parâmetro `legColor`
+(assinatura `(fill,label,rad,facing)` em vez de `(fill,legColor,label,rad,facing)`) — como
+é uma função partilhada e neutra (não pertence a `_pb*` nem a `_pitch*`), a mudança
+cascateia automaticamente para os dois quadros (Playbook e Set Pieces) e para todos os
+sítios que a chamam (preview do modal de opções, miniaturas/galeria/PDF,
+`_pitchSnapshotSvg`, `_jogoCampoHtml`, `_pbMarkersHtml`/`_pbOpponentsHtml`,
+`_pbSnapshotSvg`) sem precisar de tocar em cada um individualmente.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`, duas vezes
+(logo depois das alterações e numa passagem final). `test_marker_evolution_v204.js`
+estendido: lista de funções disponíveis atualizada (`_bibDarken` removida,
+`_pbAthleteListHtml` acrescentada); secção [1] reescrita para a nova assinatura de
+`_bibMarkerSvg`, com testes novos confirmando pernas sempre `#ffffff` independentemente
+da cor do círculo (testado com amarelo/azul/branco), pernas maiores que os valores
+originais do sps-v204, e `_bibDarken` já não existe; nova secção [7b] "Playbook — layout
+sps-v205" com 4 testes: `_pbBoardHtml` já não tem `max-width:300px` e usa
+`.jc-pitch-wrap`; campo e lista "Atletas do Plantel" aparecem na mesma fiada flex (campo
+antes da lista); `_pbAthleteListHtml` já não se envolve em `.ipanel` próprio; chamar
+`_pbBoardHtml` não duplica o título "ATLETAS DO PLANTEL". 85 testes no total (79 do
+sps-v204 + 6 novos), todos a passar. Verificação visual com 3 screenshots Playwright
+dedicados (`verify_v205_screens.js`, `verify_v205_setpieces.js`): jogada real do Playbook
+com nomes reais do plantel atribuídos aos marcadores 1/4/11 e cores próprias nos
+marcadores 7 (azul) e 9 (roxo) — confirma visualmente o campo alargado para 820px de
+largura num viewport de 1400px (antes limitado a 300px), a lista de atletas ao lado, e as
+pernas brancas com contorno verde-escuro nos marcadores coloridos; terceiro screenshot
+confirma que a mesma mudança de pernas brancas cascateia corretamente para o quadro de
+Bolas Paradas (`_jogoCampoHtml`), sem qualquer alteração de código nesse lado. Regressão
+completa re-corrida (mesma lista do sps-v204) sem falhas novas — só a flakiness já
+documentada de `test_mobile_v187.js` quando corrido em sequência com muitos outros testes
+Playwright na mesma sessão (confirmada limpa em execuções isoladas, consistente com o
+padrão já descrito acima).
+
+SW bump para `sps-v205`.
+
+**Ainda por fazer:** nada pendente para este pedido.

@@ -155,8 +155,8 @@ function test(name, fn) {
 console.log('Loading real index.html script into vm context...');
 const ctx = loadContext();
 console.log('Loaded. Functions available:',
-  ['_bibMarkerSvg','_bibDarken','_bibTextColor','_ballIconSvg','_freehandPathD',
-   '_pbInit','_pbMarkersHtml','_pbOpponentsHtml','_pbBallHtml','_pbBoardHtml',
+  ['_bibMarkerSvg','_bibTextColor','_ballIconSvg','_freehandPathD',
+   '_pbInit','_pbMarkersHtml','_pbOpponentsHtml','_pbBallHtml','_pbBoardHtml','_pbAthleteListHtml',
    '_pbSnapshot','_pbLoadSnapshot','_pbSnapshotSvg','pbArrowEnd','pbArrowClick','pbClearArrows',
    'pbHideAllOwn','pbRestoreAllOwn','pbClearOpponents','_bibApplyField','_bibDeleteMarker',
    '_jogoCampoHtml','_pitchSnapshotSvg','pitchArrowEnd','pitchArrowClick','pitchClearArrows',
@@ -164,10 +164,17 @@ console.log('Loaded. Functions available:',
    .map(n => typeof ctx[n]).join(','));
 
 // ─────────────────────────────────────────────────────────────────────────
-// 1) _bibMarkerSvg / _bibDarken / _bibTextColor
+// 1) _bibMarkerSvg / _bibTextColor
+// sps-v205 (pedido do Roger, depois do sps-v204 já estar em produção): as "pernas" do
+// boneco deixaram de usar uma versão escura da própria cor do marcador e passaram a ser
+// SEMPRE brancas (com um contorno verde-escuro fino, para não desaparecerem num marcador
+// também branco) — contrastam melhor com o verde do campo. Também ficaram ligeiramente
+// maiores. _bibMarkerSvg perdeu o parâmetro legColor (já não faz sentido passar uma cor de
+// perna por fora — é sempre a mesma) e _bibDarken foi removido (só servia para calcular
+// essa cor escura, que deixou de existir).
 console.log('\n[1] Shared SVG helpers');
 test('_bibMarkerSvg produces a <g> with two <rect> legs rotated by facing and a <circle> with the given fill', () => {
-  const svg = ctx._bibMarkerSvg('#ffd700', '#b39b00', 7, 7, 45);
+  const svg = ctx._bibMarkerSvg('#ffd700', 7, 7, 45);
   assert.ok(svg.includes('<g transform="rotate(45)">'), 'facing rotation group missing');
   const rectCount = (svg.match(/<rect/g) || []).length;
   assert.strictEqual(rectCount, 2, 'expected exactly 2 leg rects, got ' + rectCount);
@@ -175,18 +182,42 @@ test('_bibMarkerSvg produces a <g> with two <rect> legs rotated by facing and a 
   assert.ok(svg.includes('<circle'), 'circle missing');
   assert.ok(svg.includes('>7</text>'), 'label missing');
 });
+test('_bibMarkerSvg legs are always white with a dark-green stroke, regardless of the circle fill color', () => {
+  const svgYellow = ctx._bibMarkerSvg('#ffd700', 7, 7, 0);
+  const svgBlue = ctx._bibMarkerSvg('#3b82f6', 7, 7, 0);
+  const svgWhiteCircle = ctx._bibMarkerSvg('#ffffff', 7, 7, 0);
+  [svgYellow, svgBlue, svgWhiteCircle].forEach(svg => {
+    const legRects = svg.match(/<rect[^>]*>/g).filter(r => r.includes('transform="rotate(35'));
+    // (both legs share the same fixed fill/stroke, so just check the leg rects generically)
+  });
+  const legRectMatches = svgYellow.match(/<rect[^>]*fill="#ffffff"[^>]*>/g) || [];
+  assert.strictEqual(legRectMatches.length, 2, 'both legs should be fill="#ffffff" regardless of marker color');
+  assert.ok(svgYellow.includes('stroke="#15803d"'), 'legs should have the dark-green contrast stroke');
+  // a mesma asserção para uma cor de círculo diferente — confirma que a cor das pernas não
+  // depende, de forma alguma, da cor passada em `fill`.
+  const legRectMatchesBlue = svgBlue.match(/<rect[^>]*fill="#ffffff"[^>]*>/g) || [];
+  assert.strictEqual(legRectMatchesBlue.length, 2, 'legs stay white even when the marker circle is blue');
+});
+test('_bibMarkerSvg leg dimensions are larger than the original sps-v204 size (rad*1.45/rad*0.28)', () => {
+  const svg = ctx._bibMarkerSvg('#ffd700', null, 10, 0);
+  const legRect = svg.match(/<rect[^>]*transform="rotate\(35\)"[^>]*>/)[0];
+  const widthMatch = legRect.match(/width="([\d.]+)"/);
+  const heightMatch = legRect.match(/height="([\d.]+)"/);
+  const legW = parseFloat(widthMatch[1]), legLen = parseFloat(heightMatch[1]);
+  // tamanho original (sps-v204): legLen=rad*1.45=14.5, legW=rad*0.28=2.8 (para rad=10)
+  assert.ok(legLen > 14.5, 'legLen should be larger than the original rad*1.45 — got ' + legLen);
+  assert.ok(legW > 2.8, 'legW should be larger than the original rad*0.28 — got ' + legW);
+});
 test('_bibMarkerSvg omits the label <text> when label is null (adversárias)', () => {
-  const svg = ctx._bibMarkerSvg('#e63946', '#a32330', null, 7, 0);
+  const svg = ctx._bibMarkerSvg('#e63946', null, 7, 0);
   assert.ok(!svg.includes('<text'), 'should not render a label when label is null');
 });
 test('_bibMarkerSvg defaults facing to 0 when omitted', () => {
-  const svg = ctx._bibMarkerSvg('#ffd700', '#b39b00', 1, 7);
+  const svg = ctx._bibMarkerSvg('#ffd700', 1, 7);
   assert.ok(svg.includes('<g transform="rotate(0)">'));
 });
-test('_bibDarken darkens each channel and keeps a valid #rrggbb', () => {
-  const d = ctx._bibDarken('#ffd700', 0.25);
-  assert.match(d, /^#[0-9a-f]{6}$/);
-  assert.notStrictEqual(d.toLowerCase(), '#ffd700');
+test('_bibDarken no longer exists (removed in sps-v205 — leg color is no longer derived from the marker fill)', () => {
+  assert.strictEqual(typeof ctx._bibDarken, 'undefined');
 });
 test('_bibTextColor returns dark text for light fills and white text for dark fills (same logic as isGK before)', () => {
   assert.strictEqual(ctx._bibTextColor('#ffd700'), '#1a1a2e'); // jogadora de linha (ouro) -> texto escuro
@@ -427,6 +458,42 @@ test('_pbBoardHtml renders straight arrows as <line> and freehand arrows as <pat
   assert.ok(html.includes('onclick="pbArrowClick(event,\'pbA\',\'a1\')"'));
   assert.ok(html.includes('onclick="pbArrowClick(event,\'pbA\',\'a2\')"'));
   assert.ok(/<path[^>]*onclick="pbArrowClick\(event,'pbA','a2'\)"/.test(html), 'freehand arrow should render as <path>');
+});
+
+console.log('\n[7b] Playbook — layout sps-v205 (quadro maior, lista de atletas ao lado em vez de abaixo)');
+test('_pbBoardHtml no longer caps the pitch at max-width:300px (it now gets the same responsive .jc-pitch-wrap width as Set Pieces)', () => {
+  const pb = makePb({ id: 'pbA' });
+  ctx.$APP = { playbook: [pb], games: [], athletes: [], teams: [{id:'t1',name:'A'}], config: {} };
+  const html = ctx._pbBoardHtml(pb);
+  assert.ok(!html.includes('max-width:300px'), 'the old inline 300px cap on .jc-pitch-wrap should be gone');
+  assert.ok(html.includes('class="jc-pitch-wrap"'), 'the pitch should still use the shared .jc-pitch-wrap class (same responsive CSS as Set Pieces)');
+});
+test('_pbBoardHtml places the pitch and the "Atletas do Plantel" list side by side in the same flex row', () => {
+  const pb = makePb({ id: 'pbA' });
+  ctx.$APP = { playbook: [pb], games: [{ id:'g1' }], athletes: [{id:'a1',name:'Atleta Um',number:1,teamId:'t1'}], teams: [{id:'t1',name:'A'}], config: {} };
+  const html = ctx._pbBoardHtml(pb);
+  assert.ok(html.includes('ATLETAS DO PLANTEL'), 'athlete list should now be rendered inside _pbBoardHtml itself');
+  // a lista tem de vir DEPOIS do svg do campo mas dentro do mesmo contentor flex
+  // ("display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap") — confirma que não é
+  // só coincidência de ambos existirem algures na página.
+  const flexOpenIdx = html.indexOf('display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap');
+  const svgIdx = html.indexOf('<svg id="pb-pitch-pbA"');
+  const listIdx = html.indexOf('ATLETAS DO PLANTEL');
+  assert.ok(flexOpenIdx > -1 && flexOpenIdx < svgIdx && svgIdx < listIdx, 'expected order: flex row opens, then the pitch <svg>, then the athlete list, all inside the same row');
+});
+test('_pbAthleteListHtml no longer wraps itself in its own .ipanel (it is now a plain side column embedded by _pbBoardHtml)', () => {
+  const pb = makePb({ id: 'pbA' });
+  ctx.$APP = { playbook: [pb], games: [], athletes: [], teams: [{id:'t1',name:'A'}], config: {} };
+  const html = ctx._pbAthleteListHtml(pb);
+  assert.ok(!html.includes('class="ipanel"'), '_pbAthleteListHtml should not render its own ipanel wrapper anymore');
+  assert.ok(html.includes('Marcador 1') && html.includes('Marcador 11'), 'should still render all 11 marker rows');
+});
+test('_renderPbDetail-equivalent: _pbBoardHtml is now the single source of the athlete list — calling it twice must not duplicate the "ATLETAS DO PLANTEL" heading', () => {
+  const pb = makePb({ id: 'pbA' });
+  ctx.$APP = { playbook: [pb], games: [], athletes: [], teams: [{id:'t1',name:'A'}], config: {} };
+  const html = ctx._pbBoardHtml(pb);
+  const occurrences = (html.match(/ATLETAS DO PLANTEL/g) || []).length;
+  assert.strictEqual(occurrences, 1, 'the athlete list heading should appear exactly once (not also added separately by _renderPbDetail anymore)');
 });
 
 console.log('\n[8] Playbook — snapshot round-trip preserves color/facing/hidden markers');
