@@ -13279,7 +13279,7 @@ function _nutriAlertsHtml(){
     <div class="cb" style="padding:0">
     ${alerts.map(a=>{
       const at=APP.athletes.find(x=>x.id===a.athleteId);
-      const action=a.type==='semAvaliacao'?`_naAtId='${a.athleteId}';_showNaForm=true;navTo('nutri-aval')`:`_npAtId='${a.athleteId}';_showNpForm=true;navTo('nutri-planos')`;
+      const action=a.type==='semAvaliacao'?`_naAtId='${a.athleteId}';_showNaForm=true;navTo('nutri-aval')`:`_npAtId='${a.athleteId}';novoNutriPlano();navTo('nutri-planos')`;
       return `<div style="padding:10px 14px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;gap:8px;align-items:center">
         <div><span style="margin-right:6px">${ICON[a.type]||'•'}</span><strong>${escHtml(at?_displayName(at):'?')}</strong> — ${escHtml(a.label)}
         <div style="font-size:10px;color:var(--t2);margin-left:22px">${escHtml(a.detail)}</div></div>
@@ -13586,41 +13586,43 @@ function _suplCatalogHtml(){
     </div>
   </div>`;
 }
+// sps-v203: "+ Novo Suplemento" (id null) cria o registo de imediato (defaults: nome em
+// branco, categoria/Informed Sport com o 1º valor sensato) e abre este mesmo modal já
+// ligado a um id real — cada campo grava sozinho (saveSuplItemField, onblur/onchange),
+// sem botão "Guardar". "Editar" (id existente) abre o mesmo modal sobre esse registo.
 function _openSuplItemModal(id){
-  const it=id?(APP.supplementCatalog||[]).find(x=>x.id===id):null;
-  openMod((it?'Editar':'Novo')+' Suplemento',`
-  <div class="form-g"><label class="fl">Nome *</label><input class="fc" id="si-name" value="${escHtml(it?.name||'')}" placeholder="Ex: Creatina Monohidratada"></div>
+  let it=id?(APP.supplementCatalog||[]).find(x=>x.id===id):null;
+  if(!it){
+    it={id:'sc'+uid(),name:'',category:(SUPL_CATEGORIES[0]&&SUPL_CATEGORIES[0].key)||'',form:'',informedSport:'confirmar',notes:''};
+    APP.supplementCatalog.push(it);
+    if(_sync)cloudUpsert('supplement_catalog',{...it,club_id:_cid});
+    saveData();
+    renderNutriSupl();
+  }
+  openMod('Suplemento',`
+  <div class="form-g"><label class="fl">Nome *</label><input class="fc" id="si-name" value="${escHtml(it.name||'')}" placeholder="Ex: Creatina Monohidratada" onblur="saveSuplItemField('${it.id}','name',this.value)"></div>
   <div class="fr">
-    <div class="form-g"><label class="fl">Categoria</label><select class="fc" id="si-cat">${SUPL_CATEGORIES.map(c=>`<option value="${c.key}" ${it?.category===c.key?'selected':''}>${c.label}</option>`).join('')}</select></div>
-    <div class="form-g"><label class="fl">Forma</label><input class="fc" id="si-form" value="${escHtml(it?.form||'')}" placeholder="Pó, cápsula, líquido..."></div>
+    <div class="form-g"><label class="fl">Categoria</label><select class="fc" id="si-cat" onchange="saveSuplItemField('${it.id}','category',this.value)">${SUPL_CATEGORIES.map(c=>`<option value="${c.key}" ${it.category===c.key?'selected':''}>${c.label}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Forma</label><input class="fc" id="si-form" value="${escHtml(it.form||'')}" placeholder="Pó, cápsula, líquido..." onblur="saveSuplItemField('${it.id}','form',this.value)"></div>
   </div>
-  <div class="form-g"><label class="fl">Informed Sport</label><select class="fc" id="si-is">
-    <option value="confirmar" ${(!it||it.informedSport==='confirmar')?'selected':''}>⚠️ Por confirmar</option>
-    <option value="certificado" ${it?.informedSport==='certificado'?'selected':''}>✅ Certificado</option>
+  <div class="form-g"><label class="fl">Informed Sport</label><select class="fc" id="si-is" onchange="saveSuplItemField('${it.id}','informedSport',this.value)">
+    <option value="confirmar" ${it.informedSport==='confirmar'?'selected':''}>⚠️ Por confirmar</option>
+    <option value="certificado" ${it.informedSport==='certificado'?'selected':''}>✅ Certificado</option>
   </select></div>
-  <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="si-notes" rows="2" placeholder="Marca recomendada, observações...">${escHtml(it?.notes||'')}</textarea></div>
+  <div class="form-g"><label class="fl">Notas</label><textarea class="fc" id="si-notes" rows="2" placeholder="Marca recomendada, observações..." onblur="saveSuplItemField('${it.id}','notes',this.value)">${escHtml(it.notes||'')}</textarea></div>
   <div style="display:flex;gap:8px;margin-top:12px">
-    <button class="btn btn-g" onclick="saveSuplItem('${id||''}')">💾 Guardar</button>
-    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+    <button class="btn btn-gh" onclick="closeMod()">Fechar</button>
   </div>`);
   setTimeout(()=>{const el=document.getElementById('si-name');if(el)el.focus();},100);
 }
-function saveSuplItem(id){
-  const name=document.getElementById('si-name').value.trim();
-  if(!name)return toast('Nome obrigatório','err');
-  let it=id?(APP.supplementCatalog||[]).find(x=>x.id===id):null;
-  if(!it){it={id:'sc'+uid()};APP.supplementCatalog.push(it);}
-  Object.assign(it,{
-    name,
-    category:document.getElementById('si-cat').value,
-    form:document.getElementById('si-form').value.trim(),
-    informedSport:document.getElementById('si-is').value,
-    notes:document.getElementById('si-notes').value.trim()
-  });
-  saveData();
+// Gravação automática por campo — substitui saveSuplItem, que recolhia todos os campos
+// de uma vez a partir de um botão "Guardar" único. Preserva sempre os restantes campos
+// do item (Object.assign só no campo tocado, nunca reconstrói o objeto do zero).
+function saveSuplItemField(id,field,value){
+  const it=(APP.supplementCatalog||[]).find(x=>x.id===id);if(!it)return;
+  it[field]=(typeof value==='string')?value.trim():value;
   if(_sync)cloudUpsert('supplement_catalog',{...it,club_id:_cid});
-  toast('Suplemento guardado ✓');
-  closeMod();
+  saveData();
   renderNutriSupl();
 }
 function deleteSuplItem(id){
@@ -13675,70 +13677,84 @@ function _suplPrescricaoHtml(athletes){
     </div>
   </div>`;
 }
+// sps-v203: "+ Adicionar" (prescId null — único ponto de criação, dentro de uma coluna
+// de momento) cria o registo de imediato (defaults: sem suplemento escolhido, o momento
+// da coluna clicada já marcado, início hoje, estado ativo) e abre este mesmo modal já
+// ligado a um id real — cada campo grava sozinho (saveSuplPrescField, onblur/onchange;
+// checkboxes de momento em onchange), sem botão "Guardar". "Editar" (prescId existente)
+// abre o mesmo modal sobre esse registo.
 function _openSuplPrescModal(athleteId,prescId,defaultMoment){
-  const p=prescId?(APP.supplementPrescriptions||[]).find(x=>x.id===prescId):null;
+  let p=prescId?(APP.supplementPrescriptions||[]).find(x=>x.id===prescId):null;
+  if(!p){
+    const sess=getSession();
+    p={id:'sp'+uid(),athleteId,supplementId:null,customName:'',dose:'',frequency:'',
+      moments:defaultMoment?[defaultMoment]:[],instructions:'',startDate:today(),reviewDate:null,status:'ativo',
+      prescribedAt:new Date().toISOString(),prescribedBy:sess?sess.name:'',prescribedById:sess?sess.userId:null};
+    APP.supplementPrescriptions.push(p);
+    if(_sync)cloudUpsert('supplement_prescriptions',{...p,club_id:_cid});
+    saveData();
+    renderNutriSupl();
+  }
   const catalog=[...(APP.supplementCatalog||[])].sort((a,b)=>a.name.localeCompare(b.name));
-  const moments=p?(p.moments||[]):(defaultMoment?[defaultMoment]:[]);
-  const isOutro=!!(p&&!p.supplementId&&p.customName);
-  openMod((p?'Editar':'Nova')+' Prescrição — '+_displayName((APP.athletes||[]).find(a=>a.id===athleteId)||{}),`
-  <div class="form-g"><label class="fl">Suplemento</label><select class="fc" id="sp-supl" onchange="document.getElementById('sp-custom-wrap').style.display=this.value==='_outro'?'block':'none'">
-    <option value="">— Escolher do catálogo —</option>
-    ${catalog.map(c=>`<option value="${c.id}" ${p?.supplementId===c.id?'selected':''}>${escHtml(c.name)}</option>`).join('')}
+  const moments=p.moments||[];
+  const isOutro=!!(!p.supplementId&&p.customName);
+  openMod('Prescrição — '+_displayName((APP.athletes||[]).find(a=>a.id===athleteId)||{}),`
+  <div class="form-g"><label class="fl">Suplemento</label><select class="fc" id="sp-supl" onchange="document.getElementById('sp-custom-wrap').style.display=this.value==='_outro'?'block':'none';saveSuplPrescField('${athleteId}','${p.id}','supplementId',this.value)">
+    <option value="" ${(!p.supplementId&&!isOutro)?'selected':''}>— Escolher do catálogo —</option>
+    ${catalog.map(c=>`<option value="${c.id}" ${p.supplementId===c.id?'selected':''}>${escHtml(c.name)}</option>`).join('')}
     <option value="_outro" ${isOutro?'selected':''}>Outro (texto livre)</option>
   </select></div>
-  <div class="form-g" id="sp-custom-wrap" style="display:${isOutro?'block':'none'}"><label class="fl">Nome do suplemento</label><input class="fc" id="sp-custom" value="${escHtml(p?.customName||'')}" placeholder="Nome livre, fora do catálogo"></div>
+  <div class="form-g" id="sp-custom-wrap" style="display:${isOutro?'block':'none'}"><label class="fl">Nome do suplemento</label><input class="fc" id="sp-custom" value="${escHtml(p.customName||'')}" placeholder="Nome livre, fora do catálogo" onblur="saveSuplPrescField('${athleteId}','${p.id}','customName',this.value)"></div>
   <div class="fr">
-    <div class="form-g"><label class="fl">Dose / Quantidade</label><input class="fc" id="sp-dose" value="${escHtml(p?.dose||'')}" placeholder="Ex: 5g, 1 cápsula"></div>
-    <div class="form-g"><label class="fl">Frequência</label><input class="fc" id="sp-freq" value="${escHtml(p?.frequency||'')}" placeholder="Ex: todos os dias, só em jogo"></div>
+    <div class="form-g"><label class="fl">Dose / Quantidade</label><input class="fc" id="sp-dose" value="${escHtml(p.dose||'')}" placeholder="Ex: 5g, 1 cápsula" onblur="saveSuplPrescField('${athleteId}','${p.id}','dose',this.value)"></div>
+    <div class="form-g"><label class="fl">Frequência</label><input class="fc" id="sp-freq" value="${escHtml(p.frequency||'')}" placeholder="Ex: todos os dias, só em jogo" onblur="saveSuplPrescField('${athleteId}','${p.id}','frequency',this.value)"></div>
   </div>
   <div class="form-g"><label class="fl">Momento(s)</label>
     <div style="display:flex;gap:10px;flex-wrap:wrap">${SUPL_MOMENTS.map(m=>`<label style="display:flex;align-items:center;gap:5px;font-size:12px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;padding:6px 10px;cursor:pointer">
-      <input type="checkbox" id="sp-mom-${m.key}" ${moments.includes(m.key)?'checked':''}> ${m.icon} ${m.label}</label>`).join('')}</div>
+      <input type="checkbox" id="sp-mom-${m.key}" ${moments.includes(m.key)?'checked':''} onchange="saveSuplPrescField('${athleteId}','${p.id}','moment:${m.key}',this.checked)"> ${m.icon} ${m.label}</label>`).join('')}</div>
   </div>
-  <div class="form-g"><label class="fl">Instruções</label><textarea class="fc" id="sp-ins" rows="2" placeholder="Ex: 30 min antes, com água">${escHtml(p?.instructions||'')}</textarea></div>
+  <div class="form-g"><label class="fl">Instruções</label><textarea class="fc" id="sp-ins" rows="2" placeholder="Ex: 30 min antes, com água" onblur="saveSuplPrescField('${athleteId}','${p.id}','instructions',this.value)">${escHtml(p.instructions||'')}</textarea></div>
   <div class="fr3">
-    <div class="form-g"><label class="fl">Início</label><input class="fc" type="date" id="sp-start" value="${p?.startDate||today()}"></div>
-    <div class="form-g"><label class="fl">Revisão (opcional)</label><input class="fc" type="date" id="sp-review" value="${p?.reviewDate||''}"></div>
-    <div class="form-g"><label class="fl">Estado</label><select class="fc" id="sp-status">
-      <option value="ativo" ${(!p||p.status==='ativo')?'selected':''}>Ativo</option>
-      <option value="pausado" ${p?.status==='pausado'?'selected':''}>Pausado</option>
-      <option value="suspenso" ${p?.status==='suspenso'?'selected':''}>Suspenso</option>
+    <div class="form-g"><label class="fl">Início</label><input class="fc" type="date" id="sp-start" value="${p.startDate||today()}" onblur="saveSuplPrescField('${athleteId}','${p.id}','startDate',this.value)"></div>
+    <div class="form-g"><label class="fl">Revisão (opcional)</label><input class="fc" type="date" id="sp-review" value="${p.reviewDate||''}" onblur="saveSuplPrescField('${athleteId}','${p.id}','reviewDate',this.value)"></div>
+    <div class="form-g"><label class="fl">Estado</label><select class="fc" id="sp-status" onchange="saveSuplPrescField('${athleteId}','${p.id}','status',this.value)">
+      <option value="ativo" ${p.status==='ativo'?'selected':''}>Ativo</option>
+      <option value="pausado" ${p.status==='pausado'?'selected':''}>Pausado</option>
+      <option value="suspenso" ${p.status==='suspenso'?'selected':''}>Suspenso</option>
     </select></div>
   </div>
   <div style="display:flex;gap:8px;margin-top:12px">
-    <button class="btn btn-g" onclick="saveSuplPresc('${athleteId}','${prescId||''}')">💾 Guardar</button>
-    <button class="btn btn-gh" onclick="closeMod()">Cancelar</button>
+    <button class="btn btn-gh" onclick="closeMod()">Fechar</button>
   </div>`,'lg');
 }
-function saveSuplPresc(athleteId,prescId){
+// Gravação automática por campo — substitui saveSuplPresc, que recolhia todos os
+// campos (incl. os 4 checkboxes de momento) de uma vez a partir de um botão "Guardar"
+// único. 'field' pode ser um campo direto ou 'moment:<key>' (value booleano do próprio
+// checkbox) — preserva sempre os restantes momentos/campos (nunca reconstrói p do zero).
+function saveSuplPrescField(athleteId,prescId,field,value){
+  const p=(APP.supplementPrescriptions||[]).find(x=>x.id===prescId);if(!p)return;
   const sess=getSession();
-  const suplVal=document.getElementById('sp-supl').value;
-  const customName=document.getElementById('sp-custom').value.trim();
-  if(!suplVal)return toast('Escolhe um suplemento do catálogo ou "Outro"','err');
-  if(suplVal==='_outro'&&!customName)return toast('Indica o nome do suplemento','err');
-  const moments=SUPL_MOMENTS.filter(m=>document.getElementById('sp-mom-'+m.key).checked).map(m=>m.key);
-  if(!moments.length)return toast('Escolhe pelo menos um momento','err');
-  let p=prescId?(APP.supplementPrescriptions||[]).find(x=>x.id===prescId):null;
-  if(!p){p={id:'sp'+uid(),athleteId,prescribedAt:new Date().toISOString()};APP.supplementPrescriptions.push(p);}
-  Object.assign(p,{
-    supplementId:suplVal==='_outro'?null:suplVal,
-    customName:suplVal==='_outro'?customName:'',
-    dose:document.getElementById('sp-dose').value.trim(),
-    frequency:document.getElementById('sp-freq').value.trim(),
-    moments,
-    instructions:document.getElementById('sp-ins').value.trim(),
-    startDate:document.getElementById('sp-start').value||null,
-    reviewDate:document.getElementById('sp-review').value||null,
-    status:document.getElementById('sp-status').value,
-    prescribedBy:sess?sess.name:(p.prescribedBy||''),
-    prescribedById:sess?sess.userId:(p.prescribedById||null),
-    updatedAt:new Date().toISOString()
-  });
-  saveData();
+  if(field==='supplementId'){
+    if(value&&value!=='_outro'){p.supplementId=value;p.customName='';}
+    else if(value==='_outro'){p.supplementId=null;}
+    else{p.supplementId=null;}
+  }else if(field.startsWith('moment:')){
+    const key=field.split(':')[1];
+    const set=new Set(p.moments||[]);
+    if(value)set.add(key);else set.delete(key);
+    p.moments=Array.from(set);
+  }else if(field==='startDate'||field==='reviewDate'){
+    p[field]=value||null;
+  }else if(typeof value==='string'){
+    p[field]=value.trim();
+  }else{
+    p[field]=value;
+  }
+  p.prescribedBy=sess?sess.name:(p.prescribedBy||'');
+  p.prescribedById=sess?sess.userId:(p.prescribedById||null);
+  p.updatedAt=new Date().toISOString();
   if(_sync)cloudUpsert('supplement_prescriptions',{...p,club_id:_cid});
-  toast('Prescrição guardada ✓');
-  closeMod();
-  _suplTab='presc';
+  saveData();
   renderNutriSupl();
 }
 function deleteSuplPresc(id){
@@ -13819,8 +13835,8 @@ function renderNutriDash(){
     <td style="text-align:center">${plan?`<span class="bdg bg-g">${plan.kcal||'?'} kcal</span>`:'<span class="bdg bg-gr">Sem plano</span>'}</td>
     <td style="font-size:10px;color:var(--t2)">${last?last.date:'—'}</td>
     <td><button class="btn btn-xs btn-g" onclick="_naAtId='${at.id}';_showNaForm=true;navTo('nutri-aval')">+ Aval.</button>
-        <button class="btn btn-xs btn-gh" onclick="_npAtId='${at.id}';_showNpForm=true;navTo('nutri-planos')">+ Plano</button>
-        <button class="btn btn-xs btn-gh" onclick="_ncAtId='${at.id}';_showNcForm=true;navTo('nutri-consultas')">+ Consulta</button></td></tr>`;
+        <button class="btn btn-xs btn-gh" onclick="_npAtId='${at.id}';novoNutriPlano();navTo('nutri-planos')">+ Plano</button>
+        <button class="btn btn-xs btn-gh" onclick="_ncAtId='${at.id}';novaNutriConsulta();navTo('nutri-consultas')">+ Consulta</button></td></tr>`;
   }).join('');
 
   const withPlan=APP.athletes.filter(a=>APP.nutritionPlans.some(p=>p.athleteId===a.id&&p.active)).length;
@@ -14617,28 +14633,28 @@ let _npAtId=null, _showNpForm=false, _editNpId=null;
 const MEALS=['Pequeno-almoço','Meio da manhã','Almoço','Lanche da tarde','Jantar','Ceia'];
 const MEAL_ICONS={'Pequeno-almoço':'🌅','Meio da manhã':'🍎','Almoço':'🍽️','Lanche da tarde':'🥐','Jantar':'🌙','Ceia':'🌛'};
 function renderNutriPlanos(){
-  // Valor por defeito do Responsável: o do plano (a editar) ou o "responsável pelo
-  // plantel" configurado (project_sps_nutri_autoria) para planos novos.
+  // sps-v203: "+ Novo Plano" cria o registo de imediato (ver novoNutriPlano) e abre este
+  // mesmo formulário já ligado a um id real — cada campo (base + as 6 refeições) grava
+  // sozinho (saveNutriPlanoField, onblur/onchange), sem botão "Guardar Plano" — editar um
+  // plano existente (editNutriPlano) usa exatamente o mesmo formulário, sempre editável.
   const _npExisting=_editNpId?APP.nutritionPlans.find(x=>x.id===_editNpId):null;
-  const _npDefaultResp=_npExisting?_npExisting.responsavelId:(APP.config.nutriResponsavelId||'');
-  const formHtml=_showNpForm?`
+  const formHtml=(_showNpForm&&_npExisting)?`
   <div class="ipanel">
-    <div class="sh"><div class="sh-t">${_editNpId?'Editar Plano':'Novo Plano Nutricional'}</div><button class="btn btn-sm btn-gh" onclick="_showNpForm=false;_editNpId=null;renderNutriPlanos()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="np-at">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_npAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
-    <div class="form-g"><label class="fl">Nome do Plano *</label><input class="fc" id="np-name" placeholder="Ex: Plano Competição"></div></div>
-    <div class="fr3"><div class="form-g"><label class="fl">Objetivo</label><input class="fc" id="np-obj" placeholder="Manutenção / Definição..."></div>
-    <div class="form-g"><label class="fl">Total kcal</label><input class="fc" id="np-kcal" type="number" placeholder="2200"></div>
-    <div class="form-g"><label class="fl">Proteína (g)</label><input class="fc" id="np-prot" type="number"></div></div>
-    <div class="fr"><div class="form-g"><label class="fl">Hidratos (g)</label><input class="fc" id="np-carb" type="number"></div>
-    <div class="form-g"><label class="fl">Gordura (g)</label><input class="fc" id="np-fat" type="number"></div></div>
+    <div class="sh"><div class="sh-t">Plano Nutricional</div><button class="btn btn-sm btn-gh" onclick="_showNpForm=false;_editNpId=null;renderNutriPlanos()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="np-at" onchange="saveNutriPlanoField('${_npExisting.id}','athleteId',this.value)">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_npExisting.athleteId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Nome do Plano *</label><input class="fc" id="np-name" value="${escHtml(_npExisting.name||'')}" placeholder="Ex: Plano Competição" onblur="saveNutriPlanoField('${_npExisting.id}','name',this.value)"></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Objetivo</label><input class="fc" id="np-obj" value="${escHtml(_npExisting.objective||'')}" placeholder="Manutenção / Definição..." onblur="saveNutriPlanoField('${_npExisting.id}','objective',this.value)"></div>
+    <div class="form-g"><label class="fl">Total kcal</label><input class="fc" id="np-kcal" type="number" value="${_npExisting.kcal||''}" placeholder="2200" onblur="saveNutriPlanoField('${_npExisting.id}','kcal',this.value)"></div>
+    <div class="form-g"><label class="fl">Proteína (g)</label><input class="fc" id="np-prot" type="number" value="${_npExisting.protein||''}" onblur="saveNutriPlanoField('${_npExisting.id}','protein',this.value)"></div></div>
+    <div class="fr"><div class="form-g"><label class="fl">Hidratos (g)</label><input class="fc" id="np-carb" type="number" value="${_npExisting.carbs||''}" onblur="saveNutriPlanoField('${_npExisting.id}','carbs',this.value)"></div>
+    <div class="form-g"><label class="fl">Gordura (g)</label><input class="fc" id="np-fat" type="number" value="${_npExisting.fat||''}" onblur="saveNutriPlanoField('${_npExisting.id}','fat',this.value)"></div></div>
     <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px">Refeições</div>
-    ${MEALS.map((m,i)=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m]||'🍴'} ${m}</div>
-    <div class="fr"><div class="form-g"><label class="fl">Hora</label><input class="fc" id="np-mt-${i}" type="time"></div>
-    <div class="form-g"><label class="fl">kcal</label><input class="fc" id="np-mk-${i}" type="number" placeholder="0"></div></div>
-    <div class="form-g"><textarea class="fc" id="np-mf-${i}" rows="2" placeholder="Alimentos e quantidades..."></textarea></div>
-    </div>`).join('')}
-    <div class="form-g"><label class="fl">Responsável (opcional — pode mudar depois)</label><select class="fc" id="np-resp"><option value="" ${_npDefaultResp?'':'selected'}>— Nenhum —</option>${(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<option value="${u.id}" ${u.id===_npDefaultResp?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
-    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-g" onclick="saveNutriPlano()">💾 Guardar Plano</button><button class="btn btn-gh" onclick="_showNpForm=false;_editNpId=null;renderNutriPlanos()">Cancelar</button></div>
+    ${MEALS.map((m,i)=>{const mm=(_npExisting.meals||[])[i]||{};return`<div class="meal"><div class="meal-n">${MEAL_ICONS[m]||'🍴'} ${m}</div>
+    <div class="fr"><div class="form-g"><label class="fl">Hora</label><input class="fc" id="np-mt-${i}" type="time" value="${mm.time||''}" onblur="saveNutriPlanoField('${_npExisting.id}','meal:${i}:time',this.value)"></div>
+    <div class="form-g"><label class="fl">kcal</label><input class="fc" id="np-mk-${i}" type="number" value="${mm.kcal||''}" placeholder="0" onblur="saveNutriPlanoField('${_npExisting.id}','meal:${i}:kcal',this.value)"></div></div>
+    <div class="form-g"><textarea class="fc" id="np-mf-${i}" rows="2" placeholder="Alimentos e quantidades..." onblur="saveNutriPlanoField('${_npExisting.id}','meal:${i}:foods',this.value)">${escHtml(mm.foods||'')}</textarea></div>
+    </div>`;}).join('')}
+    <div class="form-g"><label class="fl">Responsável (opcional — pode mudar depois)</label><select class="fc" id="np-resp" onchange="saveNutriPlanoField('${_npExisting.id}','responsavelId',this.value)"><option value="" ${_npExisting.responsavelId?'':'selected'}>— Nenhum —</option>${(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<option value="${u.id}" ${u.id===_npExisting.responsavelId?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
   </div>`:'';
 
   const plans=APP.nutritionPlans.sort((a,b)=>b.startDate?.localeCompare(a.startDate||''));
@@ -14661,47 +14677,55 @@ function renderNutriPlanos(){
 
   document.getElementById('pg-nutri-planos').innerHTML=`
   <div class="sh"><div class="sh-t">🥗 Planos Nutricionais</div>
-  <button class="btn btn-g" onclick="_showNpForm=!_showNpForm;_editNpId=null;renderNutriPlanos()">+ Novo Plano</button></div>
+  <button class="btn btn-g" onclick="novoNutriPlano()">+ Novo Plano</button></div>
   ${formHtml}${plansHtml}`;
 }
-function saveNutriPlano(){
-  const aid=document.getElementById('np-at').value;
-  const name=document.getElementById('np-name').value.trim();
-  if(!aid||!name)return toast('Atleta e nome obrigatórios','err');
+// sps-v203: clicar "+ Novo Plano" cria o registo de imediato (defaults: atleta nº1 do
+// plantel, as 6 refeições já com a estrutura MEALS mas vazias, resto em branco) e abre
+// logo o formulário sempre editável — substitui o fluxo antigo (formulário em branco +
+// um botão "Guardar Plano" a criar só no fim). Mesmo padrão exato de
+// saveNovaPbJogada/saveNovoEstagio.
+function novoNutriPlano(){
   const sess=getSession();
-  const meals=MEALS.map((m,i)=>({name:m,time:document.getElementById('np-mt-'+i).value,kcal:document.getElementById('np-mk-'+i).value,foods:document.getElementById('np-mf-'+i).value}));
-  // Responsável pelo plantel (project_sps_nutri_autoria) — reatribuível em qualquer
-  // edição (ao contrário da autoria, que fica fixa em quem criou o plano), porque o
-  // acompanhamento pode passar de uma nutricionista para outra. Mesmo padrão da Fase 5
-  // do Fisio (epf-resp/saveEpisodio).
-  const respEl=document.getElementById('np-resp');
-  const respId=respEl?respEl.value:'';
+  const respId=APP.config.nutriResponsavelId||null;
   const respUser=respId?APP.users.find(u=>u.id===respId):null;
-  const p={id:_editNpId||uid(),athleteId:aid,name,objective:document.getElementById('np-obj').value,kcal:document.getElementById('np-kcal').value,protein:document.getElementById('np-prot').value,carbs:document.getElementById('np-carb').value,fat:document.getElementById('np-fat').value,meals,responsavelId:respId||null,responsavelName:respUser?respUser.name:''};
-  if(_editNpId){
-    // Fix (project_sps_nutri_autoria): antes, editar um plano incluía sempre
-    // active:true+startDate:today() no objeto gravado por cima do existente — o que
-    // reativava silenciosamente um plano desativado e reescrevia a data de início a
-    // cada edição. Agora esses campos só são definidos na criação (abaixo), preservando
-    // os valores existentes na edição.
-    const i=APP.nutritionPlans.findIndex(x=>x.id===_editNpId);
-    if(i>=0)APP.nutritionPlans[i]={...APP.nutritionPlans[i],...p};
+  const meals=MEALS.map(m=>({name:m,time:'',kcal:'',foods:''}));
+  const p={id:uid(),athleteId:_npAtId||(APP.athletes[0]&&APP.athletes[0].id)||'',name:'',objective:'',kcal:'',protein:'',carbs:'',fat:'',meals,
+    responsavelId:respId,responsavelName:respUser?respUser.name:'',
+    active:true,startDate:today(),registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
+  APP.nutritionPlans.push(p);
+  if(_sync)cloudUpsert('nutrition_plans',p);
+  saveData();
+  _npAtId=null;_editNpId=p.id;_showNpForm=true;
+  renderNutriPlanos();
+}
+// Gravação automática por campo (onblur/onchange) — substitui saveNutriPlano, que
+// recolhia todos os campos (base + as 6 refeições) de uma vez a partir de um botão
+// "Guardar Plano" único. 'field' pode ser um campo direto do plano (ex. 'name') ou, para
+// uma refeição, 'meal:<índice>:<time|kcal|foods>' — preserva sempre as restantes
+// refeições/campos (nunca reconstrói p.meals do zero). Mesmo cuidado do fix anterior
+// (project_sps_nutri_autoria): nunca toca em active/startDate aqui (só na criação).
+function saveNutriPlanoField(id,field,value){
+  const p=(APP.nutritionPlans||[]).find(x=>x.id===id);if(!p)return;
+  if(field==='responsavelId'){
+    const respUser=value?APP.users.find(u=>u.id===value):null;
+    p.responsavelId=value||null;p.responsavelName=respUser?respUser.name:'';
+  }else if(field.startsWith('meal:')){
+    const[,idxStr,sub]=field.split(':');
+    const idx=+idxStr;
+    if(!Array.isArray(p.meals)||!p.meals.length)p.meals=MEALS.map(m=>({name:m,time:'',kcal:'',foods:''}));
+    if(!p.meals[idx])p.meals[idx]={name:MEALS[idx]||'',time:'',kcal:'',foods:''};
+    p.meals[idx]={...p.meals[idx],[sub]:value};
   }else{
-    p.active=true;p.startDate=today();
-    p.registeredBy=sess?sess.name:'';p.registeredById=sess?sess.userId:null;p.registeredAt=new Date().toISOString();
-    APP.nutritionPlans.push(p);
+    p[field]=value;
   }
-  if(_sync)cloudUpsert('nutrition_plans',APP.nutritionPlans.find(x=>x.id===p.id));
-  saveData();_showNpForm=false;_editNpId=null;toast('Plano guardado ✓');renderNutriPlanos();
+  if(_sync)cloudUpsert('nutrition_plans',p);
+  saveData();
+  renderNutriPlanos(); // nome/atleta/macros/refeições são todos mostrados no card por baixo
 }
 function editNutriPlano(id){
   const p=APP.nutritionPlans.find(x=>x.id===id);if(!p)return;
   _editNpId=id;_npAtId=p.athleteId;_showNpForm=true;renderNutriPlanos();
-  // Pré-preencher os campos do plano (o form só tem defeitos vazios no HTML) — mesmo
-  // padrão usado noutros formulários de edição da app (ex. editEpisodio/renderFisioEp).
-  const f=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||'';};
-  f('np-name',p.name);f('np-obj',p.objective);f('np-kcal',p.kcal);f('np-prot',p.protein);f('np-carb',p.carbs);f('np-fat',p.fat);
-  (p.meals||[]).forEach((m,i)=>{f('np-mt-'+i,m.time);f('np-mk-'+i,m.kcal);f('np-mf-'+i,m.foods);});
 }
 function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;if(_sync)cloudUpsert('nutrition_plans',p);saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
@@ -14759,24 +14783,26 @@ function _nadAnamneseTabHtml(athleteId){
       ${filled?groupsHtml:'<div style="font-size:12px;color:var(--t2)">Esta atleta ainda não preencheu a anamnese alimentar na app dela.</div>'}
       <div style="margin-top:16px">
         <label style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">📝 Notas da Nutri</label>
-        <textarea class="fc" id="nad-notes" rows="3" style="width:100%" placeholder="Observações, plano de acompanhamento...">${an.nutriNotes?escHtml(an.nutriNotes):''}</textarea>
-        <button class="btn btn-g btn-sm" style="margin-top:8px" onclick="saveNadNutriNotes('${athleteId}')">💾 Guardar Notas</button>
+        <textarea class="fc" id="nad-notes" rows="3" style="width:100%" placeholder="Observações, plano de acompanhamento..." onblur="saveNadNutriNotes('${athleteId}',this.value)">${an.nutriNotes?escHtml(an.nutriNotes):''}</textarea>
       </div>
     </div>
   </div>`;
 }
-function saveNadNutriNotes(athleteId){
+// sps-v203: gravação automática (onblur) — já era um único campo, só trocou o botão
+// "Guardar Notas" pelo onblur (sem toast, mesmo idioma silencioso do resto desta
+// gravação automática). 'value' é opcional (retrocompatível com qualquer chamador
+// antigo que não o passe — lê então do próprio campo, como fazia antes).
+function saveNadNutriNotes(athleteId,value){
   const sess=getSession();
   if(!APP.nutritionDietAnamnesis)APP.nutritionDietAnamnesis=[];
   let an=APP.nutritionDietAnamnesis.find(a=>a.athleteId===athleteId);
   if(!an){an={id:athleteId,athleteId,selfReport:{},nutriNotes:'',nutriNotesUpdatedAt:null,nutriNotesUpdatedBy:null,nutriViewedAt:null};APP.nutritionDietAnamnesis.push(an);}
-  an.nutriNotes=document.getElementById('nad-notes')?.value.trim()||'';
+  an.nutriNotes=(value!==undefined?value:(document.getElementById('nad-notes')?.value||'')).trim();
   an.nutriNotesUpdatedAt=new Date().toISOString();
   an.nutriNotesUpdatedBy=sess?sess.name:'';
   an.nutriNotesUpdatedById=sess?sess.userId:null;
   saveData();
   if(_sync)cloudUpsert('nutrition_diet_anamnesis',{...an,club_id:_cid});
-  toast('Notas guardadas ✓');
 }
 function _nadDayMeals(plan,day){
   if(plan.weekMeals&&plan.weekMeals[day])return plan.weekMeals[day];
@@ -14791,7 +14817,7 @@ function _nadDiarioTabHtml(athleteId){
   if(!plan){
     return `<div class="card"><div class="cb" style="text-align:center;padding:30px 20px">
       <div style="font-size:12.5px;color:var(--t2);margin-bottom:12px;line-height:1.5">Esta atleta ainda não tem um Plano Nutricional ativo — cria um primeiro em Planos Nutricionais (macros/objetivo) para depois poderes prescrever o diário alimentar dia a dia aqui.</div>
-      <button class="btn btn-g" onclick="_npAtId='${athleteId}';_showNpForm=true;navTo('nutri-planos')">+ Criar Plano Nutricional</button>
+      <button class="btn btn-g" onclick="_npAtId='${athleteId}';novoNutriPlano();navTo('nutri-planos')">+ Criar Plano Nutricional</button>
     </div></div>`;
   }
   const day=_nadSelDay;
@@ -14813,26 +14839,28 @@ function _nadDiarioTabHtml(athleteId){
       ${MEALS.map((mName,i)=>{
         const m=meals[i]||{name:mName,time:'',kcal:'',foods:''};
         return `<div class="meal"><div class="meal-n">${MEAL_ICONS[mName]||'🍴'} ${mName}</div>
-        <div class="fr3"><div class="form-g"><label class="fl">Hora</label><input class="fc" id="nad-mt-${i}" type="time" value="${m.time||''}"></div>
-        <div class="form-g"><label class="fl">kcal</label><input class="fc" id="nad-mk-${i}" type="number" placeholder="0" value="${m.kcal||''}"></div></div>
-        <div class="form-g"><textarea class="fc" id="nad-mf-${i}" rows="2" placeholder="Alimentos e quantidades...">${escHtml(m.foods||'')}</textarea></div>
+        <div class="fr3"><div class="form-g"><label class="fl">Hora</label><input class="fc" id="nad-mt-${i}" type="time" value="${m.time||''}" onblur="saveNadMealField('${athleteId}','${day}',${i},'time',this.value)"></div>
+        <div class="form-g"><label class="fl">kcal</label><input class="fc" id="nad-mk-${i}" type="number" placeholder="0" value="${m.kcal||''}" onblur="saveNadMealField('${athleteId}','${day}',${i},'kcal',this.value)"></div></div>
+        <div class="form-g"><textarea class="fc" id="nad-mf-${i}" rows="2" placeholder="Alimentos e quantidades..." onblur="saveNadMealField('${athleteId}','${day}',${i},'foods',this.value)">${escHtml(m.foods||'')}</textarea></div>
         </div>`;
       }).join('')}
-      <button class="btn btn-g" style="margin-top:4px" onclick="saveNadDay('${athleteId}','${day}')">💾 Guardar ${WEEK_DAY_FULL[day]}</button>
       ${otherDaysWithContent.length?`<div style="font-size:10.5px;color:var(--t2);margin-top:10px;line-height:1.4">💡 "Copiar de..." duplica as refeições de outro dia já preenchido para o dia atual — útil para dias de treino parecidos, sem ter de reescrever tudo.</div>`:''}
     </div>
   </div>`;
 }
-function saveNadDay(athleteId,day){
+// sps-v203: gravação automática por campo (onblur) — substitui saveNadDay, que
+// recolhia as 6 refeições de uma vez a partir de um botão "Guardar {Dia}" único.
+// plan.weekMeals é {dia:{refeições}} — preserva sempre os outros dias e as outras
+// refeições/campos do mesmo dia (nunca reconstrói o array do zero).
+function saveNadMealField(athleteId,day,i,field,value){
   const plan=APP.nutritionPlans.find(p=>p.athleteId===athleteId&&p.active);
   if(!plan)return;
-  const meals=MEALS.map((mName,i)=>({name:mName,time:document.getElementById('nad-mt-'+i).value,kcal:document.getElementById('nad-mk-'+i).value,foods:document.getElementById('nad-mf-'+i).value}));
   if(!plan.weekMeals)plan.weekMeals={};
-  plan.weekMeals[day]=meals;
+  if(!Array.isArray(plan.weekMeals[day])||!plan.weekMeals[day].length)plan.weekMeals[day]=MEALS.map(m=>({name:m,time:'',kcal:'',foods:''}));
+  if(!plan.weekMeals[day][i])plan.weekMeals[day][i]={name:MEALS[i]||'',time:'',kcal:'',foods:''};
+  plan.weekMeals[day][i]={...plan.weekMeals[day][i],[field]:value};
   if(_sync)cloudUpsert('nutrition_plans',plan);
   saveData();
-  toast('Diário de '+WEEK_DAY_FULL[day]+' guardado ✓');
-  renderNutriAnamneseDiario();
 }
 function nadCopyDay(athleteId,toDay){
   const sel=document.getElementById('nad-copy-from');
@@ -15046,19 +15074,21 @@ function saveNutriGameday(){
 const NC_STATUS_BADGE={agendada:'<span class="bdg" style="background:#38bdf822;color:#38bdf8">📅 Agendada</span>',realizada:'<span class="bdg bg-g">✅ Realizada</span>',faltou:'<span class="bdg bg-r">❌ Faltou</span>'};
 let _ncAtId=null, _showNcForm=false, _editNcId=null;
 function renderNutriConsultas(){
+  // sps-v203: "+ Agendar Consulta" cria o registo de imediato (ver novaNutriConsulta) e
+  // abre este mesmo formulário já ligado a um id real — cada campo grava sozinho
+  // (saveNcField, onblur/onchange), sem botão "Guardar" — editar uma consulta existente
+  // (editNutriConsulta) usa exatamente o mesmo formulário, sempre editável.
   const _ncExisting=_editNcId?APP.nutritionAppointments.find(x=>x.id===_editNcId):null;
-  const _ncDefaultResp=_ncExisting?_ncExisting.responsavelId:(APP.config.nutriResponsavelId||'');
-  const formHtml=_showNcForm?`
+  const formHtml=(_showNcForm&&_ncExisting)?`
   <div class="ipanel">
-    <div class="sh"><div class="sh-t">${_editNcId?'Editar Consulta':'Agendar Consulta'}</div><button class="btn btn-sm btn-gh" onclick="_showNcForm=false;_editNcId=null;renderNutriConsultas()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="nc-at">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_ncAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
-    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="nc-date" type="date" value="${_ncExisting?.date||today()}"></div></div>
-    <div class="fr3"><div class="form-g"><label class="fl">Hora *</label><input class="fc" id="nc-time" type="time" value="${_ncExisting?.time||''}"></div>
-    <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="nc-dur" type="number" value="${_ncExisting?.duration||30}"></div>
-    <div class="form-g"><label class="fl">Local</label><input class="fc" id="nc-loc" placeholder="Gabinete / Online" value="${escHtml(_ncExisting?.location||'')}"></div></div>
-    <div class="form-g"><label class="fl">Notas da Sessão</label><textarea class="fc" id="nc-notes" rows="2" placeholder="Notas desta consulta — ficam disponíveis no Dashboard do Plantel e no PDF de registo">${escHtml(_ncExisting?.notes||'')}</textarea></div>
-    <div class="form-g"><label class="fl">Responsável (opcional — pode mudar depois)</label><select class="fc" id="nc-resp"><option value="" ${_ncDefaultResp?'':'selected'}>— Nenhum —</option>${(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<option value="${u.id}" ${u.id===_ncDefaultResp?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
-    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-g" onclick="saveNutriConsulta()">💾 Guardar</button><button class="btn btn-gh" onclick="_showNcForm=false;_editNcId=null;renderNutriConsultas()">Cancelar</button></div>
+    <div class="sh"><div class="sh-t">Consulta</div><button class="btn btn-sm btn-gh" onclick="_showNcForm=false;_editNcId=null;renderNutriConsultas()">✕</button></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="nc-at" onchange="saveNcField('${_ncExisting.id}','athleteId',this.value)">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_ncExisting.athleteId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="nc-date" type="date" value="${_ncExisting.date||''}" onblur="saveNcField('${_ncExisting.id}','date',this.value)"></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Hora *</label><input class="fc" id="nc-time" type="time" value="${_ncExisting.time||''}" onblur="saveNcField('${_ncExisting.id}','time',this.value)"></div>
+    <div class="form-g"><label class="fl">Duração (min)</label><input class="fc" id="nc-dur" type="number" value="${_ncExisting.duration||30}" onblur="saveNcField('${_ncExisting.id}','duration',this.value)"></div>
+    <div class="form-g"><label class="fl">Local</label><input class="fc" id="nc-loc" placeholder="Gabinete / Online" value="${escHtml(_ncExisting.location||'')}" onblur="saveNcField('${_ncExisting.id}','location',this.value)"></div></div>
+    <div class="form-g"><label class="fl">Notas da Sessão</label><textarea class="fc" id="nc-notes" rows="2" placeholder="Notas desta consulta — ficam disponíveis no Dashboard do Plantel e no PDF de registo" onblur="saveNcField('${_ncExisting.id}','notes',this.value)">${escHtml(_ncExisting.notes||'')}</textarea></div>
+    <div class="form-g"><label class="fl">Responsável (opcional — pode mudar depois)</label><select class="fc" id="nc-resp" onchange="saveNcField('${_ncExisting.id}','responsavelId',this.value)"><option value="" ${_ncExisting.responsavelId?'':'selected'}>— Nenhum —</option>${(APP.users||[]).filter(u=>u.role==='nutri'&&u.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<option value="${u.id}" ${u.id===_ncExisting.responsavelId?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
   </div>`:'';
 
   // Ordem ascendente (próxima primeiro) — ao contrário de Avaliações/Planos (histórico,
@@ -15088,32 +15118,42 @@ function renderNutriConsultas(){
 
   document.getElementById('pg-nutri-consultas').innerHTML=`
   <div class="sh"><div class="sh-t">📅 Consultas de Nutrição</div>
-  <button class="btn btn-g" onclick="_showNcForm=!_showNcForm;_editNcId=null;renderNutriConsultas()">+ Agendar Consulta</button></div>
+  <button class="btn btn-g" onclick="novaNutriConsulta()">+ Agendar Consulta</button></div>
   ${formHtml}${tableHtml}`;
 }
-function saveNutriConsulta(){
-  const aid=document.getElementById('nc-at').value;
-  const date=document.getElementById('nc-date').value;
-  const time=document.getElementById('nc-time').value;
-  if(!aid||!date||!time)return toast('Atleta, data e hora obrigatórios','err');
+// sps-v203: clicar "+ Agendar Consulta" cria o registo de imediato (defaults: atleta
+// nº1 do plantel, hoje, resto em branco) e abre logo o formulário sempre editável —
+// substitui o fluxo antigo (formulário em branco + um botão "Guardar" a criar só no
+// fim). Mesmo padrão exato de saveNovaPbJogada (Playbook) / saveNovoEstagio (Estágios).
+function novaNutriConsulta(){
   const sess=getSession();
-  const respEl=document.getElementById('nc-resp');
-  const respId=respEl?respEl.value:'';
+  const respId=APP.config.nutriResponsavelId||null;
   const respUser=respId?APP.users.find(u=>u.id===respId):null;
-  const p={id:_editNcId||uid(),athleteId:aid,date,time,duration:document.getElementById('nc-dur').value||30,location:document.getElementById('nc-loc').value,notes:document.getElementById('nc-notes').value,responsavelId:respId||null,responsavelName:respUser?respUser.name:''};
-  if(_editNcId){
-    // Mesmo cuidado do fix em saveNutriPlano (project_sps_nutri_autoria): editar (ex.
-    // corrigir a hora) NUNCA deve repor o estado a 'agendada' se já estava marcada como
-    // realizada/faltou — merge preserva status/reason/autoria existentes.
-    const i=APP.nutritionAppointments.findIndex(x=>x.id===_editNcId);
-    if(i>=0)APP.nutritionAppointments[i]={...APP.nutritionAppointments[i],...p};
+  const p={id:uid(),athleteId:_ncAtId||(APP.athletes[0]&&APP.athletes[0].id)||'',date:today(),time:'',duration:30,location:'',notes:'',
+    responsavelId:respId,responsavelName:respUser?respUser.name:'',
+    status:'agendada',reason:null,registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
+  APP.nutritionAppointments.push(p);
+  if(_sync)cloudUpsert('nutrition_appointments',p);
+  saveData();
+  _ncAtId=null;_editNcId=p.id;_showNcForm=true;
+  renderNutriConsultas();
+}
+// Gravação automática por campo (onblur/onchange) — substitui saveNutriConsulta, que
+// recolhia todos os campos de uma vez a partir de um botão "Guardar" único. Preserva
+// sempre os restantes campos do registo (nunca reconstrói o objeto do zero) — mesmo
+// cuidado do fix em saveNutriPlano (project_sps_nutri_autoria): editar não deve repor
+// o estado a 'agendada' se já estava marcada como realizada/faltou (não toca em status).
+function saveNcField(id,field,value){
+  const c=(APP.nutritionAppointments||[]).find(x=>x.id===id);if(!c)return;
+  if(field==='responsavelId'){
+    const respUser=value?APP.users.find(u=>u.id===value):null;
+    c.responsavelId=value||null;c.responsavelName=respUser?respUser.name:'';
   }else{
-    p.status='agendada';p.reason=null;
-    p.registeredBy=sess?sess.name:'';p.registeredById=sess?sess.userId:null;p.registeredAt=new Date().toISOString();
-    APP.nutritionAppointments.push(p);
+    c[field]=value;
   }
-  if(_sync)cloudUpsert('nutrition_appointments',APP.nutritionAppointments.find(x=>x.id===p.id));
-  saveData();_showNcForm=false;_editNcId=null;toast('Consulta guardada ✓');renderNutriConsultas();
+  if(_sync)cloudUpsert('nutrition_appointments',c);
+  saveData();
+  if(field!=='notes')renderNutriConsultas(); // os outros campos aparecem na tabela por baixo
 }
 function editNutriConsulta(id){
   const c=APP.nutritionAppointments.find(x=>x.id===id);if(!c)return;
@@ -15465,14 +15505,12 @@ function _cocSections(){
   ((cc&&cc.sections)||[]).forEach(s=>{ if(s&&s.id)overrides[s.id]=s; });
   return _CODIGO_CONDUTA_SECOES.map(def=>overrides[def.id]?{...def,...overrides[def.id]}:def);
 }
-let _cocEditMode=false;
 function renderCodigoConduta(){
   const cc=APP.codeOfConduct;
   const isAdmin=!!(getSession()&&getSession().isAdmin);
   const active=!!(cc&&cc.active);
   const secoes=_cocSections();
   const customized=!!(cc&&cc.sections&&cc.sections.length);
-  if(_cocEditMode&&isAdmin){ _renderCodigoCondutaEdit(secoes,customized); return; }
   const st=_cocAckStats();
   const statusHtml=active
     ?`<div class="al al-g"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i><div><b>Ativo na App Atleta</b> desde ${fmtDate((cc.publishedAt||'').slice(0,10))}${cc.publishedBy?' · visto de '+escHtml(cc.publishedBy):''} — versão ${cc.version||1}.</div></div>`
@@ -15484,10 +15522,17 @@ function renderCodigoConduta(){
     :`<div class="al al-b" style="font-size:11px">Só quem tem acesso de administrador pode ativar ou desativar o Código na App Atleta.</div>`;
   const ackHtml=active?`<div style="margin-top:4px;font-size:11.5px;color:var(--t2)">${st.ack}/${st.total} atletas já confirmaram "Li e aceito" nesta versão.${st.pending.length&&st.pending.length<=8?' Pendentes: '+st.pending.map(a=>escHtml(_displayName(a))).join(', ')+'.':''}</div>`:'';
   const editedHtml=customized?`<div style="margin-top:4px;font-size:11px;color:var(--t2)"><i class="ti ti-edit" style="margin-right:3px;vertical-align:-2px" aria-hidden="true"></i>Texto personalizado${cc.sectionsUpdatedBy?' por '+escHtml(cc.sectionsUpdatedBy):''}${cc.sectionsUpdatedAt?' em '+fmtDate(cc.sectionsUpdatedAt.slice(0,10)):''}.</div>`:'';
+  // sps-v203: a versão deixou de subir automaticamente a reboque de uma gravação de
+  // texto (agora cada ponto grava sozinho, sem um momento único de "guardar") — fica
+  // sempre um ato explícito e separado, nunca disparado por escrever num textarea.
+  const versionLineHtml=isAdmin?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="font-size:11.5px;color:var(--t2)">Versão atual do texto: <b>${(cc&&cc.version)||1}</b></span>
+    <button class="btn btn-gh btn-sm" onclick="_cocBumpVersion()">📌 Marcar texto atual como nova versão (pede reaceitação às atletas)</button>
+  </div>`:'';
   const toolbarHtml=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
     ${adminBtn}
-    ${isAdmin?`<button class="btn btn-gh" onclick="_cocEditMode=true;renderCodigoConduta()">✏️ Editar Texto</button>`:''}
     <button class="btn btn-gh" onclick="printCodigoCondutaPDF()">🖨️ Exportar PDF</button>
+    ${customized?`<button class="btn btn-gh" style="color:#f87171;border-color:#f87171" onclick="resetCodigoCondutaTexto()">↺ Repor Texto Original</button>`:''}
   </div>`;
   document.getElementById('pg-codigo-conduta').innerHTML=`
   <div class="sh"><div class="sh-t">📜 Código de Conduta</div></div>
@@ -15495,58 +15540,52 @@ function renderCodigoConduta(){
     ${statusHtml}
     ${ackHtml}
     ${editedHtml}
+    ${versionLineHtml}
     ${toolbarHtml}
   </div></div>
-  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir. Este é o texto oficial — 32 pontos — que a atleta vê e aceita na app, assim que ativado.</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Toca numa secção para abrir.${isAdmin?' Como administrador, o texto de cada ponto é editável diretamente aqui — grava sozinho ao saíres do campo.':' Este é o texto oficial — 32 pontos — que a atleta vê e aceita na app, assim que ativado.'}</div>
   ${secoes.map(s=>`<details style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
     <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
-    <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
+    <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${isAdmin
+      ?`<textarea class="fc" id="coc-html-${s.id}" rows="6" style="font-family:monospace;font-size:11px" onblur="saveCodigoCondutaPonto('${s.id}',this.value)">${escHtml(s.html)}</textarea>`
+      :s.html}</div>
   </details>`).join('')}`;
 }
-function _renderCodigoCondutaEdit(secoes,customized){
-  const fieldsHtml=secoes.map((s,i)=>`
-    <div class="card" style="margin-bottom:8px"><div class="cb">
-      <div class="form-g"><label class="fl">${i+1}. Título</label><input class="fc" id="coc-title-${s.id}" value="${escHtml(s.title)}"></div>
-      <div class="form-g"><label class="fl">Texto (HTML simples: &lt;p&gt;, &lt;b&gt;, &lt;br&gt;, tabelas...)</label><textarea class="fc" id="coc-html-${s.id}" rows="5" style="font-family:monospace;font-size:11px">${escHtml(s.html)}</textarea></div>
-    </div></div>`).join('');
-  document.getElementById('pg-codigo-conduta').innerHTML=`
-  <div class="sh"><div class="sh-t">✏️ A Editar — Código de Conduta</div></div>
-  <div class="al al-b" style="margin-bottom:12px">Edita o título e o texto de qualquer um dos 32 pontos. Se o Código já estiver ativo, marca a opção abaixo para pedir às atletas que confirmem "Li e aceito" outra vez.</div>
-  <div class="card" style="margin-bottom:14px"><div class="cb">
-    <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
-      <input type="checkbox" id="coc-bump-version" checked style="width:16px;height:16px">
-      Esta alteração exige nova aceitação das atletas (aumenta a versão)
-    </label>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-      <button class="btn btn-g" onclick="saveCodigoCondutaTexto()">💾 Guardar Alterações</button>
-      <button class="btn btn-gh" onclick="_cocEditMode=false;renderCodigoConduta()">✕ Cancelar</button>
-      ${customized?`<button class="btn btn-gh" style="color:#f87171;border-color:#f87171" onclick="resetCodigoCondutaTexto()">↺ Repor Texto Original</button>`:''}
-    </div>
-  </div></div>
-  ${fieldsHtml}`;
-}
-function saveCodigoCondutaTexto(){
+// sps-v203: gravação automática por ponto — substitui saveCodigoCondutaTexto (que
+// recolhia os 32 pontos de uma vez, a reboque de um único botão "Guardar Alterações").
+// O título de cada ponto deixa de ser editável/gravado (fica sempre o de
+// _CODIGO_CONDUTA_SECOES) — só o texto (html) é gravado como override; uma entrada
+// antiga de APP.codeOfConduct.sections que ainda tenha um campo "title" de antes desta
+// versão continua a ser lida normalmente por _cocSections() (merge por spread), só
+// deixa de ser escrita a partir de agora.
+function saveCodigoCondutaPonto(id,value){
   const sess=getSession();
   if(!sess||!sess.isAdmin){toast('Só um administrador pode editar o Código.','err');return;}
-  const bump=!!document.getElementById('coc-bump-version')?.checked;
-  const sections=_CODIGO_CONDUTA_SECOES.map(def=>{
-    const titleEl=document.getElementById('coc-title-'+def.id);
-    const htmlEl=document.getElementById('coc-html-'+def.id);
-    const title=(titleEl&&titleEl.value.trim())||def.title;
-    const html=(htmlEl&&htmlEl.value.trim())||def.html;
-    return{id:def.id,icon:def.icon,title,html};
-  });
+  const def=_CODIGO_CONDUTA_SECOES.find(s=>s.id===id);
+  if(!def)return;
+  const html=(value&&value.trim())||def.html;
   const prev=APP.codeOfConduct;
+  const sections=((prev&&prev.sections)||[]).filter(s=>s&&s.id!==id);
+  sections.push({id,icon:def.icon,html});
   const cc={
     ...(prev||{id:'coc-'+(_cid||'default'),active:false,version:1}),
-    version:bump?(((prev&&prev.version)||1)+1):((prev&&prev.version)||1),
     sections,sectionsUpdatedAt:new Date().toISOString(),sectionsUpdatedBy:sess.name
   };
   APP.codeOfConduct=cc;
   if(_sync)cloudUpsert('code_of_conduct',cc);
-  saveData();_cocEditMode=false;
-  toast('Texto do Código guardado'+(bump&&cc.active?' — versão atualizada, atletas vão confirmar de novo ✓':' ✓'));
-  renderCodigoConduta();
+  saveData();
+}
+// Ato explícito e separado de bump de versão (pede reaceitação) — nunca disparado
+// por uma gravação de texto, ver nota acima da toolbar em renderCodigoConduta().
+function _cocBumpVersion(){
+  const sess=getSession();
+  if(!sess||!sess.isAdmin){toast('Só um administrador pode alterar a versão do Código.','err');return;}
+  if(!confirm('Isto vai pedir a todas as atletas para aceitarem o Código de Conduta outra vez. Continuar?'))return;
+  const prev=APP.codeOfConduct;
+  const cc={...(prev||{id:'coc-'+(_cid||'default'),active:false}),version:((prev&&prev.version)||1)+1};
+  APP.codeOfConduct=cc;
+  if(_sync)cloudUpsert('code_of_conduct',cc);
+  saveData();toast('Nova versão do Código — atletas vão confirmar de novo ✓');renderCodigoConduta();
 }
 function resetCodigoCondutaTexto(){
   if(!confirm('Repor o texto original dos 32 pontos? Perdes todas as edições feitas na Plataforma.'))return;
@@ -15555,7 +15594,7 @@ function resetCodigoCondutaTexto(){
   const cc={...(prev||{id:'coc-'+(_cid||'default'),active:false,version:1}),sections:null,sectionsUpdatedAt:null,sectionsUpdatedBy:null};
   APP.codeOfConduct=cc;
   if(_sync)cloudUpsert('code_of_conduct',cc);
-  saveData();_cocEditMode=false;toast('Texto original do Código reposto.');renderCodigoConduta();
+  saveData();toast('Texto original do Código reposto.');renderCodigoConduta();
 }
 // Exportação em PDF (mesmo mecanismo _printWin já usado em todos os outros
 // relatórios/fichas da app — abre numa janela e chama print(), sem biblioteca
@@ -15812,63 +15851,49 @@ function _guiaoSections(){
   ((g&&g.sections)||[]).forEach(s=>{ if(s&&s.id)overrides[s.id]=s; });
   return _GUIAO_JOGO_FORA_SECOES.map(def=>overrides[def.id]?{...def,...overrides[def.id]}:def);
 }
-let _guiaoEditMode=false;
 function renderGuiaoJogoFora(){
   const g=APP.guiaoJogoFora;
   const isAdmin=!!(getSession()&&getSession().isAdmin);
   const secoes=_guiaoSections();
   const customized=!!(g&&g.sections&&g.sections.length);
-  if(_guiaoEditMode&&isAdmin){ _renderGuiaoJogoForaEdit(secoes,customized); return; }
   const editedHtml=customized?`<div style="font-size:11px;color:var(--t2);margin-bottom:4px"><i class="ti ti-edit" style="margin-right:3px;vertical-align:-2px" aria-hidden="true"></i>Texto personalizado${g.sectionsUpdatedBy?' por '+escHtml(g.sectionsUpdatedBy):''}${g.sectionsUpdatedAt?' em '+fmtDate(g.sectionsUpdatedAt.slice(0,10)):''}.</div>`:'';
   const toolbarHtml=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-    ${isAdmin?`<button class="btn btn-gh" onclick="_guiaoEditMode=true;renderGuiaoJogoFora()">✏️ Editar Texto</button>`:''}
     <button class="btn btn-gh" onclick="printGuiaoJogoForaPDF()">🖨️ Exportar PDF</button>
+    ${customized?`<button class="btn btn-gh" style="color:#f87171;border-color:#f87171" onclick="resetGuiaoJogoForaTexto()">↺ Repor Texto Original</button>`:''}
   </div>`;
   document.getElementById('pg-guiao-jogo-fora').innerHTML=`
   <div class="sh"><div class="sh-t">🧭 Guião de Jogo Fora</div></div>
   <div class="card" style="margin-bottom:14px"><div class="cb">
-    <div style="font-size:11.5px;color:var(--t2)">Protocolo operacional de deslocação e dia de jogo — da convocatória ao dia+1 de recovery. Guia de referência para toda a equipa técnica, multidisciplinar.</div>
+    <div style="font-size:11.5px;color:var(--t2)">Protocolo operacional de deslocação e dia de jogo — da convocatória ao dia+1 de recovery. Guia de referência para toda a equipa técnica, multidisciplinar.${isAdmin?' Como administrador, o texto de cada ponto é editável diretamente aqui — grava sozinho ao saíres do campo.':''}</div>
     ${editedHtml}
     ${toolbarHtml}
   </div></div>
   ${secoes.map(s=>`<details style="margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden">
     <summary style="padding:10px 12px;cursor:pointer;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><i class="ti ${s.icon}" style="font-size:16px;color:var(--c1l)" aria-hidden="true"></i>${s.title}</summary>
-    <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${s.html}</div>
+    <div style="padding:2px 12px 12px;font-size:12.5px;line-height:1.5;color:var(--t1)">${isAdmin
+      ?`<textarea class="fc" id="guiao-html-${s.id}" rows="6" style="font-family:monospace;font-size:11px" onblur="saveGuiaoJogoForaPonto('${s.id}',this.value)">${escHtml(s.html)}</textarea>`
+      :s.html}</div>
   </details>`).join('')}`;
 }
-function _renderGuiaoJogoForaEdit(secoes,customized){
-  const fieldsHtml=secoes.map((s,i)=>`
-    <div class="card" style="margin-bottom:8px"><div class="cb">
-      <div class="form-g"><label class="fl">${i+1}. Título</label><input class="fc" id="guiao-title-${s.id}" value="${escHtml(s.title)}"></div>
-      <div class="form-g"><label class="fl">Texto (HTML simples: &lt;p&gt;, &lt;b&gt;, &lt;ul&gt;/&lt;li&gt;, tabelas...)</label><textarea class="fc" id="guiao-html-${s.id}" rows="6" style="font-family:monospace;font-size:11px">${escHtml(s.html)}</textarea></div>
-    </div></div>`).join('');
-  document.getElementById('pg-guiao-jogo-fora').innerHTML=`
-  <div class="sh"><div class="sh-t">✏️ A Editar — Guião de Jogo Fora</div></div>
-  <div class="al al-b" style="margin-bottom:12px">Edita o título e o texto de qualquer ponto do protocolo.</div>
-  <div class="card" style="margin-bottom:14px"><div class="cb">
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-g" onclick="saveGuiaoJogoForaTexto()">💾 Guardar Alterações</button>
-      <button class="btn btn-gh" onclick="_guiaoEditMode=false;renderGuiaoJogoFora()">✕ Cancelar</button>
-      ${customized?`<button class="btn btn-gh" style="color:#f87171;border-color:#f87171" onclick="resetGuiaoJogoForaTexto()">↺ Repor Texto Original</button>`:''}
-    </div>
-  </div></div>
-  ${fieldsHtml}`;
-}
-function saveGuiaoJogoForaTexto(){
+// sps-v203: gravação automática por ponto — substitui saveGuiaoJogoForaTexto (que
+// recolhia os 10 pontos de uma vez, a reboque de um único botão "Guardar Alterações").
+// Mesmo tratamento exato do Código de Conduta (saveCodigoCondutaPonto) — título deixa
+// de ser editável/gravado (fica sempre o de _GUIAO_JOGO_FORA_SECOES), só o texto (html)
+// é gravado como override; não há conceito de versão/aceitação aqui (sem equivalente
+// a _cocBumpVersion).
+function saveGuiaoJogoForaPonto(id,value){
   const sess=getSession();
   if(!sess||!sess.isAdmin){toast('Só um administrador pode editar o Guião.','err');return;}
-  const sections=_GUIAO_JOGO_FORA_SECOES.map(def=>{
-    const titleEl=document.getElementById('guiao-title-'+def.id);
-    const htmlEl=document.getElementById('guiao-html-'+def.id);
-    const title=(titleEl&&titleEl.value.trim())||def.title;
-    const html=(htmlEl&&htmlEl.value.trim())||def.html;
-    return{id:def.id,icon:def.icon,title,html};
-  });
+  const def=_GUIAO_JOGO_FORA_SECOES.find(s=>s.id===id);
+  if(!def)return;
+  const html=(value&&value.trim())||def.html;
   const prev=APP.guiaoJogoFora;
+  const sections=((prev&&prev.sections)||[]).filter(s=>s&&s.id!==id);
+  sections.push({id,icon:def.icon,html});
   const g={...(prev||{id:'guide-'+(_cid||'default')}),sections,sectionsUpdatedAt:new Date().toISOString(),sectionsUpdatedBy:sess.name};
   APP.guiaoJogoFora=g;
   if(_sync)cloudUpsert('away_game_guide',g);
-  saveData();_guiaoEditMode=false;toast('Guião de Jogo Fora guardado ✓');renderGuiaoJogoFora();
+  saveData();
 }
 function resetGuiaoJogoForaTexto(){
   if(!confirm('Repor o texto original do Guião? Perdes todas as edições feitas na Plataforma.'))return;
@@ -15877,7 +15902,7 @@ function resetGuiaoJogoForaTexto(){
   const g={...(prev||{id:'guide-'+(_cid||'default')}),sections:null,sectionsUpdatedAt:null,sectionsUpdatedBy:null};
   APP.guiaoJogoFora=g;
   if(_sync)cloudUpsert('away_game_guide',g);
-  saveData();_guiaoEditMode=false;toast('Texto original do Guião reposto.');renderGuiaoJogoFora();
+  saveData();toast('Texto original do Guião reposto.');renderGuiaoJogoFora();
 }
 function printGuiaoJogoForaPDF(){
   _printWithSectionPicker('🖨️ Exportar Guião de Jogo Fora',_guiaoSections(),_printGuiaoJogoForaPDF);
@@ -19523,15 +19548,16 @@ const DIET_ANAM_FIELDS=[
   {key:'currentSupplements',label:'Suplementos atuais (por iniciativa própria)',group:'Suplementos Atuais',textarea:true,ph:'Nomes dos suplementos que já tomas por tua conta, fora da prescrição da Nutri'},
   {key:'athleteObservations',label:'Observações',group:'Observações',textarea:true,ph:'Algo mais que queiras partilhar com a tua nutricionista'}
 ];
-function _dietAnField(id,label,val,textarea,ph){
-  if(textarea)return `<div class="fg"><label class="lbl">${label}</label><textarea class="ctrl" id="${id}" rows="2" placeholder="${escHtml(ph||'—')}">${val?escHtml(val):''}</textarea></div>`;
-  return `<div class="fg"><label class="lbl">${label}</label><input class="ctrl" id="${id}" type="text" value="${val?escHtml(val):''}" placeholder="${escHtml(ph||'—')}"></div>`;
+function _dietAnField(id,label,val,textarea,ph,onblurAttr){
+  const ob=onblurAttr?` onblur="${onblurAttr}"`:'';
+  if(textarea)return `<div class="fg"><label class="lbl">${label}</label><textarea class="ctrl" id="${id}" rows="2" placeholder="${escHtml(ph||'—')}"${ob}>${val?escHtml(val):''}</textarea></div>`;
+  return `<div class="fg"><label class="lbl">${label}</label><input class="ctrl" id="${id}" type="text" value="${val?escHtml(val):''}" placeholder="${escHtml(ph||'—')}"${ob}></div>`;
 }
 function _dietAnamGroupedFieldsHtml(sr){
   let out='',lastGroup=null;
   DIET_ANAM_FIELDS.forEach(f=>{
     if(f.group!==lastGroup){out+=`<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin:${lastGroup?'14px':'0'} 0 6px">${f.group}</div>`;lastGroup=f.group;}
-    out+=_dietAnField('dan-'+f.key,f.label,sr[f.key],f.textarea,f.ph);
+    out+=_dietAnField('dan-'+f.key,f.label,sr[f.key],f.textarea,f.ph,`atSaveDietAnamField('${f.key}',this.value)`);
   });
   return out;
 }
@@ -19552,25 +19578,22 @@ function atOpenDietAnamnese(){
   const an=_getDietAnamnesis(AID);
   const sr=an.selfReport||{};
   openMod('🍽️ Anamnese Alimentar',
-    '<div style="font-size:11px;color:var(--t2);margin-bottom:12px">Conta à tua nutricionista como é a tua alimentação habitual. Podes editar sempre que quiseres.</div>'
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:12px">Conta à tua nutricionista como é a tua alimentação habitual. Grava sozinho ao saíres de cada campo — podes editar sempre que quiseres.</div>'
     +_dietAnamGroupedFieldsHtml(sr)
-    +'<button class="btn btn-g" style="width:100%;margin-top:14px" onclick="atSaveDietAnamnese()">Guardar</button>'
   ,'lg');
 }
-async function atSaveDietAnamnese(){
+// sps-v203: gravação automática por campo (onblur) — substitui atSaveDietAnamnese, que
+// recolhia os 11 campos de uma vez a partir de um botão "Guardar" único. Preserva
+// sempre os restantes campos do selfReport (nunca reconstrói o objeto do zero).
+async function atSaveDietAnamField(key,value){
   const at=APP.athletes.find(a=>a.id===AID);if(!at)return;
-  const g=id=>document.getElementById(id)?.value.trim()||'';
-  const selfReport={};
-  DIET_ANAM_FIELDS.forEach(f=>{selfReport[f.key]=g('dan-'+f.key);});
   if(!APP.nutritionDietAnamnesis)APP.nutritionDietAnamnesis=[];
   let an=APP.nutritionDietAnamnesis.find(a=>a.athleteId===AID);
   if(!an){an={id:AID,athleteId:AID,selfReport:{},nutriNotes:'',nutriNotesUpdatedAt:null,nutriNotesUpdatedBy:null,nutriViewedAt:null};APP.nutritionDietAnamnesis.push(an);}
-  an.selfReport=selfReport;
+  an.selfReport={...(an.selfReport||{}),[key]:(value||'').trim()};
   an.selfReportUpdatedAt=new Date().toISOString();
   saveData();
   if(_sync)await cloudUpsert('nutrition_diet_anamnesis',{...an,club_id:_cid});
-  closeMod();
-  toast('Anamnese alimentar guardada ✓');
   renderAtNutri();
 }
 // Diário Alimentar Semanal — lado atleta: só aparece quando o plano ativo já tem

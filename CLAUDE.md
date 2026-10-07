@@ -3163,25 +3163,139 @@ intervenção (hoje é só manual, por setas/teclado); mostrar as Tarefas Indivi
 Pieces) ou a Descrição (Playbook) como legenda opcional dentro do próprio ecrã cheio
 (hoje é só o diagrama, como pedido — "só aparece a imagem").
 
-## Pendente — pedido do Roger (06/10/2026, fim de sessão, para retomar "amanhã")
+## sps-v203 (07/10/2026): Gravação automática — Código de Conduta, Guião de Jogo Fora e 4 ecrãs da App Nutri
 
-Ainda por investigar/implementar, registado a pedido explícito dele antes de fechar a
-sessão ("fica com isto registado e amanhã avançamos"):
+**Pedido do Roger**, em duas mensagens (06/10, fim de sessão + 07/10, concretizado a
+pedido): resolver como edita o Guião de Jogo Fora e o Código de Conduta ("amanhã temos
+que tratar"), e a questão mais genérica de "sempre que há uma entrada de edição nova que
+grave automaticamente e permita sempre edição" — detetada em particular na App Nutri.
+Pedida clarificação antes de implementar (mesma prática de confirmar antes de mexer em
+pedidos abertos): o ponto de dor do Guião/Código de Conduta era **"um só botão para
+tudo"**, e no editor de cada ponto ele quer poder **editar só o texto** — "neste momento
+não está assim" (o formulário de cada ponto mostrava título + texto, os dois editáveis).
+Para a App Nutri, confirmou as 4 áreas: Consultas & Notas de Sessão, Planos
+Nutricionais/Diário Alimentar, Suplementação (Catálogo/Prescrição) e Anamnese Alimentar.
 
-1. **Rever a forma como edita o Guião de Jogo Fora e o Código de Conduta** — ambos usam
-   o mesmo modo de edição por ponto introduzido no sps-v197/v198
-   (`_renderCodigoCondutaEdit`/`_renderGuiaoJogoForaEdit`, formulário com todos os pontos
-   + um único botão "💾 Guardar Alterações" no fim). O Roger não detalhou ainda o que
-   quer mudar nesse fluxo — por esclarecer com ele antes de mexer.
-2. **Gravação automática + edição sempre disponível em "entradas de edição novas"** —
-   pedido mais genérico, que ele disse ter detetado em particular na App Nutri: sempre
-   que há uma nova entrada/registo a editar, quer que grave automaticamente (sem
-   depender de um botão "Guardar" explícito) e que fique sempre editável depois. Por
-   esclarecer com ele exatamente que ecrã(s) da App Nutri o incomodou (há vários padrões
-   diferentes nessa app — formulários com botão único tipo Guião/Código de Conduta,
-   campos com `onblur` que já gravam sozinhos tipo Avaliações Antropométricas, etc.) e se
-   o pedido é só para a Nutri ou para o padrão geral da plataforma.
+**Investigado antes de mexer:** o Guião de Jogo Fora e o Código de Conduta usavam o mesmo
+modo de edição por ponto introduzido no sps-v197/v198 (`_cocEditMode`/`_guiaoEditMode`,
+toggle "✏️ Editar Texto" → formulário com TODOS os pontos, cada um com `<input>` de
+título + `<textarea>` de texto, e um único botão "💾 Guardar Alterações" no fim — daí "um
+só botão para tudo"). Os 4 ecrãs da Nutri tinham o mesmo padrão "formulário em branco +
+um botão Guardar a criar só no fim" (`saveNutriConsulta`/`saveNutriPlano`/`saveNadDay`/
+`saveSuplItem`/`saveSuplPresc`/`atSaveDietAnamnese`) — ao contrário de Estágios/Playbook
+(sps-v198-v201), onde "+ Nova X" já cria o registo de imediato e abre um ecrã sempre
+editável, campo a campo, sem nenhum botão "Guardar" (`saveEstagioField`/`savePbField`).
 
-Nenhum destes dois pontos foi ainda investigado em código — a próxima sessão deve
-começar por pedir ao Roger para concretizar o que o incomoda em cada um, antes de propor
-solução (mesma prática já seguida neste projeto para pedidos abertos).
+**O que foi construído — mesmo idioma exato de Estágios/Playbook em todos os 6 pontos:**
+
+1. **Código de Conduta e Guião de Jogo Fora** — removido por completo o modo de edição
+   separado (`_cocEditMode`/`_guiaoEditMode` e as funções `_renderCodigoCondutaEdit`/
+   `_renderGuiaoJogoForaEdit` eliminadas). Para um admin, `renderCodigoConduta`/
+   `renderGuiaoJogoFora` desenham os mesmos accordions que todos veem, mas o corpo de
+   cada ponto é agora um `<textarea onblur="save<X>Ponto(id,this.value)">` diretamente —
+   gravação nova por ponto (`saveCodigoCondutaPonto`/`saveGuiaoJogoForaPonto`, substituem
+   `saveCodigoCondutaTexto`/`saveGuiaoJogoForaTexto`, que recolhiam os 32/10 pontos de
+   uma vez). **O título deixou de ser editável** — fica sempre o de
+   `_CODIGO_CONDUTA_SECOES`/`_GUIAO_JOGO_FORA_SECOES`, nunca mais gravado num override
+   (só `html` persiste a partir de agora); um override antigo que ainda tenha "title"
+   guardado de antes desta versão continua a ser lido normalmente por `_cocSections()`/
+   `_guiaoSections()` (merge por spread, inalterado) — só deixa de ser escrito. Não-admin
+   continua a ver exatamente o mesmo texto só de leitura, sem qualquer textarea.
+2. **Versão/reaceitação do Código de Conduta, desacoplada da edição de texto** — como já
+   não há um único "momento de guardar" para acoplar o checkbox "esta alteração exige
+   nova aceitação", esse comportamento passou a um botão próprio e explícito, junto de um
+   novo rótulo "Versão atual do texto: N": **"📌 Marcar texto atual como nova versão
+   (pede reaceitação às atletas)"** (`_cocBumpVersion`, com `confirm()` antes de agir).
+   Escrever num textarea e sair do campo nunca muda a versão — só este botão o faz. O
+   Guião de Jogo Fora não tem conceito de versão/aceitação, por isso não ganhou
+   equivalente. "↺ Repor Texto Original" (reset de todos os overrides) ficou inalterado
+   nos dois, só reposicionado para a barra de ferramentas principal (já não vivia dentro
+   do modo de edição que deixou de existir).
+3. **Nutri Consultas** (`renderNutriConsultas`) — "+ Agendar Consulta" passou a criar o
+   registo de imediato (`novaNutriConsulta`: atleta da área de origem ou a 1ª do plantel,
+   data de hoje, resto em branco) e a abrir o mesmo formulário, sempre editável,
+   diretamente sobre esse id. Cada campo grava sozinho (`saveNcField`, onblur nos campos
+   de texto/data/hora, onchange nos `<select>` de atleta/responsável) — substitui
+   `saveNutriConsulta`, que recolhia tudo de uma vez. `setConsultaStatus`/
+   `setConsultaMotivo` (já autosave desde antes) ficaram intocados. Os 3 atalhos que
+   abriam este formulário vazio a partir de outros ecrãs (Dashboard do Plantel, alerta
+   "sem avaliação/plano") passaram a chamar `novaNutriConsulta()` em vez de só armar
+   `_showNcForm=true`.
+4. **Planos Nutricionais / Diário Alimentar** — "+ Novo Plano" cria o registo de imediato
+   (`novoNutriPlano`: as 6 refeições já com a estrutura `MEALS` em branco, `active:true`,
+   `startDate:hoje`) e abre o mesmo formulário sempre editável. Cada campo (base + cada
+   uma das 6 refeições) grava sozinho via `saveNutriPlanoField(id,field,value)` — para uma
+   refeição, `field` é `'meal:<índice>:<time|kcal|foods>'`, resolvido internamente sem
+   nunca reconstruir o array `meals` do zero. Substitui `saveNutriPlano`. Na grelha
+   evoluída (Diário Alimentar Semanal, 7 dias × 6 refeições), cada campo grava sozinho via
+   `saveNadMealField(athleteId,day,mealIndex,field,value)`, substituindo `saveNadDay`
+   (botão único "💾 Guardar {Dia}"); `nadCopyDay` (já autosave) ficou intocado. Os 3
+   atalhos externos a este formulário (Dashboard do Plantel, alerta "sem plano", "+ Criar
+   Plano Nutricional" dentro do próprio Diário sem plano ativo) passaram a chamar
+   `novoNutriPlano()`.
+5. **Suplementação (Catálogo/Prescrição)** — os dois modais (`_openSuplItemModal`/
+   `_openSuplPrescModal`) passaram a criar o registo de imediato quando chamados sem id
+   (`id`/`prescId` nulo — "+ Novo Suplemento" e "+ Adicionar" dentro de uma coluna de
+   momento, o único ponto de criação de uma prescrição) e a abrir-se já sobre esse id
+   real. Cada campo grava sozinho via `saveSuplItemField(id,field,value)`/
+   `saveSuplPrescField(athleteId,prescId,field,value)` — checkboxes de momento em
+   `onchange`, com `field` na forma `'moment:<key>'` e valor booleano (acrescenta/remove
+   só essa chave do array `moments`, nunca o reconstrói do zero). Substituem
+   `saveSuplItem`/`saveSuplPresc`. Os botões "💾 Guardar" foram removidos dos dois modais
+   — ficou só "Fechar" (o ✕ do cabeçalho do modal já fechava sem gravar nada à parte).
+6. **Anamnese Alimentar** — lado atleta (`atOpenDietAnamnese`, 11 campos): cada campo
+   grava sozinho via `atSaveDietAnamField(key,value)` (onblur, incluindo as 2 textareas),
+   substitui `atSaveDietAnamnese` (botão único "Guardar"). Lado Nutri (`nad-notes`, campo
+   único) já só precisava de trocar o botão "💾 Guardar Notas" por `onblur` —
+   `saveNadNutriNotes(athleteId,value)` ganhou o 2º parâmetro mas manteve-se
+   retrocompatível (sem ele, continua a ler do próprio campo do DOM).
+7. SW bump para `sps-v203`. Sem alterações de schema Supabase em nenhuma das 6 áreas —
+   só mudou QUANDO cada campo é gravado, nunca que campos existem (`_CLOUD_TABLE_SCHEMA`/
+   `pullCloud()` inalterados nas tabelas tocadas: `code_of_conduct`, `away_game_guide`,
+   `nutrition_appointments`, `nutrition_plans`, `supplement_catalog`,
+   `supplement_prescriptions`, `nutrition_diet_anamnesis`).
+
+**Convenção seguida (confirmada contra o código real antes de implementar, mesmo idioma
+em todo o lado):** gravação silenciosa, sem toast — `saveEstagioField`/`savePbField`
+nunca mostram confirmação visual por campo, e os 6 pontos acima seguem a mesma regra.
+Um registo criado de imediato e depois abandonado em branco é aceitável (mesmo
+comportamento já existente em Estágios/Playbook) — não foi inventada nenhuma lógica de
+"apagar se ficar vazio".
+
+**Desvio deliberado do que a descrição inicial do pedido equiparava a Estágios/Playbook:**
+`saveNovoEstagio`/`saveNovaPbJogada` exigem, na prática, um pequeno formulário prévio
+(só título + datas/categoria) antes de criar o registo — não é literalmente "clique único
+sem preencher nada". Para as 4 áreas da Nutri e os 2 modais de Suplementação, optou-se
+por criar mesmo sem nenhum campo prévio obrigatório (só com defaults sensatos/em branco),
+por ser o que a formulação do pedido descrevia mais literalmente ("cria de imediato,
+antes de qualquer campo ser preenchido") e por não haver, nestes 6 casos, nenhum campo
+que precise obrigatoriamente de validação prévia para o registo fazer sentido (ao
+contrário de Estágios, que liga opcionalmente a um Jogo). Documentado aqui para o Roger
+confirmar que é o comportamento que queria, já que não é 100% idêntico byte a byte às
+duas funções que serviram de referência.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Harness Node
+dedicado novo (`test_autosave_v203.js`, mesmo padrão `vm` dos restantes) com 97
+asserções cobrindo as 6 áreas: gravação por campo preserva sempre os campos irmãos
+(incl. entre refeições/dias/momentos — nunca um save de 1 campo apaga outro, a classe de
+bug recorrente documentada nos Incidentes #1-4); criação imediata produz um id real antes
+de qualquer campo tocado; Código de Conduta — título nunca gravado num override novo,
+override antigo com "title" continua a mostrar-se (retrocompatibilidade), bump de versão
+100% desacoplado da gravação de texto (escrever + sair do campo nunca muda a versão), e
+`ativarCodigoConduta`/`desativarCodigoConduta` continuam a preservar `sections`
+(regressão sps-v197). `test_guiao.js` atualizado para a nova interface (removidas as
+asserções do modo de edição antigo, acrescentadas as de gravação por ponto + retrocompat
+de título antigo); `test_coc3.js` já não testava o modo de edição, passou sem alterações.
+`test_supl_v193.js`/`test_nutri_anamnese_diario_supl2_v195.js`/`test_nutri_plantel_v194.js`
+(Playwright, browser real) atualizados para o novo fluxo (criação imediata + preencher
+campos com blur explícito, já sem chamar as funções de guardar antigas) e voltaram a
+passar por completo. Regressão re-corrida sem falhas: `test_estagios.js`,
+`test_mobile_v187.js`, `test_tatico_v191.js`, `test_playbook_v201.js`,
+`test_presentation_v202.js` — nenhuma área fora do âmbito deste pedido foi tocada.
+
+**Ainda por fazer:** nada pendente para este pedido. `test_coc.js`/`test_coc2.js`/
+`test_coc_edit.js` (rascunhos de sessões anteriores ao sps-v196/197, já superados por
+`test_coc3.js`) continuam a testar a interface antiga e não foram atualizados — não
+fazem parte da suite de regressão listada no changelog, só ficaram na pasta de trabalho
+por valor histórico; se algum dia forem corridos vão falhar contra esta versão, o que é
+esperado e não é uma regressão real.
