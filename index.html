@@ -1305,6 +1305,204 @@ function toast(msg,type='ok'){const t=document.getElementById('toast');t.textCon
 function openMod(title,bodyHtml,size=''){const b=document.getElementById('modal-box');b.className='mbox'+(size?' '+size:'');document.getElementById('modal-title').textContent=title;document.getElementById('modal-body').innerHTML=bodyHtml;document.getElementById('modal-ov').classList.add('on');}
 function closeMod(e){if(e&&e.target!==document.getElementById('modal-ov'))return;document.getElementById('modal-ov').classList.remove('on');}
 
+// ── Helpers SVG partilhados — marcador "colete" + bola + traço livre (sps-v204) ──────────
+// Funções neutras e puras (sem efeitos secundários, sem saber nada de Playbook/_pb* nem de
+// Set Pieces/_pitch*), usadas por ambos os quadros para desenhar o boneco/bola novos sem
+// duplicar lógica de desenho entre os dois namespaces. Ver CLAUDE.md sps-v204.
+// legColor: versão mais escura da própria cor do marcador (nunca um valor fixo) — ver
+// _bibDarken. facing: graus (0-359), só roda as "pernas"/alças — o círculo e a etiqueta
+// nunca rodam (etiqueta sempre legível).
+function _bibDarken(hex,amt){
+  const h=(hex||'').replace('#','');
+  if(h.length!==6)return hex||'#000000';
+  const r=Math.max(0,Math.round(parseInt(h.slice(0,2),16)*(1-amt)));
+  const g=Math.max(0,Math.round(parseInt(h.slice(2,4),16)*(1-amt)));
+  const b=Math.max(0,Math.round(parseInt(h.slice(4,6),16)*(1-amt)));
+  const toHex=n=>n.toString(16).padStart(2,'0');
+  return '#'+toHex(r)+toHex(g)+toHex(b);
+}
+// Luminância simples (mesma lógica já usada para decidir a cor do número no GR vs jogadora
+// de linha) — cor clara ganha texto escuro, cor escura ganha texto branco.
+function _bibTextColor(fill){
+  const hex=(fill||'').replace('#','');
+  if(hex.length!==6)return '#1a1a2e';
+  const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+  const lum=(0.299*r+0.587*g+0.114*b)/255;
+  return lum>0.6?'#1a1a2e':'#fff';
+}
+function _bibMarkerSvg(fill,legColor,label,rad,facing){
+  facing=facing||0;
+  const legAngle=35,legLen=rad*1.45,legW=rad*0.28;
+  const leg=(ang)=>`<rect x="${(-legW/2).toFixed(2)}" y="0" width="${legW.toFixed(2)}" height="${legLen.toFixed(2)}" rx="${(legW/2).toFixed(2)}" fill="${legColor}" transform="rotate(${ang})"></rect>`;
+  const textFill=_bibTextColor(fill);
+  return `<g transform="rotate(${facing})">${leg(legAngle)}${leg(-legAngle)}</g>`+
+         `<circle r="${rad}" fill="${fill}" stroke="#fff" stroke-width="1.5"></circle>`+
+         (label!=null?`<text text-anchor="middle" dy="${(rad*0.36+1.5).toFixed(2)}" font-size="${(rad).toFixed(1)}" font-weight="bold" fill="${textFill}">${label}</text>`:'');
+}
+// Bola com pentágono/costuras (estilo bola de futebol), em vez do círculo branco simples.
+function _ballIconSvg(r){
+  const pts=[];for(let i=0;i<5;i++){const ang=-Math.PI/2+i*(2*Math.PI/5);pts.push([r*0.42*Math.cos(ang),r*0.42*Math.sin(ang)]);}
+  const pentD=pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')+' Z';
+  const seams=pts.map(p=>`<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${(p[0]*2.15).toFixed(1)}" y2="${(p[1]*2.15).toFixed(1)}" stroke="#1a1a2e" stroke-width="${(r*0.1).toFixed(1)}" stroke-linecap="round"/>`).join('');
+  return `<circle r="${r}" fill="#fff" stroke="#1a1a2e" stroke-width="${(r*0.14).toFixed(1)}"></circle><path d="${pentD}" fill="#1a1a2e"></path>${seams}`;
+}
+// Caminho SVG (d=) de um traço livre a partir dos pontos amostrados — curva suave (Q,
+// ponto médio entre amostras consecutivas) em vez de segmentos de reta rígidos.
+function _freehandPathD(points){
+  if(!points||points.length<2)return '';
+  let d=`M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for(let i=1;i<points.length-1;i++){
+    const mx=(points[i].x+points[i+1].x)/2,my=(points[i].y+points[i+1].y)/2;
+    d+=` Q ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)}`;
+  }
+  const last=points[points.length-1];
+  d+=` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+  return d;
+}
+// ── Modal partilhado de opções do marcador (cor + rotação + eliminar/esconder) ───────────
+// Desvio deliberado do mockup original (ver CLAUDE.md sps-v204): em vez de uma alça de
+// arrastar para rodar o boneco no próprio campo, o clique/toque no marcador abre este modal
+// — mais fiável em touch/cross-device. Partilhado entre Playbook ('pb') e Set Pieces
+// ('pitch') — só a leitura/escrita dos dados (getters/setters) é que diverge por
+// namespace; o modal e o preview SVG em si são sempre os mesmos. A bola NÃO usa este modal
+// em nenhum dos dois quadros (2º desvio deliberado do mockup) — mantém o confirm()/toggle
+// direto que já tinha, por não precisar de cor/rotação.
+// boardId: pbid (ns='pb') ou "gid|mode" (ns='pitch').
+function _bibMarkerData(ns,boardId,kind,mid){
+  if(ns==='pb'){
+    const pb=(APP.playbook||[]).find(x=>x.id===boardId);if(!pb)return null;
+    if(kind==='own'){
+      const pos=pb.positions[mid]||{};
+      return {color:pos.color||(+mid===1?'#27ae60':'#ffd700'),facing:pos.facing||0,label:mid};
+    }
+    const o=(pb.opponents||[]).find(x=>x.id===mid);
+    return {color:(o&&o.color)||'#e63946',facing:(o&&o.facing)||0,label:null};
+  }
+  const parts=String(boardId).split('|'),gid=parts[0],mode=parts[1];
+  const g=APP.games.find(x=>x.id===gid);if(!g)return null;
+  if(kind==='own'){
+    const a=APP.athletes.find(x=>x.id===mid);
+    const isGK=a&&a.pos==='GR';
+    const custom=(g.pitchMarkerColors&&g.pitchMarkerColors[mode]&&g.pitchMarkerColors[mode][mid])||'';
+    const pos=_pitchPos(g,mode)[mid]||{};
+    return {color:custom||(isGK?'#27ae60':'#ffd700'),facing:pos.facing||0,label:a?(a.number||a.num||''):''};
+  }
+  const o=_pitchOpponents(g,mode).find(x=>x.id===mid);
+  return {color:(o&&o.color)||'#e63946',facing:(o&&o.facing)||0,label:null};
+}
+function _bibRenderPreviewSvg(ns,boardId,kind,mid,overrideField,overrideValue){
+  const d=_bibMarkerData(ns,boardId,kind,mid);if(!d)return '';
+  let color=d.color,facing=d.facing;
+  if(overrideField==='color')color=overrideValue;
+  if(overrideField==='facing')facing=+overrideValue||0;
+  const rad=16;
+  const label=kind==='own'?d.label:null;
+  return `<svg viewBox="-28 -28 56 56" width="110" height="110" style="display:inline-block">${_bibMarkerSvg(color,_bibDarken(color,0.25),label,rad,facing)}</svg>`;
+}
+// oninput (ao arrastar o range/escolher cor) — só atualiza o preview dentro do modal, sem
+// tocar nos dados nem gravar (evita saveData()/sync a cada pixel arrastado).
+function _bibPreviewLive(ns,boardId,kind,mid,field,value){
+  const el=document.getElementById('bib-modal-preview');
+  if(el)el.innerHTML=_bibRenderPreviewSvg(ns,boardId,kind,mid,field,value);
+  if(field==='facing'){const lab=document.getElementById('bib-modal-facing-val');if(lab)lab.textContent=value+'°';}
+}
+function _bibRefreshModalPreview(ns,boardId,kind,mid){_bibPreviewLive(ns,boardId,kind,mid,null,null);}
+// onchange (ao soltar o range/fechar o seletor de cor) ou onclick (swatch) — commit real:
+// grava no modelo de dados, sincroniza e re-renderiza o quadro por baixo do modal (o modal
+// vive numa subárvore DOM separada de #pg-playbook/#pg-jogos, por isso re-renderizar o
+// quadro nunca destrói o modal aberto).
+function _bibApplyField(ns,boardId,kind,mid,field,value){
+  if(ns==='pb'){
+    const pb=(APP.playbook||[]).find(x=>x.id===boardId);if(!pb)return;
+    _pbInit(pb);
+    if(kind==='own'){
+      const def=_pbDefaultPos(mid-1,pb.fullView);
+      if(!pb.positions[mid])pb.positions[mid]={x:def[0],y:def[1]};
+      pb.positions[mid][field]=field==='facing'?(+value||0):value;
+    } else {
+      const o=(pb.opponents||[]).find(x=>x.id===mid);if(o)o[field]=field==='facing'?(+value||0):value;
+    }
+    pb.updatedAt=new Date().toISOString();
+    _syncPlaybook(pb);saveData();_renderPbDetail();
+  } else {
+    const parts=String(boardId).split('|'),gid=parts[0],mode=parts[1];
+    const g=APP.games.find(x=>x.id===gid);if(!g)return;
+    if(kind==='own'){
+      if(field==='facing'){
+        const posMap=_pitchPos(g,mode);
+        if(!posMap[mid]){
+          // sps-v204 fix: ao rodar um marcador que ainda não foi arrastado manualmente,
+          // a posição inicial tem de ser a mesma grelha por omissão que já está desenhada
+          // no campo (_pitchDefaultPos, pela posição ordenada por nº de camisola em
+          // _jogoCampoHtml) — nunca um valor fixo (150,210), que fazia o marcador "saltar"
+          // para o centro do campo só por lhe mudar a rotação/cor.
+          const sortedLineup=(g.lineup||[]).map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
+            .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+          const idx=sortedLineup.findIndex(x=>x.aid===mid);
+          const def=_pitchDefaultPos(mode,idx>=0?idx:0,g.formation);
+          posMap[mid]={x:def[0],y:def[1]};
+        }
+        posMap[mid].facing=(+value||0);
+      } else if(field==='color'){
+        _pitchMarkerColorsMap(g,mode)[mid]=value;
+      }
+    } else {
+      const o=_pitchOpponents(g,mode).find(x=>x.id===mid);if(o)o[field]=field==='facing'?(+value||0):value;
+    }
+    saveData();_renderJogoDetailFull();
+  }
+  _bibRefreshModalPreview(ns,boardId,kind,mid);
+}
+// Eliminar: próprios → esconde (hiddenOwn, restaurável); adversárias → remove de vez (como
+// já era antes desta funcionalidade, confirm() direto — não há "restaurar" porque se recria
+// com um clique em "+ Adversária").
+function _bibDeleteMarker(ns,boardId,kind,mid){
+  if(ns==='pb'){
+    const pb=(APP.playbook||[]).find(x=>x.id===boardId);if(!pb)return;
+    _pbInit(pb);
+    if(kind==='own'){
+      if(!pb.hiddenOwn.includes(+mid))pb.hiddenOwn.push(+mid);
+      pb.updatedAt=new Date().toISOString();_syncPlaybook(pb);saveData();closeMod();_renderPbDetail();
+    } else {
+      if(!confirm('Remover esta marcadora adversária?'))return;
+      pb.opponents=(pb.opponents||[]).filter(o=>o.id!==mid);
+      pb.updatedAt=new Date().toISOString();_syncPlaybook(pb);saveData();closeMod();_renderPbDetail();
+    }
+  } else {
+    const parts=String(boardId).split('|'),gid=parts[0],mode=parts[1];
+    const g=APP.games.find(x=>x.id===gid);if(!g)return;
+    if(kind==='own'){
+      const list=_pitchHiddenOwnList(g,mode);
+      if(!list.includes(mid))list.push(mid);
+      saveData();closeMod();_renderJogoDetailFull();
+    } else {
+      if(!confirm('Remover esta marcadora adversária?'))return;
+      const list=_pitchOpponents(g,mode);
+      const idx=list.findIndex(o=>o.id===mid);
+      if(idx>=0)list.splice(idx,1);
+      saveData();closeMod();_renderJogoDetailFull();
+    }
+  }
+}
+function _openMarkerOptionsModal(ns,boardId,kind,mid){
+  const d=_bibMarkerData(ns,boardId,kind,mid);if(!d)return;
+  const palette=['#ffd700','#27ae60','#3b82f6','#e63946','#a855f7','#f97316','#ffffff','#1a1a2e'];
+  const swatches=palette.map(c=>`<span onclick="_bibApplyField('${ns}','${boardId}','${kind}','${mid}','color','${c}')" title="${c}" style="display:inline-block;width:24px;height:24px;border-radius:50%;background:${c};border:2px solid ${d.color.toLowerCase()===c?'var(--pri)':'var(--brd)'};cursor:pointer;margin:2px"></span>`).join('');
+  const deleteLabel=kind==='own'?'🙈 Esconder (podes restaurar depois)':'🗑️ Remover';
+  const body=`
+    <div style="text-align:center;margin-bottom:12px" id="bib-modal-preview">${_bibRenderPreviewSvg(ns,boardId,kind,mid)}</div>
+    <div class="form-g"><label class="fl">Cor</label>
+      <div style="margin-bottom:6px">${swatches}</div>
+      <input type="color" value="${d.color}" style="width:100%;height:32px" oninput="_bibPreviewLive('${ns}','${boardId}','${kind}','${mid}','color',this.value)" onchange="_bibApplyField('${ns}','${boardId}','${kind}','${mid}','color',this.value)">
+    </div>
+    <div class="form-g"><label class="fl">Rotação: <span id="bib-modal-facing-val">${d.facing}°</span></label>
+      <input type="range" min="0" max="359" value="${d.facing}" style="width:100%" oninput="_bibPreviewLive('${ns}','${boardId}','${kind}','${mid}','facing',this.value)" onchange="_bibApplyField('${ns}','${boardId}','${kind}','${mid}','facing',this.value)">
+    </div>
+    <button class="btn btn-r" style="margin-top:6px" onclick="_bibDeleteMarker('${ns}','${boardId}','${kind}','${mid}')">${deleteLabel}</button>
+  `;
+  openMod('⚙️ Marcador',body);
+}
+
 // ── Modo Apresentação (sps-v202) ─────────────────────────────────────────────
 // Motor genérico partilhado por Playbook e Set Pieces (_pbBoardHtml/_jogoCampoHtml):
 // ecrã cheio, só o diagrama (SVG não-interativo, sem drag), com navegação entre
@@ -4615,7 +4813,27 @@ let _showJogoForm=false,_editJogoId=null,_jogoTab='proximos';
 let _showCampImport=false,_campImportRows=null;
 let _pitchDragging=null,_pitchWasDrag=false;
 let _jogoCampoDrawMode='mover',_jogoArrowStyle='solid',_arrowDragging=null;
+// Sub-toggle Reta/Traço Livre + cor da seta (sps-v204) — 'straight' é o comportamento já
+// existente antes desta versão; 'freehand' é novo (ver pitchArrowStart/Move/End abaixo).
+let _jogoArrowKind='straight',_jogoArrowColor='#ffffff';
 function _pitchArrows(g,mode){if(!g.pitchArrows)g.pitchArrows={};if(!g.pitchArrows[mode])g.pitchArrows[mode]=[];return g.pitchArrows[mode];}
+// Elemento de preview (linha ou traço) reaproveitado enquanto se desenha — troca de tag
+// (line↔path) se o tipo de seta ativo mudou a meio, em vez de duplicar o elemento.
+function _pitchArrowPreviewEl(svg,tag,gid){
+  let prev=svg.querySelector('#arrow-preview');
+  if(prev&&prev.tagName.toLowerCase()!==tag){prev.remove();prev=null;}
+  if(!prev){
+    prev=document.createElementNS('http://www.w3.org/2000/svg',tag);
+    prev.id='arrow-preview';
+    prev.setAttribute('fill','none');
+    prev.setAttribute('stroke-width','2');
+    prev.setAttribute('marker-end','url(#arrowhead-'+gid+')');
+    svg.appendChild(prev);
+  }
+  prev.setAttribute('stroke',_jogoArrowColor);
+  prev.setAttribute('stroke-dasharray',_jogoArrowStyle==='dashed'?'6,4':'none');
+  return prev;
+}
 function pitchArrowStart(e,gid,mode){
   if(_jogoCampoDrawMode!=='seta')return;
   e.preventDefault();if(e.stopPropagation)e.stopPropagation();
@@ -4625,11 +4843,15 @@ function pitchArrowStart(e,gid,mode){
   const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
   const vh=(typeof _pitchViewH==='function'?_pitchViewH(mode):200)-2;
   const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(vh,svgP.y));
-  _arrowDragging={gid,mode,x1:cx,y1:cy,x2:cx,y2:cy};
-  let prev=svg.querySelector('#arrow-preview');
-  if(!prev){prev=document.createElementNS('http://www.w3.org/2000/svg','line');prev.id='arrow-preview';prev.setAttribute('stroke','#fff');prev.setAttribute('stroke-width','2');prev.setAttribute('marker-end','url(#arrowhead-'+gid+')');svg.appendChild(prev);}
-  prev.setAttribute('stroke-dasharray',_jogoArrowStyle==='dashed'?'6,4':'none');
-  prev.setAttribute('x1',cx);prev.setAttribute('y1',cy);prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);
+  if(_jogoArrowKind==='freehand'){
+    _arrowDragging={gid,mode,kind:'freehand',points:[{x:cx,y:cy}]};
+    const prev=_pitchArrowPreviewEl(svg,'path',gid);
+    prev.setAttribute('d',_freehandPathD(_arrowDragging.points));
+  } else {
+    _arrowDragging={gid,mode,kind:'straight',x1:cx,y1:cy,x2:cx,y2:cy};
+    const prev=_pitchArrowPreviewEl(svg,'line',gid);
+    prev.setAttribute('x1',cx);prev.setAttribute('y1',cy);prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);
+  }
 }
 function pitchArrowMove(e){
   if(!_arrowDragging)return;
@@ -4638,19 +4860,35 @@ function pitchArrowMove(e){
   const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
   const vh=(typeof _pitchViewH==='function'?_pitchViewH(_arrowDragging.mode):200)-2;
   const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(vh,svgP.y));
-  _arrowDragging.x2=cx;_arrowDragging.y2=cy;
-  const prev=svg.querySelector('#arrow-preview');
-  if(prev){prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);}
+  if(_arrowDragging.kind==='freehand'){
+    // Throttle simples: só amostra um novo ponto se andou mais de ~3px desde o último,
+    // para não sobrecarregar o array num traço longo.
+    const last=_arrowDragging.points[_arrowDragging.points.length-1];
+    if(Math.hypot(cx-last.x,cy-last.y)>3)_arrowDragging.points.push({x:cx,y:cy});
+    const prev=svg.querySelector('#arrow-preview');
+    if(prev)prev.setAttribute('d',_freehandPathD(_arrowDragging.points));
+  } else {
+    _arrowDragging.x2=cx;_arrowDragging.y2=cy;
+    const prev=svg.querySelector('#arrow-preview');
+    if(prev){prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);}
+  }
 }
 function pitchArrowEnd(e){
   if(!_arrowDragging)return;
   const d=_arrowDragging;_arrowDragging=null;
   const svg=document.getElementById('pitch-svg-'+d.gid);
   const prev=svg&&svg.querySelector('#arrow-preview');if(prev)prev.remove();
-  const dist=Math.hypot(d.x2-d.x1,d.y2-d.y1);
-  if(dist<8)return;
   const g=APP.games.find(x=>x.id===d.gid);if(!g)return;
-  _pitchArrows(g,d.mode).push({id:'arr'+Date.now()+Math.floor(Math.random()*1000),x1:+d.x1.toFixed(1),y1:+d.y1.toFixed(1),x2:+d.x2.toFixed(1),y2:+d.y2.toFixed(1),style:_jogoArrowStyle});
+  if(d.kind==='freehand'){
+    if(d.points.length<3)return;
+    let len=0;for(let i=1;i<d.points.length;i++)len+=Math.hypot(d.points[i].x-d.points[i-1].x,d.points[i].y-d.points[i-1].y);
+    if(len<8)return;
+    _pitchArrows(g,d.mode).push({id:'arr'+Date.now()+Math.floor(Math.random()*1000),kind:'freehand',points:d.points.map(p=>({x:+p.x.toFixed(1),y:+p.y.toFixed(1)})),style:_jogoArrowStyle,color:_jogoArrowColor});
+  } else {
+    const dist=Math.hypot(d.x2-d.x1,d.y2-d.y1);
+    if(dist<8)return;
+    _pitchArrows(g,d.mode).push({id:'arr'+Date.now()+Math.floor(Math.random()*1000),kind:'straight',x1:+d.x1.toFixed(1),y1:+d.y1.toFixed(1),x2:+d.x2.toFixed(1),y2:+d.y2.toFixed(1),style:_jogoArrowStyle,color:_jogoArrowColor});
+  }
   saveData();
   _renderJogoDetailFull();
 }
@@ -6275,6 +6513,41 @@ function _pitchBallMap(g){
   if(!g.pitchBall)g.pitchBall={tatico:null,cornerDef:null,cornerOf:null,freeKick:null};
   return g.pitchBall;
 }
+// Cor customizada por jogadora própria (sps-v204) — objeto {[aid]:colorHex}, separado da
+// posição porque setFormation() reescreve g.playerPositions do zero (a cor não deve
+// perder-se ao trocar de formação). Ausente = usa a cor atual por defeito (isGK).
+function _pitchMarkerColorsMap(g,mode){
+  if(!g.pitchMarkerColors)g.pitchMarkerColors={};
+  if(!g.pitchMarkerColors[mode])g.pitchMarkerColors[mode]={};
+  return g.pitchMarkerColors[mode];
+}
+// Marcadores próprios escondidos (sps-v204) — "eliminar" restaurável, array de aids.
+function _pitchHiddenOwnList(g,mode){
+  if(!g.pitchHiddenOwn)g.pitchHiddenOwn={};
+  if(!g.pitchHiddenOwn[mode])g.pitchHiddenOwn[mode]=[];
+  return g.pitchHiddenOwn[mode];
+}
+function pitchHideAllOwn(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!confirm('Esconder todos os marcadores próprios deste quadro? (podes restaurar depois)'))return;
+  const list=_pitchHiddenOwnList(g,mode);
+  list.length=0;
+  (g.lineup||[]).forEach(aid=>list.push(aid));
+  saveData();_renderJogoDetailFull();
+}
+function pitchRestoreAllOwn(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  _pitchHiddenOwnList(g,mode).length=0;
+  saveData();_renderJogoDetailFull();
+}
+function pitchClearOpponents(gid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const list=_pitchOpponents(g,mode);
+  if(!list.length)return;
+  if(!confirm('Apagar todas as adversárias deste quadro?'))return;
+  list.length=0;
+  saveData();_renderJogoDetailFull();
+}
 function pitchAddOpponent(gid,mode){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   mode=mode||_jogoCampoTab||'tatico';
@@ -6347,13 +6620,14 @@ function _pitchCurrentFrame(g,mode){
   sortedLineup.forEach(({aid},i)=>{
     const def=_pitchDefaultPos(mode,i,g.formation);
     const raw=posMap[aid]||{x:def[0],y:def[1]};
-    positions[aid]={x:raw.x,y:Math.min(raw.y,maxY)};
+    positions[aid]={x:raw.x,y:Math.min(raw.y,maxY),facing:raw.facing||0};
     if(taskMap[aid])tasks[aid]=taskMap[aid];
   });
-  const opponents=_pitchOpponents(g,mode).map(o=>({id:o.id,num:o.num,x:o.x,y:o.y}));
+  const opponents=_pitchOpponents(g,mode).map(o=>({...o}));
   const ball=_pitchBallMap(g)[mode]?{...(_pitchBallMap(g)[mode])}:null;
   const fullView=!!_pitchFullView[mode];
-  return {id:'_live',minRaw:null,note:'',positions,tasks,opponents,ball,fullView,lineup:sortedLineup.map(x=>x.aid)};
+  const markerColors={..._pitchMarkerColorsMap(g,mode)};
+  return {id:'_live',minRaw:null,note:'',positions,tasks,opponents,ball,fullView,lineup:sortedLineup.map(x=>x.aid),markerColors};
 }
 function _pitchSnapshot(gid,mode){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
@@ -6370,15 +6644,20 @@ function _pitchSnapshot(gid,mode){
   sortedLineup.forEach(({aid},i)=>{
     const def=_pitchDefaultPos(mode,i,g.formation);
     const raw=posMap[aid]||{x:def[0],y:def[1]};
-    positions[aid]={x:raw.x,y:Math.min(raw.y,maxY)};
+    positions[aid]={x:raw.x,y:Math.min(raw.y,maxY),facing:raw.facing||0};
     if(taskMap[aid])tasks[aid]=taskMap[aid];
   });
   // Adversárias e bola (sps-v185) entram também no registo — a organização da equipa
   // adversária num canto/livre é tão parte do "momento" como a da própria equipa.
-  const opponents=_pitchOpponents(g,mode).map(o=>({id:o.id,num:o.num,x:o.x,y:o.y}));
+  // sps-v204: a cor/rotação (facing/color) de cada entrada viaja automaticamente, já que
+  // o spread ({...o}) copia todos os campos do objeto, não só os 4 originais.
+  const opponents=_pitchOpponents(g,mode).map(o=>({...o}));
   const ball=_pitchBallMap(g)[mode]?{...(_pitchBallMap(g)[mode])}:null;
   const fullView=!!_pitchFullView[mode];
-  _pitchSnapshotsFor(g,mode).push({id:uid(),minRaw,note,positions,tasks,opponents,ball,fullView,lineup:sortedLineup.map(x=>x.aid)});
+  // Cores customizadas dos marcadores próprios (sps-v204) — entram no registo para o
+  // "ajusta e regista de novo" nunca perder a cor ao recarregar um passo antigo.
+  const markerColors={..._pitchMarkerColorsMap(g,mode)};
+  _pitchSnapshotsFor(g,mode).push({id:uid(),minRaw,note,positions,tasks,opponents,ball,fullView,lineup:sortedLineup.map(x=>x.aid),markerColors});
   saveData();toast('Posicionamento registado ✓');
   _renderJogoDetailFull();
 }
@@ -6395,6 +6674,11 @@ function _pitchLoadSnapshot(gid,mode,snapId){
   g.pitchOpponents[mode]=(snap.opponents||[]).map(o=>({...o}));
   const bm=_pitchBallMap(g);bm[mode]=snap.ball?{...snap.ball}:null;
   if(typeof snap.fullView==='boolean')_pitchFullView[mode]=snap.fullView;
+  // Restaura também as cores customizadas dos marcadores próprios (sps-v204) — snapshots
+  // anteriores a esta versão não têm markerColors, por isso caem sempre em {} (sem cor
+  // customizada = usa a cor por defeito), nunca rebentam.
+  if(!g.pitchMarkerColors)g.pitchMarkerColors={};
+  g.pitchMarkerColors[mode]={...(snap.markerColors||{})};
   saveData();toast('Posicionamento carregado — ajusta e regista de novo');
   _renderJogoDetailFull();
 }
@@ -6431,7 +6715,7 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
   // este campo e caem sempre em meio campo (200), o comportamento que já tinham antes.
   const viewH=snap.fullView?420:200;
   const h=Math.round(w*(viewH/300));
-  const rad=7,numFs=7,sw=1.5;
+  const rad=7;
   // Baliza e pequena área alargadas (sps-v185, 29/09/2026, pedido do Roger): a largura
   // real da baliza (36) e da pequena área (56) não dava espaço para 4 marcadores lado a
   // lado sem se sobreporem — alargadas para 60/90 só para efeitos visuais/de arrasto
@@ -6456,24 +6740,23 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
     const a=APP.athletes.find(x=>x.id===aid);const p=snap.positions[aid];
     if(!a||!p)return;
     const isGK=a.pos==='GR';
-    const fill=isGK?'#27ae60':'#ffd700';
-    const tf=isGK?'#fff':'#1a1a2e';
-    dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||'?'}</text>`;
+    const custom=(snap.markerColors&&snap.markerColors[aid])||'';
+    const fill=custom||(isGK?'#27ae60':'#ffd700');
+    const facing=p.facing||0;
+    dots+=`<g transform="translate(${p.x},${p.y})">${_bibMarkerSvg(fill,_bibDarken(fill,0.25),a.number||a.num||'?',rad,facing)}</g>`;
     if(forceNames)dots+=`<text x="${p.x}" y="${(p.y+17).toFixed(1)}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
     else if(isTatico)dots+=`<text x="${p.x}" y="${(p.y+16).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
   });
-  // Adversárias — um X vermelho (sps-v185, 29/09/2026: pedido do Roger, trocou o círculo
-  // numerado original por um X, mais rápido de identificar/desenhar num quadro de bolas
-  // paradas) — e bola. Snapshots anteriores a esta versão não têm estes campos, por isso
-  // ficam simplesmente sem eles.
-  // X reduzido (sps-v191) — mesma proporção usada no quadro ao vivo (_jogoCampoHtml), para
-  // a miniatura/PDF/galeria nunca divergir visualmente do que se vê a trabalhar.
-  const oppArm=rad*0.55;
+  // Adversárias — boneco "colete" (sps-v204, substitui o X vermelho do sps-v185/191) com a
+  // cor própria de cada entrada (o.color||'#e63946') e a sua rotação (o.facing||0).
+  // Snapshots anteriores a esta versão não têm estes dois campos, por isso caem sempre nos
+  // valores por defeito em vez de rebentar.
   (snap.opponents||[]).forEach(o=>{
-    dots+=`<line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y-oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y+oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/><line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y+oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y-oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>`;
+    const fill=o.color||'#e63946';const facing=o.facing||0;
+    dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,_bibDarken(fill,0.25),null,rad,facing)}</g>`;
   });
   if(snap.ball){
-    dots+=`<circle cx="${snap.ball.x}" cy="${snap.ball.y}" r="${Math.round(rad*0.6)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>`;
+    dots+=`<g transform="translate(${snap.ball.x},${snap.ball.y})">${_ballIconSvg(Math.round(rad*0.6))}</g>`;
   }
   return `<svg viewBox="0 0 300 ${viewH}" style="width:${w}px;height:${h}px;display:block;border-radius:6px">${bg}${dots}</svg>`;
 }
@@ -6503,7 +6786,7 @@ function _jogoCampoHtml(g){
   // (max-width 280px→480px→640px, ver .jc-pitch-wrap): raio/letra escalados na mesma
   // proporção do campo, para caberem dedos a arrastar com precisão no telemóvel sem
   // ficar desproporcionado ao SVG maior.
-  const rad=6,numFs=6,sw=1.2,capFs=6,capOff=5,capY=-6;
+  const rad=6,capFs=6,capOff=5,capY=-6;
   const maxY=_pitchMaxY(mode);
   // Ordem pelo número da camisola (não pela ordem em que foram clicadas como titulares
   // no Pré-Jogo) — pedido do Roger, 24/08/2026: os números devem manter-se consistentes
@@ -6512,56 +6795,58 @@ function _jogoCampoHtml(g){
   // de ser fiável depois desta reordenação.
   const sortedLineup=g.lineup.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
     .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
+  // Esconder/Restaurar marcadores próprios (sps-v204) — "eliminar" restaurável, à parte
+  // do onze/banco real (que continua definido no Pré-Jogo); só esconde do DESENHO deste
+  // quadro/sub-separador.
+  const hiddenOwnList=_pitchHiddenOwnList(g,mode);
   // Cada marcador (atleta, adversária, bola) ganha um círculo invisível maior (rad+3) por
-  // baixo do desenho visível, só para a área de toque — o círculo/X visível fica do mesmo
-  // tamanho de sempre (senão o campo fica poluído com marcadores enormes), mas arrastar no
-  // telemóvel deixa de exigir acertar exatamente nos poucos pixels do círculo pequeno
-  // (sps-v187, 29/09/2026, pedido do Roger — "toque/tamanho dos marcadores").
-  const players=sortedLineup.map(({aid,a},i)=>{
+  // baixo do desenho visível, só para a área de toque — o círculo/boneco visível fica do
+  // mesmo tamanho de sempre (senão o campo fica poluído com marcadores enormes), mas
+  // arrastar no telemóvel deixa de exigir acertar exatamente nos poucos pixels do círculo
+  // pequeno (sps-v187, 29/09/2026, pedido do Roger — "toque/tamanho dos marcadores").
+  // sps-v204: boneco "colete" (_bibMarkerSvg) em vez do círculo simples, com rotação
+  // (facing) e cor customizável (pitchMarkerColors) por jogadora — onclick passa a abrir o
+  // modal de opções em vez do prompt() de tarefa (a tarefa continua editável na lista
+  // "Tarefas Individuais" ao lado, ver taskRows).
+  const players=sortedLineup.filter(({aid})=>!hiddenOwnList.includes(aid)).map(({aid,a},i)=>{
     const def=_pitchDefaultPos(mode,i,g.formation);
     const rawPos=posMap[aid]||{x:def[0],y:def[1]};
     // Clamp defensivo: jogos que já tinham posições táticas guardadas no campo inteiro
     // (antes desta mudança) ficariam fora da área visível do meio-campo — em vez de
     // desaparecerem, aparecem encostadas ao limite, prontas a re-arrastar.
     const pos={x:rawPos.x,y:Math.min(rawPos.y,maxY)};
+    const facing=rawPos.facing||0;
     const isCap=g.captain===aid,isVc=g.viceCaptain===aid,isGK=a.pos==='GR';
-    const fill=isGK?'#27ae60':'#ffd700';
-    const tf=isGK?'#fff':'#1a1a2e';
+    const customColor=_pitchMarkerColorsMap(g,mode)[aid]||'';
+    const fill=customColor||(isGK?'#27ae60':'#ffd700');
     const nm=escHtml(_shortName(a));
     const task=taskMap[aid]||'';
-    return `<g class="pitch-pl" data-aid="${aid}" data-kind="player" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}','player')" onclick="pitchPlayerClick(event,'${g.id}','${aid}','${mode}')">
+    return `<g class="pitch-pl" data-aid="${aid}" data-kind="player" data-gid="${g.id}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${aid}','${mode}','player')" onclick="event.stopPropagation();if(!_pitchWasDrag)_openMarkerOptionsModal('pitch','${g.id}|${mode}','own','${aid}');_pitchWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
-      <circle r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/>
-      <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="${tf}">${a.number||a.num||i+1}</text>
+      ${_bibMarkerSvg(fill,_bibDarken(fill,0.25),a.number||a.num||i+1,rad,facing)}
       ${showName?`<text text-anchor="middle" y="25" font-size="11" fill="rgba(255,255,255,.9)">${nm}</text>`:''}
       ${isCap?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ffd700" font-weight="bold">C</text>`:''}
       ${isVc?`<text x="${capOff}" y="${capY}" font-size="${capFs}" fill="#ddd" font-weight="bold">VC</text>`:''}
       <title>${escHtml(a.name)}${task?' — '+escHtml(task):''}</title>
     </g>`;
   }).join('');
-  // Adversárias — um X vermelho (sps-v185, 29/09/2026: pedido do Roger, trocou o círculo
-  // numerado original por um X, mais rápido de reconhecer num quadro de bolas paradas) —
-  // mesma mecânica de arrastar dos jogadores (ver pitchDragStart/kind), sem ligação a
-  // nenhuma atleta. Toca (sem arrastar) remove o marcador — mesmo espírito das setas
-  // (pitchArrowClick).
+  // Adversárias — boneco "colete" (sps-v204, substitui o X vermelho do sps-v185/191), com
+  // cor própria (opp.color||'#e63946') e rotação (opp.facing||0), sem etiqueta. Mesma
+  // mecânica de arrastar dos jogadores (ver pitchDragStart/kind), sem ligação a nenhuma
+  // atleta. Toca (sem arrastar) abre o modal de opções (cor/rotação/remover).
   const opponentsList=_pitchOpponents(g,mode);
-  // X reduzido (sps-v191, 30/09/2026, pedido do Roger): a pedido dele o marcador de
-  // adversária introduzido no sps-v185/186 ficava visualmente maior do que os círculos das
-  // atletas (braço = rad + traço mais grosso somam mais "peso" visual que um círculo do
-  // mesmo raio) — braço reduzido para ~60% do raio e traço mais fino, mas o círculo
-  // transparente de toque (rad+3) mantém-se do mesmo tamanho de sempre, para não piorar o
-  // arrastar/selecionar no dedo mesmo com o X visualmente mais pequeno.
-  const oppArm=rad*0.6;
-  const opponentMarkers=opponentsList.map(o=>`<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="pitchRemoveOpponent(event,'${g.id}','${mode}','${o.id}')">
+  const opponentMarkers=opponentsList.map(o=>{
+    const fill=o.color||'#e63946';const facing=o.facing||0;
+    return `<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="event.stopPropagation();if(!_pitchWasDrag)_openMarkerOptionsModal('pitch','${g.id}|${mode}','opponent','${o.id}');_pitchWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
-      <line x1="${(-oppArm).toFixed(1)}" y1="${(-oppArm).toFixed(1)}" x2="${oppArm.toFixed(1)}" y2="${oppArm.toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>
-      <line x1="${(-oppArm).toFixed(1)}" y1="${oppArm.toFixed(1)}" x2="${oppArm.toFixed(1)}" y2="${(-oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>
-      <title>Adversária — toca para remover</title>
-    </g>`).join('');
+      ${_bibMarkerSvg(fill,_bibDarken(fill,0.25),null,rad,facing)}
+      <title>Adversária — toca para opções</title>
+    </g>`;
+  }).join('');
   const ballPos=_pitchBallMap(g)[mode];
   const ballMarker=ballPos?`<g class="pitch-ball" data-aid="ball-${mode}" data-kind="ball" data-gid="${g.id}" transform="translate(${ballPos.x},${ballPos.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','ball-${mode}','${mode}','ball')" onclick="event.stopPropagation();if(!_pitchWasDrag)pitchToggleBall('${g.id}','${mode}');_pitchWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
-      <circle r="${Math.round(rad*0.7)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>
+      ${_ballIconSvg(Math.round(rad*0.7))}
       <title>Bola — toca para remover</title>
     </g>`:'';
   const taskRows=sortedLineup.map(({aid,a})=>{
@@ -6590,15 +6875,23 @@ function _jogoCampoHtml(g){
       ${_jogoCampoDrawMode==='seta'?`<span style="font-size:11px;color:var(--t2);margin-left:4px">Estilo:</span>
       <button class="tab-btn ${_jogoArrowStyle!=='dashed'?'on':''}" onclick="_jogoArrowStyle='solid';_renderJogoDetailFull()" title="Movimento/corrida">— Sólida</button>
       <button class="tab-btn ${_jogoArrowStyle==='dashed'?'on':''}" onclick="_jogoArrowStyle='dashed';_renderJogoDetailFull()" title="Passe">┄ Tracejada</button>
+      <span style="font-size:11px;color:var(--t2);margin-left:4px">Tipo:</span>
+      <button class="tab-btn ${_jogoArrowKind!=='freehand'?'on':''}" onclick="_jogoArrowKind='straight';_renderJogoDetailFull()" title="Linha reta">↗ Reta</button>
+      <button class="tab-btn ${_jogoArrowKind==='freehand'?'on':''}" onclick="_jogoArrowKind='freehand';_renderJogoDetailFull()" title="Traço à mão livre">✍️ Traço Livre</button>
+      <span style="font-size:11px;color:var(--t2);margin-left:4px">Cor:</span>
+      ${['#ffffff','#ffd700','#e63946','#3b82f6','#27ae60','#a855f7'].map(c=>`<span onclick="_jogoArrowColor='${c}';_renderJogoDetailFull()" title="${c}" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};border:2px solid ${_jogoArrowColor===c?'var(--pri)':'var(--brd)'};cursor:pointer"></span>`).join('')}
       <button class="btn btn-sm btn-gh" onclick="pitchClearArrows('${g.id}','${mode}')" style="margin-left:6px">🗑️ Limpar Setas</button>`:''}
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <button class="tab-btn ${_pitchFullView[mode]?'on':''}" onclick="_pitchToggleView('${g.id}','${mode}')" title="Alternar campo inteiro/meio campo">${_pitchFullView[mode]?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
       <button class="btn btn-sm btn-gh" onclick="pitchAddOpponent('${g.id}','${mode}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
+      <button class="btn btn-sm btn-gh" onclick="pitchClearOpponents('${g.id}','${mode}')" title="Remove todas as adversárias deste quadro">🗑️ Limpar Adversárias</button>
       <button class="btn btn-sm ${ballPos?'btn-r':'btn-gh'}" onclick="pitchToggleBall('${g.id}','${mode}')" title="Adicionar/remover marcador da bola">⚽ ${ballPos?'Remover Bola':'Bola'}</button>
+      <button class="btn btn-sm btn-gh" onclick="pitchHideAllOwn('${g.id}','${mode}')" title="Esconde todos os marcadores próprios deste quadro">🙈 Esconder Todos</button>
+      ${hiddenOwnList.length?`<button class="btn btn-sm btn-gh" onclick="pitchRestoreAllOwn('${g.id}','${mode}')" title="Mostra de novo os marcadores escondidos">👁️ Restaurar Todos</button>`:''}
       ${mode!=='tatico'?`<button class="btn btn-sm btn-gh" onclick="pbSaveFromGameBoard('${g.id}','${mode}')" title="Guardar este quadro na biblioteca do Playbook">💾 Guardar na Biblioteca</button>`:''}
       <button class="btn btn-sm btn-gh" onclick="pitchOpenPresentation('${g.id}','${mode}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
-      ${opponentsList.length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para remover</span>`:''}
+      ${opponentsList.length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para opções</span>`:''}
     </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
       <div class="jc-pitch-wrap" style="flex-shrink:0">
@@ -6617,7 +6910,11 @@ function _jogoCampoHtml(g){
         <rect x="120" y="403" width="60" height="9" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/>
         <circle cx="150" cy="58" r="2.5" fill="rgba(255,255,255,.45)"/>
         <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>
-        ${arrowList.map(a=>`<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="#fff" stroke-width="2" stroke-dasharray="${a.style==='dashed'?'6,4':'none'}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></line>`).join('')}
+        ${arrowList.map(a=>{
+          const color=a.color||'#fff';const dash=a.style==='dashed'?'6,4':'none';
+          if(a.kind==='freehand')return `<path d="${_freehandPathD(a.points)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></path>`;
+          return `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></line>`;
+        }).join('')}
         ${g.lineup.length?players:`<text x="150" y="100" text-anchor="middle" fill="rgba(255,255,255,.35)" font-size="11">Define o onze no Pré-Jogo</text>`}
         ${opponentMarkers}
         ${ballMarker}
@@ -6798,12 +7095,14 @@ function _initPitchEvents(gid){
     pitchDragEnd({clientX:t.clientX,clientY:t.clientY});
     if(!wasD){
       const g=APP.games.find(x=>x.id===dgid);if(!g)return;
+      // sps-v204: toque sem arrastar abre o modal de opções (cor/rotação/esconder ou
+      // remover) para jogadoras/adversárias, tal como o clique no desktop — a tarefa
+      // tática continua editável na lista "Tarefas Individuais" ao lado do campo. A bola
+      // mantém o toggle direto (sem modal), igual ao desktop.
       if(dkind==='player'){
-        const a=APP.athletes.find(x=>x.id===daid);
-        if(a){const taskMap=_pitchTasks(g,dmode);const task=taskMap[daid]||'';const nt=prompt('Tarefa — '+a.name+':',task);
-        if(nt!==null){taskMap[daid]=nt;saveData();}}
+        _openMarkerOptionsModal('pitch',dgid+'|'+dmode,'own',daid);
       } else if(dkind==='opponent'){
-        if(confirm('Remover esta marcadora adversária?')){const list=_pitchOpponents(g,dmode);const idx=list.findIndex(o=>o.id===daid);if(idx>=0){list.splice(idx,1);saveData();_renderJogoDetailFull();}}
+        _openMarkerOptionsModal('pitch',dgid+'|'+dmode,'opponent',daid);
       } else if(dkind==='ball'){
         pitchToggleBall(dgid,dmode);
       }
@@ -16354,6 +16653,9 @@ function _pbInit(pb){
   if(typeof pb.fullView!=='boolean')pb.fullView=pb.category!=='bolasParadas';
   if(!pb.snapshots)pb.snapshots=[];
   if(!pb.athleteAssign)pb.athleteAssign={};
+  // sps-v204: marcadores próprios escondidos (restaurável) + setas (reta/traço livre).
+  if(!pb.hiddenOwn)pb.hiddenOwn=[];
+  if(!pb.arrows)pb.arrows=[];
 }
 
 // ── Gestor de submomentos por categoria — prompt() simples (mesmo padrão já usado em
@@ -16532,6 +16834,7 @@ function _renderPbDetail(){
   ${_pbBoardHtml(pb)}
   ${_pbAthleteListHtml(pb)}
   `;
+  setTimeout(()=>_initPbEvents(pb.id),80);
 }
 // ── Lista "Atletas do Plantel" — pedido explícito do Roger: desenhar o diagrama com
 // marcadores numéricos genéricos (1-11) e só depois, aqui, atribuir qualquer atleta do
@@ -16576,37 +16879,48 @@ function _pbDefaultPos(i,fullView){
 }
 function _pbMaxY(fullView){return fullView?400:190;}
 function _pbViewH(fullView){return fullView?420:200;}
+// sps-v204: boneco "colete" (_bibMarkerSvg) em vez do círculo simples, com rotação
+// (facing) e cor customizável (pos.color) por marcador próprio; esconde os ids presentes
+// em pb.hiddenOwn (restaurável, ver pbHideAllOwn/pbRestoreAllOwn). O clique (sem arrastar)
+// passa a abrir o modal de opções (cor/rotação/esconder) em vez de não fazer nada.
 function _pbMarkersHtml(pb){
-  const rad=7,numFs=7,sw=1.5;
+  const rad=7;
   let html='';
   for(let i=1;i<=11;i++){
+    if((pb.hiddenOwn||[]).includes(i))continue;
     const def=_pbDefaultPos(i-1,pb.fullView);
     const pos=pb.positions[i]||{x:def[0],y:def[1]};
-    const isGK=i===1;
-    const fill=isGK?'#27ae60':'#ffd700';
-    const tf=isGK?'#fff':'#1a1a2e';
-    html+=`<g data-mid="${i}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','own',${i})">
+    const facing=pos.facing||0;
+    const fill=pos.color||(i===1?'#27ae60':'#ffd700');
+    html+=`<g class="pb-mk" data-kind="own" data-mid="${i}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','own',${i})" onclick="event.stopPropagation();if(!_pbWasDrag)_openMarkerOptionsModal('pb','${pb.id}','own',${i});_pbWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
-      <circle r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/>
-      <text text-anchor="middle" dy="2.5" font-size="${numFs}" font-weight="bold" fill="${tf}">${i}</text>
+      ${_bibMarkerSvg(fill,_bibDarken(fill,0.25),i,rad,facing)}
     </g>`;
   }
   return html;
 }
+// Adversárias — mesmo boneco "colete", cor própria (o.color||'#e63946'), sem etiqueta.
+// Clique (sem arrastar) abre o modal de opções (remove de vez, com confirm() — não há
+// "restaurar" para adversárias, recriam-se com um clique em "+ Adversária").
 function _pbOpponentsHtml(pb){
-  const rad=7,sw=1.5,arm=rad*0.6;
-  return (pb.opponents||[]).map(o=>`<g data-mid="${o.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','opponent','${o.id}')" onclick="pbRemoveOpponent(event,'${pb.id}','${o.id}')">
-    <circle r="${rad+3}" fill="transparent"/>
-    <line x1="${(-arm).toFixed(1)}" y1="${(-arm).toFixed(1)}" x2="${arm.toFixed(1)}" y2="${arm.toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>
-    <line x1="${(-arm).toFixed(1)}" y1="${arm.toFixed(1)}" x2="${arm.toFixed(1)}" y2="${(-arm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>
-    <title>Adversária — toca para remover</title>
-  </g>`).join('');
+  const rad=7;
+  return (pb.opponents||[]).map(o=>{
+    const facing=o.facing||0;const fill=o.color||'#e63946';
+    return `<g class="pb-mk" data-kind="opponent" data-mid="${o.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','opponent','${o.id}')" onclick="event.stopPropagation();if(!_pbWasDrag)_openMarkerOptionsModal('pb','${pb.id}','opponent','${o.id}');_pbWasDrag=false;">
+      <circle r="${rad+3}" fill="transparent"/>
+      ${_bibMarkerSvg(fill,_bibDarken(fill,0.25),null,rad,facing)}
+      <title>Adversária — toca para opções</title>
+    </g>`;
+  }).join('');
 }
+// Bola com pentágono/costuras (_ballIconSvg) em vez do círculo branco simples. Mantém o
+// toggle/confirm direto (sem modal) — 2º desvio deliberado do mockup original, ver
+// CLAUDE.md sps-v204 (a bola não tem cor/rotação, não precisa de modal).
 function _pbBallHtml(pb){
   if(!pb.ball)return '';
-  return `<g data-mid="ball" transform="translate(${pb.ball.x},${pb.ball.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','ball','ball')" onclick="event.stopPropagation();if(!_pbWasDrag)pbToggleBall('${pb.id}');_pbWasDrag=false;">
+  return `<g class="pb-mk" data-kind="ball" data-mid="ball" transform="translate(${pb.ball.x},${pb.ball.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','ball','ball')" onclick="event.stopPropagation();if(!_pbWasDrag)pbToggleBall('${pb.id}');_pbWasDrag=false;">
     <circle r="10" fill="transparent"/>
-    <circle r="4.9" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>
+    ${_ballIconSvg(4.9)}
     <title>Bola — toca para remover</title>
   </g>`;
 }
@@ -16623,6 +16937,7 @@ function _pbSetMarkerPos(pb,kind,mid,x,y){
 }
 function pbDragStart(e,pbid,kind,mid){
   e.preventDefault();e.stopPropagation();
+  if(_pbDrawMode==='seta'){pbArrowStart(e,pbid);return;}
   _pbWasDrag=false;
   const svg=document.getElementById('pb-pitch-'+pbid);if(!svg)return;
   const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
@@ -16703,6 +17018,162 @@ function pbToggleView(pbid){
   pb.updatedAt=new Date().toISOString();
   _syncPlaybook(pb);saveData();_renderPbDetail();
 }
+// Esconder/Restaurar em massa + limpar todas as adversárias (sps-v204).
+function pbHideAllOwn(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  if(!confirm('Esconder todos os marcadores próprios? (podes restaurar depois)'))return;
+  pb.hiddenOwn=Array.from({length:11},(_,i)=>i+1);
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+function pbRestoreAllOwn(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  pb.hiddenOwn=[];
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+function pbClearOpponents(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  if(!(pb.opponents||[]).length)return;
+  if(!confirm('Apagar todas as adversárias deste quadro?'))return;
+  pb.opponents=[];
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+// Setas do Playbook (sps-v204) — espelha _pitchArrows/pitchArrowStart/Move/End/Click/
+// pitchClearArrows (Set Pieces), mas sobre `pb` em vez de `g`/mode (o Playbook não tem
+// sub-separadores — é só um quadro por jogada). Suporta reta (comportamento clássico) e
+// traço livre (novo em ambos os quadros, ver _freehandPathD).
+let _pbDrawMode='mover',_pbArrowStyle='solid',_pbArrowKind='straight',_pbArrowColor='#ffffff',_pbArrowDragging=null;
+function _pbArrows(pb){if(!pb.arrows)pb.arrows=[];return pb.arrows;}
+function _pbArrowPreviewEl(svg,tag,pbid){
+  let prev=svg.querySelector('#pb-arrow-preview');
+  if(prev&&prev.tagName.toLowerCase()!==tag){prev.remove();prev=null;}
+  if(!prev){
+    prev=document.createElementNS('http://www.w3.org/2000/svg',tag);
+    prev.id='pb-arrow-preview';
+    prev.setAttribute('fill','none');
+    prev.setAttribute('stroke-width','2');
+    prev.setAttribute('marker-end','url(#pb-arrowhead-'+pbid+')');
+    svg.appendChild(prev);
+  }
+  prev.setAttribute('stroke',_pbArrowColor);
+  prev.setAttribute('stroke-dasharray',_pbArrowStyle==='dashed'?'6,4':'none');
+  return prev;
+}
+function pbArrowStart(e,pbid){
+  if(_pbDrawMode!=='seta')return;
+  e.preventDefault();if(e.stopPropagation)e.stopPropagation();
+  const svg=document.getElementById('pb-pitch-'+pbid);if(!svg)return;
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const vh=_pbViewH(pb.fullView)-2;
+  const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(vh,svgP.y));
+  if(_pbArrowKind==='freehand'){
+    _pbArrowDragging={pbid,kind:'freehand',points:[{x:cx,y:cy}]};
+    const prev=_pbArrowPreviewEl(svg,'path',pbid);
+    prev.setAttribute('d',_freehandPathD(_pbArrowDragging.points));
+  } else {
+    _pbArrowDragging={pbid,kind:'straight',x1:cx,y1:cy,x2:cx,y2:cy};
+    const prev=_pbArrowPreviewEl(svg,'line',pbid);
+    prev.setAttribute('x1',cx);prev.setAttribute('y1',cy);prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);
+  }
+}
+function pbArrowMove(e){
+  if(!_pbArrowDragging)return;
+  const svg=document.getElementById('pb-pitch-'+_pbArrowDragging.pbid);if(!svg)return;
+  const pb=(APP.playbook||[]).find(x=>x.id===_pbArrowDragging.pbid);if(!pb)return;
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const svgP=pt.matrixTransform(svg.getScreenCTM().inverse());
+  const vh=_pbViewH(pb.fullView)-2;
+  const cx=Math.max(2,Math.min(298,svgP.x)),cy=Math.max(2,Math.min(vh,svgP.y));
+  if(_pbArrowDragging.kind==='freehand'){
+    const last=_pbArrowDragging.points[_pbArrowDragging.points.length-1];
+    if(Math.hypot(cx-last.x,cy-last.y)>3)_pbArrowDragging.points.push({x:cx,y:cy});
+    const prev=svg.querySelector('#pb-arrow-preview');
+    if(prev)prev.setAttribute('d',_freehandPathD(_pbArrowDragging.points));
+  } else {
+    _pbArrowDragging.x2=cx;_pbArrowDragging.y2=cy;
+    const prev=svg.querySelector('#pb-arrow-preview');
+    if(prev){prev.setAttribute('x2',cx);prev.setAttribute('y2',cy);}
+  }
+}
+function pbArrowEnd(e){
+  if(!_pbArrowDragging)return;
+  const d=_pbArrowDragging;_pbArrowDragging=null;
+  const svg=document.getElementById('pb-pitch-'+d.pbid);
+  const prev=svg&&svg.querySelector('#pb-arrow-preview');if(prev)prev.remove();
+  const pb=(APP.playbook||[]).find(x=>x.id===d.pbid);if(!pb)return;
+  _pbInit(pb);
+  if(d.kind==='freehand'){
+    if(d.points.length<3)return;
+    let len=0;for(let i=1;i<d.points.length;i++)len+=Math.hypot(d.points[i].x-d.points[i-1].x,d.points[i].y-d.points[i-1].y);
+    if(len<8)return;
+    pb.arrows.push({id:'arr'+Date.now()+Math.floor(Math.random()*1000),kind:'freehand',points:d.points.map(p=>({x:+p.x.toFixed(1),y:+p.y.toFixed(1)})),style:_pbArrowStyle,color:_pbArrowColor});
+  } else {
+    const dist=Math.hypot(d.x2-d.x1,d.y2-d.y1);
+    if(dist<8)return;
+    pb.arrows.push({id:'arr'+Date.now()+Math.floor(Math.random()*1000),kind:'straight',x1:+d.x1.toFixed(1),y1:+d.y1.toFixed(1),x2:+d.x2.toFixed(1),y2:+d.y2.toFixed(1),style:_pbArrowStyle,color:_pbArrowColor});
+  }
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();
+  _renderPbDetail();
+}
+function pbArrowClick(e,pbid,arrId){
+  if(e&&e.stopPropagation)e.stopPropagation();
+  if(!confirm('Apagar esta seta?'))return;
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  const idx=pb.arrows.findIndex(a=>a.id===arrId);
+  if(idx>=0){pb.arrows.splice(idx,1);pb.updatedAt=new Date().toISOString();_syncPlaybook(pb);saveData();_renderPbDetail();}
+}
+function pbClearArrows(pbid){
+  if(!confirm('Apagar todas as setas deste quadro?'))return;
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  pb.arrows.length=0;
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+// Touch no Playbook (sps-v204) — espelha _initPitchEvents (Set Pieces); até aqui o
+// Playbook só tinha suporte a rato, necessário agora para arrastar/desenhar setas em
+// mobile também.
+function _initPbEvents(pbid){
+  const svg=document.getElementById('pb-pitch-'+pbid);if(!svg)return;
+  svg.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;
+    const t=e.touches[0],target=t.target.closest('.pb-mk');
+    if(target){
+      e.preventDefault();
+      const kind=target.dataset.kind,midRaw=target.dataset.mid;
+      const mid=kind==='own'?+midRaw:midRaw;
+      pbDragStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},pbid,kind,mid);
+    } else if(_pbDrawMode==='seta'){
+      e.preventDefault();
+      pbArrowStart({clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{},stopPropagation:()=>{}},pbid);
+    }
+  },{passive:false});
+  svg.addEventListener('touchmove',e=>{
+    if(e.touches.length!==1)return;
+    if(_pbDragging){e.preventDefault();pbDragMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY});}
+    else if(_pbArrowDragging){e.preventDefault();pbArrowMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY});}
+  },{passive:false});
+  svg.addEventListener('touchend',e=>{
+    if(!_pbDragging){if(_pbArrowDragging){const t2=e.changedTouches[0];pbArrowEnd({clientX:t2.clientX,clientY:t2.clientY});}return;}
+    const t=e.changedTouches[0];
+    const dpbid=_pbDragging.pbid,dkind=_pbDragging.kind,dmid=_pbDragging.mid,wasD=_pbWasDrag;
+    pbDragEnd({clientX:t.clientX,clientY:t.clientY});
+    if(!wasD){
+      if(dkind==='own')_openMarkerOptionsModal('pb',dpbid,'own',dmid);
+      else if(dkind==='opponent')_openMarkerOptionsModal('pb',dpbid,'opponent',dmid);
+      else if(dkind==='ball')pbToggleBall(dpbid);
+    }
+  });
+}
 // Galeria de posicionamentos (sequência de passos) — mesma mecânica de _pitchSnapshot/
 // _oppSnapshot: cada "print" entra numa galeria cronológica, carregável para continuar a
 // ajustar a partir dali.
@@ -16768,7 +17239,7 @@ function _pbSnapshotSvg(snap,w,athleteAssign){
   w=w||190;
   const viewH=snap.fullView?420:200;
   const h=Math.round(w*(viewH/300));
-  const rad=7,numFs=7,sw=1.5;
+  const rad=7;
   const bg=`<rect width="300" height="420" fill="#2d7a2d" rx="8"/>
     <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
     <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -16780,22 +17251,23 @@ function _pbSnapshotSvg(snap,w,athleteAssign){
     <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>`;
   let dots='';
   for(let i=1;i<=11;i++){
+    if((snap.hiddenOwn||[]).includes(i))continue;
     const def=_pbDefaultPos(i-1,snap.fullView);
     const p=(snap.positions||{})[i]||{x:def[0],y:def[1]};
     const isGK=i===1;
-    const fill=isGK?'#27ae60':'#ffd700';
-    const tf=isGK?'#fff':'#1a1a2e';
-    dots+=`<circle cx="${p.x}" cy="${p.y}" r="${rad}" fill="${fill}" stroke="white" stroke-width="${sw}"/><text x="${p.x}" y="${(p.y+2.5).toFixed(1)}" text-anchor="middle" font-size="${numFs}" font-weight="bold" fill="${tf}">${i}</text>`;
+    const fill=p.color||(isGK?'#27ae60':'#ffd700');
+    const facing=p.facing||0;
+    dots+=`<g transform="translate(${p.x},${p.y})">${_bibMarkerSvg(fill,_bibDarken(fill,0.25),i,rad,facing)}</g>`;
     if(athleteAssign&&athleteAssign[i]){
       const a=APP.athletes.find(x=>x.id===athleteAssign[i]);
       if(a)dots+=`<text x="${p.x}" y="${(p.y+17).toFixed(1)}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
     }
   }
-  const oppArm=rad*0.55;
   (snap.opponents||[]).forEach(o=>{
-    dots+=`<line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y-oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y+oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/><line x1="${(o.x-oppArm).toFixed(1)}" y1="${(o.y+oppArm).toFixed(1)}" x2="${(o.x+oppArm).toFixed(1)}" y2="${(o.y-oppArm).toFixed(1)}" stroke="#e63946" stroke-width="${sw+0.8}" stroke-linecap="round"/>`;
+    const fill=o.color||'#e63946';const facing=o.facing||0;
+    dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,_bibDarken(fill,0.25),null,rad,facing)}</g>`;
   });
-  if(snap.ball)dots+=`<circle cx="${snap.ball.x}" cy="${snap.ball.y}" r="${Math.round(rad*0.6)}" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>`;
+  if(snap.ball)dots+=`<g transform="translate(${snap.ball.x},${snap.ball.y})">${_ballIconSvg(Math.round(rad*0.6))}</g>`;
   return `<svg viewBox="0 0 300 ${viewH}" style="width:${w}px;height:${h}px;display:block;border-radius:6px">${bg}${dots}</svg>`;
 }
 function _pbGalleryHtml(pb){
@@ -16808,20 +17280,38 @@ function _pbGalleryHtml(pb){
 }
 function _pbBoardHtml(pb){
   const PW=300,PH=420;
+  const arrowList=_pbArrows(pb);
   return `<div class="ipanel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div class="sh-t" style="font-size:15px">🎨 Quadro Tático</div>
       <span style="font-size:11px;color:var(--t2)">Arrasta os marcadores • nº1 = guarda-redes</span>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button class="tab-btn ${_pbDrawMode!=='seta'?'on':''}" onclick="_pbDrawMode='mover';_renderPbDetail()">👆 Mover</button>
+      <button class="tab-btn ${_pbDrawMode==='seta'?'on':''}" onclick="_pbDrawMode='seta';_renderPbDetail()">✏️ Desenhar Seta</button>
+      ${_pbDrawMode==='seta'?`<span style="font-size:11px;color:var(--t2);margin-left:4px">Estilo:</span>
+      <button class="tab-btn ${_pbArrowStyle!=='dashed'?'on':''}" onclick="_pbArrowStyle='solid';_renderPbDetail()">— Sólida</button>
+      <button class="tab-btn ${_pbArrowStyle==='dashed'?'on':''}" onclick="_pbArrowStyle='dashed';_renderPbDetail()">┄ Tracejada</button>
+      <span style="font-size:11px;color:var(--t2);margin-left:4px">Tipo:</span>
+      <button class="tab-btn ${_pbArrowKind!=='freehand'?'on':''}" onclick="_pbArrowKind='straight';_renderPbDetail()">↗ Reta</button>
+      <button class="tab-btn ${_pbArrowKind==='freehand'?'on':''}" onclick="_pbArrowKind='freehand';_renderPbDetail()">✍️ Traço Livre</button>
+      <span style="font-size:11px;color:var(--t2);margin-left:4px">Cor:</span>
+      ${['#ffffff','#ffd700','#e63946','#3b82f6','#27ae60','#a855f7'].map(c=>`<span onclick="_pbArrowColor='${c}';_renderPbDetail()" title="${c}" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};border:2px solid ${_pbArrowColor===c?'var(--pri)':'var(--brd)'};cursor:pointer"></span>`).join('')}
+      <button class="btn btn-sm btn-gh" onclick="pbClearArrows('${pb.id}')" style="margin-left:6px">🗑️ Limpar Setas</button>`:''}
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <button class="tab-btn ${pb.fullView?'on':''}" onclick="pbToggleView('${pb.id}')" title="Alternar campo inteiro/meio campo">${pb.fullView?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
       <button class="btn btn-sm btn-gh" onclick="pbAddOpponent('${pb.id}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
+      <button class="btn btn-sm btn-gh" onclick="pbClearOpponents('${pb.id}')" title="Remove todas as adversárias deste quadro">🗑️ Limpar Adversárias</button>
       <button class="btn btn-sm ${pb.ball?'btn-r':'btn-gh'}" onclick="pbToggleBall('${pb.id}')" title="Adicionar/remover marcador da bola">⚽ ${pb.ball?'Remover Bola':'Bola'}</button>
+      <button class="btn btn-sm btn-gh" onclick="pbHideAllOwn('${pb.id}')" title="Esconde todos os marcadores próprios">🙈 Esconder Todos</button>
+      ${(pb.hiddenOwn||[]).length?`<button class="btn btn-sm btn-gh" onclick="pbRestoreAllOwn('${pb.id}')" title="Mostra de novo os marcadores escondidos">👁️ Restaurar Todos</button>`:''}
       <button class="btn btn-sm btn-gh" onclick="pbOpenPresentation('${pb.id}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
-      ${(pb.opponents||[]).length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para remover</span>`:''}
+      ${(pb.opponents||[]).length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para opções</span>`:''}
     </div>
     <div class="jc-pitch-wrap" style="flex-shrink:0;max-width:300px">
-      <svg id="pb-pitch-${pb.id}" viewBox="0 0 ${PW} ${_pbViewH(pb.fullView)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousemove="pbDragMove(event)" onmouseup="pbDragEnd(event)" onmouseleave="pbDragEnd(event)">
+      <svg id="pb-pitch-${pb.id}" viewBox="0 0 ${PW} ${_pbViewH(pb.fullView)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pbArrowStart(event,'${pb.id}')" onmousemove="pbDragMove(event);pbArrowMove(event)" onmouseup="pbDragEnd(event);pbArrowEnd(event)" onmouseleave="pbDragEnd(event);pbArrowEnd(event)">
+        <defs><marker id="pb-arrowhead-${pb.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
         <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
         <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
         <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -16831,6 +17321,11 @@ function _pbBoardHtml(pb){
         <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
         <rect x="105" y="15" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
         <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        ${arrowList.map(a=>{
+          const color=a.color||'#fff';const dash=a.style==='dashed'?'6,4':'none';
+          if(a.kind==='freehand')return `<path d="${_freehandPathD(a.points)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></path>`;
+          return `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></line>`;
+        }).join('')}
         ${_pbMarkersHtml(pb)}
         ${_pbOpponentsHtml(pb)}
         ${_pbBallHtml(pb)}
@@ -20339,7 +20834,9 @@ async function pullCloud(){
       ['estagios','estagios',(d)=>APP.estagios=d.map(r=>({id:r.id,teamId:r.team_id,gameId:r.game_id||'',titulo:r.titulo,local:r.local,dataInicio:r.data_inicio,dataFim:r.data_fim,transporteIda:r.transporte_ida,transporteVolta:r.transporte_volta,refeicoes:r.refeicoes,notes:r.notes,quartos:r.quartos||[],convocatoria:r.convocatoria||[],seenBy:r.seen_by||[],rsvp:r.rsvp||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id}))],
       // Playbook (sps-v201): biblioteca tática reutilizável — tabela dedicada própria,
       // mesmo padrão exato de estagios/games (upsert por linha, nunca no blob clubs.meta).
-      ['playbook','playbook',(d)=>APP.playbook=d.map(r=>({id:r.id,teamId:r.team_id,title:r.title,category:r.category,submomento:r.submomento,formation:r.formation,description:r.description,videoUrl:r.video_url,positions:r.positions||{},opponents:r.opponents||[],ball:r.ball||null,fullView:!!r.full_view,snapshots:r.snapshots||[],athleteAssign:r.athlete_assign||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id,updatedAt:r.updated_at}))],
+      // sps-v204: arrows/hiddenOwn/markerColors (evolução visual de marcadores/setas) —
+      // mesmo padrão ||[]/||{} já usado nos restantes campos jsonb desta tabela.
+      ['playbook','playbook',(d)=>APP.playbook=d.map(r=>({id:r.id,teamId:r.team_id,title:r.title,category:r.category,submomento:r.submomento,formation:r.formation,description:r.description,videoUrl:r.video_url,positions:r.positions||{},opponents:r.opponents||[],ball:r.ball||null,fullView:!!r.full_view,snapshots:r.snapshots||[],athleteAssign:r.athlete_assign||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id,updatedAt:r.updated_at,arrows:r.arrows||[],hiddenOwn:r.hidden_own||[],markerColors:r.marker_colors||{}}))],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
@@ -20410,7 +20907,14 @@ async function pullCloud(){
           oppTactical:r.opp_tactical||undefined,oppSPBoards:r.opp_sp_boards||undefined,oppRoster:r.opp_roster||undefined,
           tacticoSnapshots:r.tactico_snapshots||undefined,setpieceSnapshots:r.setpiece_snapshots||undefined,
           liveSession:r.live_session||undefined,playerStats:r.player_stats||undefined,
-          fpfTimeline:r.fpf_timeline||undefined,noShow:r.no_show||undefined,pitchArrows:r.pitch_arrows||undefined
+          fpfTimeline:r.fpf_timeline||undefined,noShow:r.no_show||undefined,pitchArrows:r.pitch_arrows||undefined,
+          // sps-v204: corrige o bug de sincronização pré-existente desde o sps-v185 —
+          // pitchOpponents/pitchBall (marcadores de adversária/bola do Set Pieces) nunca
+          // estiveram mapeados aqui, por isso nunca sincronizavam entre dispositivos.
+          // Mesmo padrão ||undefined (nunca ||{}/||[]) dos restantes campos jsonb desta
+          // tabela — ver nota do Incidente #3 acima sobre undefined vs {} truthy.
+          pitchOpponents:r.pitch_opponents||undefined,pitchBall:r.pitch_ball||undefined,
+          pitchMarkerColors:r.pitch_marker_colors||undefined,pitchHiddenOwn:r.pitch_hidden_own||undefined
         }));
         const atRisk=_gdLiveGamesAtRisk();
         if(atRisk.length){
@@ -20715,8 +21219,10 @@ const _CLOUD_TABLE_SCHEMA={
   // Playbook (sps-v201): biblioteca tática reutilizável — tabela dedicada própria, mesmo
   // padrão exato de estagios/games. club_id vem sempre do payload base do cloudUpsert
   // (ver essa função), incluído aqui só por paridade visual com supplement_catalog.
-  playbook:{cols:['id','club_id','team_id','title','category','submomento','formation','description','video_url','positions','opponents','ball','full_view','snapshots','athlete_assign','created_at','created_by','created_by_id','updated_at'],
-    rename:{teamId:'team_id',videoUrl:'video_url',fullView:'full_view',athleteAssign:'athlete_assign',createdAt:'created_at',createdBy:'created_by',createdById:'created_by_id',updatedAt:'updated_at'}},
+  // sps-v204: 'arrows'/'hidden_own'/'marker_colors' — colunas novas da evolução visual de
+  // marcadores/setas (migração já aplicada por fora, ver CLAUDE.md sps-v204).
+  playbook:{cols:['id','club_id','team_id','title','category','submomento','formation','description','video_url','positions','opponents','ball','full_view','snapshots','athlete_assign','created_at','created_by','created_by_id','updated_at','arrows','hidden_own','marker_colors'],
+    rename:{teamId:'team_id',videoUrl:'video_url',fullView:'full_view',athleteAssign:'athlete_assign',createdAt:'created_at',createdBy:'created_by',createdById:'created_by_id',updatedAt:'updated_at',hiddenOwn:'hidden_own',markerColors:'marker_colors'}},
   // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
   // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
   // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela criada no Supabase
@@ -20776,7 +21282,12 @@ const _CLOUD_TABLE_SCHEMA={
     'palestra_pre_jogo_hora','palestra_pre_jogo_local','palestra_pre_aquecimento_hora',
     'convocatoria_publish_at','convocatoria_launched','dj_off_meal','dj_off_snack','dj_off_warmup','dj_off_focus','dj_dur_jogo','dj_nota',
     'convocatoria','lineup','subs','player_positions','player_tasks','setpiece_positions','setpiece_tasks','pitch_notes','setpieces',
-    'opp_tactical','opp_sp_boards','opp_roster','tactico_snapshots','setpiece_snapshots','live_session','player_stats','fpf_timeline','no_show','pitch_arrows'],
+    'opp_tactical','opp_sp_boards','opp_roster','tactico_snapshots','setpiece_snapshots','live_session','player_stats','fpf_timeline','no_show','pitch_arrows',
+    // sps-v204: colunas novas da evolução visual de marcadores/setas (migração já aplicada
+    // por fora, ver CLAUDE.md sps-v204). Corrige de passagem um bug de sincronização
+    // pré-existente desde o sps-v185: pitch_opponents/pitch_ball NUNCA estiveram aqui nem
+    // em pullCloud() antes desta versão — nunca sincronizavam entre dispositivos.
+    'pitch_opponents','pitch_ball','pitch_marker_colors','pitch_hidden_own'],
     rename:{teamId:'team_id',oppLogo:'opp_logo',eventId:'event_id',viceCaptain:'vice_captain',oppFormation:'opp_formation',
       oppStrengths:'opp_strengths',oppWeaknesses:'opp_weaknesses',oppSetPieces:'opp_set_pieces',oppScoutLink:'opp_scout_link',
       preGameNotes:'pre_game_notes',postGameNotes:'post_game_notes',fpfUrl:'fpf_url',concentracaoLocal:'concentracao_local',
@@ -20788,7 +21299,8 @@ const _CLOUD_TABLE_SCHEMA={
       playerPositions:'player_positions',playerTasks:'player_tasks',setpiecePositions:'setpiece_positions',setpieceTasks:'setpiece_tasks',
       pitchNotes:'pitch_notes',oppTactical:'opp_tactical',oppSPBoards:'opp_sp_boards',oppRoster:'opp_roster',
       tacticoSnapshots:'tactico_snapshots',setpieceSnapshots:'setpiece_snapshots',liveSession:'live_session',
-      playerStats:'player_stats',fpfTimeline:'fpf_timeline',noShow:'no_show',pitchArrows:'pitch_arrows'}}
+      playerStats:'player_stats',fpfTimeline:'fpf_timeline',noShow:'no_show',pitchArrows:'pitch_arrows',
+      pitchOpponents:'pitch_opponents',pitchBall:'pitch_ball',pitchMarkerColors:'pitch_marker_colors',pitchHiddenOwn:'pitch_hidden_own'}}
 };
 // Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
 // console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud

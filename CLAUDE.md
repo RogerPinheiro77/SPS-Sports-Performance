@@ -3299,3 +3299,168 @@ passar por completo. Regressão re-corrida sem falhas: `test_estagios.js`,
 fazem parte da suite de regressão listada no changelog, só ficaram na pasta de trabalho
 por valor histórico; se algum dia forem corridos vão falhar contra esta versão, o que é
 esperado e não é uma regressão real.
+
+## sps-v204 (07/10/2026): Evolução visual de marcadores/setas — boneco "colete" com cor e
+rotação, setas à mão livre no Playbook, esconder/restaurar em massa
+
+**Pedido do Roger**, especificação detalhada entregue à sessão (mockup de referência +
+duas alterações deliberadas face a esse mockup, ambas documentadas abaixo e assumidas
+pela sessão sem precisar de confirmação adicional, por já virem explicadas na própria
+especificação): os marcadores do Playbook e das Bolas Paradas (círculo simples
+próprio/GK, X vermelho da adversária) ganham um visual mais parecido com um jogador real
+— um boneco em forma de "colete" com cor configurável e rotação (orientação de quem
+calça o colete) —, a bola ganha um ícone mais parecido com uma bola de futebol, e o
+Playbook passa a ter desenho de setas (reta e à mão livre), que já existia nas Bolas
+Paradas mas nunca tinha chegado ao Playbook.
+
+**O que foi construído, nos dois quadros (Playbook e Set Pieces/`?tatico=1`):**
+
+1. **Marcador "colete"** (`_bibMarkerSvg`, `_bibDarken`, `_bibTextColor`, index.html:1313-1341,
+   namespace neutro partilhado, não pertence a `_pb*` nem a `_pitch*`) — corpo (círculo,
+   nunca roda), duas "pernas" (`<rect>`, rodam com `facing`) e etiqueta de texto (número,
+   só nos próprios jogadores — nunca roda, fica sempre legível). Usa-se tanto nos próprios
+   jogadores como nas adversárias (antes: círculo liso vs. X vermelho de `<line>`); raio
+   mantido inalterado (`rad=7` no Playbook, `rad=6` nas Bolas Paradas) — pedido explícito
+   para não aumentar a área ocupada no campo.
+2. **Cor configurável por marcador** — novos campos `pb.positions[i].color` /
+   `pb.opponents[].color` / `g.playerPositions[mode][aid].color` (via
+   `g.pitchMarkerColors[mode]`) / `g.pitchOpponents[mode][].color`; paleta de 8 cores +
+   seletor de cor livre no modal (ver ponto 5). Sem cor definida, mantém o comportamento
+   antigo (dourado/verde GK para próprios, vermelho #e63946 para adversárias) —
+   retrocompatível com registos antigos.
+3. **Rotação ("facing")** — novo campo `facing` (graus, 0-359) em todas as mesmas
+   entidades; só as "pernas" do boneco rodam, nunca o texto. Pensado para indicar para
+   onde a jogadora está orientada/vai correr.
+4. **Bola mais parecida com bola de futebol** (`_ballIconSvg`, index.html:1343-1348) —
+   círculo branco + pentágono + 5 "costuras", em vez do círculo branco liso. Ao contrário
+   dos outros marcadores, a bola **mantém o comportamento direto de sempre** (clique único
+   = `pbToggleBall`/`pitchToggleBall`, sem modal) — não tem cor nem rotação, não há nada
+   para configurar.
+5. **Modal partilhado de opções do marcador** (`_openMarkerOptionsModal` +
+   `_bibMarkerData`/`_bibRenderPreviewSvg`/`_bibPreviewLive`/`_bibRefreshModalPreview`/
+   `_bibApplyField`/`_bibDeleteMarker`, index.html:1362-1493) — clicar num marcador
+   próprio ou adversário (sem arrastar) abre um modal com pré-visualização em SVG ao vivo,
+   seletor de cor (paleta + `<input type="color">`) e slider de rotação 0-359°, mais um
+   botão para eliminar/esconder. Reaproveita o sistema de modal genérico já existente
+   (`openMod`/`closeMod`) — a pré-visualização atualiza-se em `oninput` (só DOM, sem
+   gravar), e cada campo só é persistido (gravação + `saveData()`/sync + novo render do
+   quadro) em `onchange`, exatamente como outros ecrãs de gravação automática do projeto
+   (Estágios/Playbook/sps-v203). **Desvio deliberado nº1 face ao mockup entregue:** o
+   mockup mostrava uma alça/pega para arrastar diretamente no campo para rodar o
+   marcador; optou-se por este modal com slider em vez disso, porque um gesto de arrastar
+   rotação teria de coexistir no mesmo `<g>` com o arrastar de posição já existente
+   (`pbDragStart`/`pitchDragStart`) e com o toque em ecrãs táteis (telemóvel/tablet) — alto
+   risco de ambiguidade de gesto e de regressão no arrastar de posição, que é a interação
+   mais usada do quadro. O modal garante o mesmo resultado (mudar cor e rotação) de forma
+   fiável em qualquer dispositivo. **Desvio deliberado nº2:** a bola (ponto 4) não ganhou
+   este modal — não tem cor nem rotação para configurar, por isso manteve-se o
+   confirm()/toggle direto que já tinha.
+6. **Setas — reta e à mão livre, com cor e estilo** — as Bolas Paradas já tinham setas
+   retas (sps-anterior); o Playbook não tinha nenhum desenho de setas e ganhou-o do zero
+   nesta versão, com o mesmo motor partilhado onde fazia sentido (`_freehandPathD`,
+   index.html:1351-1361, neutro) mas implementações próprias em cada namespace (sem
+   `_pbXxx` chamar `_pitchXxx` nem vice-versa, só através dos helpers neutros):
+   - Playbook: `pb.arrows[]` (novo campo), alternância "➡️ Reta"/"✏️ Traço Livre"
+     (`_pbArrowKind`), seletor de cor (`_pbArrowColor`), mantém o alternador
+     Sólida/Tracejada já existente (`_pbArrowStyle`); `pbArrowStart`/`pbArrowMove`/
+     `pbArrowEnd`/`pbArrowClick`/`pbClearArrows`/`_pbArrows`/`_pbArrowPreviewEl`
+     (index.html:17040-17133), com suporte a touch novo (`_initPbEvents`,
+     index.html:17134, chamado de `_renderPbDetail` — o Playbook só tinha rato até agora).
+   - Set Pieces: `g.pitchArrows[mode][]` ganhou `kind`/`points`/`color` (antes só retas sem
+     cor própria); mesma alternância Reta/Traço Livre + seletor de cor, reaproveitando
+     `pitchArrowStart`/`pitchArrowMove`/`pitchArrowEnd` já existentes
+     (`_pitchArrowPreviewEl`, index.html:4811).
+   - Regra de descarte igual nos dois: reta com menos de 8px de distância é ignorada;
+     traço livre com menos de 3 pontos OU comprimento total amostrado abaixo de 8px é
+     ignorado — mesma régua que a reta das Bolas Paradas já usava.
+7. **Esconder/restaurar em massa (próprios) e limpar adversárias/setas em massa** — novos
+   `pb.hiddenOwn`/`g.pitchHiddenOwn[mode]` (array de ids escondidos, não apagados — o
+   "Remover" do modal para um marcador próprio esconde em vez de eliminar, para nunca
+   perder a ligação atleta↔marcador por engano); botões novos "🙈 Esconder Todos"/"👁️
+   Restaurar Todos" (só aparece quando há algo escondido) e "🗑️ Limpar Adversárias" nos
+   dois quadros (`pbHideAllOwn`/`pbRestoreAllOwn`/`pbClearOpponents`, index.html:17011-17033;
+   `pitchHideAllOwn`/`pitchRestoreAllOwn`/`pitchClearOpponents`, index.html:6519-6537). O
+   filtro de ocultação aplica-se também ao SVG das miniaturas/galeria e ao Modo
+   Apresentação (`_pbSnapshotSvg`/`_pitchSnapshotSvg` leem `markerColors`/`facing` e o
+   filtro de ocultação já vem resolvido antes de gerar o SVG do quadro ao vivo).
+8. **Correção de bug pré-existente, aproveitada de caminho (mesma classe dos Incidentes
+   #1-4):** `g.pitchOpponents`/`g.pitchBall` nunca estiveram em
+   `_CLOUD_TABLE_SCHEMA.games.cols` nem no mapeador de `pullCloud()` desde que foram
+   introduzidos no sps-v185 — ou seja, adversárias/bola do Campo Tático nunca sincronizavam
+   entre dispositivos (só ficavam no dispositivo onde foram desenhadas, perdidas ao
+   `pullCloud()` noutro dispositivo/sessão). Corrigido ao mesmo tempo que se acrescentaram
+   as novas colunas desta versão: `pitch_opponents`/`pitch_ball` passaram a constar de
+   `_CLOUD_TABLE_SCHEMA.games.cols` e do mapeador `games` em `pullCloud()`
+   (index.html:21156, index.html:20807), a par das 2 colunas genuinamente novas
+   `pitch_marker_colors`/`pitch_hidden_own`.
+
+**Schema Supabase** — migração já aplicada **fora desta sessão** (a sessão não correu SQL
+nem usou qualquer ferramenta MCP do Supabase, por instrução explícita do pedido): 7 colunas
+jsonb novas, já existentes na base de dados antes de qualquer edição ao código —
+`playbook.arrows`, `playbook.hidden_own`, `playbook.marker_colors`, `games.pitch_opponents`,
+`games.pitch_ball`, `games.pitch_marker_colors`, `games.pitch_hidden_own`. O código desta
+versão só precisou de declarar estas colunas em `_CLOUD_TABLE_SCHEMA` (`playbook`/`games`)
+e de as ler de volta nos mapeadores de `pullCloud()` — nunca de as criar.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js` depois de cada
+lote de alterações. Harness Node novo (`test_marker_evolution_v204.js`, mesmo padrão `vm`
+dos restantes, 75 asserções): helpers partilhados (`_bibMarkerSvg`/`_bibDarken`/
+`_bibTextColor`/`_ballIconSvg`/`_freehandPathD`, incl. 2/3/10+ pontos); Playbook — setas
+reta+mão livre (adicionar/apagar individual/limpar tudo), cor/rotação de marcador próprio
+sobrevivem a `_pbSnapshot`/`_pbLoadSnapshot`, esconder/restaurar individual+em massa;
+mesma bateria para as Bolas Paradas em `mode='tatico'` e num segundo modo
+(`cornerDef`/`cornerOf`/`freeKick`, conforme a secção); `_CLOUD_TABLE_SCHEMA` contém as
+colunas novas nas duas tabelas; teste dedicado da correção do bug de sync (linha `games`
+simulada com `pitch_opponents`/`pitch_ball` preenchidos, confirma que o mapeador de
+`pullCloud()` os liga a `g.pitchOpponents`/`g.pitchBall`); retrocompatibilidade (jogadas/
+jogos antigos sem nenhum campo novo continuam a desenhar sem rebentar). Todos os 75
+passaram (`node test_marker_evolution_v204.js`).
+
+Regressão completa re-corrida (todos os `test_*.js` presentes na pasta de trabalho da
+sessão): `test_coc3.js`, `test_guiao.js`, `test_playbook_v201.js`,
+`test_presentation_v202.js`, `test_estagios.js`, `test_playbook_roundtrip.js`,
+`test_hydration_v188.js`, `test_mobile_v187.js`, `test_na_dashboard_v192.js`,
+`test_na_plantel_v192.js`, `test_nutri_anamnese_diario_supl2_v195.js`,
+`test_nutri_metricas_v190.js`, `test_nutri_plantel_v194.js`, `test_pdf_a4_uma_pagina_v183.js`,
+`test_playbook_dom_v201.js`, `test_supl_v193.js`, `test_tatico_e2e.js`, `test_tatico_v191.js`,
+`test_autosave_v203.js`, `test_gdFoldRunning.js`, `test_palestra_fields.js`,
+`test_palestra_ordem_v180.js`, `test_pdf_convocados_colunas.js`, `test_pull_bug_repro.js`,
+`test_pull_fix.js`, `test_saveEvent_preserva_rsvp.js`, `test_tatico.js`,
+`test_convoc_badge2.js`, `test_lista_convocados.js`, `test_lista_convocados2.js` — todos
+passaram. `test_tatico_v191.js` e `test_tatico_e2e.js` tinham asserções que testavam
+literalmente a forma geométrica antiga (X de `<line>`, clique direto com `confirm()` na
+adversária) que esta versão substitui de propósito — atualizadas para verificar o novo
+boneco/modal (mesmo comportamento coberto, só a forma de verificar mudou), não é uma
+regressão disfarçada. `test_coc.js`/`test_coc2.js`/`test_coc_edit.js` (já documentados
+como obsoletos desde o sps-v203, ver entrada acima) e `test_fisio_metricas_v189.js`
+(função `_fisioMetricasRows` renomeada para `_nutriMetricasRows` antes desta sessão, no
+sps-v190) continuam fora da suite de regressão — não tocados por este pedido, falham
+contra qualquer versão atual por motivos alheios a este trabalho.
+
+**Ainda por fazer:** nada pendente para este pedido. Possível extensão futura (não pedida):
+o modal de opções do marcador podia ganhar também o campo "tarefa individual" que antes
+se editava por clique direto no marcador das Bolas Paradas (sps-anterior) — essa edição
+continua disponível na barra lateral "Tarefas Individuais", só deixou de estar acessível
+por clique direto no próprio marcador do campo.
+
+**Bug encontrado e corrigido durante a verificação independente (antes do deploy):**
+`_bibApplyField('pitch', ..., 'own', 'facing', ...)` — ao rodar, pelo modal, um marcador
+próprio das Bolas Paradas/Tático que ainda **nunca tinha sido arrastado manualmente**
+(ou seja, sem entrada própria em `g.playerPositions`/`g.setpiecePositions[mode]`, o caso
+mais comum logo a seguir a definir o onze), o código original do agente criava essa
+entrada com um ponto fixo `{x:150,y:210}` (o centro do campo) em vez de usar a mesma
+posição por omissão da grelha (`_pitchDefaultPos(mode,i,formation)`) já desenhada no
+quadro — o marcador "saltava" visualmente para o centro do campo só por lhe mudar a
+rotação ou a cor, perdendo a posição onde já estava. Confirmado visualmente com um
+screenshot Playwright dedicado (o marcador do guarda-redes desaparecia da área da baliza
+e ficava sobreposto ao ponto central). Note-se que o equivalente no Playbook
+(`_pbDefaultPos`) já estava correto — só o lado `_pitchXxx` tinha este problema,
+assimetria introduzida só numa das duas implementações paralelas. Corrigido calculando o
+índice do atleta na mesma ordenação por número de camisola usada em `_jogoCampoHtml`
+(`sortedLineup`) e chamando `_pitchDefaultPos` com esse índice, tal como o Playbook já
+fazia. Dois testes novos acrescentados a `test_marker_evolution_v204.js` (secção 11)
+fixam este comportamento como regressão: um confirma que cada atleta recebe o SEU
+próprio default (não os dois o mesmo ponto fixo) e nunca cai em `(150,210)`; outro
+confirma que um marcador já arrastado manualmente não se mexe ao mudar-lhe a rotação.
+79 testes no total (75 do agente + 4 da verificação), todos a passar; regressão completa
+(todos os `test_*.js`) re-corrida de novo depois da correção, sem falhas novas.
