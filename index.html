@@ -1191,9 +1191,14 @@ function _maybeEnterNutriMode(){
 // SPS-Tático standalone (?tatico=1, sps-v185) — mesmo espírito do SPS-Gameday acima: só faz
 // sentido para cargos com acesso a Jogos e que podem editar (o Campo Tático vive dentro de
 // Jogo → Campo) — senão cai-se na lista de Jogos sem conseguir arrastar nada.
+// sps-v206 (pedido do Roger 08/10/2026): também elegíveis os cargos que gerem a
+// Biblioteca do Playbook mesmo sem acesso normal a "Jogos" (Preparador Físico, Treinador
+// de Guarda-Redes) — ficam limitados ao Campo Tático dentro desta app standalone (ver o
+// bypass em navTo() e o _ttLocked já existente em _renderJogoDetailFull), nunca ganham
+// acesso a Jogos na plataforma normal fora de ?tatico=1.
 function _taticoEligibleRole(role){
   const def=ROLE_DEFS[role];
-  return !!def&&def.pages.includes('jogos')&&!def.readOnly;
+  return !!def&&!def.readOnly&&(def.pages.includes('jogos')||def.pages.includes('playbook'));
 }
 // Chamada a par das outras _maybeEnterXMode() depois de qualquer showStaffApp() bem
 // sucedido — entra direto na lista de Jogos, sem sidebar/resto da plataforma (ver .tt-mode
@@ -1277,8 +1282,16 @@ function navTo(id){
     if(id==='config'){
       if(!_canManageUsers()){toast('Sem permissão para aceder a Configurações.','err');id=_defaultPageForRole(ROLE);}
     } else if(def&&!def.pages.includes(id)){
-      toast('Sem permissão para aceder a esta área.','err');
-      id=_defaultPageForRole(ROLE);
+      // sps-v206: dentro da app standalone SPS-Tático (?tatico=1), um cargo sem acesso
+      // normal a "Jogos" mas elegível para esta app (ver _taticoEligibleRole — hoje cobre
+      // também quem gere o Playbook) pode entrar na lista de Jogos SÓ dentro desta app;
+      // fica depois sempre trancado no separador Campo (_ttLocked em
+      // _renderJogoDetailFull), nunca ganha acesso a Jogos fora desta app standalone.
+      const taticoBypass=id==='jogos'&&typeof _forceTaticoMode!=='undefined'&&_forceTaticoMode&&_taticoEligibleRole(ROLE);
+      if(!taticoBypass){
+        toast('Sem permissão para aceder a esta área.','err');
+        id=_defaultPageForRole(ROLE);
+      }
     }
   }
   _curPg=id;
@@ -6537,6 +6550,17 @@ function pitchRestoreAllOwn(gid,mode){
   _pitchHiddenOwnList(g,mode).length=0;
   saveData();_renderJogoDetailFull();
 }
+// sps-v206: toggle individual por atleta, a partir da checkbox na lista "Tarefas
+// Individuais" — complementa pitchHideAllOwn/pitchRestoreAllOwn (que agem sobre todas de
+// uma vez) com controlo linha a linha, sem precisar de abrir o modal de opções de cada
+// marcador só para esconder/mostrar.
+function pitchToggleOwnVisibility(gid,aid,mode){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  const list=_pitchHiddenOwnList(g,mode);
+  const idx=list.indexOf(aid);
+  if(idx>=0)list.splice(idx,1);else list.push(aid);
+  saveData();_renderJogoDetailFull();
+}
 function pitchClearOpponents(gid,mode){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   const list=_pitchOpponents(g,mode);
@@ -6846,12 +6870,20 @@ function _jogoCampoHtml(g){
       ${_ballIconSvg(Math.round(rad*0.7))}
       <title>Bola — toca para remover</title>
     </g>`:'';
+  // sps-v206 (pedido do Roger 08/10/2026): "gestão das jogadoras por lista" — checkbox por
+  // atleta nesta mesma lista para mostrar/esconder vários marcadores de uma vez, sem ter
+  // de tocar marcador a marcador no quadro (pitchToggleOwnVisibility, liga/desliga em
+  // _pitchHiddenOwnList — mesmo array já usado por "Esconder/Restaurar Todos"). Os
+  // marcadores continuam sempre ligados às atletas reais do onze+banco deste jogo, nunca
+  // marcadores livres (decisão explícita do Roger ao confirmar o âmbito desta lista).
   const taskRows=sortedLineup.map(({aid,a})=>{
     const isGK=a.pos==='GR';
     const task=taskMap[aid]||'';
+    const visible=!hiddenOwnList.includes(aid);
     return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+      <input type="checkbox" ${visible?'checked':''} onchange="pitchToggleOwnVisibility('${g.id}','${aid}','${mode}')" title="Mostrar no quadro" style="flex-shrink:0;cursor:pointer">
       <div style="width:22px;height:22px;background:${isGK?'#27ae60':'var(--pri)'};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||a.num||'?'}</div>
-      <div style="font-size:11px;font-weight:600;width:80px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.name)}">${escHtml(_shortName(a))}</div>
+      <div style="font-size:11px;font-weight:600;width:70px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.name)}">${escHtml(_shortName(a))}</div>
       <input class="fc" style="font-size:11px;padding:3px 6px;flex:1" placeholder="Tarefa..." value="${escHtml(task)}" onblur="savePlayerTask('${g.id}','${aid}',this.value,'${mode}')">
     </div>`;
   }).join('');
@@ -6886,6 +6918,7 @@ function _jogoCampoHtml(g){
       <button class="btn btn-sm ${ballPos?'btn-r':'btn-gh'}" onclick="pitchToggleBall('${g.id}','${mode}')" title="Adicionar/remover marcador da bola">⚽ ${ballPos?'Remover Bola':'Bola'}</button>
       <button class="btn btn-sm btn-gh" onclick="pitchHideAllOwn('${g.id}','${mode}')" title="Esconde todos os marcadores próprios deste quadro">🙈 Esconder Todos</button>
       ${hiddenOwnList.length?`<button class="btn btn-sm btn-gh" onclick="pitchRestoreAllOwn('${g.id}','${mode}')" title="Mostra de novo os marcadores escondidos">👁️ Restaurar Todos</button>`:''}
+      <button class="btn btn-sm btn-gh" onclick="pbLoadPickerOpen('${g.id}','${mode}')" title="Carregar uma jogada da Biblioteca do Playbook para este quadro">📂 Carregar do Playbook</button>
       ${mode!=='tatico'?`<button class="btn btn-sm btn-gh" onclick="pbSaveFromGameBoard('${g.id}','${mode}')" title="Guardar este quadro na biblioteca do Playbook">💾 Guardar na Biblioteca</button>`:''}
       <button class="btn btn-sm btn-gh" onclick="pitchOpenPresentation('${g.id}','${mode}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
       ${opponentsList.length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para opções</span>`:''}
@@ -6918,7 +6951,8 @@ function _jogoCampoHtml(g){
       </svg>
       </div>
       <div style="flex:1;min-width:180px">
-        <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px;letter-spacing:.5px">TAREFAS INDIVIDUAIS</div>
+        <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:4px;letter-spacing:.5px">TAREFAS INDIVIDUAIS</div>
+        ${g.lineup.length?`<p style="font-size:10px;color:var(--t2);margin-bottom:6px">A caixa à esquerda mostra/esconde a jogadora no quadro.</p>`:''}
         ${g.lineup.length?taskRows:`<p style="font-size:12px;color:var(--t2)">Adiciona titulares no Pré-Jogo.</p>`}
       </div>
     </div>
@@ -16826,7 +16860,7 @@ function _renderPbDetail(){
       ${APP.teams.length>1?`<div class="form-g"><label class="fl">Equipa</label><select class="fc" onchange="savePbField('${pb.id}','teamId',this.value)">${APP.teams.map(t=>`<option value="${t.id}" ${pb.teamId===t.id?'selected':''}>${escHtml(t.name)}</option>`).join('')}</select></div>`:''}
     </div>
     <div class="form-g"><label class="fl">Descrição</label><textarea class="fc" rows="3" onblur="savePbField('${pb.id}','description',this.value)">${escHtml(pb.description||'')}</textarea></div>
-    ${pb.category==='bolasParadas'?`<button class="btn btn-gh" onclick="pbApplyToGameModalOpen('${pb.id}')">📋 Aplicar a um Jogo</button>`:''}
+    <button class="btn btn-gh" onclick="pbApplyToGameModalOpen('${pb.id}')">📋 Aplicar a um Jogo</button>
   </div>
   ${_pbBoardHtml(pb)}
   `;
@@ -17347,7 +17381,8 @@ function _pbBoardHtml(pb){
   </div>`;
 }
 
-// ── Ligação bidirecional às Bolas Paradas de um Jogo real (pedido explícito do Roger) ──
+// ── Ligação bidirecional entre o Playbook e o Campo Tático de um Jogo real (pedido
+// explícito do Roger) ──────────────────────────────────────────────────────────────────
 // 8a) "Aplicar a um Jogo": marcador genérico N → o N-ésimo atleta do onze+banco desse
 // jogo, ordenado por número de camisola (mesma convenção já usada em _pitchSnapshot,
 // variável sortedLineup) — escreve diretamente em g.setpiecePositions[mode]/
@@ -17357,26 +17392,17 @@ function _pbSortedSquad(g){
   return ids.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
     .sort((x,y)=>(+(x.a.number||x.a.num)||999)-(+(y.a.number||y.a.num)||999));
 }
-function pbApplyToGameModalOpen(pbid){
-  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
-  const gameOpts=[...APP.games].sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`<option value="${g.id}">${fmtDate(g.date)} vs ${escHtml(g.opp)}</option>`).join('');
-  const body=`<div class="form-g"><label class="fl">Jogo</label><select class="fc" id="pb-apply-game">${gameOpts||'<option value="">Sem jogos criados</option>'}</select></div>
-    <div class="form-g"><label class="fl">Quadro de Bolas Paradas</label><select class="fc" id="pb-apply-mode">
-      <option value="cornerDef">🔴 Canto Defensivo</option>
-      <option value="cornerOf">🔵 Canto Ofensivo</option>
-      <option value="freeKick">🎯 Livre</option>
-    </select></div>
-    <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Os marcadores desta jogada são mapeados para o onze+banco do jogo escolhido, por ordem de número de camisola.</p>
-    <button class="btn btn-g" onclick="pbApplyToGameConfirm('${pb.id}')">✅ Aplicar</button>`;
-  openMod('📋 Aplicar a um Jogo',body);
-}
-function pbApplyToGameConfirm(pbid){
-  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
-  const gid=document.getElementById('pb-apply-game')?.value;
-  const mode=document.getElementById('pb-apply-mode')?.value||'cornerDef';
-  const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
+// sps-v206 (pedido do Roger 08/10/2026): até aqui só as jogadas de "Bolas Paradas"
+// podiam ser aplicadas, e só aos 3 quadros de bolas paradas (nunca o Tático) — decisão
+// do Roger ao confirmar o âmbito desta ponte: QUALQUER categoria do Playbook (Org.
+// Ofensiva/Defensiva, Transições, Bolas Paradas) pode agora ser aplicada a QUALQUER um
+// dos 4 quadros de um Jogo, incl. o Tático. Lógica de mapeamento extraída para esta
+// função partilhada — usada tanto por "Aplicar a um Jogo" (botão na própria página
+// Playbook) como por "Carregar do Playbook" (botão novo dentro de Jogo → Campo, ver
+// pbLoadPickerOpen) — para as duas pontes nunca divergirem.
+function _pbApplyPlayToGame(pb,g,mode){
   const squad=_pbSortedSquad(g);
-  if(!squad.length)return toast('Este jogo ainda não tem onze/banco definidos','err');
+  if(!squad.length){toast('Este jogo ainda não tem onze/banco definidos','err');return false;}
   const posMap=_pitchPos(g,mode);
   const maxY=_pitchMaxY(mode);
   Object.keys(pb.positions||{}).forEach(numStr=>{
@@ -17388,7 +17414,87 @@ function pbApplyToGameConfirm(pbid){
   g.pitchOpponents[mode]=(pb.opponents||[]).map(o=>({...o}));
   const bm=_pitchBallMap(g);bm[mode]=pb.ball?{...pb.ball}:null;
   if(typeof pb.fullView==='boolean')_pitchFullView[mode]=pb.fullView;
-  saveData();closeMod();toast('Aplicado ao jogo ✓');
+  saveData();
+  return true;
+}
+function pbApplyToGameModalOpen(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  const gameOpts=[...APP.games].sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`<option value="${g.id}">${fmtDate(g.date)} vs ${escHtml(g.opp)}</option>`).join('');
+  const modeOpts=_SETPIECE_TABS.map(([k,lb])=>`<option value="${k}">${lb}</option>`).join('');
+  const body=`<div class="form-g"><label class="fl">Jogo</label><select class="fc" id="pb-apply-game">${gameOpts||'<option value="">Sem jogos criados</option>'}</select></div>
+    <div class="form-g"><label class="fl">Quadro</label><select class="fc" id="pb-apply-mode">${modeOpts}</select></div>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Os marcadores desta jogada são mapeados para o onze+banco do jogo escolhido, por ordem de número de camisola.</p>
+    <button class="btn btn-g" onclick="pbApplyToGameConfirm('${pb.id}')">✅ Aplicar</button>`;
+  openMod('📋 Aplicar a um Jogo',body);
+}
+function pbApplyToGameConfirm(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  const gid=document.getElementById('pb-apply-game')?.value;
+  const mode=document.getElementById('pb-apply-mode')?.value||'tatico';
+  const g=APP.games.find(x=>x.id===gid);if(!g)return toast('Escolhe um jogo','err');
+  if(!confirm('Isto substitui o que já estiver desenhado nesse quadro (posições, adversárias, bola). Continuar?'))return;
+  if(!_pbApplyPlayToGame(pb,g,mode))return;
+  closeMod();toast('Aplicado ao jogo ✓');
+}
+// 8c) "Carregar do Playbook" — ponte inversa, acedida de dentro do próprio Jogo → Campo
+// (pedido do Roger 08/10/2026: "aceder às jogadas criadas no playbook" sem ter de ir à
+// página Playbook escolher primeiro o jogo). O jogo e o quadro já estão definidos pelo
+// contexto (onde o botão foi clicado) — só falta escolher a jogada, por isso a UI é uma
+// lista filtrável (mesmos filtros de categoria/submomento/texto da página Playbook, com
+// estado próprio para não interferir com os filtros dessa página) em vez de um
+// formulário. Scoped por equipa (pb.teamId===g.teamId) para nunca listar jogadas de
+// outra equipa. Reaproveita _pbApplyPlayToGame — nunca duplica a lógica de mapeamento.
+let _pbPickerGid=null,_pbPickerMode=null,_pbPickerCat='',_pbPickerSub='',_pbPickerText='';
+function pbLoadPickerOpen(gid,mode){
+  _pbPickerGid=gid;_pbPickerMode=mode;_pbPickerCat='';_pbPickerSub='';_pbPickerText='';
+  const catOpts=PB_CATEGORIES.map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
+  const body=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <select class="fc" style="width:auto" id="pb-picker-cat" onchange="_pbPickerCat=this.value;_pbPickerSub='';_pbPickerRefresh()"><option value="">Todos os momentos</option>${catOpts}</select>
+    <select class="fc" style="width:auto" id="pb-picker-sub" onchange="_pbPickerSub=this.value;_pbPickerRefresh()" disabled><option value="">Todos os submomentos</option></select>
+    <input class="fc" style="width:auto;flex:1;min-width:160px" placeholder="Pesquisar título/formação..." oninput="_pbPickerText=this.value;_pbPickerRefresh()">
+  </div>
+  <div id="pb-picker-list"></div>`;
+  openMod('📂 Carregar do Playbook',body,'lg');
+  _pbPickerRefresh();
+}
+function _pbPickerRefresh(){
+  const g=APP.games.find(x=>x.id===_pbPickerGid);if(!g)return;
+  _pbInitConfig();
+  const subSel=document.getElementById('pb-picker-sub');
+  if(subSel){
+    subSel.disabled=!_pbPickerCat;
+    subSel.innerHTML=`<option value="">Todos os submomentos</option>${_pbPickerCat?(APP.config.playbookSubmomentos[_pbPickerCat]||[]).map(s=>`<option value="${escHtml(s)}" ${_pbPickerSub===s?'selected':''}>${escHtml(s)}</option>`).join(''):''}`;
+  }
+  const squadEmpty=!_pbSortedSquad(g).length;
+  const list=(APP.playbook||[]).filter(pb=>{
+    if(pb.teamId!==g.teamId)return false;
+    if(_pbPickerCat&&pb.category!==_pbPickerCat)return false;
+    if(_pbPickerSub&&pb.submomento!==_pbPickerSub)return false;
+    if(_pbPickerText){
+      const q=_pbPickerText.toLowerCase();
+      const hay=((pb.title||'')+' '+(pb.formation||'')).toLowerCase();
+      if(!hay.includes(q))return false;
+    }
+    return true;
+  }).sort((a,b)=>(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''));
+  const rowsHtml=list.map(pb=>{
+    const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||pb.category;
+    return `<div class="pb-pick-row" data-pbid="${pb.id}" style="padding:8px 10px;border:1px solid var(--brd);border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="pbLoadIntoGameConfirm('${pb.id}')">
+      <div style="font-weight:600;font-size:13px">${escHtml(pb.title||'Jogada')}</div>
+      <div style="font-size:11px;color:var(--t2)">${escHtml(catLabel)}${pb.submomento?' • '+escHtml(pb.submomento):''}${pb.formation?' • '+escHtml(pb.formation):''}</div>
+    </div>`;
+  }).join('');
+  const el=document.getElementById('pb-picker-list');
+  if(!el)return;
+  el.innerHTML=(squadEmpty?'<p style="font-size:11px;color:var(--t2);margin-bottom:8px">⚠️ Este jogo ainda não tem onze/banco definidos no Pré-Jogo — define primeiro para poder carregar uma jogada.</p>':'')+
+    (list.length?rowsHtml:'<p style="font-size:12px;color:var(--t2)">Sem jogadas na Biblioteca para esta equipa/filtro.</p>');
+}
+function pbLoadIntoGameConfirm(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  const g=APP.games.find(x=>x.id===_pbPickerGid);if(!g)return;
+  if(!confirm('Isto substitui o que já estiver desenhado neste quadro (posições, adversárias, bola). Continuar?'))return;
+  if(!_pbApplyPlayToGame(pb,g,_pbPickerMode))return;
+  closeMod();toast('Jogada carregada ✓');_renderJogoDetailFull();
 }
 // 8b) "Guardar na Biblioteca" — único ponto que toca em _jogoCampoHtml (o botão em si está
 // lá, procurar "Guardar na Biblioteca"). Conversão inversa da de cima: posições por aid

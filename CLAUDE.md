@@ -3556,6 +3556,110 @@ SW bump para `sps-v205`.
 
 **Ainda por fazer:** nada pendente para este pedido.
 
+## sps-v206 (08/10/2026): Playbook ↔ Jogo/Campo — ponte entre a Biblioteca e o Set Pieces de um jogo real
+
+**Pedido do Roger** (verbatim): "NA ABA JOGOS, DENTRO DO JOGO/CAMPO POSSA ACEDER AS
+JOGADAS CRIADAS NO PLAYBOOK E QUE FIQUEM DISPONIVEIS NA 'APP' SET PIECES, PERMITINDO A
+GESTAO DAS JOGADORAS POR LISTA DA MESMA FORMA. ACONSELHA, INVESTIGA, DA FEDDBACK E
+PROPOEM ANTES DE AVANÇAR" — até aqui só existia uma ponte de ida, "Aplicar a um Jogo"
+(sps-v201), limitada a jogadas de categoria `bolasParadas` e só para os 3 quadros de
+bolas paradas (nunca o Tático), e só acessível a partir da própria página Playbook.
+Investigação feita antes de tocar em código (mapeado o estado da ponte existente, as
+restrições da app standalone `?tatico=1`/`_taticoEligibleRole`/`navTo`/`_ttLocked`, e o
+desencontro de acessos por cargo — Preparador Físico e Treinador de Guarda-Redes têm
+"Playbook" mas não "Jogos"; Team Manager tem "Jogos" mas não "Playbook") e três decisões
+confirmadas por `AskUserQuestion` antes de avançar: (1) **"Todas as categorias, incl. no
+Tático"** — qualquer categoria do Playbook (Org. Ofensiva/Defensiva, Transições, Bolas
+Paradas) pode ser carregada em qualquer um dos 4 quadros de um Jogo (opção mais ampla
+que a recomendada); (2) **"Abrir também a quem gere o Playbook"** — Preparador Físico e
+Treinador de Guarda-Redes passam a poder abrir a app `?tatico=1` mesmo sem acesso normal
+a Jogos (opção mais ampla que a recomendada), sempre limitados ao Campo Tático dentro
+dessa app, nunca ganhando acesso a Jogos na plataforma normal; (3) **"Lista para
+mostrar/esconder o onze+banco"** (recomendada) — "gestão das jogadoras por lista"
+significa uma checkbox por atleta para mostrar/esconder vários marcadores de uma vez,
+sempre ligada às atletas REAIS do onze+banco convocado, nunca marcadores livres (ao
+contrário do `pb.athleteAssign` do Playbook).
+
+**O que foi construído:**
+1. **Quem pode abrir `?tatico=1`** (`_taticoEligibleRole`): passou a incluir qualquer
+   cargo que não seja só-consulta e que tenha "jogos" OU "playbook" nas suas páginas
+   (antes exigia sempre "jogos") — cobre hoje Preparador Físico e Treinador de
+   Guarda-Redes, sem alterar o acesso de ninguém na plataforma normal.
+2. **Bypass escopado em `navTo()`**: como `prep_fisico`/`treinador_gr` continuam sem
+   "jogos" no seu `ROLE_DEFS.pages` (decisão explícita — nunca ganham Jogos completo,
+   com Convocatória/Pré-Jogo/Ao Vivo/Apagar), foi preciso um desvio dedicado dentro do
+   bloqueio de permissões já existente de `navTo()`: só deixa entrar em `'jogos'` quando
+   `_forceTaticoMode` está ativo (i.e., só dentro da própria app `?tatico=1`) E o cargo é
+   elegível por `_taticoEligibleRole`. Fora de `?tatico=1`, o bloqueio de sempre
+   continua inalterado — testado explicitamente nos dois sentidos (ver Testado).
+   `_ttLocked` (já existente em `_renderJogoDetailFull`) continua a trancar qualquer
+   cargo dentro desta app standalone só no separador Campo, agora também para estes dois
+   cargos novos.
+3. **"Aplicar a um Jogo" (Playbook → Jogo, já existia) generalizada**: o botão deixou de
+   estar escondido para categorias fora de `bolasParadas`; o dropdown "Quadro" passou a
+   listar os 4 quadros via `_SETPIECE_TABS` (incl. Tático, antes excluído); a lógica de
+   mapeamento (posições por número de camisola do onze+banco, adversárias, bola,
+   fullView) foi extraída para uma função partilhada nova, `_pbApplyPlayToGame(pb,g,mode)`
+   — usada também pelo ponto 4 — para as duas pontes nunca divergirem; ganhou um
+   `confirm()` a avisar que substitui o que já estiver desenhado nesse quadro.
+4. **"Carregar do Playbook" — ponte nova, inversa** (`pbLoadPickerOpen`/
+   `_pbPickerRefresh`/`pbLoadIntoGameConfirm`): botão novo dentro de Jogo → Campo, nos 4
+   quadros, que abre uma lista filtrável (categoria/submomento/texto, estado próprio para
+   não interferir com os filtros da própria página Playbook) só com as jogadas da mesma
+   equipa do jogo (`pb.teamId===g.teamId`); avisa quando o jogo ainda não tem onze/banco
+   definido; reaproveita `_pbApplyPlayToGame` e tem o mesmo `confirm()` de substituição.
+5. **Checklist "mostrar/esconder" por atleta** (`pitchToggleOwnVisibility`, na lista
+   "Tarefas Individuais" do Campo de um Jogo): uma checkbox por atleta do onze+banco,
+   ligada ao `aid` real, que alterna a presença dessa atleta em `_pitchHiddenOwnList`
+   (mesmo array já usado por "🙈 Esconder Todos"/"👁️ Restaurar Todos" — interage
+   corretamente com essas ações em massa, individual ou depois de uma ação em massa).
+6. **Decisão de âmbito deliberada, sem código novo**: "💾 Guardar na Biblioteca"
+   (`pbSaveFromGameBoard`, a direção inversa de GRAVAR) ficou tal como estava — continua
+   escondido no quadro Tático (`mode!=='tatico'`) e continua a criar sempre
+   `category:'bolasParadas'`. O pedido do Roger e as 3 decisões confirmadas foram sobre a
+   direção de CARREGAR; só essa foi alargada.
+7. Sem novas colunas/tabelas no Supabase — tudo reaproveita os campos já existentes de
+   `APP.playbook`/jogo (`pitchOpponents`/`pitchBall`/`setpiecePositions`/
+   `playerPositions`/`pitchHiddenOwn`).
+8. SW bump para `sps-v206`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_playbook_game_bridge_v206.js`, Playwright/browser real — ao contrário das
+suites `vm` do Playbook/Apresentação, aqui o fluxo depende de `navTo`/`renderJogos`/
+`_maybeEnterTaticoMode` completos): matriz de elegibilidade de `_taticoEligibleRole` para
+os 8 cargos; o bypass de `navTo()` testado nos dois sentidos — COM `?tatico=1`
+(`prep_fisico`/`treinador_gr` entram em "jogos", `fisio` continua bloqueado,
+`team_manager` continua a funcionar) e SEM `?tatico=1` (`prep_fisico`/`treinador_gr`
+continuam bloqueados na plataforma normal — confirma que o bypass nunca escapa da app
+standalone); "Aplicar a um Jogo" visível em categorias fora de `bolasParadas`; dropdown
+com os 4 quadros; `_pbApplyPlayToGame` com mapeamento correto por número de camisola,
+clamp de Y em meio-campo (`maxY=190`) vs. campo inteiro, substituição de
+adversárias/bola/fullView, e o `confirm()` a bloquear a aplicação quando recusado;
+"Carregar do Playbook" presente nos 4 quadros, filtros de categoria/submomento/texto,
+scoping por equipa (nunca lista jogadas de outra equipa), aviso de onze/banco vazio, e o
+mesmo `confirm()` de substituição; `pitchToggleOwnVisibility` individual (não afeta
+outras atletas), reflexo correto na checkbox depois de re-renderizar, e interação
+correta com "Esconder Todos"/"Restaurar Todos"; regressão explícita de que "Guardar na
+Biblioteca" continua ausente no Tático/presente nos outros 3 quadros e continua a criar
+sempre `bolasParadas`. Regressão completa re-corrida sem falhas novas:
+`test_marker_evolution_v204.js`, `test_playbook_v201.js`, `test_presentation_v202.js`,
+`test_tatico_v191.js`, `test_playbook_dom_v201.js`, `test_mobile_v187.js` (uma execução
+isolada mostrou a flakiness já documentada de `test_mobile_v187.js` quando corrido a
+seguir a muitos outros testes Playwright na mesma sessão — confirmada limpa em execuções
+isoladas subsequentes). De passagem, foram corrigidas 2 asserções já desatualizadas em
+`test_playbook_v201.js` (pré-existentes, nada a ver com este pedido — ficaram
+desalinhadas desde o sps-v205 e só agora apareceram ao re-correr a suite completa):
+o título do painel passou a maiúsculas ("ATLETAS DO PLANTEL") e o próprio
+`_pbBoardHtml` passou a embutir essa lista (nomes incluídos) ao lado do quadro, por isso
+o teste "nunca mostra nomes" foi reformulado para isolar só o bloco `<svg>` (os
+marcadores em si continuam a mostrar sempre só o número, nunca o nome).
+
+**Ainda por fazer:** nada pendente para este pedido. Nota de transparência para o Roger:
+"Guardar na Biblioteca" (gravar um quadro do Jogo de volta para o Playbook) ficou tal
+como estava — só bolas paradas, nunca o Tático — porque o pedido confirmado foi sobre
+CARREGAR jogadas no Jogo, não sobre gravar mais formatos; se também quiser alargar essa
+direção (gravar qualquer quadro/categoria), é um pedido novo e pequeno a confirmar.
+
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 
 Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão
