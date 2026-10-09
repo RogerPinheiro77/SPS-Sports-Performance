@@ -4310,3 +4310,85 @@ legendas "Passo 1"/"Passo 2" de cada miniatura, que continuam a existir; não é
 regressão disfarçada, é o mesmo comportamento novo intencional confirmado pelo Roger.
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v216 (09/10/2026): botão "Gravar" nos quadros + C/VC na lista de tarefas + lista estruturada de Marcadoras de Penalty
+
+Pedido verbatim do Roger: "QUERO TAMBEM BOTAO GRAVAR NOS QUADROS QUER EM PLAYBOOK,
+JOGO E 'APP' SETPIECES E NO TATICO ONDE COLOCO O ONZE QUERO 1 LINHA PARA MARCADORAS
+DE PENALTY, QUER PODER SELECIONAR POR ORDEM E POR LISTA E QUERO TAMBEM A CAPITA E
+SUBCAPITA, DA A TUA VISAO E CONSELHO ANTES DE AVANÇAR" — quatro pedidos distintos,
+pedido explícito de análise/aconselhamento antes de avançar. Confirmado por
+`AskUserQuestion` (4 perguntas) antes de tocar em código:
+1. Botão "Gravar" → **Confirmação visual** — os quadros (Playbook/Jogo→Campo/app Set
+   Pieces) já gravam tudo sozinhos a cada alteração (autosave, sps-v203); não há nada
+   para um botão "gravar" fazer de novo, só dar ao Roger a confiança visual de que
+   ficou guardado.
+2. Capitã/Vice-Capitã → **Mostrar também nos quadros** — já existia como etiqueta SVG
+   minúscula ("C"/"VC") no próprio marcador do campo desde o sps-v185/v191; faltava só
+   na lista "Tarefas Individuais" ao lado (nunca precisou de ser construído do zero).
+3. Lista de penalties → **Lista estruturada por ordem** (1ª, 2ª, 3ª...), sempre
+   escolhida de entre as convocadas.
+4. Onde vive → **Na Convocatória/Pré-Jogo**, ao lado de onze/suplentes/capitã — não
+   um ecrã novo, reaproveitando a lista de convocadas já ali.
+
+**O que foi construído:**
+
+1. **Botão "💾 Gravar" (confirmação visual, sem gravação nova):** `pbConfirmSaved(pbid)`
+   (Playbook, `_pbBoardHtml`) e `pitchConfirmSaved(gid)` (Jogo→Campo, `_jogoCampoHtml` —
+   cobre automaticamente a app standalone "SPS Set Pieces Board" `?tatico=1`, por ser a
+   mesma função partilhada, ver sps-v191) fazem um `saveData()` inofensivo (idempotente,
+   nada para mudar) e mostram sempre `toast('Guardado ✓')`. Nunca mutam nenhum campo —
+   confirmado por teste (JSON do registo antes/depois idêntico).
+2. **Badges C/VC na lista "Tarefas Individuais"** (`taskRows`, dentro de
+   `_jogoCampoHtml`): `isCap=g.captain===aid`/`isVc=g.viceCaptain===aid` calculados
+   também neste `.map()` (já existiam só dentro do `.map()` dos marcadores SVG,
+   `players`) e um badge `<span class="bdg bg-y">C</span>`/`<span class="bdg">VC</span>`
+   inserido entre o nome e o campo de tarefa.
+3. **`g.penaltyTakers`** — novo array por jogo (ids de atletas, por ordem; `''` nos
+   slots ainda não escolhidos), inicializado em `_initG(g)`. Complementar ao campo de
+   texto livre já existente `g.setpieces.penalty` (Jogo → Campo → Bolas Paradas) —
+   nenhum dos dois substitui o outro.
+4. **Painel "🥅 Marcadoras de Penalty"** (`_jogoPenaltyTakersHtml`, nova função, inserida
+   em `_jogoPreHtml` logo depois do painel de Notas Pré-Jogo): uma linha por slot, com o
+   ordinal (1ª/2ª/3ª...) e um `<select>` que lista só as convocadas deste jogo (mesmo
+   `convSet` já calculado em `_jogoPreHtml`), mais um botão "+ Adicionar" (cria um novo
+   slot vazio) e um 🗑️ por linha (remove esse slot, preservando a ordem dos restantes).
+   `setPenaltyTaker(gid,idx,val)` grava sozinho por slot (`onchange`, sem re-render —
+   mesmo padrão de `pbSetAthleteAssign`, sps-v201); `addPenaltyTakerSlot`/
+   `removePenaltyTakerSlot` fazem `_renderJogoDetailFull()` (mudam a própria estrutura
+   de linhas).
+5. **Limpeza de referências** (mesma disciplina já repetida nesta base de código para
+   `captain`/`viceCaptain`/`bancada`): `toggleConvocado(gid,aid,false)` e
+   `_purgeAthleteRefs(id)` limpam o slot da atleta (fica `''`, preservando a posição
+   ordinal dos outros slots — nunca faz `splice`, que desalinharia "quem é a 2ª"
+   silenciosamente); `desconvocarTodasAtletas` esvazia `g.penaltyTakers` por completo.
+6. **Cloud** — `penalty_takers` (jsonb) acrescentado à tabela dedicada `games`
+   (migração `games_add_penalty_takers`, aplicada via MCP do Supabase) +
+   `_CLOUD_TABLE_SCHEMA.games.cols`/`rename` e o mapeador correspondente em
+   `pullCloud()`, os dois lados juntos na mesma alteração (disciplina sempre repetida
+   nesta base de código, ver Incidentes #1-4 acima).
+7. SW bump para `sps-v216`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_v216_gravar_penalty_capvc.js`, Playwright/browser real, 11 secções):
+painel de Marcadoras de Penalty presente com estado vazio inicial; adicionar/remover
+slots; ordem 1ª/2ª/3ª persistida e refletida na UI; `<select>` de cada slot ligado a
+`setPenaltyTaker`; limpeza do slot em `toggleConvocado(false)` (preserva os outros
+slots, nunca desalinha a ordem), esvaziamento completo em `desconvocarTodasAtletas`, e
+limpeza em `_purgeAthleteRefs`; schema cloud (`penalty_takers` em
+`_CLOUD_TABLE_SCHEMA.games.cols` + rename); badges "C"/"VC" na lista Tarefas
+Individuais; botão "Gravar" presente e funcional (toast "Guardado ✓") em Jogo→Campo e
+no Playbook, confirmando em ambos que nenhum dado é alterado pela confirmação visual.
+Migração `games_add_penalty_takers` confirmada no Supabase (coluna `jsonb` presente).
+Regressão completa re-corrida (46 ficheiros de teste, Playwright/`vm`): todos
+passaram, exceto os 4 testes antigos já documentados como obsoletos desde o
+sps-v203/v209 (`test_coc.js`, `test_coc2.js`, `test_coc_edit.js`,
+`test_fisio_metricas_v189.js`) e a flakiness já documentada de `test_mobile_v187.js`
+quando corrido a seguir a muitos outros testes Playwright na mesma sessão (confirmada
+limpa em execução isolada).
+
+**Ainda por fazer:** nada pendente para este pedido. Possível extensão futura, não
+pedida: incluir a lista de Marcadoras de Penalty nos PDFs exportados (Ficha Pré-Jogo/
+Lista de Convocados), tal como "Capitã:"/"Vice-Capitã:" já aparecem lá — fica como
+sugestão de baixo risco para um pedido futuro do Roger, não implementada por iniciativa
+própria.

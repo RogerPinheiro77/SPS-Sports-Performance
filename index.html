@@ -5061,6 +5061,11 @@ function _initG(g){
   if(!g.fpfUrl)g.fpfUrl='';
   if(!g.playerStats)g.playerStats=[];
   if(!g.setpieces)g.setpieces={corners:'',freeKicks:'',penalty:''};
+  // Marcadoras de Penalty (sps-v216, pedido do Roger 09/10/2026): lista estruturada por
+  // ordem (1ª, 2ª, 3ª...), sempre escolhida de entre as convocadas — complementar ao
+  // campo de texto livre g.setpieces.penalty já existente (não o substitui). Vive na
+  // Convocatória/Pré-Jogo, ao lado de onze/suplentes/capitã (ver _jogoPreHtml).
+  if(!g.penaltyTakers)g.penaltyTakers=[];
   if(g.concentracaoLocal===undefined)g.concentracaoLocal='';
   if(g.concentracaoHora===undefined)g.concentracaoHora='';
   // Cronologia base do dia de jogo — Palestra Pré-Jogo (hora+local) e Palestra
@@ -5161,6 +5166,7 @@ function _purgeAthleteRefs(id){
     if(g.playerPositions&&g.playerPositions[id]){delete g.playerPositions[id];changed=true;}
     if(g.playerTasks&&g.playerTasks[id]){delete g.playerTasks[id];changed=true;}
     if(g.noShow&&g.noShow[id]!==undefined){delete g.noShow[id];changed=true;}
+    if(g.penaltyTakers&&g.penaltyTakers.includes(id)){g.penaltyTakers=g.penaltyTakers.map(x=>x===id?'':x);changed=true;}
     if(changed)_syncConvocatoriaFromGame(g);
   });
   (APP.convocatorias||[]).forEach(c=>{
@@ -6282,6 +6288,52 @@ function saveJogoAdv(){
   saveData();toast('Análise guardada ✓');_renderJogoDetailFull();
 }
 
+// sps-v216 (pedido do Roger 09/10/2026): "Marcadoras de Penalty" — lista estruturada por
+// ordem (1ª, 2ª, 3ª...), sempre escolhida de entre as convocadas deste jogo; vive na
+// Convocatória/Pré-Jogo (confirmado por AskUserQuestion), ao lado de onze/suplentes/
+// capitã. Complementa, sem substituir, o campo de texto livre g.setpieces.penalty já
+// existente (Jogo → Campo → Bolas Paradas). Gravação automática por slot (sps-v203),
+// sem botão de guardar à parte.
+function _jogoPenaltyTakersHtml(g,athletes,convSet){
+  const list=g.penaltyTakers||[];
+  const convAthletes=athletes.filter(a=>convSet.has(a.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=list.map((aid,idx)=>{
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div style="width:26px;font-size:11px;font-weight:700;color:var(--t2);flex-shrink:0">${idx+1}ª</div>
+      <select class="fc" style="flex:1;font-size:12px" onchange="setPenaltyTaker('${g.id}',${idx},this.value)">
+        <option value="">— Escolher —</option>
+        ${convAthletes.map(a=>`<option value="${a.id}" ${aid===a.id?'selected':''}>${a.num||'?'} ${escHtml(_displayName(a))}</option>`).join('')}
+      </select>
+      <button class="btn btn-xs btn-r" onclick="removePenaltyTakerSlot('${g.id}',${idx})" title="Remover esta marcadora">🗑️</button>
+    </div>`;
+  }).join('');
+  return `<div class="ipanel" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="sh-t" style="font-size:15px">🥅 Marcadoras de Penalty</div>
+      <button class="btn btn-xs btn-g" onclick="addPenaltyTakerSlot('${g.id}')">+ Adicionar</button>
+    </div>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Lista ordenada, sempre escolhida de entre as convocadas. Complementa (não substitui) o campo de notas livre de Bolas Paradas, em Jogo → Campo.</p>
+    ${list.length?rows:'<p style="font-size:12px;color:var(--t2)">Ainda sem marcadoras definidas.</p>'}
+  </div>`;
+}
+function addPenaltyTakerSlot(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!g.penaltyTakers)g.penaltyTakers=[];
+  g.penaltyTakers.push('');
+  saveData();_renderJogoDetailFull();
+}
+function removePenaltyTakerSlot(gid,idx){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  (g.penaltyTakers||[]).splice(idx,1);
+  saveData();_renderJogoDetailFull();
+}
+function setPenaltyTaker(gid,idx,val){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!g.penaltyTakers)g.penaltyTakers=[];
+  g.penaltyTakers[idx]=val;
+  saveData();
+}
+
 function _jogoPreHtml(g){
   const team=APP.teams.find(t=>t.id===g.teamId);
   const convSet=new Set(g.convocatoria),lineSet=new Set(g.lineup),subSet=new Set(g.subs),bancSet=new Set(g.bancada||[]);
@@ -6369,6 +6421,7 @@ function _jogoPreHtml(g){
     ${g.bancada&&g.bancada.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">🪑 BANCADA (convocadas, fora da Ficha de Jogo):</strong><div style="margin-top:4px">${bSum}</div></div>`:''}
     <div class="form-g"><label class="fl">Notas Pré-Jogo</label><textarea class="fc" id="jp-notes" rows="2" onblur="savePreNotes('${g.id}',this.value)">${escHtml(g.preGameNotes||'')}</textarea></div>
   </div>
+  ${_jogoPenaltyTakersHtml(g,athletes,convSet)}
   <div class="ipanel" style="margin-bottom:12px">
     <div class="sh-t" style="font-size:15px;margin-bottom:12px">🚌 Logística do Dia de Jogo</div>
     <div style="font-size:11px;color:var(--t2);margin-bottom:10px">🗓️ Cronologia base: <b>Jogo</b> ${g.time?escHtml(g.time):'—'}${g.loc?' · '+escHtml(g.loc):''} <span style="opacity:.7">(edita em "Info do Jogo")</span></div>
@@ -6424,7 +6477,7 @@ function addGuestConvocado(gid){
 function toggleConvocado(gid,aid,checked){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(checked){if(!g.convocatoria.includes(aid))g.convocatoria.push(aid);}
-  else{g.convocatoria=g.convocatoria.filter(x=>x!==aid);g.lineup=g.lineup.filter(x=>x!==aid);g.subs=g.subs.filter(x=>x!==aid);g.bancada=g.bancada.filter(x=>x!==aid);if(g.captain===aid)g.captain='';if(g.viceCaptain===aid)g.viceCaptain='';}
+  else{g.convocatoria=g.convocatoria.filter(x=>x!==aid);g.lineup=g.lineup.filter(x=>x!==aid);g.subs=g.subs.filter(x=>x!==aid);g.bancada=g.bancada.filter(x=>x!==aid);if(g.captain===aid)g.captain='';if(g.viceCaptain===aid)g.viceCaptain='';if(g.penaltyTakers)g.penaltyTakers=g.penaltyTakers.map(x=>x===aid?'':x);}
   _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
 }
 
@@ -6439,7 +6492,7 @@ function convocarTodasAtletas(gid){
 function desconvocarTodasAtletas(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(!confirm('Limpar toda a convocatória, onze e suplentes deste jogo?'))return;
-  g.convocatoria=[];g.lineup=[];g.subs=[];g.bancada=[];g.captain='';g.viceCaptain='';g.convocatoriaLaunched=false;
+  g.convocatoria=[];g.lineup=[];g.subs=[];g.bancada=[];g.captain='';g.viceCaptain='';g.convocatoriaLaunched=false;g.penaltyTakers=[];
   _syncConvocatoriaFromGame(g);saveData();toast('Convocatória limpa');_renderJogoDetailFull();
 }
 // Ação final e explícita que torna a convocatória deste jogo visível às atletas —
@@ -6670,6 +6723,16 @@ function pitchRestoreAllOwn(gid,mode){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
   _pitchHiddenOwnList(g,mode).length=0;
   saveData();_renderJogoDetailFull();
+}
+// sps-v216 (pedido do Roger 09/10/2026): botão "Gravar" nos quadros de Jogo→Campo —
+// mesma função, mesma ideia que pbConfirmSaved() no Playbook. Tudo aqui já grava sozinho
+// a cada alteração (autosave, sps-v203); o Roger confirmou (AskUserQuestion) que só quer
+// confirmação visual. Cobre também a app standalone "SPS Set Pieces Board" (?tatico=1),
+// porque esta função e _jogoCampoHtml() são partilhadas pelos dois (ver sps-v191).
+function pitchConfirmSaved(gid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  saveData();
+  toast('Guardado ✓');
 }
 // sps-v206: toggle individual por atleta, a partir da checkbox na lista "Tarefas
 // Individuais" — complementa pitchHideAllOwn/pitchRestoreAllOwn (que agem sobre todas de
@@ -7051,10 +7114,15 @@ function _jogoCampoHtml(g){
     const isGK=a.pos==='GR';
     const task=taskMap[aid]||'';
     const visible=!hiddenOwnList.includes(aid);
+    // sps-v216 (pedido do Roger 09/10/2026): badge C/VC também nesta lista — já existia
+    // só no próprio marcador do campo (texto SVG, ver isCap/isVc acima em "players"),
+    // mas não aqui ao lado ("Mostrar também nos quadros", confirmado por AskUserQuestion).
+    const isCap=g.captain===aid,isVc=g.viceCaptain===aid;
     return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
       <input type="checkbox" ${visible?'checked':''} onchange="pitchToggleOwnVisibility('${g.id}','${aid}','${mode}')" title="Mostrar no quadro" style="flex-shrink:0;cursor:pointer">
       <div style="width:22px;height:22px;background:${isGK?'#27ae60':'var(--pri)'};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${a.number||a.num||'?'}</div>
       <div style="font-size:11px;font-weight:600;width:70px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.name)}">${escHtml(_shortName(a))}</div>
+      ${isCap?`<span class="bdg bg-y" style="font-size:9px;padding:1px 5px;flex-shrink:0" title="Capitã">C</span>`:isVc?`<span class="bdg" style="font-size:9px;padding:1px 5px;flex-shrink:0" title="Vice-Capitã">VC</span>`:''}
       <input class="fc" style="font-size:11px;padding:3px 6px;flex:1" placeholder="Tarefa..." value="${escHtml(task)}" onblur="savePlayerTask('${g.id}','${aid}',this.value,'${mode}')">
     </div>`;
   }).join('');
@@ -7093,6 +7161,7 @@ function _jogoCampoHtml(g){
       <button class="btn btn-sm btn-gh" onclick="pbLoadPickerOpen('${g.id}')" title="Carregar uma jogada da Biblioteca do Playbook como um novo separador">📂 Carregar do Playbook</button>
       ${mode!=='tatico'?`<button class="btn btn-sm btn-gh" onclick="pbSaveFromGameBoard('${g.id}','${mode}')" title="Guardar este quadro na biblioteca do Playbook">💾 Guardar na Biblioteca</button>`:''}
       <button class="btn btn-sm btn-gh" onclick="pitchOpenPresentation('${g.id}','${mode}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
+      <button class="btn btn-sm btn-g" onclick="pitchConfirmSaved('${g.id}')" title="Tudo neste quadro já grava automaticamente — este botão é só uma confirmação visual">💾 Gravar</button>
       ${opponentsList.length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para opções</span>`:''}
     </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
@@ -17746,6 +17815,7 @@ function _pbBoardHtml(pb){
       <button class="btn btn-sm btn-gh" onclick="pbHideAllOwn('${pb.id}')" title="Esconde todos os marcadores próprios">🙈 Esconder Todos</button>
       ${(pb.hiddenOwn||[]).length?`<button class="btn btn-sm btn-gh" onclick="pbRestoreAllOwn('${pb.id}')" title="Mostra de novo os marcadores escondidos">👁️ Restaurar Todos</button>`:''}
       <button class="btn btn-sm btn-gh" onclick="pbOpenPresentation('${pb.id}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
+      <button class="btn btn-sm btn-g" onclick="pbConfirmSaved('${pb.id}')" title="Tudo neste quadro já grava automaticamente — este botão é só uma confirmação visual">💾 Gravar</button>
       ${(pb.opponents||[]).length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para opções</span>`:''}
     </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
@@ -17785,6 +17855,16 @@ function _pbBoardHtml(pb){
       ${_pbGalleryHtml(pb)}
     </div>
   </div>`;
+}
+// sps-v216 (pedido do Roger 09/10/2026): botão "Gravar" — tudo neste quadro já grava
+// sozinho a cada alteração (autosave, sps-v203); o Roger confirmou (AskUserQuestion)
+// que só quer uma confirmação visual, não um novo mecanismo de gravação. Faz um
+// saveData() inofensivo (idempotente — não há nada para mudar) só para dar segurança,
+// e mostra sempre "Guardado ✓".
+function pbConfirmSaved(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  saveData();
+  toast('Guardado ✓');
 }
 
 // ── Ligação bidirecional entre o Playbook e o Campo Tático de um Jogo real (pedido
@@ -21481,7 +21561,9 @@ async function pullCloud(){
           // sps-v207: separadores importados do Playbook (ver _initG/pbLoadIntoGameConfirm).
           customBoards:r.custom_boards||undefined,
           // sps-v214: "Bancada" (ver _initG/setBancada) — coluna já em snake_case.
-          bancada:r.bancada||undefined
+          bancada:r.bancada||undefined,
+          // sps-v216: Marcadoras de Penalty (ver _initG/setPenaltyTaker).
+          penaltyTakers:r.penalty_takers||undefined
         }));
         const atRisk=_gdLiveGamesAtRisk();
         if(atRisk.length){
@@ -21862,7 +21944,9 @@ const _CLOUD_TABLE_SCHEMA={
     'custom_boards',
     // sps-v214: "Bancada" — convocadas a mais, fora da Ficha de Jogo/Campo (ver _initG).
     // Nome já em snake_case (palavra única), sem precisar de entrada em `rename`.
-    'bancada'],
+    'bancada',
+    // sps-v216: Marcadoras de Penalty, lista ordenada por ids de atletas (ver _initG).
+    'penalty_takers'],
     rename:{teamId:'team_id',oppLogo:'opp_logo',eventId:'event_id',viceCaptain:'vice_captain',oppFormation:'opp_formation',
       oppStrengths:'opp_strengths',oppWeaknesses:'opp_weaknesses',oppSetPieces:'opp_set_pieces',oppScoutLink:'opp_scout_link',
       preGameNotes:'pre_game_notes',postGameNotes:'post_game_notes',fpfUrl:'fpf_url',concentracaoLocal:'concentracao_local',
@@ -21876,7 +21960,7 @@ const _CLOUD_TABLE_SCHEMA={
       tacticoSnapshots:'tactico_snapshots',setpieceSnapshots:'setpiece_snapshots',liveSession:'live_session',
       playerStats:'player_stats',fpfTimeline:'fpf_timeline',noShow:'no_show',pitchArrows:'pitch_arrows',
       pitchOpponents:'pitch_opponents',pitchBall:'pitch_ball',pitchMarkerColors:'pitch_marker_colors',pitchHiddenOwn:'pitch_hidden_own',
-      customBoards:'custom_boards'}}
+      customBoards:'custom_boards',penaltyTakers:'penalty_takers'}}
 };
 // Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
 // console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud
