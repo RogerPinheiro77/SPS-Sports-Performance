@@ -4860,6 +4860,39 @@ let _showJogoForm=false,_editJogoId=null,_jogoTab='proximos';
 let _showCampImport=false,_campImportRows=null;
 let _pitchDragging=null,_pitchWasDrag=false;
 let _jogoCampoDrawMode='mover',_jogoArrowStyle='solid',_arrowDragging=null;
+// sps-v211 (pedido do Roger: "a mover as atletas no primeiro click elas não têm um
+// arrastamento fluido") — causa raiz: o mousemove/mouseup só eram ouvidos DENTRO do
+// próprio <svg> (atributos onmousemove/onmouseup nele), e havia ainda um onmouseleave
+// que TERMINAVA o arrasto assim que o rato saía da área do campo. Como o campo é um
+// SVG pequeno (viewBox ~300px de largura), basta o rato mover-se um pouco mais rápido
+// para sair dessa área a meio do gesto — o arrasto cortava-se aí, o marcador ficava
+// "pregado" onde o rato saiu, e só um novo clique continuava o movimento. Isso sentia-
+// -se sobretudo à primeira tentativa, antes de se aprender a mover o rato devagar
+// dentro da zona pequena. Corrige-se ouvindo mousemove/mouseup no `document` inteiro
+// enquanto um arrasto (marcador OU seta, Jogo→Campo E Playbook) estiver ativo — o
+// gesto continua fluido mesmo saindo da área do campo (a posição fica sempre bem
+// presa dentro dos limites pelo clamp já existente em cada *Move), e só termina
+// mesmo ao soltar o botão do rato, onde quer que isso aconteça na página. Os
+// onmouseleave que cortavam o arrasto foram removidos dos dois <svg> (ver
+// _jogoCampoHtml/_pbBoardHtml) — o document agora trata do fim do arrasto.
+let _globalDragListenersBound=false;
+function _bindGlobalDragListeners(){
+  if(_globalDragListenersBound)return;
+  _globalDragListenersBound=true;
+  document.addEventListener('mousemove',e=>{
+    if(_pitchDragging)pitchDragMove(e);
+    if(_arrowDragging)pitchArrowMove(e);
+    if(_pbDragging)pbDragMove(e);
+    if(_pbArrowDragging)pbArrowMove(e);
+  });
+  document.addEventListener('mouseup',e=>{
+    if(_pitchDragging)pitchDragEnd(e);
+    if(_arrowDragging)pitchArrowEnd(e);
+    if(_pbDragging)pbDragEnd(e);
+    if(_pbArrowDragging)pbArrowEnd(e);
+  });
+}
+_bindGlobalDragListeners();
 // Sub-toggle Reta/Traço Livre + cor da seta (sps-v204) — 'straight' é o comportamento já
 // existente antes desta versão; 'freehand' é novo (ver pitchArrowStart/Move/End abaixo).
 let _jogoArrowKind='straight',_jogoArrowColor='#ffffff';
@@ -7042,7 +7075,7 @@ function _jogoCampoHtml(g){
     </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
       <div class="jc-pitch-wrap" style="flex-shrink:0">
-      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} ${_pitchViewH(mode)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pitchArrowStart(event,'${g.id}','${mode}')" onmousemove="pitchDragMove(event);pitchArrowMove(event)" onmouseup="pitchDragEnd(event);pitchArrowEnd(event)" onmouseleave="pitchDragEnd(event);pitchArrowEnd(event)">
+      <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} ${_pitchViewH(mode)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pitchArrowStart(event,'${g.id}','${mode}')">
         <defs><marker id="arrowhead-${g.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
         <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
         <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -17599,7 +17632,7 @@ function _pbBoardHtml(pb){
     </div>
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
       <div class="jc-pitch-wrap" style="flex-shrink:0">
-        <svg id="pb-pitch-${pb.id}" viewBox="0 0 ${PW} ${_pbViewH(pb.fullView)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pbArrowStart(event,'${pb.id}')" onmousemove="pbDragMove(event);pbArrowMove(event)" onmouseup="pbDragEnd(event);pbArrowEnd(event)" onmouseleave="pbDragEnd(event);pbArrowEnd(event)">
+        <svg id="pb-pitch-${pb.id}" viewBox="0 0 ${PW} ${_pbViewH(pb.fullView)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pbArrowStart(event,'${pb.id}')">
           <defs><marker id="pb-arrowhead-${pb.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
           <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
           <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>

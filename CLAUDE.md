@@ -3975,6 +3975,63 @@ passou de novo ao repetir isoladamente.)
 
 **Ainda por fazer:** nada pendente para este pedido.
 
+## sps-v211 — Campo/Playbook: arrastamento fluido dos marcadores e setas (09/10/2026)
+
+Pedido verbatim do Roger: "Relativamente a mover as atletas no primeiro click elas nao
+tem um arrastamento fluido" (dito na mesma mensagem em que pediu as opções de
+espessura das setas, tratadas em separado — ver ficheiro `opcoes_setas.html` enviado
+para ele escolher, implementação ainda pendente dessa escolha).
+
+Investigação: o mousemove/mouseup do arrasto (marcadores E setas, nos dois quadros —
+Jogo→Campo e Playbook) só eram ouvidos através de atributos `onmousemove`/`onmouseup`
+no próprio `<svg>`. Pior: havia também um `onmouseleave` que TERMINAVA o arrasto
+assim que o rato saía da área do SVG. Como o campo é um SVG pequeno (viewBox
+~300×200/420), basta um movimento de rato um pouco mais rápido — natural à primeira
+tentativa, antes de se calibrar o gesto à área pequena — para sair dessa zona a meio
+do arrasto: o `onmouseleave` disparava, gravava a posição nesse instante e terminava
+o arrasto, e o marcador ficava "pregado" ali até um novo clique. Era exatamente isto
+que o Roger sentia como "não fluido".
+
+**O que foi construído:**
+
+1. **`_bindGlobalDragListeners()`** (nova função, chamada uma vez ao carregar o
+   script): liga `mousemove`/`mouseup` ao `document` inteiro, não só ao `<svg>`. Cada
+   handler verifica qual arrasto está ativo (`_pitchDragging`/`_arrowDragging` no
+   Jogo→Campo, `_pbDragging`/`_pbArrowDragging` no Playbook) e chama a função
+   correspondente (`pitchDragMove`/`pitchDragEnd`/etc.) — o gesto continua fluido
+   mesmo que o rato saia bem fora da área do campo; a posição fica sempre bem presa
+   dentro dos limites válidos pelo clamp que já existia em cada `*Move`/`*End`.
+2. **`onmouseleave` removido dos dois `<svg>`** (`_jogoCampoHtml`/`_pbBoardHtml`) — já
+   não corta o arrasto ao sair da área; só termina mesmo no `mouseup`, onde quer que
+   aconteça na página.
+3. **`onmousemove`/`onmouseup` também removidos dos dois `<svg>`** (ficam redundantes
+   — o `document` agora cobre os dois casos, dentro E fora da área, sem duplicar o
+   processamento do mesmo evento).
+4. Toque (telemóvel/tablet) não foi tocado — já usava `touchstart`/`touchmove`/
+   `touchend` com `{passive:false}` no próprio elemento, que não sofre deste problema
+   (o dedo "capturado" continua a disparar touchmove mesmo saindo da área visível).
+5. SW bump para `sps-v211`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_drag_fluid_v211.js`, Playwright/browser real, 3 secções): os listeners
+globais ficam ligados ao `document`; os dois `<svg>` já não têm `onmouseleave`;
+simulação de um arrasto real com o rato (via `page.mouse`) que sai bem fora da área
+do campo confirma que o arrasto continua ativo durante o movimento e só termina
+corretamente no `mouseup`, com a posição final bem presa dentro dos limites do campo
+— confirmado também que, revertendo só a remoção do `onmouseleave` (simulando o
+comportamento antigo), este mesmo teste falha exatamente neste ponto, provando que a
+suite deteta de facto a regressão que motivou o pedido. Regressão completa re-corrida
+sem falhas novas (39 ficheiros de teste, Playwright/browser real): todos passaram,
+incluindo `test_marker_mirror_v210.js`, `test_ut_nav_v209.js`,
+`test_playbook_custom_boards_v207.js`, `test_tatico_v191.js`, `test_mobile_v187.js`
+(os 4 testes antigos sem relação com isto — `test_coc.js`, `test_coc2.js`,
+`test_coc_edit.js`, `test_fisio_metricas_v189.js` — continuam a falhar por razões de
+infraestrutura já conhecidas desde o sps-v209).
+
+**Ainda por fazer:** espessura da linha/tamanho do triângulo das setas — enviei um
+ficheiro (`opcoes_setas.html`) com 6 combinações lado a lado (traço 2px/triângulo 6×6
+atual, até opções mais finas/pequenas) para o Roger escolher antes de implementar.
+
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 
 Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão
