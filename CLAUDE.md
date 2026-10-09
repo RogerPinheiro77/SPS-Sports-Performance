@@ -4071,6 +4071,74 @@ o sps-v209).
 
 **Ainda por fazer:** nada pendente para este pedido.
 
+## sps-v213 — Campo/Playbook: "Meio Campo" passa a ir até à base do círculo central (09/10/2026)
+
+Pedido do Roger, com 2 screenshots anexados: "melhora o campo e o meio campo quero que
+venha como mostra no prinscreen 2 ate ao grande circulo, entendes? mostra-me varias
+opçºoes antes de avançar" — print 1 mostrava o campo inteiro (as duas balizas, marcadores
+1-11); print 2 mostrava um corte mais apertado (só a baliza adversária, médias a cavalo
+da linha do meio-campo, e o círculo central cortado bem na sua base — sem baliza/defesas
+próprias à vista).
+
+Investigação antes de implementar (pedido explícito de opções antes de código, mesmo
+padrão do sps-v212): o fundo do campo (igual no Jogo→Campo e no Playbook) tem o círculo
+central em `cx=150 cy=210 r=38` — base em `cy+r=248`. O "Meio Campo" atual cortava em
+`y=200` (`_pitchViewH`/`_pbViewH`, não-fullView), ou seja, a meio do próprio círculo
+(172-248) — nem chegava ao seu centro (210), muito menos à base, o que explica a
+sensação de corte "estranho" que o Roger queria corrigir.
+
+Antes de tocar em código, enviado `opcoes_meio_campo.html` — 5 opções de altura de corte
+(200/atual, 230, 248, 260, 280) com o fundo real do campo e marcadores de exemplo no
+mesmo esquema do print 2 do Roger, com uma linha amarela tracejada a marcar onde cada
+opção cortava. Roger escolheu a **Opção B (248)** — exatamente a base do círculo central
+(`cy+r=210+38=248`).
+
+**O que foi alterado — só os 2 pares de funções que controlam a altura do "Meio Campo"
+(nunca o quadro "Adversário", `_oppXxx`, que tem o seu próprio corte em 200 e não fazia
+parte deste pedido):**
+- `_pitchMaxY(mode)`: não-fullView passou de 190 para 238 (mesma margem de 10px que já
+  existia: 248-10).
+- `_pitchViewH(mode)`: não-fullView passou de 200 para 248.
+- `_pitchSnapshotSvg()` (miniatura/galeria/PDF/Modo Apresentação do Jogo→Campo): o
+  `viewH` para snapshots sem campo inteiro (incl. snapshots antigos, sem o campo
+  `fullView`) passou de 200 para 248 — fiel ao mesmo corte do quadro ao vivo.
+- `_pbMaxY(fullView)`/`_pbViewH(fullView)` (Playbook): mesma mudança, 190→238 e
+  200→248.
+- `_pbSnapshotSvg()` (miniatura/galeria/PDF/Modo Apresentação do Playbook): mesma
+  mudança, 200→248.
+
+Os valores por defeito dos marcadores (`_pitchDefaultPos`/`_pbDefaultPos`, grelha
+40+(i%4)*70, 110+⌊i/4⌋*35) e das adversárias/bola (yBase 150/260, y 100/210) não foram
+tocados — continuam dentro do novo limite maior (238), só passam a ter mais espaço
+disponível por baixo antes de serem clampados, nunca menos. O campo "Campo Inteiro"
+(420/400) não foi tocado em nenhum dos dois quadros.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_meio_campo_v213.js`, Playwright/browser real, 6 secções): `_pitchViewH`/
+`_pitchMaxY` (248/238 em meio campo, 420/400 inalterado em campo inteiro); viewBox real
+do SVG ao vivo do Jogo→Campo em meio campo é `"0 0 300 248"`; `_pitchSnapshotSvg` usa 248
+para snapshots sem campo inteiro (incl. snapshots antigos sem o campo `fullView`, que
+nunca devem cair em 200) e 420 para os que tinham; mesmas 3 verificações replicadas no
+Playbook (`_pbViewH`/`_pbMaxY`, viewBox ao vivo, `_pbSnapshotSvg`); regressão explícita
+de que o quadro "Adversário" (`_oppSnapshotSvg`) continua em 200, fora do âmbito deste
+pedido. Regressão completa re-corrida (43 ficheiros de teste, Playwright/browser real):
+duas asserções pré-existentes, desatualizadas por testarem literalmente os valores
+antigos (190/200) que este pedido veio mudar de propósito, foram corrigidas —
+`test_tatico_e2e.js` (viewBox do toggle para meio campo, 200→248) e
+`test_playbook_game_bridge_v206.js` (clamp de Y da ponte "Aplicar a um Jogo" em
+meio-campo, 190→238) — não é uma regressão disfarçada, é o mesmo comportamento novo
+intencional já confirmado nas secções acima. Depois da correção, toda a suite passou
+sem falhas novas (os 4 testes antigos sem relação com isto — `test_coc.js`,
+`test_coc2.js`, `test_coc_edit.js`, `test_fisio_metricas_v189.js` — continuam a falhar
+por razões de infraestrutura já conhecidas desde o sps-v209; uma falha isolada em
+`test_playbook_game_bridge_v206.js` no login do `?tatico=1` revelou-se flakiness de
+timing do Playwright, confirmada limpa ao repetir o teste isoladamente, sem relação com
+este pedido).
+
+SW bump para `sps-v213`.
+
+**Ainda por fazer:** nada pendente para este pedido.
+
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 
 Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão

@@ -6601,13 +6601,15 @@ function _pitchDefaultPos(mode,i,formation){
   if(_pitchFullView[mode])return [40+(i%4)*70,80+Math.floor(i/4)*110];
   return [40+(i%4)*70,110+Math.floor(i/4)*35];
 }
-// Altura máxima de arrasto (eixo Y) — em meio campo, os 4 quadros mostram só a área+baliza
-// (limite curto); em campo inteiro (sps-v185, ver _pitchFullView) o limite sobe para quase
+// Altura máxima de arrasto (eixo Y) — em meio campo, os 4 quadros mostram até à base do
+// círculo central (sps-v213, pedido do Roger 09/10/2026 — antes cortava a meio do círculo,
+// ver _pitchViewH); em campo inteiro (sps-v185, ver _pitchFullView) o limite sobe para quase
 // a linha de fundo oposta (PH=420 em _jogoCampoHtml, com uma margem de 20px).
-function _pitchMaxY(mode){return _pitchFullView[mode]?400:190;}
-// Altura do viewBox do SVG (eixo Y visível) — meio campo mostra só até ~200 (baliza+meio-
-// campo), campo inteiro mostra os 420 completos (mesmo PH usado no desenho do campo).
-function _pitchViewH(mode){return _pitchFullView[mode]?420:200;}
+function _pitchMaxY(mode){return _pitchFullView[mode]?400:238;}
+// Altura do viewBox do SVG (eixo Y visível) — meio campo mostra até 248 (baliza+meio-campo+
+// círculo central completo — cy=210,r=38 → base em 248; sps-v213, era 200, que cortava o
+// círculo a meio), campo inteiro mostra os 420 completos (mesmo PH usado no desenho do campo).
+function _pitchViewH(mode){return _pitchFullView[mode]?420:248;}
 // ── Adversárias e bola (sps-v185) — marcadores genéricos, sem ligação a nenhuma atleta,
 // para o adjunto de bolas paradas poder desenhar também a estrutura da equipa adversária
 // (ex: onde ficam as marcadoras no canto) e a posição da bola — pedido do Roger,
@@ -6863,8 +6865,9 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
   const isTatico=mode==='tatico';
   // Miniatura mostra a mesma vista (campo inteiro/meio) que estava ativa quando o
   // posicionamento foi registado (sps-v185, ver snap.fullView) — snapshots antigos não têm
-  // este campo e caem sempre em meio campo (200), o comportamento que já tinham antes.
-  const viewH=snap.fullView?420:200;
+  // este campo e caem sempre em meio campo (248 desde sps-v213, era 200), o comportamento
+  // que já tinham antes.
+  const viewH=snap.fullView?420:248;
   const h=Math.round(w*(viewH/300));
   const rad=7;
   // sps-v208: desvio de orientação (ver _bibFacingOffset) gravado no próprio snapshot
@@ -17174,8 +17177,11 @@ function _pbDefaultPos(i,fullView){
   if(fullView)return _PB_FULL_DEFAULT[i]||[150,210];
   return [40+(i%4)*70,110+Math.floor(i/4)*35];
 }
-function _pbMaxY(fullView){return fullView?400:190;}
-function _pbViewH(fullView){return fullView?420:200;}
+// sps-v213 (pedido do Roger 09/10/2026): meio campo passou a mostrar até à base do círculo
+// central (cy=210,r=38 → 248), em vez de 200 (que cortava o círculo a meio) — mesma mudança
+// e mesmo motivo de _pitchMaxY/_pitchViewH, ver comentário ali.
+function _pbMaxY(fullView){return fullView?400:238;}
+function _pbViewH(fullView){return fullView?420:248;}
 // sps-v204: boneco "colete" (_bibMarkerSvg) em vez do círculo simples, com rotação
 // (facing) e cor customizável (pos.color) por marcador próprio; esconde os ids presentes
 // em pb.hiddenOwn (restaurável, ver pbHideAllOwn/pbRestoreAllOwn). O clique (sem arrastar)
@@ -17550,7 +17556,7 @@ function pbOpenPresentation(pbid){
 // exatamente igual ao de sempre: só o número, nunca o nome.
 function _pbSnapshotSvg(snap,w,athleteAssign){
   w=w||190;
-  const viewH=snap.fullView?420:200;
+  const viewH=snap.fullView?420:248;
   const h=Math.round(w*(viewH/300));
   const rad=7;
   const bg=`<rect width="300" height="420" fill="#2d7a2d" rx="8"/>
