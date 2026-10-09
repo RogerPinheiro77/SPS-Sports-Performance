@@ -1378,15 +1378,35 @@ function _freehandPathD(points){
 // em nenhum dos dois quadros (2º desvio deliberado do mockup) — mantém o confirm()/toggle
 // direto que já tinha, por não precisar de cor/rotação.
 // boardId: pbid (ns='pb') ou "gid|mode" (ns='pitch').
+// sps-v208 (pedido do Roger 09/10/2026): "orientação do campo" — por defeito os
+// marcadores nascem virados para baixo (facing=0, ver _bibMarkerSvg); cada quadro (um
+// Jogo|modo, ou uma jogada do Playbook) ganha um botão para trocar esse padrão para
+// "para a frente" (_pitchFacingUp[mode] / pb.facingUp — ver _pitchToggleFacing/
+// pbToggleFacing). Crucial: NÃO se reescreve pos.facing/o.facing ao trocar o botão — fica
+// sempre o valor "cru" que o slider de rotação grava, independente do botão; o desvio de
+// 180° soma-se SÓ no momento de desenhar (aqui, e em _jogoCampoHtml/_pbMarkersHtml/
+// _pbOpponentsHtml/_pitchSnapshotSvg/_pbSnapshotSvg). Por isso a rotação livre de cada
+// marcador (pedido explícito do Roger para não perder) nunca muda de comportamento — o
+// botão só desloca o "0°" de referência que o slider usa.
+function _bibFacingOffset(ns,boardId){
+  if(ns==='pb'){
+    const pb=(APP.playbook||[]).find(x=>x.id===boardId);
+    return (pb&&pb.facingUp)?180:0;
+  }
+  const mode=String(boardId).split('|')[1];
+  return _pitchFacingUp[mode]?180:0;
+}
+function _bibNorm360(deg){return ((deg%360)+360)%360;}
 function _bibMarkerData(ns,boardId,kind,mid){
+  const off=_bibFacingOffset(ns,boardId);
   if(ns==='pb'){
     const pb=(APP.playbook||[]).find(x=>x.id===boardId);if(!pb)return null;
     if(kind==='own'){
       const pos=pb.positions[mid]||{};
-      return {color:pos.color||(+mid===1?'#27ae60':'#ffd700'),facing:pos.facing||0,label:mid};
+      return {color:pos.color||(+mid===1?'#27ae60':'#ffd700'),facing:_bibNorm360((pos.facing||0)+off),label:mid};
     }
     const o=(pb.opponents||[]).find(x=>x.id===mid);
-    return {color:(o&&o.color)||'#e63946',facing:(o&&o.facing)||0,label:null};
+    return {color:(o&&o.color)||'#e63946',facing:_bibNorm360(((o&&o.facing)||0)+off),label:null};
   }
   const parts=String(boardId).split('|'),gid=parts[0],mode=parts[1];
   const g=APP.games.find(x=>x.id===gid);if(!g)return null;
@@ -1395,10 +1415,10 @@ function _bibMarkerData(ns,boardId,kind,mid){
     const isGK=a&&a.pos==='GR';
     const custom=(g.pitchMarkerColors&&g.pitchMarkerColors[mode]&&g.pitchMarkerColors[mode][mid])||'';
     const pos=_pitchPos(g,mode)[mid]||{};
-    return {color:custom||(isGK?'#27ae60':'#ffd700'),facing:pos.facing||0,label:a?(a.number||a.num||''):''};
+    return {color:custom||(isGK?'#27ae60':'#ffd700'),facing:_bibNorm360((pos.facing||0)+off),label:a?(a.number||a.num||''):''};
   }
   const o=_pitchOpponents(g,mode).find(x=>x.id===mid);
-  return {color:(o&&o.color)||'#e63946',facing:(o&&o.facing)||0,label:null};
+  return {color:(o&&o.color)||'#e63946',facing:_bibNorm360(((o&&o.facing)||0)+off),label:null};
 }
 function _bibRenderPreviewSvg(ns,boardId,kind,mid,overrideField,overrideValue){
   const d=_bibMarkerData(ns,boardId,kind,mid);if(!d)return '';
@@ -1425,12 +1445,16 @@ function _bibApplyField(ns,boardId,kind,mid,field,value){
   if(ns==='pb'){
     const pb=(APP.playbook||[]).find(x=>x.id===boardId);if(!pb)return;
     _pbInit(pb);
+    // sps-v208: a rotação que chega aqui (value) é a EFETIVA, já mostrada ao utilizador
+    // no slider (0-359°, já com o desvio de pb.facingUp incluído) — subtrai-se o desvio
+    // antes de gravar, para pos.facing/o.facing continuarem a guardar sempre o valor "cru"
+    // (independente do botão de orientação, ver _bibFacingOffset).
     if(kind==='own'){
       const def=_pbDefaultPos(mid-1,pb.fullView);
       if(!pb.positions[mid])pb.positions[mid]={x:def[0],y:def[1]};
-      pb.positions[mid][field]=field==='facing'?(+value||0):value;
+      pb.positions[mid][field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId)):value;
     } else {
-      const o=(pb.opponents||[]).find(x=>x.id===mid);if(o)o[field]=field==='facing'?(+value||0):value;
+      const o=(pb.opponents||[]).find(x=>x.id===mid);if(o)o[field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId)):value;
     }
     pb.updatedAt=new Date().toISOString();
     _syncPlaybook(pb);saveData();_renderPbDetail();
@@ -1452,12 +1476,15 @@ function _bibApplyField(ns,boardId,kind,mid,field,value){
           const def=_pitchDefaultPos(mode,idx>=0?idx:0,g.formation);
           posMap[mid]={x:def[0],y:def[1]};
         }
-        posMap[mid].facing=(+value||0);
+        // sps-v208: value é a rotação EFETIVA mostrada no slider (já com o desvio de
+        // _pitchFacingUp[mode] incluído) — subtrai-se antes de gravar, para posMap[mid]
+        // .facing continuar a guardar sempre o valor "cru" (ver _bibFacingOffset).
+        posMap[mid].facing=_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId));
       } else if(field==='color'){
         _pitchMarkerColorsMap(g,mode)[mid]=value;
       }
     } else {
-      const o=_pitchOpponents(g,mode).find(x=>x.id===mid);if(o)o[field]=field==='facing'?(+value||0):value;
+      const o=_pitchOpponents(g,mode).find(x=>x.id===mid);if(o)o[field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId)):value;
     }
     saveData();_renderJogoDetailFull();
   }
@@ -6497,6 +6524,20 @@ function _pitchToggleView(gid,mode){
   _pitchFullView[mode]=!_pitchFullView[mode];
   _renderJogoDetailFull();
 }
+// sps-v208 (pedido do Roger 09/10/2026): "orientação do campo" — os marcadores (boneco
+// "colete", ver _bibMarkerSvg) nascem virados para baixo (facing=0 → pernas apontam para
+// trás); este botão por quadro troca o padrão para "para a frente" (soma 180° a todos os
+// marcadores desse quadro só no desenho — ver _bibFacingOffset), mantendo intacta a
+// rotação livre de cada marcador (o slider do modal continua 0-359°, só desloca o "0" de
+// referência). Mesmo espírito de _pitchFullView: fica em memória, não na base de dados,
+// exceto quando um registo da galeria é gravado/carregado (ver _pitchSnapshot/
+// _pitchLoadSnapshot), tal como já acontece com fullView.
+let _pitchFacingUp={tatico:false,cornerDef:false,cornerOf:false,freeKick:false};
+function _pitchToggleFacing(gid,mode){
+  mode=mode||_jogoCampoTab||'tatico';
+  _pitchFacingUp[mode]=!_pitchFacingUp[mode];
+  _renderJogoDetailFull();
+}
 function _pitchPos(g,mode){
   if(mode==='tatico'){if(!g.playerPositions)g.playerPositions={};return g.playerPositions;}
   if(!g.setpiecePositions)g.setpiecePositions={cornerDef:{},cornerOf:{},freeKick:{}};
@@ -6600,6 +6641,7 @@ function pitchRemoveCustomBoard(gid,id){
   if(g.pitchNotes)delete g.pitchNotes[id];
   if(g.pitchArrows)delete g.pitchArrows[id];
   delete _pitchFullView[id];
+  delete _pitchFacingUp[id];
   if(_jogoCampoTab===id)_jogoCampoTab='tatico';
   saveData();_renderJogoDetailFull();
 }
@@ -6689,8 +6731,9 @@ function _pitchCurrentFrame(g,mode){
   const opponents=_pitchOpponents(g,mode).map(o=>({...o}));
   const ball=_pitchBallMap(g)[mode]?{...(_pitchBallMap(g)[mode])}:null;
   const fullView=!!_pitchFullView[mode];
+  const facingUp=!!_pitchFacingUp[mode];
   const markerColors={..._pitchMarkerColorsMap(g,mode)};
-  return {id:'_live',minRaw:null,note:'',positions,tasks,opponents,ball,fullView,lineup:sortedLineup.map(x=>x.aid),markerColors};
+  return {id:'_live',minRaw:null,note:'',positions,tasks,opponents,ball,fullView,facingUp,lineup:sortedLineup.map(x=>x.aid),markerColors};
 }
 function _pitchSnapshot(gid,mode){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;
@@ -6717,10 +6760,11 @@ function _pitchSnapshot(gid,mode){
   const opponents=_pitchOpponents(g,mode).map(o=>({...o}));
   const ball=_pitchBallMap(g)[mode]?{...(_pitchBallMap(g)[mode])}:null;
   const fullView=!!_pitchFullView[mode];
+  const facingUp=!!_pitchFacingUp[mode];
   // Cores customizadas dos marcadores próprios (sps-v204) — entram no registo para o
   // "ajusta e regista de novo" nunca perder a cor ao recarregar um passo antigo.
   const markerColors={..._pitchMarkerColorsMap(g,mode)};
-  _pitchSnapshotsFor(g,mode).push({id:uid(),minRaw,note,positions,tasks,opponents,ball,fullView,lineup:sortedLineup.map(x=>x.aid),markerColors});
+  _pitchSnapshotsFor(g,mode).push({id:uid(),minRaw,note,positions,tasks,opponents,ball,fullView,facingUp,lineup:sortedLineup.map(x=>x.aid),markerColors});
   saveData();toast('Posicionamento registado ✓');
   _renderJogoDetailFull();
 }
@@ -6737,6 +6781,7 @@ function _pitchLoadSnapshot(gid,mode,snapId){
   g.pitchOpponents[mode]=(snap.opponents||[]).map(o=>({...o}));
   const bm=_pitchBallMap(g);bm[mode]=snap.ball?{...snap.ball}:null;
   if(typeof snap.fullView==='boolean')_pitchFullView[mode]=snap.fullView;
+  if(typeof snap.facingUp==='boolean')_pitchFacingUp[mode]=snap.facingUp;
   // Restaura também as cores customizadas dos marcadores próprios (sps-v204) — snapshots
   // anteriores a esta versão não têm markerColors, por isso caem sempre em {} (sem cor
   // customizada = usa a cor por defeito), nunca rebentam.
@@ -6779,6 +6824,11 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
   const viewH=snap.fullView?420:200;
   const h=Math.round(w*(viewH/300));
   const rad=7;
+  // sps-v208: desvio de orientação (ver _bibFacingOffset) gravado no próprio snapshot
+  // (snap.facingUp) — igual ao fullView, mantém a miniatura/PDF/apresentação fiéis ao
+  // botão que estava ativo quando o posicionamento foi registado, mesmo que o utilizador
+  // já tenha trocado o botão no quadro ao vivo entretanto.
+  const facingOff=snap.facingUp?180:0;
   // Baliza e pequena área alargadas (sps-v185, 29/09/2026, pedido do Roger): a largura
   // real da baliza (36) e da pequena área (56) não dava espaço para 4 marcadores lado a
   // lado sem se sobreporem — alargadas para 60/90 só para efeitos visuais/de arrasto
@@ -6805,7 +6855,7 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
     const isGK=a.pos==='GR';
     const custom=(snap.markerColors&&snap.markerColors[aid])||'';
     const fill=custom||(isGK?'#27ae60':'#ffd700');
-    const facing=p.facing||0;
+    const facing=_bibNorm360((p.facing||0)+facingOff);
     dots+=`<g transform="translate(${p.x},${p.y})">${_bibMarkerSvg(fill,a.number||a.num||'?',rad,facing)}</g>`;
     if(forceNames)dots+=`<text x="${p.x}" y="${(p.y+17).toFixed(1)}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
     else if(isTatico)dots+=`<text x="${p.x}" y="${(p.y+16).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
@@ -6815,7 +6865,7 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
   // Snapshots anteriores a esta versão não têm estes dois campos, por isso caem sempre nos
   // valores por defeito em vez de rebentar.
   (snap.opponents||[]).forEach(o=>{
-    const fill=o.color||'#e63946';const facing=o.facing||0;
+    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+facingOff);
     dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,null,rad,facing)}</g>`;
   });
   if(snap.ball){
@@ -6885,7 +6935,9 @@ function _jogoCampoHtml(g){
     // (antes desta mudança) ficariam fora da área visível do meio-campo — em vez de
     // desaparecerem, aparecem encostadas ao limite, prontas a re-arrastar.
     const pos={x:rawPos.x,y:Math.min(rawPos.y,maxY)};
-    const facing=rawPos.facing||0;
+    // sps-v208: soma o desvio de orientação do quadro (_pitchFacingUp[mode]) ao desenhar —
+    // o valor gravado (rawPos.facing) continua sempre "cru" (ver _bibFacingOffset).
+    const facing=_bibNorm360((rawPos.facing||0)+(_pitchFacingUp[mode]?180:0));
     const isCap=g.captain===aid,isVc=g.viceCaptain===aid,isGK=a.pos==='GR';
     const customColor=_pitchMarkerColorsMap(g,mode)[aid]||'';
     const fill=customColor||(isGK?'#27ae60':'#ffd700');
@@ -6906,7 +6958,7 @@ function _jogoCampoHtml(g){
   // atleta. Toca (sem arrastar) abre o modal de opções (cor/rotação/remover).
   const opponentsList=_pitchOpponents(g,mode);
   const opponentMarkers=opponentsList.map(o=>{
-    const fill=o.color||'#e63946';const facing=o.facing||0;
+    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+(_pitchFacingUp[mode]?180:0));
     return `<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="event.stopPropagation();if(!_pitchWasDrag)_openMarkerOptionsModal('pitch','${g.id}|${mode}','opponent','${o.id}');_pitchWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
       ${_bibMarkerSvg(fill,null,rad,facing)}
@@ -6962,6 +7014,7 @@ function _jogoCampoHtml(g){
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <button class="tab-btn ${_pitchFullView[mode]?'on':''}" onclick="_pitchToggleView('${g.id}','${mode}')" title="Alternar campo inteiro/meio campo">${_pitchFullView[mode]?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
+      <button class="tab-btn ${_pitchFacingUp[mode]?'on':''}" onclick="_pitchToggleFacing('${g.id}','${mode}')" title="Orientação padrão dos marcadores — a rotação manual de cada um continua livre">${_pitchFacingUp[mode]?'⬆️ Viradas p/ a Frente':'⬇️ Viradas p/ Trás'}</button>
       <button class="btn btn-sm btn-gh" onclick="pitchAddOpponent('${g.id}','${mode}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
       <button class="btn btn-sm btn-gh" onclick="pitchClearOpponents('${g.id}','${mode}')" title="Remove todas as adversárias deste quadro">🗑️ Limpar Adversárias</button>
       <button class="btn btn-sm ${ballPos?'btn-r':'btn-gh'}" onclick="pitchToggleBall('${g.id}','${mode}')" title="Adicionar/remover marcador da bola">⚽ ${ballPos?'Remover Bola':'Bola'}</button>
@@ -16731,6 +16784,9 @@ function _pbInit(pb){
   if(!pb.opponents)pb.opponents=[];
   if(pb.ball===undefined)pb.ball=null;
   if(typeof pb.fullView!=='boolean')pb.fullView=pb.category!=='bolasParadas';
+  // sps-v208 (pedido do Roger 09/10/2026): "orientação do campo" — ver _bibFacingOffset/
+  // pbToggleFacing. Por defeito os marcadores continuam virados para baixo (false).
+  if(typeof pb.facingUp!=='boolean')pb.facingUp=false;
   if(!pb.snapshots)pb.snapshots=[];
   if(!pb.athleteAssign)pb.athleteAssign={};
   // sps-v204: marcadores próprios escondidos (restaurável) + setas (reta/traço livre).
@@ -16972,7 +17028,9 @@ function _pbMarkersHtml(pb){
     if((pb.hiddenOwn||[]).includes(i))continue;
     const def=_pbDefaultPos(i-1,pb.fullView);
     const pos=pb.positions[i]||{x:def[0],y:def[1]};
-    const facing=pos.facing||0;
+    // sps-v208: soma o desvio de orientação (pb.facingUp) ao desenhar — o valor gravado
+    // (pos.facing) continua sempre "cru" (ver _bibFacingOffset).
+    const facing=_bibNorm360((pos.facing||0)+(pb.facingUp?180:0));
     const fill=pos.color||(i===1?'#27ae60':'#ffd700');
     html+=`<g class="pb-mk" data-kind="own" data-mid="${i}" transform="translate(${pos.x},${pos.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','own',${i})" onclick="event.stopPropagation();if(!_pbWasDrag)_openMarkerOptionsModal('pb','${pb.id}','own',${i});_pbWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
@@ -16987,7 +17045,7 @@ function _pbMarkersHtml(pb){
 function _pbOpponentsHtml(pb){
   const rad=7;
   return (pb.opponents||[]).map(o=>{
-    const facing=o.facing||0;const fill=o.color||'#e63946';
+    const facing=_bibNorm360((o.facing||0)+(pb.facingUp?180:0));const fill=o.color||'#e63946';
     return `<g class="pb-mk" data-kind="opponent" data-mid="${o.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','opponent','${o.id}')" onclick="event.stopPropagation();if(!_pbWasDrag)_openMarkerOptionsModal('pb','${pb.id}','opponent','${o.id}');_pbWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
       ${_bibMarkerSvg(fill,null,rad,facing)}
@@ -17097,6 +17155,17 @@ function pbToggleView(pbid){
   const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
   _pbInit(pb);
   pb.fullView=!pb.fullView;
+  pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
+// sps-v208 (pedido do Roger 09/10/2026): "orientação do campo" — ver _bibFacingOffset.
+// Troca o padrão desta jogada entre virada para trás (facingUp=false, como sempre foi) e
+// para a frente (true); a rotação livre de cada marcador (slider do modal) continua
+// exatamente como antes, só se desloca o "0" de referência que ela usa.
+function pbToggleFacing(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInit(pb);
+  pb.facingUp=!pb.facingUp;
   pb.updatedAt=new Date().toISOString();
   _syncPlaybook(pb);saveData();_renderPbDetail();
 }
@@ -17268,7 +17337,7 @@ function _pbCurrentFrame(pb){
   for(let i=1;i<=11;i++){const def=_pbDefaultPos(i-1,pb.fullView);positions[i]=pb.positions[i]?{...pb.positions[i]}:{x:def[0],y:def[1]};}
   const opponents=(pb.opponents||[]).map(o=>({...o}));
   const ball=pb.ball?{...pb.ball}:null;
-  return {id:'_live',note:'',positions,opponents,ball,fullView:pb.fullView};
+  return {id:'_live',note:'',positions,opponents,ball,fullView:pb.fullView,facingUp:pb.facingUp};
 }
 function _pbSnapshot(pbid){
   const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
@@ -17279,7 +17348,7 @@ function _pbSnapshot(pbid){
   for(let i=1;i<=11;i++){const def=_pbDefaultPos(i-1,pb.fullView);positions[i]=pb.positions[i]?{...pb.positions[i]}:{x:def[0],y:def[1]};}
   const opponents=(pb.opponents||[]).map(o=>({...o}));
   const ball=pb.ball?{...pb.ball}:null;
-  pb.snapshots.push({id:uid(),note,positions,opponents,ball,fullView:pb.fullView});
+  pb.snapshots.push({id:uid(),note,positions,opponents,ball,fullView:pb.fullView,facingUp:pb.facingUp});
   pb.updatedAt=new Date().toISOString();
   _syncPlaybook(pb);saveData();toast('Posicionamento registado ✓');_renderPbDetail();
 }
@@ -17291,6 +17360,7 @@ function _pbLoadSnapshot(pbid,snapId){
   pb.opponents=(snap.opponents||[]).map(o=>({...o}));
   pb.ball=snap.ball?{...snap.ball}:null;
   if(typeof snap.fullView==='boolean')pb.fullView=snap.fullView;
+  if(typeof snap.facingUp==='boolean')pb.facingUp=snap.facingUp;
   pb.updatedAt=new Date().toISOString();
   _syncPlaybook(pb);saveData();toast('Posicionamento carregado — ajusta e regista de novo');_renderPbDetail();
 }
@@ -17331,6 +17401,10 @@ function _pbSnapshotSvg(snap,w,athleteAssign){
     <rect x="88" y="317" width="124" height="68" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
     <rect x="105" y="15" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
     <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>`;
+  // sps-v208: desvio de orientação (ver _bibFacingOffset) gravado no próprio snapshot
+  // (snap.facingUp) — igual ao fullView, mantém a miniatura/PDF/apresentação fiéis ao
+  // botão que estava ativo quando o posicionamento foi registado.
+  const facingOff=snap.facingUp?180:0;
   let dots='';
   for(let i=1;i<=11;i++){
     if((snap.hiddenOwn||[]).includes(i))continue;
@@ -17338,7 +17412,7 @@ function _pbSnapshotSvg(snap,w,athleteAssign){
     const p=(snap.positions||{})[i]||{x:def[0],y:def[1]};
     const isGK=i===1;
     const fill=p.color||(isGK?'#27ae60':'#ffd700');
-    const facing=p.facing||0;
+    const facing=_bibNorm360((p.facing||0)+facingOff);
     dots+=`<g transform="translate(${p.x},${p.y})">${_bibMarkerSvg(fill,i,rad,facing)}</g>`;
     if(athleteAssign&&athleteAssign[i]){
       const a=APP.athletes.find(x=>x.id===athleteAssign[i]);
@@ -17346,7 +17420,7 @@ function _pbSnapshotSvg(snap,w,athleteAssign){
     }
   }
   (snap.opponents||[]).forEach(o=>{
-    const fill=o.color||'#e63946';const facing=o.facing||0;
+    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+facingOff);
     dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,null,rad,facing)}</g>`;
   });
   if(snap.ball)dots+=`<g transform="translate(${snap.ball.x},${snap.ball.y})">${_ballIconSvg(Math.round(rad*0.6))}</g>`;
@@ -17383,6 +17457,7 @@ function _pbBoardHtml(pb){
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <button class="tab-btn ${pb.fullView?'on':''}" onclick="pbToggleView('${pb.id}')" title="Alternar campo inteiro/meio campo">${pb.fullView?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
+      <button class="tab-btn ${pb.facingUp?'on':''}" onclick="pbToggleFacing('${pb.id}')" title="Orientação padrão dos marcadores — a rotação manual de cada um continua livre">${pb.facingUp?'⬆️ Viradas p/ a Frente':'⬇️ Viradas p/ Trás'}</button>
       <button class="btn btn-sm btn-gh" onclick="pbAddOpponent('${pb.id}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
       <button class="btn btn-sm btn-gh" onclick="pbClearOpponents('${pb.id}')" title="Remove todas as adversárias deste quadro">🗑️ Limpar Adversárias</button>
       <button class="btn btn-sm ${pb.ball?'btn-r':'btn-gh'}" onclick="pbToggleBall('${pb.id}')" title="Adicionar/remover marcador da bola">⚽ ${pb.ball?'Remover Bola':'Bola'}</button>
@@ -17463,6 +17538,7 @@ function _pbApplyPlayToGame(pb,g,mode){
   g.pitchOpponents[mode]=(pb.opponents||[]).map(o=>({...o}));
   const bm=_pitchBallMap(g);bm[mode]=pb.ball?{...pb.ball}:null;
   if(typeof pb.fullView==='boolean')_pitchFullView[mode]=pb.fullView;
+  if(typeof pb.facingUp==='boolean')_pitchFacingUp[mode]=pb.facingUp;
   saveData();
   return true;
 }
@@ -21022,7 +21098,7 @@ async function pullCloud(){
       // mesmo padrão exato de estagios/games (upsert por linha, nunca no blob clubs.meta).
       // sps-v204: arrows/hiddenOwn/markerColors (evolução visual de marcadores/setas) —
       // mesmo padrão ||[]/||{} já usado nos restantes campos jsonb desta tabela.
-      ['playbook','playbook',(d)=>APP.playbook=d.map(r=>({id:r.id,teamId:r.team_id,title:r.title,category:r.category,submomento:r.submomento,formation:r.formation,description:r.description,videoUrl:r.video_url,positions:r.positions||{},opponents:r.opponents||[],ball:r.ball||null,fullView:!!r.full_view,snapshots:r.snapshots||[],athleteAssign:r.athlete_assign||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id,updatedAt:r.updated_at,arrows:r.arrows||[],hiddenOwn:r.hidden_own||[],markerColors:r.marker_colors||{}}))],
+      ['playbook','playbook',(d)=>APP.playbook=d.map(r=>({id:r.id,teamId:r.team_id,title:r.title,category:r.category,submomento:r.submomento,formation:r.formation,description:r.description,videoUrl:r.video_url,positions:r.positions||{},opponents:r.opponents||[],ball:r.ball||null,fullView:!!r.full_view,facingUp:!!r.facing_up,snapshots:r.snapshots||[],athleteAssign:r.athlete_assign||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id,updatedAt:r.updated_at,arrows:r.arrows||[],hiddenOwn:r.hidden_own||[],markerColors:r.marker_colors||{}}))],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
@@ -21409,8 +21485,11 @@ const _CLOUD_TABLE_SCHEMA={
   // (ver essa função), incluído aqui só por paridade visual com supplement_catalog.
   // sps-v204: 'arrows'/'hidden_own'/'marker_colors' — colunas novas da evolução visual de
   // marcadores/setas (migração já aplicada por fora, ver CLAUDE.md sps-v204).
-  playbook:{cols:['id','club_id','team_id','title','category','submomento','formation','description','video_url','positions','opponents','ball','full_view','snapshots','athlete_assign','created_at','created_by','created_by_id','updated_at','arrows','hidden_own','marker_colors'],
-    rename:{teamId:'team_id',videoUrl:'video_url',fullView:'full_view',athleteAssign:'athlete_assign',createdAt:'created_at',createdBy:'created_by',createdById:'created_by_id',updatedAt:'updated_at',hiddenOwn:'hidden_own',markerColors:'marker_colors'}},
+  playbook:{cols:['id','club_id','team_id','title','category','submomento','formation','description','video_url','positions','opponents','ball','full_view',
+    // sps-v208: "orientação do campo" (ver _bibFacingOffset/pbToggleFacing).
+    'facing_up',
+    'snapshots','athlete_assign','created_at','created_by','created_by_id','updated_at','arrows','hidden_own','marker_colors'],
+    rename:{teamId:'team_id',videoUrl:'video_url',fullView:'full_view',facingUp:'facing_up',athleteAssign:'athlete_assign',createdAt:'created_at',createdBy:'created_by',createdById:'created_by_id',updatedAt:'updated_at',hiddenOwn:'hidden_own',markerColors:'marker_colors'}},
   // Matchday Hydration (sps-v188): um registo por atleta por jogo — mesmo padrão de
   // wellness_records/pse_records (série temporal por athlete_id), nunca no meta blob. Ver
   // doc "SPS — Matchday Hydration: Análise e Proposta". Tabela criada no Supabase

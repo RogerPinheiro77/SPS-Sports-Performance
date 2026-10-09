@@ -3743,6 +3743,69 @@ re-corrida sem falhas novas: `test_marker_evolution_v204.js`, `test_playbook_v20
 
 **Ainda por fazer:** nada pendente para este pedido.
 
+## sps-v208 — Campo: botão de "orientação" dos marcadores (virados p/ trás ↔ p/ a frente) (09/10/2026)
+
+Pedido verbatim do Roger: "os circulos que criamos com os pezinhos arranja um botao para
+a orientaçao do campo eles neste momento estao virados por defeito para baixo (para
+tras) cria um botao para optar pela orientaçao para a frente, mas mantendo a forma de eu
+os rodar livremente, esta a entender a ideia?"
+
+Interpretação confirmada antes de implementar (sem AskUserQuestion — pedido já estava
+claro e de baixo risco, ao contrário do sps-v207): os marcadores (boneco "colete", ver
+`_bibMarkerSvg`) nascem com `facing=0`, o que desenha as "pernas" apontadas para baixo
+(para trás). O Roger quer um botão por quadro que troque esse padrão para "para a
+frente" (+180°), sem perder a possibilidade de rodar cada marcador livremente à mão (o
+slider de rotação do modal de opções, já existente desde o sps-v204).
+
+**O que foi construído:**
+
+1. **O desvio (0° ou 180°) é só de desenho, nunca reescreve dados**: `pos.facing`/
+   `o.facing` continuam a guardar sempre o valor "cru" que o slider grava — o botão soma
+   180° SÓ no momento de desenhar (`_bibFacingOffset(ns,boardId)`, nova função
+   partilhada). Por isso ligar/desligar o botão nunca estraga uma rotação manual já
+   feita — só desloca o "0°" de referência contra o qual essa rotação é interpretada.
+2. **Modal de opções (cor/rotação) mostra sempre o ângulo EFETIVO**: `_bibMarkerData`
+   passou a devolver `facing` já com o desvio incluído (para o preview/slider nunca
+   destoarem do que está desenhado no quadro), e `_bibApplyField` passou a subtrair o
+   desvio antes de gravar o novo valor escolhido no slider — `_bibNorm360(deg)` normaliza
+   para 0-359°.
+3. **Botão por quadro** (mesmo espírito do já existente "🏟️ Campo Inteiro/📐 Meio Campo"):
+   - Jogo → Campo: `_pitchFacingUp[mode]` (módulo, não persistido — mesmo padrão de
+     `_pitchFullView`), toggle `_pitchToggleFacing(gid,mode)`; limpo em
+     `pitchRemoveCustomBoard` ao remover um separador importado.
+   - Playbook: `pb.facingUp` (persistido no próprio registo da jogada, mesmo padrão de
+     `pb.fullView`), toggle `pbToggleFacing(pbid)`, default `false` em `_pbInit`.
+4. **Galeria/snapshots guardam o seu próprio desvio** (tal como já acontecia com
+   `fullView`): `_pitchSnapshot`/`_pbSnapshot` gravam `facingUp` no registo;
+   `_pitchLoadSnapshot`/`_pbLoadSnapshot` restauram-no ao carregar; `_pitchSnapshotSvg`/
+   `_pbSnapshotSvg` usam o `facingUp` GRAVADO no snapshot (não o estado ao vivo) para a
+   miniatura/PDF/Modo Apresentação ficarem fiéis ao que estava ativo no momento do
+   registo. `_pbApplyPlayToGame` (ponte "Aplicar a um Jogo", sps-v206) passa também a
+   copiar `pb.facingUp` para `_pitchFacingUp[mode]`, tal como já fazia com `fullView`.
+5. **Supabase — 1 coluna nova**: `playbook.facing_up` (boolean, default false), migração
+   `playbook_add_facing_up`. O Jogo/Campo não precisou de coluna nova (mesma razão por
+   que `fullView` também não tem — é estado de sessão, não persistido por jogo).
+6. SW bump para `sps-v208`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_marker_facing_v208.js`, Playwright/browser real, 12 secções): default
+virado para baixo nos 4 quadros fixos e no Playbook; botão presente e com o rótulo/
+estado "on" corretos; toggle é por quadro (não afeta os outros 3); marcador próprio E
+adversária desenham com `rotate(180)` quando ligado; rotação manual pelo slider
+continua a funcionar — grava sempre o valor cru, preview sempre o efetivo — incl. depois
+de desligar o botão (a rotação manual nunca se perde, só é reinterpretada); snapshot
+grava e respeita o seu próprio `facingUp` mesmo que o estado ao vivo já tenha mudado;
+`_pitchLoadSnapshot` restaura o `facingUp` gravado; comportamento replicado e testado
+também no Playbook (`pb.facingUp`, `pbToggleFacing`, `_pbMarkersHtml`/
+`_pbOpponentsHtml`); `_pbInit` com default seguro para jogadas antigas; round-trip do
+schema `_CLOUD_TABLE_SCHEMA.playbook` para `facing_up` (push/pull sem perdas). Regressão
+completa re-corrida sem falhas novas: `test_playbook_custom_boards_v207.js`,
+`test_playbook_game_bridge_v206.js`, `test_marker_evolution_v204.js`,
+`test_playbook_v201.js`, `test_presentation_v202.js`, `test_tatico_v191.js`,
+`test_playbook_dom_v201.js`, `test_mobile_v187.js`.
+
+**Ainda por fazer:** nada pendente para este pedido.
+
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 
 Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão
