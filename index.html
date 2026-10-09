@@ -5037,6 +5037,11 @@ function _initG(g){
   if(!g.convocatoria)g.convocatoria=[];
   if(!g.lineup)g.lineup=[];
   if(!g.subs)g.subs=[];
+  // Bancada (sps-v214, pedido do Roger 09/10/2026): convocadas "a mais" face ao plantel que
+  // vai para a Ficha de Jogo (onze+suplentes) — ficam na bancada, continuam convocadas (na
+  // Lista de Convocados) mas nunca entram na Ficha Pré-Jogo/Campo Tático. Mutuamente
+  // exclusivo com lineup/subs (ver setBancada/setStarter/setSub).
+  if(!g.bancada)g.bancada=[];
   if(!g.playerPositions)g.playerPositions={};
   if(!g.playerTasks)g.playerTasks={};
   // Bolas paradas — 3 campos táticos interativos à parte do campo principal (Canto
@@ -5132,7 +5137,7 @@ function _syncConvocatoriaFromGame(g){
     return;
   }
   const data={teamId:g.teamId,date:g.date,notes:'vs '+g.opp,athletes:[...g.convocatoria],
-    lineup:[...g.lineup],subs:[...g.subs],captain:g.captain,viceCaptain:g.viceCaptain,formation:g.formation,
+    lineup:[...g.lineup],subs:[...g.subs],bancada:[...(g.bancada||[])],captain:g.captain,viceCaptain:g.viceCaptain,formation:g.formation,
     concentracaoLocal:g.concentracaoLocal,concentracaoHora:g.concentracaoHora,transporte:g.transporte,
     refeicaoAntes:g.refeicaoAntes,refeicaoApos:g.refeicaoApos,
     palestraPreJogoHora:g.palestraPreJogoHora,palestraPreJogoLocal:g.palestraPreJogoLocal,
@@ -5150,6 +5155,7 @@ function _purgeAthleteRefs(id){
     if(g.convocatoria&&g.convocatoria.includes(id)){g.convocatoria=g.convocatoria.filter(x=>x!==id);changed=true;}
     if(g.lineup&&g.lineup.includes(id)){g.lineup=g.lineup.filter(x=>x!==id);changed=true;}
     if(g.subs&&g.subs.includes(id)){g.subs=g.subs.filter(x=>x!==id);changed=true;}
+    if(g.bancada&&g.bancada.includes(id)){g.bancada=g.bancada.filter(x=>x!==id);changed=true;}
     if(g.captain===id){g.captain='';changed=true;}
     if(g.viceCaptain===id){g.viceCaptain='';changed=true;}
     if(g.playerPositions&&g.playerPositions[id]){delete g.playerPositions[id];changed=true;}
@@ -6278,7 +6284,7 @@ function saveJogoAdv(){
 
 function _jogoPreHtml(g){
   const team=APP.teams.find(t=>t.id===g.teamId);
-  const convSet=new Set(g.convocatoria),lineSet=new Set(g.lineup),subSet=new Set(g.subs);
+  const convSet=new Set(g.convocatoria),lineSet=new Set(g.lineup),subSet=new Set(g.subs),bancSet=new Set(g.bancada||[]);
   // Convocatória avulsa: atletas de outras equipas (ex. Sub/17) chamadas só para
   // este jogo específico — identificadas por já estarem em g.convocatoria mas
   // pertencerem a outra equipa; continuam no plantel de origem (a.teamId intacto).
@@ -6297,7 +6303,7 @@ function _jogoPreHtml(g){
   // a resposta vive no registo unificado de APP.convocatorias (c.rsvp), não no Jogo.
   const _convForRsvp=APP.convocatorias.find(c=>c.gameId===g.id);
   const convRows=athletes.map(a=>{
-    const isC=convSet.has(a.id),isS=lineSet.has(a.id),isSu=subSet.has(a.id);
+    const isC=convSet.has(a.id),isS=lineSet.has(a.id),isSu=subSet.has(a.id),isB=bancSet.has(a.id);
     const isCap=g.captain===a.id,isVc=g.viceCaptain===a.id;
     const isNoShow=g.noShow&&g.noShow[a.id]!==undefined;
     const isGuest=a.teamId!==g.teamId;
@@ -6318,11 +6324,12 @@ function _jogoPreHtml(g){
       ${rsvpBadge}
       ${isCap?'<span style="background:#ffd700;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">CAP</span>':''}
       ${isVc?'<span style="background:#c0c0c0;color:#333;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">VCap</span>':''}
-      ${isS?'<span class="bdg bg-g" style="font-size:9px">Titular</span>':isSu?'<span class="bdg bg-y" style="font-size:9px">Suplente</span>':''}
+      ${isS?'<span class="bdg bg-g" style="font-size:9px">Titular</span>':isSu?'<span class="bdg bg-y" style="font-size:9px">Suplente</span>':isB?'<span class="bdg" style="font-size:9px;background:#77777733;color:#999" title="Convocada, mas fora da Ficha de Jogo — fica na bancada">🪑 Bancada</span>':''}
       ${isNoShow?'<span class="bdg bg-r" style="font-size:9px">❌ Faltou</span>':''}
       ${isC?`<div style="display:flex;gap:3px">
         <button class="btn btn-xs ${isS?'btn-g':'btn-gh'}" onclick="setStarter('${g.id}','${a.id}')" title="Titular">11</button>
         <button class="btn btn-xs ${isSu?'btn-y':'btn-gh'}" onclick="setSub('${g.id}','${a.id}')" title="Suplente">S</button>
+        <button class="btn btn-xs btn-gh" style="${isB?'background:#777;color:#fff;border-color:#777':''}" onclick="setBancada('${g.id}','${a.id}')" title="Bancada — convocada, mas fora da Ficha de Jogo Tática/Campo">B</button>
         <button class="btn btn-xs ${isCap?'btn-g':'btn-gh'}" onclick="setCaptain('${g.id}','${a.id}','cap')" title="Capitã">C</button>
         <button class="btn btn-xs ${isVc?'btn-g':'btn-gh'}" onclick="setCaptain('${g.id}','${a.id}','vc')" title="Vice">VC</button>
         <button class="btn btn-xs ${isNoShow?'btn-r':'btn-gh'}" onclick="toggleFaltouJogo('${g.id}','${a.id}')" title="Convocada mas não compareceu">Faltou</button>
@@ -6335,6 +6342,7 @@ function _jogoPreHtml(g){
   }).join('');
   const lSum=g.lineup.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg2);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.num||'?'} ${escHtml(a.name)}</span>`:''}).join('');
   const sSum=g.subs.map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.num||'?'} ${escHtml(a.name)}</span>`:''}).join('');
+  const bSum=(g.bancada||[]).map(aid=>{const a=APP.athletes.find(x=>x.id===aid);return a?`<span style="font-size:11px;padding:2px 8px;background:#77777722;border-radius:4px;border:1px solid var(--brd);display:inline-block;margin:2px">${a.num||'?'} ${escHtml(a.name)}</span>`:''}).join('');
   const launched=!!g.convocatoriaLaunched;
   const draftBadge='<span class="bdg bg-gr" style="font-size:9px">📝 Rascunho — atletas não veem nada ainda</span>';
   const pubBadge=launched?_convPublishBadgeHtml(g.convocatoriaPublishAt):draftBadge;
@@ -6343,7 +6351,7 @@ function _jogoPreHtml(g){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div class="sh-t" style="font-size:15px">📋 Convocatória — ${team?escHtml(team.name):'Equipa'}</div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:11px;color:var(--t2)">${validConvCount} convocadas • ${g.lineup.length}/11 titulares • ${g.subs.length} suplentes</span>
+        <span style="font-size:11px;color:var(--t2)">${validConvCount} convocadas • ${g.lineup.length}/11 titulares • ${g.subs.length} suplentes${g.bancada&&g.bancada.length?` • ${g.bancada.length} na bancada`:''}</span>
         <button class="btn btn-xs btn-g" onclick="convocarTodasAtletas('${g.id}')" title="Marca todas as atletas da equipa como convocadas">✓ Convocar Todas</button>
         <button class="btn btn-xs btn-r" onclick="desconvocarTodasAtletas('${g.id}')" title="Limpa toda a convocatória, onze e suplentes">Desconvocar Todas</button>
       </div>
@@ -6358,6 +6366,7 @@ function _jogoPreHtml(g){
     </div>
     ${g.lineup.length?`<div style="margin-bottom:8px"><strong style="font-size:10px;color:var(--t2)">ONZE INICIAL (${g.formation}):</strong><div style="margin-top:4px">${lSum}</div></div>`:''}
     ${g.subs.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">SUPLENTES:</strong><div style="margin-top:4px">${sSum}</div></div>`:''}
+    ${g.bancada&&g.bancada.length?`<div style="margin-bottom:12px"><strong style="font-size:10px;color:var(--t2)">🪑 BANCADA (convocadas, fora da Ficha de Jogo):</strong><div style="margin-top:4px">${bSum}</div></div>`:''}
     <div class="form-g"><label class="fl">Notas Pré-Jogo</label><textarea class="fc" id="jp-notes" rows="2" onblur="savePreNotes('${g.id}',this.value)">${escHtml(g.preGameNotes||'')}</textarea></div>
   </div>
   <div class="ipanel" style="margin-bottom:12px">
@@ -6415,7 +6424,7 @@ function addGuestConvocado(gid){
 function toggleConvocado(gid,aid,checked){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(checked){if(!g.convocatoria.includes(aid))g.convocatoria.push(aid);}
-  else{g.convocatoria=g.convocatoria.filter(x=>x!==aid);g.lineup=g.lineup.filter(x=>x!==aid);g.subs=g.subs.filter(x=>x!==aid);if(g.captain===aid)g.captain='';if(g.viceCaptain===aid)g.viceCaptain='';}
+  else{g.convocatoria=g.convocatoria.filter(x=>x!==aid);g.lineup=g.lineup.filter(x=>x!==aid);g.subs=g.subs.filter(x=>x!==aid);g.bancada=g.bancada.filter(x=>x!==aid);if(g.captain===aid)g.captain='';if(g.viceCaptain===aid)g.viceCaptain='';}
   _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
 }
 
@@ -6430,7 +6439,7 @@ function convocarTodasAtletas(gid){
 function desconvocarTodasAtletas(gid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(!confirm('Limpar toda a convocatória, onze e suplentes deste jogo?'))return;
-  g.convocatoria=[];g.lineup=[];g.subs=[];g.captain='';g.viceCaptain='';g.convocatoriaLaunched=false;
+  g.convocatoria=[];g.lineup=[];g.subs=[];g.bancada=[];g.captain='';g.viceCaptain='';g.convocatoriaLaunched=false;
   _syncConvocatoriaFromGame(g);saveData();toast('Convocatória limpa');_renderJogoDetailFull();
 }
 // Ação final e explícita que torna a convocatória deste jogo visível às atletas —
@@ -6465,14 +6474,24 @@ function _publishConvocatoriaJogoScheduled(gid){
 function setStarter(gid,aid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(g.lineup.includes(aid)){g.lineup=g.lineup.filter(x=>x!==aid);}
-  else{if(g.lineup.length>=11)return toast('Já tens 11 titulares','err');g.lineup.push(aid);g.subs=g.subs.filter(x=>x!==aid);}
+  else{if(g.lineup.length>=11)return toast('Já tens 11 titulares','err');g.lineup.push(aid);g.subs=g.subs.filter(x=>x!==aid);g.bancada=g.bancada.filter(x=>x!==aid);}
   _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
 }
 
 function setSub(gid,aid){
   const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
   if(g.subs.includes(aid)){g.subs=g.subs.filter(x=>x!==aid);}
-  else{g.subs.push(aid);g.lineup=g.lineup.filter(x=>x!==aid);}
+  else{g.subs.push(aid);g.lineup=g.lineup.filter(x=>x!==aid);g.bancada=g.bancada.filter(x=>x!==aid);}
+  _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
+}
+
+// Bancada (sps-v214, pedido do Roger 09/10/2026): "B" — convocada a mais, fora da Ficha de
+// Jogo (onze+suplentes) mas continua na Lista de Convocados. Mutuamente exclusivo com
+// Titular/Suplente, mesmo padrão de setStarter/setSub (ativar um limpa os outros dois).
+function setBancada(gid,aid){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;_initG(g);
+  if(g.bancada.includes(aid)){g.bancada=g.bancada.filter(x=>x!==aid);}
+  else{g.bancada.push(aid);g.lineup=g.lineup.filter(x=>x!==aid);g.subs=g.subs.filter(x=>x!==aid);}
   _syncConvocatoriaFromGame(g);saveData();_renderJogoDetailFull();
 }
 
@@ -9026,6 +9045,9 @@ function exportJogoPDF(gid,type){
     // pensado para ser afixado/entregue com toda a logística. A Ficha Pré-Jogo fica só com
     // o essencial tático (adversário, capitã, onze/suplentes+tarefas) — mantido também no
     // Relatório Completo (type==='full'), que partilha este mesmo bloco.
+    // sps-v214: iterar só g.lineup/g.subs já exclui automaticamente quem está em g.bancada
+    // (convocada "a mais", pedido do Roger 09/10/2026) — essas ficam de fora desta ficha,
+    // mas continuam na Lista de Convocados (exportConvocatoriaListPDF, coluna "Banco").
     const ats=_sortGKFirst(g.lineup.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean));
     const sus=_sortGKFirst(g.subs.map(aid=>APP.athletes.find(a=>a.id===aid)).filter(Boolean));
     _prejogoRows=ats.length+sus.length;
@@ -9139,9 +9161,13 @@ function exportConvocatoriaListPDF(gid){
   const nConv=ats.filter(a=>squadSet.has(a.id)).length;
   const cap=APP.athletes.find(a=>a.id===g.captain);
   const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
+  // sps-v214 (pedido do Roger 09/10/2026): "B" (Bancada) — convocada a mais, fora da Ficha
+  // de Jogo/Campo Tático (onze+suplentes) mas continua nesta lista, com visto normal — a
+  // coluna já existia (em branco, sem rótulo) e passa a mostrar "B" nessas linhas.
+  const bancSet=new Set(g.bancada||[]);
   const rows=ats.map(a=>{
     const conv=squadSet.has(a.id);
-    return `<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center;width:48px">${conv?'<span style="color:#16a34a;font-weight:800;font-size:13pt">✓</span>':''}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td><td></td></tr>`;
+    return `<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center;width:48px">${conv?'<span style="color:#16a34a;font-weight:800;font-size:13pt">✓</span>':''}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td><td style="text-align:center;font-weight:700;color:#777">${bancSet.has(a.id)?'B':''}</td></tr>`;
   }).join('');
   const body=`
     <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Lista de Convocados</h2>
@@ -9156,7 +9182,7 @@ function exportConvocatoriaListPDF(gid){
        pedido do Roger, 02/10/2026 (ver comentário em exportJogoPDF). */''}
     ${g.preGameNotes?`<p><b>Notas:</b> ${g.preGameNotes}</p>`:''}
     <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed">
-      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th style="width:30px">Nº</th><th style="width:60px">Posição</th><th style="width:48px;font-size:9pt">Convocada</th><th style="width:36px"></th><th style="width:150px">Assinatura</th></tr></thead>
+      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th style="width:30px">Nº</th><th style="width:60px">Posição</th><th style="width:48px;font-size:9pt">Convocada</th><th style="width:36px;font-size:9pt" title="Bancada — fora da Ficha de Jogo">Banco</th><th style="width:150px">Assinatura</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p style="margin-top:10px;font-size:9pt;color:#666">Convocadas: ${nConv} de ${ats.length}${cap?' · Capitã: '+cap.name:''}${vc?' · Vice-Capitã: '+vc.name:''}</p>
@@ -18434,8 +18460,11 @@ function printAthleteReport(){
   const convocTable=convocsP.length?`<table><thead><tr><th>Data</th><th>Adversário</th><th>Papel</th><th>Viu</th></tr></thead><tbody>${convocsP.map(c=>{
     const g=c.gameId?APP.games.find(x=>x.id===c.gameId):null;
     const opp=g?g.opp:(c.notes||'—');
-    const isCap=c.captain===id, isVice=c.viceCaptain===id, isTit=(c.lineup||[]).includes(id);
-    const papel=[isTit?'Titular':(c.athletes.includes(id)?'Suplente':''),isCap?'Capitã':(isVice?'Vice-Cap.':'')].filter(Boolean).join(' · ');
+    const isCap=c.captain===id, isVice=c.viceCaptain===id, isTit=(c.lineup||[]).includes(id), isSu=(c.subs||[]).includes(id), isBanc=(c.bancada||[]).includes(id);
+    // sps-v214: registos antigos não têm c.subs/c.bancada gravados — "Suplente" por omissão
+    // continua a ser o fallback de sempre para quem só está em c.athletes (nunca "Bancada"
+    // nesses casos antigos, para não reclassificar histórico sem essa informação).
+    const papel=[isTit?'Titular':isSu?'Suplente':isBanc?'Bancada':(c.athletes.includes(id)?'Suplente':''),isCap?'Capitã':(isVice?'Vice-Cap.':'')].filter(Boolean).join(' · ');
     const viu=(c.seenBy||[]).some(s=>s.athleteId===id);
     return `<tr><td>${fmtDate(c.date)}</td><td>${escHtml(opp)}</td><td>${papel||'—'}</td><td>${viu?'✅':'—'}</td></tr>`;
   }).join('')}</tbody></table>`:'<p style="color:#999;font-size:9pt">Sem convocatórias no período</p>';
@@ -21348,7 +21377,9 @@ async function pullCloud(){
           pitchOpponents:r.pitch_opponents||undefined,pitchBall:r.pitch_ball||undefined,
           pitchMarkerColors:r.pitch_marker_colors||undefined,pitchHiddenOwn:r.pitch_hidden_own||undefined,
           // sps-v207: separadores importados do Playbook (ver _initG/pbLoadIntoGameConfirm).
-          customBoards:r.custom_boards||undefined
+          customBoards:r.custom_boards||undefined,
+          // sps-v214: "Bancada" (ver _initG/setBancada) — coluna já em snake_case.
+          bancada:r.bancada||undefined
         }));
         const atRisk=_gdLiveGamesAtRisk();
         if(atRisk.length){
@@ -21726,7 +21757,10 @@ const _CLOUD_TABLE_SCHEMA={
     // em pullCloud() antes desta versão — nunca sincronizavam entre dispositivos.
     'pitch_opponents','pitch_ball','pitch_marker_colors','pitch_hidden_own',
     // sps-v207: separadores importados do Playbook dentro de Jogo → Campo (ver _initG).
-    'custom_boards'],
+    'custom_boards',
+    // sps-v214: "Bancada" — convocadas a mais, fora da Ficha de Jogo/Campo (ver _initG).
+    // Nome já em snake_case (palavra única), sem precisar de entrada em `rename`.
+    'bancada'],
     rename:{teamId:'team_id',oppLogo:'opp_logo',eventId:'event_id',viceCaptain:'vice_captain',oppFormation:'opp_formation',
       oppStrengths:'opp_strengths',oppWeaknesses:'opp_weaknesses',oppSetPieces:'opp_set_pieces',oppScoutLink:'opp_scout_link',
       preGameNotes:'pre_game_notes',postGameNotes:'post_game_notes',fpfUrl:'fpf_url',concentracaoLocal:'concentracao_local',

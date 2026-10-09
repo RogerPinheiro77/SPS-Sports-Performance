@@ -4139,6 +4139,77 @@ SW bump para `sps-v213`.
 
 **Ainda por fazer:** nada pendente para este pedido.
 
+## sps-v214 (09/10/2026): Convocatória — marcador "B" (Bancada), convocadas que não vão
+## para a Ficha de Jogo Tática mas continuam na Lista de Convocados
+
+Pedido verbatim do Roger: "NAS CONVOCATORIAS EU CONVOCO O PLANTEL TODO MAS HA ATLETAS A
+MAIS, OU SEJA ALGUMAS NAO VAO PARA A FICHA DE JOGO E VAO PARA A BANCADA, QUERO ONDE
+SELECIONO 11-S QUERO QUE COLOQUES UM B, ESSAS JOGADORAS COM B NAO VAO PARA A FICHA DE
+JOGO TATICA, MAS ENTRAM NA LISTA DE CONVOCADOS, ENTENDES?" — pedido claro e de baixo
+risco (mesmo critério já usado em pedidos anteriores desta classe, ex. sps-v208/v210),
+avançado direto para implementação sem `AskUserQuestion`.
+
+**Investigação antes de codificar:** a Ficha de Jogo Tática (`exportJogoPDF`, tipo
+`'prejogo'`) já só lista `g.lineup`+`g.subs` (nunca `g.convocatoria` bruto), e a Lista de
+Convocados (`exportConvocatoriaListPDF`) já mostra, desde o sps-v200, todo o plantel com
+visto a partir de `g.convocatoria` — ou seja, o resultado final que o Roger descreveu já
+era automático para qualquer convocada que nunca chegasse a onze/banco. O que faltava era
+só um marcador EXPLÍCITO desse estado (em vez de ser um "ainda não decidido" ambíguo), daí
+`g.bancada` — novo array por jogo, mutuamente exclusivo com `g.lineup`/`g.subs`, mesmo
+padrão exato de `setStarter`/`setSub`.
+
+**O que foi construído:**
+
+1. `_initG(g)` — novo `g.bancada=[]` por omissão.
+2. `setStarter`/`setSub` — ao ativar, passam também a remover o id de `g.bancada`
+   (mutuamente exclusivo nos 3 sentidos: Titular↔Suplente já existia, agora também
+   ↔Bancada).
+3. `setBancada(gid,aid)` (nova) — toggle: ativa (removendo de `lineup`/`subs`) ou
+   desativa; chama `_syncConvocatoriaFromGame`/`saveData`/`_renderJogoDetailFull`, mesmo
+   padrão de `setStarter`/`setSub`.
+4. `toggleConvocado` (desconvocar), `desconvocarTodasAtletas` e `_purgeAthleteRefs`
+   (apagar atleta) passaram a limpar também `g.bancada` — nunca deixar um id "fantasma"
+   (mesma disciplina já documentada várias vezes nesta base de código).
+5. `_jogoPreHtml()` (Convocatória/Pré-Jogo): novo botão "B" ao lado de 11/S (estilo
+   cinzento quando ativo), badge "🪑 Bancada" na linha da atleta, contagem de bancada no
+   resumo do cabeçalho, e novo bloco de resumo "🪑 BANCADA".
+6. `exportConvocatoriaListPDF()`: coluna antes vazia/sem rótulo reaproveitada como "Banco"
+   (mostra "B" para quem está em `g.bancada`) — sem alterar a largura/layout calibrado da
+   tabela (sps-v183/v200), que depende do nº de linhas, não de colunas.
+7. `exportJogoPDF` (tipos `'prejogo'`/`'full'`): sem alteração necessária — já só itera
+   `g.lineup`/`g.subs`, que `setBancada` nunca toca.
+8. Relatório individual da atleta (cálculo do "papel"/função na convocatória, lido de
+   `APP.convocatorias`): passou a verificar também `c.subs`/`c.bancada` e etiquetar
+   "Bancada" corretamente — antes, por omissão, qualquer convocada fora do onze era
+   rotulada "Suplente" mesmo estando de facto na bancada. Mantido um fallback para
+   registos antigos sem `c.subs`/`c.bancada` (comportamento de sempre preservado).
+9. Cloud: `bancada` acrescentado a `_CLOUD_TABLE_SCHEMA.games.cols` (tabela dedicada,
+   desde o Incidente #3) e ao mapeador `games` em `pullCloud()`, os dois juntos (mesma
+   disciplina sempre repetida nesta base de código). `_syncConvocatoriaFromGame(g)`
+   passou a copiar `bancada:[...(g.bancada||[])]` para `APP.convocatorias` (não é tabela
+   dedicada — ver nota já existente neste ficheiro — por isso basta o campo seguir no
+   objeto `data` já copiado para o blob).
+10. SW bump para `sps-v214`.
+
+**Testado:** `node --check` ao `index.html` (script extraído). Suite nova dedicada
+(`test_bancada_v214.js`, Playwright/browser real, 9 secções): set/mutual-exclusão de
+11/S/B nos 3 sentidos; toggle on/off; botão "B"/badge "🪑 Bancada" presentes na UI; Ficha
+Pré-Jogo exclui sempre quem está em `g.bancada` (via `g.lineup`/`g.subs`, nunca tocados
+por `setBancada`); Lista de Convocados continua a incluir a bancada (convocada) e mostra
+"B" na nova coluna "Banco"; limpeza de `g.bancada` em `toggleConvocado(false)`/
+`desconvocarTodasAtletas`; `_purgeAthleteRefs` limpa `g.bancada`; `'bancada'` presente em
+`_CLOUD_TABLE_SCHEMA.games.cols`. Um bug de teste (não de produção) foi apanhado e
+corrigido durante o desenvolvimento desta suite: a secção 4 chamava `setBancada` outra
+vez sobre uma atleta que já estava em bancada desde a secção 1 (nunca tocada nas secções
+2-3), fazendo o toggle desligá-la em vez de confirmar o estado — corrigido para só
+chamar o toggle quando o estado ainda não é o esperado (determinístico, sem depender de
+histórico de chamadas anteriores). Regressão completa re-corrida (44 ficheiros de
+teste): todos passaram, exceto os mesmos 4 testes antigos já documentados como obsoletos
+por razões de infraestrutura própria, sem relação com este pedido (`test_coc.js`,
+`test_coc2.js`, `test_coc_edit.js`, `test_fisio_metricas_v189.js`).
+
+**Ainda por fazer:** nada pendente para este pedido.
+
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 
 Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão
