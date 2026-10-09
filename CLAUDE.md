@@ -3907,6 +3907,74 @@ referencia `trainings`/`_trView`/`_utNumFor`/`_trNavPick`.)
 
 **Ainda por fazer:** nada pendente para este pedido.
 
+## sps-v210 — Campo/Playbook: adversária sempre espelhada da minha equipa (09/10/2026)
+
+Pedido verbatim do Roger: "O que mudou: tanto no Jogo → Campo como no Quadro Tático do
+Playbook, apareceu um novo botão ao lado de 'Campo Inteiro/Meio Campo' — '⬇️ Viradas p/
+Trás' / '⬆️ Viradas p/ a Frente' — que troca a orientação por defeito dos marcadores
+(as 'pernas'/pezinhos) entre virados para baixo (como estava) e virados para a frente.,
+nesta questão quero que quando coloco adversários estes estejam espelhados ou seja a
+minha equipa por exemplo pezinhos para a frente e adversário para trás, entendes a
+ideia?"
+
+Interpretação confirmada antes de implementar (sem AskUserQuestion — pedido já estava
+claro e de baixo risco, mesmo critério do sps-v208): o botão de orientação do sps-v208
+(`_pitchFacingUp[mode]`/`pb.facingUp`) somava o mesmo desvio (0° ou 180°) à minha
+equipa E à adversária — ambas viravam para o mesmo lado ao clicar. O Roger quer as
+duas sempre de frente uma para a outra: quando a minha equipa está virada "para a
+frente", a adversária tem de estar virada "para trás", e vice-versa — um espelhamento
+automático de 180°, nos dois sentidos do botão, não um valor fixo.
+
+**O que foi construído:**
+
+1. **`_bibFacingOffset(ns,boardId,kind)` ganhou um 3º parâmetro** (`kind`, 'own' ou
+   'opponent'): continua a calcular o mesmo desvio "cru" do botão (0°/180°), mas
+   quando `kind==='opponent'` soma-lhe sempre mais 180° (`_bibNorm360(base+180)`). O
+   desvio da minha equipa não mudou — só o da adversária passou a ser sempre o
+   oposto do da minha equipa, nos dois estados do botão.
+2. **Nenhum valor gravado foi tocado** (mesmo princípio do sps-v208: `pos.facing`/
+   `o.facing` continuam sempre "crus"): o espelhamento soma-se só no momento de
+   desenhar/mostrar no slider, tal como o próprio desvio do botão. A rotação manual de
+   cada adversária (slider do modal de opções) continua inteiramente livre e por cima
+   deste espelhamento — gravar/ler passa a usar `_bibFacingOffset(ns,boardId,kind)`
+   em vez do desvio único de antes, em `_bibMarkerData`/`_bibApplyField` e nos 4 sítios
+   que desenham adversárias "à mão" (Jogo→Campo ao vivo e snapshot, Playbook ao vivo
+   e snapshot — `_jogoCampoHtml`/`_pitchSnapshotSvg`/`_pbOpponentsHtml`/
+   `_pbSnapshotSvg`).
+3. **Tooltip do botão atualizado** nos dois quadros, a deixar claro que agora só
+   controla a orientação da minha equipa e que a adversária acompanha espelhada
+   automaticamente.
+4. Efeito prático: mesmo com o botão nunca tocado (estado por defeito, "para trás"),
+   a adversária já nasce virada "para a frente" — as duas equipas já ficam de frente
+   uma para a outra sem precisar de mexer em nada.
+5. SW bump para `sps-v210`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_marker_mirror_v210.js`, Playwright/browser real, 6 secções): com o
+botão desligado a adversária já nasce espelhada (180°) da minha equipa (0°); com o
+botão ligado a minha equipa fica a 180° e a adversária volta a 0° (nunca igual);
+desenho ao vivo no Jogo→Campo reflete o espelhamento; rotação manual da adversária
+pelo slider continua livre e correta nos dois sentidos do botão (grava sempre o valor
+cru, nunca o efetivo); miniatura/snapshot da galeria do Jogo→Campo e do Playbook
+espelham corretamente; mesmo comportamento replicado e confirmado também no Playbook
+ao vivo e na sua galeria. Os testes existentes (`test_marker_facing_v208.js`, secções 5
+e 10, e `test_marker_evolution_v204.js`, 3 asserções) foram atualizados para refletir
+a nova regra de espelhamento — o comportamento antigo que testavam (adversária a
+seguir exatamente a mesma orientação da minha equipa) era precisamente o que este
+pedido veio corrigir. Regressão completa re-corrida sem falhas novas (38 ficheiros de
+teste, Playwright/browser real + suites `node`/`vm`): todos os ficheiros passaram,
+incluindo `test_ut_nav_v209.js`, `test_playbook_custom_boards_v207.js`,
+`test_playbook_game_bridge_v206.js`, `test_presentation_v202.js`,
+`test_tatico_v191.js`, `test_mobile_v187.js`, `test_autosave_v203.js`,
+`test_hydration_v188.js`. (4 testes antigos sem relação nenhuma com marcadores/campo
+— `test_coc.js`, `test_coc2.js`, `test_coc_edit.js`, `test_fisio_metricas_v189.js` —
+continuam a falhar por razões de infraestrutura do próprio teste, já conhecidas desde
+o sps-v209; `test_nutri_anamnese_diario_supl2_v195.js` falhou uma vez por lentidão do
+browser num timeout de 30s — Playwright flakiness sem relação com este pedido — e
+passou de novo ao repetir isoladamente.)
+
+**Ainda por fazer:** nada pendente para este pedido.
+
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 
 Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão

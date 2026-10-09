@@ -1388,17 +1388,27 @@ function _freehandPathD(points){
 // _pbOpponentsHtml/_pitchSnapshotSvg/_pbSnapshotSvg). Por isso a rotação livre de cada
 // marcador (pedido explícito do Roger para não perder) nunca muda de comportamento — o
 // botão só desloca o "0°" de referência que o slider usa.
-function _bibFacingOffset(ns,boardId){
+function _bibNorm360(deg){return ((deg%360)+360)%360;}
+// sps-v210 (pedido do Roger 09/10/2026): "quero que quando coloco adversários estes
+// estejam espelhados [...] a minha equipa por exemplo [virada] para a frente e
+// adversário para trás" — os adversários passam a ter sempre +180° a mais do que a
+// minha equipa neste desvio por defeito, para ficarem sempre de frente uma para a
+// outra (nunca de costas), automaticamente, nos dois sentidos do botão. Kind
+// ('own'/'opponent') decide só este espelhamento extra — a rotação manual de cada
+// marcador (slider) continua livre e por cima disto, exatamente como no sps-v208.
+function _bibFacingOffset(ns,boardId,kind){
+  let base;
   if(ns==='pb'){
     const pb=(APP.playbook||[]).find(x=>x.id===boardId);
-    return (pb&&pb.facingUp)?180:0;
+    base=(pb&&pb.facingUp)?180:0;
+  } else {
+    const mode=String(boardId).split('|')[1];
+    base=_pitchFacingUp[mode]?180:0;
   }
-  const mode=String(boardId).split('|')[1];
-  return _pitchFacingUp[mode]?180:0;
+  return kind==='opponent'?_bibNorm360(base+180):base;
 }
-function _bibNorm360(deg){return ((deg%360)+360)%360;}
 function _bibMarkerData(ns,boardId,kind,mid){
-  const off=_bibFacingOffset(ns,boardId);
+  const off=_bibFacingOffset(ns,boardId,kind);
   if(ns==='pb'){
     const pb=(APP.playbook||[]).find(x=>x.id===boardId);if(!pb)return null;
     if(kind==='own'){
@@ -1452,9 +1462,9 @@ function _bibApplyField(ns,boardId,kind,mid,field,value){
     if(kind==='own'){
       const def=_pbDefaultPos(mid-1,pb.fullView);
       if(!pb.positions[mid])pb.positions[mid]={x:def[0],y:def[1]};
-      pb.positions[mid][field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId)):value;
+      pb.positions[mid][field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId,kind)):value;
     } else {
-      const o=(pb.opponents||[]).find(x=>x.id===mid);if(o)o[field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId)):value;
+      const o=(pb.opponents||[]).find(x=>x.id===mid);if(o)o[field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId,kind)):value;
     }
     pb.updatedAt=new Date().toISOString();
     _syncPlaybook(pb);saveData();_renderPbDetail();
@@ -1479,12 +1489,12 @@ function _bibApplyField(ns,boardId,kind,mid,field,value){
         // sps-v208: value é a rotação EFETIVA mostrada no slider (já com o desvio de
         // _pitchFacingUp[mode] incluído) — subtrai-se antes de gravar, para posMap[mid]
         // .facing continuar a guardar sempre o valor "cru" (ver _bibFacingOffset).
-        posMap[mid].facing=_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId));
+        posMap[mid].facing=_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId,kind));
       } else if(field==='color'){
         _pitchMarkerColorsMap(g,mode)[mid]=value;
       }
     } else {
-      const o=_pitchOpponents(g,mode).find(x=>x.id===mid);if(o)o[field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId)):value;
+      const o=_pitchOpponents(g,mode).find(x=>x.id===mid);if(o)o[field]=field==='facing'?_bibNorm360((+value||0)-_bibFacingOffset(ns,boardId,kind)):value;
     }
     saveData();_renderJogoDetailFull();
   }
@@ -6864,8 +6874,11 @@ function _pitchSnapshotSvg(mode,snap,w,forceNames){
   // cor própria de cada entrada (o.color||'#e63946') e a sua rotação (o.facing||0).
   // Snapshots anteriores a esta versão não têm estes dois campos, por isso caem sempre nos
   // valores por defeito em vez de rebentar.
+  // sps-v210: adversária espelhada (+180 sobre a minha equipa) também na miniatura/
+  // snapshot, mesmo princípio de _bibFacingOffset.
+  const oppFacingOff=_bibNorm360(facingOff+180);
   (snap.opponents||[]).forEach(o=>{
-    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+facingOff);
+    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+oppFacingOff);
     dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,null,rad,facing)}</g>`;
   });
   if(snap.ball){
@@ -6958,7 +6971,9 @@ function _jogoCampoHtml(g){
   // atleta. Toca (sem arrastar) abre o modal de opções (cor/rotação/remover).
   const opponentsList=_pitchOpponents(g,mode);
   const opponentMarkers=opponentsList.map(o=>{
-    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+(_pitchFacingUp[mode]?180:0));
+    // sps-v210: adversária espelhada (+180 sobre a minha equipa, ver _bibFacingOffset)
+    // — fica sempre de frente para a minha equipa, nunca de costas.
+    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+_bibFacingOffset('pitch',g.id+'|'+mode,'opponent'));
     return `<g class="pitch-opp" data-aid="${o.id}" data-kind="opponent" data-gid="${g.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pitchDragStart(event,'${g.id}','${o.id}','${mode}','opponent')" onclick="event.stopPropagation();if(!_pitchWasDrag)_openMarkerOptionsModal('pitch','${g.id}|${mode}','opponent','${o.id}');_pitchWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
       ${_bibMarkerSvg(fill,null,rad,facing)}
@@ -7014,7 +7029,7 @@ function _jogoCampoHtml(g){
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <button class="tab-btn ${_pitchFullView[mode]?'on':''}" onclick="_pitchToggleView('${g.id}','${mode}')" title="Alternar campo inteiro/meio campo">${_pitchFullView[mode]?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
-      <button class="tab-btn ${_pitchFacingUp[mode]?'on':''}" onclick="_pitchToggleFacing('${g.id}','${mode}')" title="Orientação padrão dos marcadores — a rotação manual de cada um continua livre">${_pitchFacingUp[mode]?'⬆️ Viradas p/ a Frente':'⬇️ Viradas p/ Trás'}</button>
+      <button class="tab-btn ${_pitchFacingUp[mode]?'on':''}" onclick="_pitchToggleFacing('${g.id}','${mode}')" title="Orientação padrão da minha equipa — a adversária fica sempre espelhada, de frente para a minha equipa; a rotação manual de cada marcador continua livre">${_pitchFacingUp[mode]?'⬆️ Viradas p/ a Frente':'⬇️ Viradas p/ Trás'}</button>
       <button class="btn btn-sm btn-gh" onclick="pitchAddOpponent('${g.id}','${mode}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
       <button class="btn btn-sm btn-gh" onclick="pitchClearOpponents('${g.id}','${mode}')" title="Remove todas as adversárias deste quadro">🗑️ Limpar Adversárias</button>
       <button class="btn btn-sm ${ballPos?'btn-r':'btn-gh'}" onclick="pitchToggleBall('${g.id}','${mode}')" title="Adicionar/remover marcador da bola">⚽ ${ballPos?'Remover Bola':'Bola'}</button>
@@ -17156,7 +17171,9 @@ function _pbMarkersHtml(pb){
 function _pbOpponentsHtml(pb){
   const rad=7;
   return (pb.opponents||[]).map(o=>{
-    const facing=_bibNorm360((o.facing||0)+(pb.facingUp?180:0));const fill=o.color||'#e63946';
+    // sps-v210: adversária espelhada (+180 sobre a minha equipa, ver _bibFacingOffset)
+    // — fica sempre de frente para a minha equipa, nunca de costas.
+    const facing=_bibNorm360((o.facing||0)+_bibFacingOffset('pb',pb.id,'opponent'));const fill=o.color||'#e63946';
     return `<g class="pb-mk" data-kind="opponent" data-mid="${o.id}" transform="translate(${o.x},${o.y})" style="cursor:grab" onmousedown="pbDragStart(event,'${pb.id}','opponent','${o.id}')" onclick="event.stopPropagation();if(!_pbWasDrag)_openMarkerOptionsModal('pb','${pb.id}','opponent','${o.id}');_pbWasDrag=false;">
       <circle r="${rad+3}" fill="transparent"/>
       ${_bibMarkerSvg(fill,null,rad,facing)}
@@ -17530,8 +17547,11 @@ function _pbSnapshotSvg(snap,w,athleteAssign){
       if(a)dots+=`<text x="${p.x}" y="${(p.y+17).toFixed(1)}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.9)">${escHtml(_shortName(a))}</text>`;
     }
   }
+  // sps-v210: adversária espelhada (+180 sobre a minha equipa) também na miniatura/
+  // snapshot do Playbook, mesmo princípio de _bibFacingOffset.
+  const oppFacingOff=_bibNorm360(facingOff+180);
   (snap.opponents||[]).forEach(o=>{
-    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+facingOff);
+    const fill=o.color||'#e63946';const facing=_bibNorm360((o.facing||0)+oppFacingOff);
     dots+=`<g transform="translate(${o.x},${o.y})">${_bibMarkerSvg(fill,null,rad,facing)}</g>`;
   });
   if(snap.ball)dots+=`<g transform="translate(${snap.ball.x},${snap.ball.y})">${_ballIconSvg(Math.round(rad*0.6))}</g>`;
@@ -17568,7 +17588,7 @@ function _pbBoardHtml(pb){
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <button class="tab-btn ${pb.fullView?'on':''}" onclick="pbToggleView('${pb.id}')" title="Alternar campo inteiro/meio campo">${pb.fullView?'🏟️ Campo Inteiro':'📐 Meio Campo'}</button>
-      <button class="tab-btn ${pb.facingUp?'on':''}" onclick="pbToggleFacing('${pb.id}')" title="Orientação padrão dos marcadores — a rotação manual de cada um continua livre">${pb.facingUp?'⬆️ Viradas p/ a Frente':'⬇️ Viradas p/ Trás'}</button>
+      <button class="tab-btn ${pb.facingUp?'on':''}" onclick="pbToggleFacing('${pb.id}')" title="Orientação padrão da minha equipa — a adversária fica sempre espelhada, de frente para a minha equipa; a rotação manual de cada marcador continua livre">${pb.facingUp?'⬆️ Viradas p/ a Frente':'⬇️ Viradas p/ Trás'}</button>
       <button class="btn btn-sm btn-gh" onclick="pbAddOpponent('${pb.id}')" title="Adicionar marcador de adversária">🔴 + Adversária</button>
       <button class="btn btn-sm btn-gh" onclick="pbClearOpponents('${pb.id}')" title="Remove todas as adversárias deste quadro">🗑️ Limpar Adversárias</button>
       <button class="btn btn-sm ${pb.ball?'btn-r':'btn-gh'}" onclick="pbToggleBall('${pb.id}')" title="Adicionar/remover marcador da bola">⚽ ${pb.ball?'Remover Bola':'Bola'}</button>
