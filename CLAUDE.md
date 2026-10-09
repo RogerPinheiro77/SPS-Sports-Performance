@@ -3806,6 +3806,107 @@ completa re-corrida sem falhas novas: `test_playbook_custom_boards_v207.js`,
 
 **Ainda por fazer:** nada pendente para este pedido.
 
+## sps-v209 — Treinos: numeração de UT sempre sequencial + navegador "próxima UT" (09/10/2026)
+
+Pedido verbatim do Roger: "no planeamento, esta semana o treino de 4ª dei folga as
+atletas, sendo assim toda a numeração das unidade de treino deixaram de ser
+sequenciais, quero que estas o sejam sempre ou seja como eliminei a ut de 4ª para
+folga que era a 24, e a de 5ª era a 25, com a eliminação manteve-se igual e o que eu
+quero é que automaticamente essa ordem se restabeleça, quero também que a primeira
+data a aparecer seja sempre da próxima ut, e o roll up me permita ir para as
+anteriores ou seguintes, esta a entender a ideia? analiza e dá a tua visão sobre o
+assunto antes de avançar".
+
+Investigação feita antes de avançar (pedido explícito do Roger — análise antes de
+código): não existe nenhum número de UT guardado nos dados — "UT24"/"UT25" é só texto
+escrito à mão no `title` de cada unidade de treino. Por isso apagar uma UT no meio
+nunca "desarranja" nada para reparar — o texto antigo simplesmente fica, e não há
+onde "restabelecer" uma ordem que nunca existiu como dado. A solução correta não é
+reescrever títulos antigos, é parar de depender deles: um número SEMPRE calculado
+pela posição cronológica (nunca guardado como campo próprio), o mesmo princípio já
+usado em `_microcicloNumFor`/`_macroNumFor` (documentado nos próprios comentários do
+código como deliberado: "nunca guardado [...] para nunca ficar desatualizado se um
+evento for movido/apagado").
+
+3 decisões confirmadas com o Roger por `AskUserQuestion` antes de implementar (as 3
+recomendadas foram as escolhidas):
+1. **Âmbito da numeração**: por equipa (recomendado) — cada equipa (`teamId`) tem a
+   sua própria sequência 1,2,3... nunca partilhada com outra equipa.
+2. **Vista por defeito**: navegador por defeito + lista continua disponível
+   (recomendado) — a secção Treinos abre sempre numa UT única em destaque (a mais
+   próxima), com "Ver lista completa" a um clique para quem quiser a lista toda/
+   pesquisar.
+3. **Títulos antigos**: deixar como estão (recomendado) — "UT24"/"UT25" escritos à
+   mão no título não são tocados; o número automático aparece à parte, sempre
+   correto, sem reescrever histórico.
+
+**O que foi construído:**
+
+1. **Numeração nunca guardada, sempre recalculada**: `_utsOrderedFor(teamId)` ordena
+   as UTs dessa equipa por data → horaInicio → id (desempate estável quando duas UTs
+   caem no mesmo dia); `_utNumFor(tr)` devolve a posição (1-based) da UT nessa lista.
+   Apagar/inserir uma UT no meio nunca deixa buracos e nunca precisa de "reparação"
+   manual — o número de TODAS as UTs dessa equipa é recalculado em cada render.
+2. **Navegador "próxima UT" como estado por defeito** (`_renderTrNav`, novo):
+   `_trView` passa a ter 3 estados (`nav`/`list`/`detail`) em vez de 2 — `renderTreinos()`
+   tornou-se um despachante puro; o corpo antigo da lista mudou-se para `_renderTrList()`.
+   `_trNavPick()` escolhe a UT a mostrar: a já selecionada tem sempre prioridade (ex.
+   ao voltar de uma seta); senão, a mais próxima a partir de hoje dentro da equipa
+   principal (T1 — mesmo defeito usado em todo o resto da app); sem nenhuma UT futura
+   (fim de época), cai na mais recente já feita (rótulo muda para "Última Unidade de
+   Treino"). Fica sempre fixo na equipa principal — nunca salta para outra equipa só
+   porque essa tem uma UT cronologicamente mais próxima, para o destaque ao abrir
+   Treinos nunca trocar de equipa de forma imprevisível.
+3. **Setas "← Anterior"/"Seguinte →"** (`trNavStep(dir)`) andam dentro da mesma
+   equipa pela lista ordenada (`_utsOrderedFor`), desativadas nas pontas (não há UT 0
+   nem UT além da última).
+4. **"← Voltar" do detalhe regressa à origem certa**: novo estado `_trReturnTo`
+   (`'nav'` ou `'list'`) gravado em cada ponto de entrada no detalhe — abrir pelo
+   navegador volta ao navegador (na mesma UT), abrir pela lista (cartão/"Abrir")
+   volta à lista; `openTrainingUnit`/`_createNewUT` (entradas "salta para esta UT
+   específica") voltam ao navegador, por ser o "lar" natural dessas ações.
+5. **Pesquisa da lista por número** passa a procurar o número AUTOMÁTICO
+   (`_utNumFor`) quando o texto digitado é só dígitos, em vez de substring do título —
+   sem isto, procurar "2" encontrava à toa qualquer título com um "2" lá dentro
+   (UT22/UT24/UT25 têm todos um "2"), mesmo sem ser essa a UT com número automático 2.
+   Pesquisa com texto (não numérica) continua a procurar no título, como antes.
+6. SW bump para `sps-v209`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_ut_nav_v209.js`, Playwright/browser real, 8 secções, com 2 equipas —
+T1 e uma T2 "Sub-17" só para garantir que a numeração/navegador nunca misturam
+equipas): numeração sequencial por equipa (1-2-3-4 em T1, 1-2 em T2, sem partilhar
+contador); apagar a UT do meio (o caso real do Roger: UT23 "B" dá folga) renumera
+automaticamente as seguintes sem tocar em nada à mão; navegador abre por defeito na
+UT mais próxima a partir de hoje, com o rótulo "📍 Próxima Unidade de Treino"; setas
+Anterior/Seguinte andam na equipa certa com os limites desativados nas pontas;
+alternar lista↔navegador funciona e o navegador recalcula a próxima UT (não fica
+preso na última vista); pesquisa por número automático; "← Voltar" regressa ao
+navegador ou à lista segundo a origem; sem nenhuma UT futura agendada, cai na mais
+recente já feita (equipa principal, nunca salta para outra equipa com uma UT futura).
+Regressão completa re-corrida sem falhas novas (35 ficheiros de teste existentes,
+Playwright/browser real): `test_autosave_v203.js`, `test_coc3.js`,
+`test_convoc_badge2.js`, `test_estagios.js`, `test_gdFoldRunning.js`,
+`test_guiao.js`, `test_hydration_v188.js`, `test_lista_convocados.js`,
+`test_lista_convocados2.js`, `test_marker_evolution_v204.js`,
+`test_marker_facing_v208.js`, `test_mobile_v187.js`, `test_na_dashboard_v192.js`,
+`test_na_plantel_v192.js`, `test_nutri_anamnese_diario_supl2_v195.js`,
+`test_nutri_metricas_v190.js`, `test_nutri_plantel_v194.js`,
+`test_palestra_fields.js`, `test_palestra_ordem_v180.js`,
+`test_pdf_a4_uma_pagina_v183.js`, `test_pdf_convocados_colunas.js`,
+`test_playbook_custom_boards_v207.js`, `test_playbook_dom_v201.js`,
+`test_playbook_game_bridge_v206.js`, `test_playbook_roundtrip.js`,
+`test_playbook_v201.js`, `test_presentation_v202.js`, `test_pull_bug_repro.js`,
+`test_pull_fix.js`, `test_saveEvent_preserva_rsvp.js`, `test_supl_v193.js`,
+`test_tatico.js`, `test_tatico_e2e.js`, `test_tatico_v191.js`. (4 testes antigos sem
+relação nenhuma com Treinos — `test_coc.js`, `test_coc2.js`, `test_coc_edit.js`,
+`test_fisio_metricas_v189.js` — continuam a falhar por razões de infraestrutura do
+próprio teste (sandbox `vm` sem stubs completos do DOM/Supabase, função renomeada),
+sem qualquer ligação a este pedido; confirmado por grep que nenhum destes 4 ficheiros
+referencia `trainings`/`_trView`/`_utNumFor`/`_trNavPick`.)
+
+**Ainda por fazer:** nada pendente para este pedido.
+
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 
 Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão

@@ -9205,8 +9205,30 @@ const _PHASES=[
 // _trSortAsc=true (cronológica, mais antiga/próxima primeiro) passou a ser o defeito —
 // o Roger reportou que a ordem antiga (mais recente/futura primeiro) enterrava a
 // próxima sessão relevante no fundo da lista, com 122 UTs da época a ir até 30/06/2027.
-let _trView='list',_trId=null,_trExTab='aquecimento',_trSortAsc=true,_trSearch='';
+// sps-v209 (pedido do Roger 09/10/2026): esse problema de "a sessão relevante perdida
+// numa lista de 122" passou a ter uma solução melhor do que só inverter a ordem — ver
+// _renderTrNav. _trView='nav' (em vez de 'list') passou a ser o estado inicial: a secção
+// Treinos abre sempre na próxima UT, com 'list'/'detail' a continuarem disponíveis a um
+// clique. _trReturnTo guarda para onde o botão "← Voltar" do detalhe deve voltar (nav ou
+// list), dependendo de onde a UT foi aberta.
+let _trView='nav',_trId=null,_trExTab='aquecimento',_trSortAsc=true,_trSearch='',_trReturnTo='nav';
 const _TUID=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// Nº da UT dentro da sua equipa — calculado sempre pela posição na lista ordenada por
+// data (nunca guardado como campo próprio), mesmo princípio já usado em
+// _microcicloNumFor/_macroNumFor (ver CLAUDE.md sps-v209): apagar ou inserir uma UT no
+// meio nunca deixa buracos nem precisa de "renumerar" nada à mão, porque o número de
+// TODAS as UTs dessa equipa é recalculado em cada render. Desempate por horaInicio e
+// depois por id para duas UTs na mesma data ficarem numa ordem estável e sempre igual.
+function _utsOrderedFor(teamId){
+  return (APP.trainings||[]).filter(t=>(t.teamId||'T1')===(teamId||'T1'))
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.horaInicio||'').localeCompare(b.horaInicio||'')||String(a.id).localeCompare(String(b.id)));
+}
+function _utNumFor(tr){
+  if(!tr)return null;
+  const list=_utsOrderedFor(tr.teamId);
+  const idx=list.findIndex(t=>t.id===tr.id);
+  return idx>=0?idx+1:null;
+}
 
 function openTrainingUnit(eventId,eventDate){
   if(!APP.trainings)APP.trainings=[];
@@ -9219,7 +9241,7 @@ function openTrainingUnit(eventId,eventDate){
     APP.trainings.push(tr);saveData();
     if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);
   }
-  _trId=tr.id;_trView='detail';_trExTab='aquecimento';
+  _trId=tr.id;_trView='detail';_trExTab='aquecimento';_trReturnTo='nav';
   navTo('treinos');
 }
 
@@ -9228,20 +9250,26 @@ function openTrainingUnit(eventId,eventDate){
 // página inteira a cada tecla faria o campo perder o foco depois de cada carácter.
 function _trCardsHtml(){
   const q=_trSearch.trim().toLowerCase();
+  // sps-v209: quando a pesquisa é só números, procura pelo nº automático (_utNumFor)
+  // — não por substring do título. Sem isto, procurar "2" encontrava à toa qualquer
+  // título com um "2" lá dentro (UT22, UT24, UT25 têm todos um "2"), em vez de só a
+  // UT cujo número automático é 2 — o que a caixa de pesquisa promete ("ex: 23").
+  // Pesquisa não-numérica continua a procurar por texto no título, como antes.
+  const qIsNum=/^\d+$/.test(q);
   const list=[...APP.trainings]
-    .filter(tr=>!q||(tr.title||'').toLowerCase().includes(q))
+    .filter(tr=>!q||(qIsNum?String(_utNumFor(tr))===q:(tr.title||'').toLowerCase().includes(q)))
     .sort((a,b)=>_trSortAsc?a.date.localeCompare(b.date):b.date.localeCompare(a.date));
   if(!list.length)return `<div style="text-align:center;padding:48px 20px;color:var(--t2);font-size:14px">${q?'Nenhuma unidade encontrada para "'+escHtml(_trSearch)+'".':'Ainda não tens unidades de treino.<br><small>Cria uma pelo Planeamento clicando em 🗒️ num evento de treino, ou clica em "+ Nova Unidade".</small>'}</div>`;
   return list.map(tr=>{
     const totalEx=Object.values(tr.exercises||{}).flat().length;
-    return`<div class="card" style="cursor:pointer;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px" onclick="_trId='${tr.id}';_trView='detail';_trExTab='aquecimento';renderTreinos()">
+    return`<div class="card" style="cursor:pointer;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px" onclick="_trId='${tr.id}';_trView='detail';_trReturnTo='list';_trExTab='aquecimento';renderTreinos()">
       <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
-        <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px">${escHtml(tr.title||'Unidade de Treino')}${tr.pdfImported?'<span style="font-size:10px;font-weight:700;color:#1D9E75;background:#1D9E7522;padding:1px 7px;border-radius:20px">✓ PDF</span>':''}</div>
+        <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px"><span style="color:var(--t2);font-weight:600">UT ${_utNumFor(tr)}</span> · ${escHtml(tr.title||'Unidade de Treino')}${tr.pdfImported?'<span style="font-size:10px;font-weight:700;color:#1D9E75;background:#1D9E7522;padding:1px 7px;border-radius:20px">✓ PDF</span>':''}</div>
         <div style="font-size:12px;color:var(--t2)">${tr.date?fmtDate(tr.date):''}${tr.horaInicio?' '+tr.horaInicio:''}${tr.horaFim?'–'+tr.horaFim:''}${tr.local?' · '+escHtml(tr.local):''}</div>
         <div style="font-size:11px;color:var(--t2);margin-top:2px">${totalEx} exercício${totalEx!==1?'s':''} · ${tr.duracao||0} min${tr.objetivo?' · '+escHtml(tr.objetivo):''}</div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0">
-        <button class="btn btn-sm btn-g" onclick="event.stopPropagation();_trId='${tr.id}';_trView='detail';_trExTab='aquecimento';renderTreinos()">Abrir</button>
+        <button class="btn btn-sm btn-g" onclick="event.stopPropagation();_trId='${tr.id}';_trView='detail';_trReturnTo='list';_trExTab='aquecimento';renderTreinos()">Abrir</button>
         <button class="btn btn-sm btn-r" onclick="event.stopPropagation();deleteTreino('${tr.id}')">🗑️</button>
       </div>
     </div>`;
@@ -9252,9 +9280,17 @@ function _trSearchUpdate(v){
   const el=document.getElementById('tr-cards-list');
   if(el)el.innerHTML=_trCardsHtml();
 }
+// sps-v209: renderTreinos() passou a ser só o despachante entre os 3 estados
+// (detail/list/nav) — a lista em si (antigo corpo desta função) mudou-se para
+// _renderTrList(), e o novo estado por defeito é a navegação por UT única
+// (_renderTrNav, ver mais abaixo) em vez de saltar sempre direto para a lista toda.
 function renderTreinos(){
   if(!APP.trainings)APP.trainings=[];
   if(_trView==='detail'&&_trId){_renderTrDetail();return;}
+  if(_trView==='list'){_renderTrList();return;}
+  _renderTrNav();
+}
+function _renderTrList(){
   _trView='list';_trId=null;
   document.getElementById('pg-treinos').innerHTML=`
   <div class="sh">
@@ -9266,10 +9302,82 @@ function renderTreinos(){
   </div>
   <input type="file" id="tr-pdf-inp" accept="application/pdf" style="display:none" onchange="handleImportTreinoPDF(this)">
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+    <button class="btn btn-gh btn-sm" onclick="_trView='nav';renderTreinos()" title="Voltar ao navegador da próxima UT">🧭 Próxima UT</button>
     <input class="fc" id="tr-search" style="flex:1;min-width:160px" placeholder="🔍 Pesquisar por número (ex: 23)" value="${escHtml(_trSearch)}" oninput="_trSearchUpdate(this.value)">
     <button class="btn btn-gh btn-sm" onclick="_trSortAsc=!_trSortAsc;renderTreinos()" title="Inverter ordem">${_trSortAsc?'⬆️ Mais antiga primeiro':'⬇️ Mais recente primeiro'}</button>
   </div>
   <div id="tr-cards-list" style="display:flex;flex-direction:column;gap:8px">${_trCardsHtml()}</div>`;
+}
+// sps-v209 (pedido do Roger 09/10/2026): "a primeira [UT] a aparecer seja sempre a
+// próxima" — em vez de abrir sempre na lista toda (122 UTs a ir até 30/06/2027, fácil de
+// perder a sessão relevante nisso tudo), a secção Treinos passa a abrir nesta UT única
+// em destaque, com setas para andar para a UT anterior/seguinte (dentro da mesma
+// equipa — _utsOrderedFor) sem teres de voltar à lista. "Ver lista completa" continua
+// sempre a um clique para pesquisar ou ver tudo de uma vez.
+function _trNavPick(){
+  if(!APP.trainings||!APP.trainings.length)return null;
+  // UT já selecionada (ex: ao voltar de uma seta ou do detalhe) tem sempre prioridade —
+  // só recalcula "a próxima" quando ainda não há nenhuma UT em foco.
+  const cur=_trId?APP.trainings.find(t=>t.id===_trId):null;
+  if(cur)return cur;
+  const td=today();
+  // sps-v209: a escolha "por defeito" (sem nenhuma UT ainda em foco) fica presa à
+  // equipa principal (T1 — o mesmo defeito usado em toda a app para o plantel
+  // principal), e nunca salta para outra equipa (ex: Sub-17) só porque essa tem uma
+  // UT cronologicamente mais próxima — senão a UT em destaque ao abrir Treinos
+  // trocaria de equipa de forma imprevisível. Só usa as UTs de outra equipa como
+  // reserva se a equipa principal não tiver nenhuma UT.
+  const mine=APP.trainings.filter(t=>(t.teamId||'T1')==='T1');
+  const pool=mine.length?mine:APP.trainings;
+  const upcoming=[...pool].filter(t=>t.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  if(upcoming)return upcoming;
+  // Sem nenhuma UT futura agendada (ex: fim de época) — mostra a mais recente já feita.
+  return [...pool].sort((a,b)=>b.date.localeCompare(a.date))[0];
+}
+function trNavStep(dir){
+  const tr=_trNavPick();if(!tr)return;
+  const list=_utsOrderedFor(tr.teamId);
+  const idx=list.findIndex(t=>t.id===tr.id);
+  const next=list[idx+dir];
+  if(next){_trId=next.id;renderTreinos();}
+}
+function _renderTrNav(){
+  _trView='nav';
+  const tr=_trNavPick();
+  const topBtns=`<div class="sh-a" style="display:flex;gap:8px">
+      <button class="btn btn-gh" onclick="triggerImportTreinoPDF()">📥 Importar PDF</button>
+      <button class="btn btn-g" onclick="_createNewUT()">+ Nova Unidade</button>
+    </div>`;
+  if(!tr){
+    _trId=null;
+    document.getElementById('pg-treinos').innerHTML=`
+    <div class="sh"><div style="font-size:15px;font-weight:800">Unidades de Treino</div>${topBtns}</div>
+    <input type="file" id="tr-pdf-inp" accept="application/pdf" style="display:none" onchange="handleImportTreinoPDF(this)">
+    <div style="text-align:center;padding:48px 20px;color:var(--t2);font-size:14px">Ainda não tens unidades de treino.<br><small>Cria uma pelo Planeamento clicando em 🗒️ num evento de treino, ou clica em "+ Nova Unidade".</small></div>`;
+    return;
+  }
+  _trId=tr.id;
+  const list=_utsOrderedFor(tr.teamId);
+  const idx=list.findIndex(t=>t.id===tr.id);
+  const total=list.length;
+  const isFuture=tr.date>=today();
+  const totalEx=Object.values(tr.exercises||{}).flat().length;
+  const teamName=(APP.teams.find(t=>t.id===(tr.teamId||'T1'))||{}).name||'';
+  document.getElementById('pg-treinos').innerHTML=`
+  <div class="sh"><div style="font-size:15px;font-weight:800">Unidades de Treino</div>${topBtns}</div>
+  <input type="file" id="tr-pdf-inp" accept="application/pdf" style="display:none" onchange="handleImportTreinoPDF(this)">
+  <div class="card" style="padding:20px;text-align:center;margin-bottom:10px">
+    <div style="font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${isFuture?'📍 Próxima Unidade de Treino':'Última Unidade de Treino'}${teamName?' · '+escHtml(teamName):''}</div>
+    <div style="font-size:22px;font-weight:800;margin-bottom:2px">UT ${idx+1} <span style="font-size:13px;font-weight:600;color:var(--t2)">de ${total}</span></div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:4px">${escHtml(tr.title||'Unidade de Treino')}${tr.pdfImported?' <span style="font-size:10px;font-weight:700;color:#1D9E75;background:#1D9E7522;padding:1px 7px;border-radius:20px">✓ PDF</span>':''}</div>
+    <div style="font-size:13px;color:var(--t2);margin-bottom:14px">${tr.date?fmtDate(tr.date):''}${tr.horaInicio?' '+tr.horaInicio:''}${tr.horaFim?'–'+tr.horaFim:''}${tr.local?' · '+escHtml(tr.local):''} · ${totalEx} exercício${totalEx!==1?'s':''}</div>
+    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-gh" ${idx<=0?'disabled':''} onclick="trNavStep(-1)" title="UT anterior">← Anterior</button>
+      <button class="btn btn-g" onclick="_trReturnTo='nav';_trView='detail';_trExTab='aquecimento';renderTreinos()">Abrir</button>
+      <button class="btn btn-gh" ${idx>=total-1?'disabled':''} onclick="trNavStep(1)" title="UT seguinte">Seguinte →</button>
+    </div>
+  </div>
+  <div style="text-align:center;margin-bottom:12px"><button class="btn btn-gh btn-sm" onclick="_trView='list';renderTreinos()">📋 Ver lista completa</button></div>`;
 }
 
 function _createNewUT(){
@@ -9277,7 +9385,7 @@ function _createNewUT(){
   const tr={id:_TUID(),eventId:null,date:today(),title:'',objetivo:'',local:'',duracao:90,jogadoras:18,horaInicio:'',horaFim:'',notes:'',exercises:{aquecimento:[],principal:[],jogo:[],retorno:[]},teamId:'T1',guestIds:[]};
   APP.trainings.push(tr);saveData();
   if(_sync&&_supa&&_cid)cloudUpsert('trainings',tr);
-  _trId=tr.id;_trView='detail';_trExTab='aquecimento';renderTreinos();
+  _trId=tr.id;_trView='detail';_trExTab='aquecimento';_trReturnTo='nav';renderTreinos();
 }
 
 // Calcula a hora de fim automaticamente (hora início + duração) sempre que um dos dois
@@ -9334,7 +9442,10 @@ function _renderTrDetail(){
   const stColor=pct>80?'#c0392b':pct>50?'#e67e22':'#1D9E75';
   document.getElementById('pg-treinos').innerHTML=`
   <div class="sh" style="flex-wrap:wrap;gap:8px">
-    <button class="btn btn-gh btn-sm" onclick="_trView='list';_trId=null;renderTreinos()">← Todas as UTs</button>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-gh btn-sm" onclick="_trView=_trReturnTo||'nav';_trId=(_trView==='list'?null:_trId);renderTreinos()">← Voltar</button>
+      <span style="font-size:12px;font-weight:700;color:var(--t2)">UT ${_utNumFor(tr)}</span>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-gh btn-sm" onclick="document.getElementById('tr-pdf-inp-detail').click()">📥 Importar PDF</button>
       <button class="btn btn-sm" onclick="exportTreinoPDF('${tr.id}')">📄 Exportar PDF</button>
