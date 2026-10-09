@@ -4926,7 +4926,7 @@ async function shareJogoCampoImage(gid,mode){
   const prevEl=clone.querySelector('#arrow-preview');if(prevEl)prevEl.remove();
   const svgStr=new XMLSerializer().serializeToString(clone);
   const svgUrl='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svgStr)));
-  const modeLabel=(_SETPIECE_TABS.find(([k])=>k===mode)||['',mode])[1]||mode;
+  const modeLabel=_pitchModeLabel(g,mode);
   const clubName=(APP.config&&APP.config.clubName)||'';
   const opp=g.opp?('vs '+g.opp):'';
   const dt=g.date?fmtDate(g.date):'';
@@ -5013,6 +5013,12 @@ function _initG(g){
   // Notas por quadro do Campo Tático (Tático/Canto Def/Canto Of/Livre) — texto livre que
   // aparece na caixa "Notas" do PDF desse quadro. Pedido do Roger, 24/08/2026.
   if(!g.pitchNotes)g.pitchNotes={tatico:'',cornerDef:'',cornerOf:'',freeKick:''};
+  // Separadores importados do Playbook (sps-v207, 09/10/2026) — além dos 4 quadros fixos
+  // acima, cada {id,label,pbId} é um separador extra na mesma barra do Campo; os dados do
+  // quadro em si (posições/adversárias/bola/tarefas/etc.) vivem nos mesmos objetos acima,
+  // só que com `id` como chave em vez de 'cornerDef'/'cornerOf'/'freeKick' (ver
+  // pbLoadIntoGameConfirm/_pitchModeLabel/pitchRemoveCustomBoard).
+  if(!g.customBoards)g.customBoards=[];
   return g;
 }
 // Data/hora local (mesmo formato do <input type="datetime-local">, "AAAA-MM-DDTHH:MM")
@@ -6468,6 +6474,16 @@ function _setConvocatoriaPublishAt(gid,val){
 // Livre), cada um com posições e tarefas próprias em g.setpiecePositions/g.setpieceTasks
 // — pedido do Roger, 24/08/2026, para poder montar rotinas específicas por fase de jogo.
 const _SETPIECE_TABS=[['tatico','🏟️ Tático'],['cornerDef','🔴 Canto Defensivo'],['cornerOf','🔵 Canto Ofensivo'],['freeKick','🎯 Livre']];
+// sps-v207: rótulo de um quadro, fixo (um dos 4 de _SETPIECE_TABS) OU separador importado
+// do Playbook (g.customBoards, mode é o id gerado em pbLoadIntoGameConfirm) — centraliza o
+// que antes eram 3 cópias do mesmo `_SETPIECE_TABS.find(...)` (barra de separadores,
+// impressão em printJogoCampo, partilha de imagem em shareJogoCampoImage).
+function _pitchModeLabel(g,mode){
+  const fixed=_SETPIECE_TABS.find(([k])=>k===mode);
+  if(fixed)return fixed[1];
+  const cb=(g.customBoards||[]).find(c=>c.id===mode);
+  return cb?('📂 '+cb.label):'Campo';
+}
 let _jogoCampoTab='tatico';
 // Campo inteiro/meio campo por quadro (sps-v185) — pedido do Roger, 29/09/2026: o Tático
 // mostra o campo inteiro por defeito (visão de conjunto da organização), os 3 quadros de
@@ -6559,6 +6575,32 @@ function pitchToggleOwnVisibility(gid,aid,mode){
   const list=_pitchHiddenOwnList(g,mode);
   const idx=list.indexOf(aid);
   if(idx>=0)list.splice(idx,1);else list.push(aid);
+  saveData();_renderJogoDetailFull();
+}
+// sps-v207 (pedido do Roger 09/10/2026): remove um separador importado do Playbook da
+// barra de um Jogo (o "✕" em _jogoCampoHtml) — nunca um dos 4 fixos (Tático/Canto
+// Defensivo/Canto Ofensivo/Livre), que nem têm esse botão. Ação destrutiva (apaga tudo o
+// que estiver desenhado nesse separador), por isso pede confirmação. Limpa todas as
+// estruturas por quadro keyed por `id` (mesmas que _pbApplyPlayToGame escreveu ao
+// carregar) para não deixar lixo órfão nos dados do jogo; se o separador removido era o
+// que estava selecionado, volta para "tatico".
+function pitchRemoveCustomBoard(gid,id){
+  const g=APP.games.find(x=>x.id===gid);if(!g)return;
+  if(!g.customBoards)return;
+  const idx=g.customBoards.findIndex(c=>c.id===id);if(idx<0)return;
+  if(!confirm('Remover este separador e tudo o que está desenhado nele? Não é possível desfazer.'))return;
+  g.customBoards.splice(idx,1);
+  if(g.setpiecePositions)delete g.setpiecePositions[id];
+  if(g.setpieceTasks)delete g.setpieceTasks[id];
+  if(g.pitchOpponents)delete g.pitchOpponents[id];
+  if(g.pitchBall)delete g.pitchBall[id];
+  if(g.pitchMarkerColors)delete g.pitchMarkerColors[id];
+  if(g.pitchHiddenOwn)delete g.pitchHiddenOwn[id];
+  if(g.setpieceSnapshots)delete g.setpieceSnapshots[id];
+  if(g.pitchNotes)delete g.pitchNotes[id];
+  if(g.pitchArrows)delete g.pitchArrows[id];
+  delete _pitchFullView[id];
+  if(_jogoCampoTab===id)_jogoCampoTab='tatico';
   saveData();_renderJogoDetailFull();
 }
 function pitchClearOpponents(gid,mode){
@@ -6795,8 +6837,15 @@ function _jogoCampoHtml(g){
   const PW=300,PH=420;
   const mode=_jogoCampoTab;
   const posMap=_pitchPos(g,mode),taskMap=_pitchTasks(g,mode),arrowList=_pitchArrows(g,mode);
-  const modeTabs=_SETPIECE_TABS.map(([k,lb])=>`<button class="tab-btn ${mode===k?'on':''}" onclick="_jogoCampoTab='${k}';_renderJogoDetailFull()">${lb}</button>`).join('');
-  const modeLabel=(_SETPIECE_TABS.find(([k])=>k===mode)||['',''])[1]||'Campo';
+  // sps-v207 (pedido do Roger 09/10/2026): além dos 4 quadros fixos, a barra mostra agora
+  // um separador por cada jogada importada do Playbook neste jogo (g.customBoards — ver
+  // pbLoadIntoGameConfirm), com um "✕" para remover (pitchRemoveCustomBoard); os 4 fixos
+  // nunca têm esse "✕". event.stopPropagation() no "✕" evita mudar de separador ao clicar
+  // só para remover.
+  const customBoards=g.customBoards||[];
+  const modeTabs=_SETPIECE_TABS.map(([k,lb])=>`<button class="tab-btn ${mode===k?'on':''}" onclick="_jogoCampoTab='${k}';_renderJogoDetailFull()">${lb}</button>`).join('')
+    +customBoards.map(cb=>`<button class="tab-btn ${mode===cb.id?'on':''}" onclick="_jogoCampoTab='${cb.id}';_renderJogoDetailFull()" title="Jogada importada do Playbook">📂 ${escHtml(cb.label)} <span onclick="event.stopPropagation();pitchRemoveCustomBoard('${g.id}','${cb.id}')" title="Remover este separador" style="cursor:pointer;opacity:.65">✕</span></button>`).join('');
+  const modeLabel=_pitchModeLabel(g,mode);
   // Os 4 quadros mostram só meio campo, com a mesma grelha e círculos pequenos — o
   // tático deixou de ter formações predefinidas, pedido do Roger 24/08/2026 (antes só
   // se distinguia dos 3 de bolas paradas por mostrar o campo inteiro + formação 4-3-3
@@ -6918,7 +6967,7 @@ function _jogoCampoHtml(g){
       <button class="btn btn-sm ${ballPos?'btn-r':'btn-gh'}" onclick="pitchToggleBall('${g.id}','${mode}')" title="Adicionar/remover marcador da bola">⚽ ${ballPos?'Remover Bola':'Bola'}</button>
       <button class="btn btn-sm btn-gh" onclick="pitchHideAllOwn('${g.id}','${mode}')" title="Esconde todos os marcadores próprios deste quadro">🙈 Esconder Todos</button>
       ${hiddenOwnList.length?`<button class="btn btn-sm btn-gh" onclick="pitchRestoreAllOwn('${g.id}','${mode}')" title="Mostra de novo os marcadores escondidos">👁️ Restaurar Todos</button>`:''}
-      <button class="btn btn-sm btn-gh" onclick="pbLoadPickerOpen('${g.id}','${mode}')" title="Carregar uma jogada da Biblioteca do Playbook para este quadro">📂 Carregar do Playbook</button>
+      <button class="btn btn-sm btn-gh" onclick="pbLoadPickerOpen('${g.id}')" title="Carregar uma jogada da Biblioteca do Playbook como um novo separador">📂 Carregar do Playbook</button>
       ${mode!=='tatico'?`<button class="btn btn-sm btn-gh" onclick="pbSaveFromGameBoard('${g.id}','${mode}')" title="Guardar este quadro na biblioteca do Playbook">💾 Guardar na Biblioteca</button>`:''}
       <button class="btn btn-sm btn-gh" onclick="pitchOpenPresentation('${g.id}','${mode}')" title="Ecrã cheio para mostrar no campo/treino">🖥️ Modo Apresentação</button>
       ${opponentsList.length?`<span style="font-size:11px;color:var(--t2)">Toca numa adversária para opções</span>`:''}
@@ -6993,7 +7042,7 @@ function printJogoCampo(gid){
   const svgHtml=svgEl.outerHTML
     .replace(/\son(?:mousedown|mousemove|mouseup|mouseleave|click)="[^"]*"/g,'')
     .replace(/style="[^"]*"/,'style="width:100%;display:block;border-radius:6px"');
-  const label=(_SETPIECE_TABS.find(([k])=>k===mode)||['',''])[1]||'Campo';
+  const label=_pitchModeLabel(g,mode);
   const taskMap=_pitchTasks(g,mode);
   // Mesma ordem por número de camisola do quadro em ecrã (ver _jogoCampoHtml).
   const sortedLineup=g.lineup.map(aid=>({aid,a:APP.athletes.find(x=>x.id===aid)})).filter(x=>x.a)
@@ -17438,15 +17487,20 @@ function pbApplyToGameConfirm(pbid){
 }
 // 8c) "Carregar do Playbook" — ponte inversa, acedida de dentro do próprio Jogo → Campo
 // (pedido do Roger 08/10/2026: "aceder às jogadas criadas no playbook" sem ter de ir à
-// página Playbook escolher primeiro o jogo). O jogo e o quadro já estão definidos pelo
-// contexto (onde o botão foi clicado) — só falta escolher a jogada, por isso a UI é uma
-// lista filtrável (mesmos filtros de categoria/submomento/texto da página Playbook, com
-// estado próprio para não interferir com os filtros dessa página) em vez de um
-// formulário. Scoped por equipa (pb.teamId===g.teamId) para nunca listar jogadas de
-// outra equipa. Reaproveita _pbApplyPlayToGame — nunca duplica a lógica de mapeamento.
-let _pbPickerGid=null,_pbPickerMode=null,_pbPickerCat='',_pbPickerSub='',_pbPickerText='';
-function pbLoadPickerOpen(gid,mode){
-  _pbPickerGid=gid;_pbPickerMode=mode;_pbPickerCat='';_pbPickerSub='';_pbPickerText='';
+// página Playbook escolher primeiro o jogo). O jogo já está definido pelo contexto (onde
+// o botão foi clicado) — só falta escolher a jogada, por isso a UI é uma lista filtrável
+// (mesmos filtros de categoria/submomento/texto da página Playbook, com estado próprio
+// para não interferir com os filtros dessa página) em vez de um formulário. Scoped por
+// equipa (pb.teamId===g.teamId) para nunca listar jogadas de outra equipa. Reaproveita
+// _pbApplyPlayToGame — nunca duplica a lógica de mapeamento.
+// sps-v207 (pedido do Roger 09/10/2026): deixou de haver um "quadro de destino" fixo —
+// carregar uma jogada já não substitui o que estiver no quadro selecionado, passa a
+// acrescentar um separador novo à mesma barra (ver pbLoadIntoGameConfirm/
+// pitchRemoveCustomBoard/_jogoCampoHtml), por isso este picker já não precisa de saber
+// qual quadro estava aberto quando foi chamado — só o jogo.
+let _pbPickerGid=null,_pbPickerCat='',_pbPickerSub='',_pbPickerText='';
+function pbLoadPickerOpen(gid){
+  _pbPickerGid=gid;_pbPickerCat='';_pbPickerSub='';_pbPickerText='';
   const catOpts=PB_CATEGORIES.map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
   const body=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
     <select class="fc" style="width:auto" id="pb-picker-cat" onchange="_pbPickerCat=this.value;_pbPickerSub='';_pbPickerRefresh()"><option value="">Todos os momentos</option>${catOpts}</select>
@@ -17489,12 +17543,34 @@ function _pbPickerRefresh(){
   el.innerHTML=(squadEmpty?'<p style="font-size:11px;color:var(--t2);margin-bottom:8px">⚠️ Este jogo ainda não tem onze/banco definidos no Pré-Jogo — define primeiro para poder carregar uma jogada.</p>':'')+
     (list.length?rowsHtml:'<p style="font-size:12px;color:var(--t2)">Sem jogadas na Biblioteca para esta equipa/filtro.</p>');
 }
+// sps-v207 (pedido do Roger 09/10/2026): "ir ficando os vários carregados na barra onde
+// está o tático, canto defensivo, etc." — carregar uma jogada já não substitui um dos 4
+// quadros fixos; acrescenta (ou reaproveita) um separador em g.customBoards. Três
+// decisões confirmadas por AskUserQuestion antes de implementar: (1) reimportar a MESMA
+// jogada (mesmo pbId) neste jogo muda para o separador já existente em vez de duplicar;
+// (2) cada separador importado pode ser removido depois (pitchRemoveCustomBoard) — só
+// esses, nunca os 4 fixos; (3) o nome do separador é pedido ao utilizador no momento de
+// importar (não vem automático do título da jogada), pré-preenchido com esse título para
+// só ser preciso confirmar se servir.
 function pbLoadIntoGameConfirm(pbid){
   const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
   const g=APP.games.find(x=>x.id===_pbPickerGid);if(!g)return;
-  if(!confirm('Isto substitui o que já estiver desenhado neste quadro (posições, adversárias, bola). Continuar?'))return;
-  if(!_pbApplyPlayToGame(pb,g,_pbPickerMode))return;
-  closeMod();toast('Jogada carregada ✓');_renderJogoDetailFull();
+  if(!g.customBoards)g.customBoards=[];
+  const existing=g.customBoards.find(c=>c.pbId===pbid);
+  if(existing){
+    _jogoCampoTab=existing.id;
+    closeMod();toast('Já estava carregada — mudei para esse separador ✓');_renderJogoDetailFull();
+    return;
+  }
+  if(!_pbSortedSquad(g).length)return toast('Este jogo ainda não tem onze/banco definidos','err');
+  const label=(prompt('Nome para este novo separador:',pb.title||'Jogada')||'').trim();
+  if(!label)return;
+  const id='cb_'+uid();
+  if(!_pbApplyPlayToGame(pb,g,id))return; // defensivo — o onze/banco já foi confirmado acima
+  g.customBoards.push({id,label,pbId:pbid});
+  saveData();
+  _jogoCampoTab=id;
+  closeMod();toast('Jogada carregada como novo separador ✓');_renderJogoDetailFull();
 }
 // 8b) "Guardar na Biblioteca" — único ponto que toca em _jogoCampoHtml (o botão em si está
 // lá, procurar "Guardar na Biblioteca"). Conversão inversa da de cima: posições por aid
@@ -21024,7 +21100,9 @@ async function pullCloud(){
           // Mesmo padrão ||undefined (nunca ||{}/||[]) dos restantes campos jsonb desta
           // tabela — ver nota do Incidente #3 acima sobre undefined vs {} truthy.
           pitchOpponents:r.pitch_opponents||undefined,pitchBall:r.pitch_ball||undefined,
-          pitchMarkerColors:r.pitch_marker_colors||undefined,pitchHiddenOwn:r.pitch_hidden_own||undefined
+          pitchMarkerColors:r.pitch_marker_colors||undefined,pitchHiddenOwn:r.pitch_hidden_own||undefined,
+          // sps-v207: separadores importados do Playbook (ver _initG/pbLoadIntoGameConfirm).
+          customBoards:r.custom_boards||undefined
         }));
         const atRisk=_gdLiveGamesAtRisk();
         if(atRisk.length){
@@ -21397,7 +21475,9 @@ const _CLOUD_TABLE_SCHEMA={
     // por fora, ver CLAUDE.md sps-v204). Corrige de passagem um bug de sincronização
     // pré-existente desde o sps-v185: pitch_opponents/pitch_ball NUNCA estiveram aqui nem
     // em pullCloud() antes desta versão — nunca sincronizavam entre dispositivos.
-    'pitch_opponents','pitch_ball','pitch_marker_colors','pitch_hidden_own'],
+    'pitch_opponents','pitch_ball','pitch_marker_colors','pitch_hidden_own',
+    // sps-v207: separadores importados do Playbook dentro de Jogo → Campo (ver _initG).
+    'custom_boards'],
     rename:{teamId:'team_id',oppLogo:'opp_logo',eventId:'event_id',viceCaptain:'vice_captain',oppFormation:'opp_formation',
       oppStrengths:'opp_strengths',oppWeaknesses:'opp_weaknesses',oppSetPieces:'opp_set_pieces',oppScoutLink:'opp_scout_link',
       preGameNotes:'pre_game_notes',postGameNotes:'post_game_notes',fpfUrl:'fpf_url',concentracaoLocal:'concentracao_local',
@@ -21410,7 +21490,8 @@ const _CLOUD_TABLE_SCHEMA={
       pitchNotes:'pitch_notes',oppTactical:'opp_tactical',oppSPBoards:'opp_sp_boards',oppRoster:'opp_roster',
       tacticoSnapshots:'tactico_snapshots',setpieceSnapshots:'setpiece_snapshots',liveSession:'live_session',
       playerStats:'player_stats',fpfTimeline:'fpf_timeline',noShow:'no_show',pitchArrows:'pitch_arrows',
-      pitchOpponents:'pitch_opponents',pitchBall:'pitch_ball',pitchMarkerColors:'pitch_marker_colors',pitchHiddenOwn:'pitch_hidden_own'}}
+      pitchOpponents:'pitch_opponents',pitchBall:'pitch_ball',pitchMarkerColors:'pitch_marker_colors',pitchHiddenOwn:'pitch_hidden_own',
+      customBoards:'custom_boards'}}
 };
 // Aviso visível de falha de sync: até aqui, um erro em cloudUpsert só ia para
 // console.warn — a atleta/staff nunca sabia que um registo não tinha chegado à cloud

@@ -3660,6 +3660,89 @@ como estava — só bolas paradas, nunca o Tático — porque o pedido confirmad
 CARREGAR jogadas no Jogo, não sobre gravar mais formatos; se também quiser alargar essa
 direção (gravar qualquer quadro/categoria), é um pedido novo e pequeno a confirmar.
 
+## sps-v207 — Playbook → Jogo/Campo: separadores dinâmicos em vez de 1 quadro fixo (09/10/2026)
+
+Pedido verbatim do Roger (anexou um screenshot do Jogo → Campo Tático): "nesta zona do
+jogo quero poder carregar do playbook qualquer jogada, nao ficar limitasdo as que
+aparecem, a ideia é ter um botao do qual importo e ir ficando os varios carregados na
+barra onde esta o tatico, canto defensivo, canto ofensivo , etc. Entendes o que digo,
+analiza e da feedback antes de avançar."
+
+Interpretação: no sps-v206, "Carregar do Playbook" substituía um dos 4 quadros fixos
+(Tático/Canto Defensivo/Canto Ofensivo/Livre). O Roger quer que, em vez de substituir,
+cada jogada importada ganhe o SEU PRÓPRIO separador novo na mesma barra, acumulando
+quantas jogadas quiser importar, lado a lado com os 4 fixos (que nunca desaparecem).
+Confirmado por `AskUserQuestion` antes de avançar, com 3 decisões:
+
+1. **Reimportar a mesma jogada** (já tem separador neste jogo): muda para o separador já
+   existente em vez de duplicar — opção recomendada, escolhida pelo Roger.
+2. **Remover um separador importado**: sim, com um botão de fechar ("✕") — só nos
+   separadores importados, nunca nos 4 fixos — opção recomendada, escolhida pelo Roger.
+3. **Nome do separador**: o Roger escolheu a opção NÃO recomendada — perguntar um nome
+   curto ao importar (em vez de usar automaticamente o título da jogada no Playbook),
+   pré-preenchido com esse título para só ser preciso confirmar se servir.
+
+**O que foi construído:**
+
+1. **Modelo de dados novo**: `g.customBoards: [{id,label,pbId}]` por jogo (inicializado em
+   `_initG`). Cada separador importado é identificado por um `id` gerado (`'cb_'+uid()`),
+   e TODAS as estruturas por quadro já existentes (`setpiecePositions`/`setpieceTasks`/
+   `pitchOpponents`/`pitchBall`/`pitchMarkerColors`/`pitchHiddenOwn`/`setpieceSnapshots`/
+   `pitchNotes`/`pitchArrows`) são reaproveitadas SEM NENHUMA alteração — já criavam a
+   chave em falta lazily (`if(!x[mode])x[mode]=...`), por isso um `id` dinâmico funciona
+   exatamente como `'cornerDef'`/`'cornerOf'`/`'freeKick'` em todas elas. `_pitchFullView`
+   (módulo, não por jogo) também só ganha chaves novas, sem persistir — igual ao
+   comportamento já existente para os 4 quadros fixos.
+2. **`_pitchModeLabel(g,mode)`** — função nova que centraliza o rótulo de um quadro, fixo
+   ou importado (antes eram 3 cópias do mesmo `_SETPIECE_TABS.find(...)`, na barra de
+   separadores, em `printJogoCampo` e em `shareJogoCampoImage`).
+3. **Barra de separadores** (`_jogoCampoHtml`): depois dos 4 botões fixos, um botão por
+   `g.customBoards[i]` com "📂 " + nome e um "✕" para remover
+   (`pitchRemoveCustomBoard`, `event.stopPropagation()` para não mudar de separador ao
+   clicar só para remover).
+4. **`pitchRemoveCustomBoard(gid,id)`** — remove um separador importado (nunca um dos 4
+   fixos, que nem têm o botão): pede confirmação (ação destrutiva — apaga tudo o que
+   estiver desenhado nesse separador), limpa a entrada em todas as estruturas por quadro
+   listadas no ponto 1 para não deixar lixo órfão, e volta para "tatico" se o separador
+   removido era o selecionado.
+5. **`pbLoadIntoGameConfirm` reescrita**: já não substitui um quadro fixo com um
+   `confirm()` — se a jogada (`pbId`) já tinha separador neste jogo, muda para esse
+   separador (toast "Já estava carregada"); senão valida onze/banco definido (antes de
+   perguntar o nome, para não pedir a toa se vai falhar), pede o nome com `prompt()`
+   pré-preenchido com o título da jogada, gera o `id`, aplica a jogada com
+   `_pbApplyPlayToGame` (função do sps-v206, reaproveitada sem alterações) e acrescenta o
+   novo separador a `g.customBoards`.
+6. **`pbLoadPickerOpen` simplificada**: deixou de receber/guardar qual quadro estava
+   aberto quando foi chamado (`_pbPickerMode` removida) — já não há "quadro de destino"
+   fixo, só o jogo.
+7. **Supabase — 1 coluna nova**: ao contrário dos campos por quadro (que não precisam de
+   migração, por serem JSONB e aceitarem chaves novas automaticamente), `g.customBoards`
+   é um array novo a nível do jogo, por isso precisou da sua própria coluna. Migração
+   aplicada via MCP (`games_add_custom_boards`):
+   `alter table public.games add column if not exists custom_boards jsonb default '[]'::jsonb;`
+   — mais a entrada correspondente em `_CLOUD_TABLE_SCHEMA.games` (coluna `custom_boards`,
+   rename `customBoards:'custom_boards'`) e no mapeador de `pullCloud`.
+8. SW bump para `sps-v207`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_playbook_custom_boards_v207.js`, Playwright/browser real): criação de
+separador novo com o nome pedido (incl. pré-preenchido aceite tal como está), reimportar
+a mesma jogada muda para o separador existente em vez de duplicar, remoção de separador
+(com confirmação, limpeza de todas as estruturas por quadro, volta para "tatico" se era o
+selecionado), separadores importados nunca aparecem com "✕" nos 4 fixos,
+`_pitchModeLabel` correto em `printJogoCampo`/`shareJogoCampoImage` para separadores
+importados, e round-trip do schema `custom_boards` (push/pull Supabase sem perdas).
+`test_playbook_game_bridge_v206.js` atualizado para a nova assinatura de
+`pbLoadPickerOpen` (já sem o 2º argumento) e para o novo comportamento de
+`pbLoadIntoGameConfirm` (já não há `confirm()` de substituição — passou a confirmar só
+que o picker continua a terminar num carregamento com sucesso, com a cobertura
+exaustiva do comportamento novo a cargo da suite dedicada acima). Regressão completa
+re-corrida sem falhas novas: `test_marker_evolution_v204.js`, `test_playbook_v201.js`,
+`test_presentation_v202.js`, `test_tatico_v191.js`, `test_playbook_dom_v201.js`,
+`test_mobile_v187.js`.
+
+**Ainda por fazer:** nada pendente para este pedido.
+
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 
 Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão
