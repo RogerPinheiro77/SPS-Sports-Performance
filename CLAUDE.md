@@ -4028,9 +4028,48 @@ incluindo `test_marker_mirror_v210.js`, `test_ut_nav_v209.js`,
 `test_coc_edit.js`, `test_fisio_metricas_v189.js` — continuam a falhar por razões de
 infraestrutura já conhecidas desde o sps-v209).
 
-**Ainda por fazer:** espessura da linha/tamanho do triângulo das setas — enviei um
-ficheiro (`opcoes_setas.html`) com 6 combinações lado a lado (traço 2px/triângulo 6×6
-atual, até opções mais finas/pequenas) para o Roger escolher antes de implementar.
+**Ainda por fazer (nesta sessão):** espessura da linha/tamanho do triângulo das setas —
+enviei um ficheiro (`opcoes_setas.html`) com 6 combinações lado a lado para o Roger
+escolher antes de implementar. Resposta do Roger: "opçao D" (traço 1px, triângulo
+4×4) — implementado a seguir, ver sps-v212.
+
+## sps-v212 — Campo/Playbook: setas mais finas e com triângulo mais pequeno (09/10/2026)
+
+Pedido verbatim do Roger: "e as setas prefiro ligeiramente mais fina a linha e o
+triangulo na ponta mais pequeno tambem, mostra-me varias opçoes para eu selecionar".
+
+Antes de implementar, enviei `opcoes_setas.html` (6 combinações lado a lado: a atual —
+traço 2px, triângulo 6×6 — e 5 opções progressivamente mais finas/pequenas) para o
+Roger escolher visualmente em vez de adivinhar o grau exato que ele queria. Resposta:
+"opçao D" = traço 1px, triângulo 4×4 (refX/refY escalados na mesma proporção do
+triângulo original: refX=3.33, refY=2, path `M0,0 L4,2 L0,4 Z`).
+
+**O que foi construído:** aplicado `stroke-width="1"` (era "2") e o novo `<marker>`
+4×4 em TODOS os sítios que desenham setas — e só nesses, nada mais no campo foi
+tocado:
+1. Jogo→Campo — definição do marcador (`<defs><marker id="arrowhead-${g.id}">`),
+   setas gravadas (reta e traço livre, em `_jogoCampoHtml`) e o preview ao vivo
+   enquanto se desenha (`_pitchArrowPreviewEl`).
+2. Playbook — os mesmos 3 sítios, equivalentes (`pb-arrowhead-${pb.id}`,
+   `_pbBoardHtml`, `_pbArrowPreviewEl`).
+Nenhum dado gravado foi tocado (as setas guardam só os pontos/cor/estilo, nunca a
+espessura — o valor vem sempre do CSS/atributo no momento de desenhar), por isso esta
+mudança aplica-se de imediato a todas as setas já existentes, sem precisar de
+migração nem de voltar a desenhar nada.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_arrow_style_v212.js`, Playwright/browser real, 3 secções): triângulo
+do marcador é 4×4 (`markerWidth="4" markerHeight="4" refX="3.33" refY="2"`, path
+`M0,0 L4,2 L0,4 Z`) tanto no Jogo→Campo como no Playbook; setas já gravadas (reta e
+traço livre) desenham com `stroke-width="1"`; o preview ao vivo (enquanto se arrasta
+a seta) também nasce já com `stroke-width="1"`. Regressão completa re-corrida sem
+falhas novas (40 ficheiros de teste, Playwright/browser real): todos passaram,
+incluindo `test_drag_fluid_v211.js`, `test_marker_mirror_v210.js`,
+`test_playbook_custom_boards_v207.js`, `test_tatico_v191.js` (os 4 testes antigos sem
+relação com isto continuam a falhar por razões de infraestrutura já conhecidas desde
+o sps-v209).
+
+**Ainda por fazer:** nada pendente para este pedido.
 
 ## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
 

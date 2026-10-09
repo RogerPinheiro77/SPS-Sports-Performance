@@ -4906,7 +4906,7 @@ function _pitchArrowPreviewEl(svg,tag,gid){
     prev=document.createElementNS('http://www.w3.org/2000/svg',tag);
     prev.id='arrow-preview';
     prev.setAttribute('fill','none');
-    prev.setAttribute('stroke-width','2');
+    prev.setAttribute('stroke-width','1');
     prev.setAttribute('marker-end','url(#arrowhead-'+gid+')');
     svg.appendChild(prev);
   }
@@ -7076,7 +7076,7 @@ function _jogoCampoHtml(g){
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
       <div class="jc-pitch-wrap" style="flex-shrink:0">
       <svg id="pitch-svg-${g.id}" viewBox="0 0 ${PW} ${_pitchViewH(mode)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pitchArrowStart(event,'${g.id}','${mode}')">
-        <defs><marker id="arrowhead-${g.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
+        <defs><marker id="arrowhead-${g.id}" markerWidth="4" markerHeight="4" refX="3.33" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 Z" fill="#fff"/></marker></defs>
         <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
         <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
         <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -7092,8 +7092,8 @@ function _jogoCampoHtml(g){
         <circle cx="150" cy="362" r="2.5" fill="rgba(255,255,255,.45)"/>
         ${arrowList.map(a=>{
           const color=a.color||'#fff';const dash=a.style==='dashed'?'6,4':'none';
-          if(a.kind==='freehand')return `<path d="${_freehandPathD(a.points)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></path>`;
-          return `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></line>`;
+          if(a.kind==='freehand')return `<path d="${_freehandPathD(a.points)}" fill="none" stroke="${color}" stroke-width="1" stroke-dasharray="${dash}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></path>`;
+          return `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${color}" stroke-width="1" stroke-dasharray="${dash}" marker-end="url(#arrowhead-${g.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pitchArrowClick(event,'${g.id}','${a.id}','${mode}')"><title>Toca para apagar</title></line>`;
         }).join('')}
         ${g.lineup.length?players:`<text x="150" y="100" text-anchor="middle" fill="rgba(255,255,255,.35)" font-size="11">Define o onze no Pré-Jogo</text>`}
         ${opponentMarkers}
@@ -17368,7 +17368,7 @@ function _pbArrowPreviewEl(svg,tag,pbid){
     prev=document.createElementNS('http://www.w3.org/2000/svg',tag);
     prev.id='pb-arrow-preview';
     prev.setAttribute('fill','none');
-    prev.setAttribute('stroke-width','2');
+    prev.setAttribute('stroke-width','1');
     prev.setAttribute('marker-end','url(#pb-arrowhead-'+pbid+')');
     svg.appendChild(prev);
   }
@@ -17633,7 +17633,7 @@ function _pbBoardHtml(pb){
     <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
       <div class="jc-pitch-wrap" style="flex-shrink:0">
         <svg id="pb-pitch-${pb.id}" viewBox="0 0 ${PW} ${_pbViewH(pb.fullView)}" style="width:100%;display:block;border-radius:8px;touch-action:none" onmousedown="pbArrowStart(event,'${pb.id}')">
-          <defs><marker id="pb-arrowhead-${pb.id}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff"/></marker></defs>
+          <defs><marker id="pb-arrowhead-${pb.id}" markerWidth="4" markerHeight="4" refX="3.33" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 Z" fill="#fff"/></marker></defs>
           <rect width="${PW}" height="${PH}" fill="#2d7a2d" rx="8"/>
           <rect x="15" y="15" width="270" height="390" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
           <line x1="15" y1="210" x2="285" y2="210" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
@@ -17645,8 +17645,8 @@ function _pbBoardHtml(pb){
           <rect x="105" y="359" width="90" height="26" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
           ${arrowList.map(a=>{
             const color=a.color||'#fff';const dash=a.style==='dashed'?'6,4':'none';
-            if(a.kind==='freehand')return `<path d="${_freehandPathD(a.points)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></path>`;
-            return `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></line>`;
+            if(a.kind==='freehand')return `<path d="${_freehandPathD(a.points)}" fill="none" stroke="${color}" stroke-width="1" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></path>`;
+            return `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${color}" stroke-width="1" stroke-dasharray="${dash}" marker-end="url(#pb-arrowhead-${pb.id})" style="cursor:pointer" onmousedown="event.stopPropagation()" onclick="pbArrowClick(event,'${pb.id}','${a.id}')"><title>Toca para apagar</title></line>`;
           }).join('')}
           ${_pbMarkersHtml(pb)}
           ${_pbOpponentsHtml(pb)}
