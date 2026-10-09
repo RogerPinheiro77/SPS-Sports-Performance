@@ -680,7 +680,7 @@ const _gdForceLocalGameIds=new Set();
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null,hydrationGuidelines:null,playbookSubmomentos:null},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null,hydrationGuidelines:null,playbookSubmomentos:null,playbookMomentos:null},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],macrocycles:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
@@ -16964,7 +16964,26 @@ const PB_SUBMOMENTOS_DEFAULT={
 };
 function _pbInitConfig(){
   if(!APP.config.playbookSubmomentos)APP.config.playbookSubmomentos=JSON.parse(JSON.stringify(PB_SUBMOMENTOS_DEFAULT));
+  // sps-v215 (pedido do Roger 09/10/2026): momentos (categorias de topo) deixam de ser só
+  // os 5 fixos — tal como os submomentos, ganham "+ Novo momento..." e ficam disponíveis
+  // em lista a partir daí. Os 5 fixos de PB_CATEGORIES nunca são apagáveis; os criados
+  // pelo utilizador vivem aqui, mesmo padrão lazy-init de baixa frequência de escrita já
+  // usado para naGuidelines/hydrationGuidelines/playbookSubmomentos.
+  if(!APP.config.playbookMomentos)APP.config.playbookMomentos=[];
   PB_CATEGORIES.forEach(([k])=>{if(!APP.config.playbookSubmomentos[k])APP.config.playbookSubmomentos[k]=[];});
+  APP.config.playbookMomentos.forEach(m=>{if(!APP.config.playbookSubmomentos[m.key])APP.config.playbookSubmomentos[m.key]=[];});
+}
+// Lista completa de momentos (os 5 fixos + os criados pelo utilizador) e o rótulo de um
+// momento por chave — usados em todo o lado onde antes só se lia PB_CATEGORIES, para os
+// momentos criados pelo utilizador aparecerem exatamente como os fixos (filtros, selects,
+// legendas de PDF, etc.).
+function _pbAllCategories(){
+  _pbInitConfig();
+  return PB_CATEGORIES.concat((APP.config.playbookMomentos||[]).map(m=>[m.key,m.label]));
+}
+function _pbCatLabel(key){
+  const found=_pbAllCategories().find(c=>c[0]===key);
+  return found?found[1]:(key||'');
 }
 function _syncPlaybook(pb){if(_sync)cloudUpsert('playbook',pb);}
 function _pbInit(pb){
@@ -16982,20 +17001,51 @@ function _pbInit(pb){
   if(!pb.arrows)pb.arrows=[];
 }
 
-// ── Gestor de submomentos por categoria — prompt() simples (mesmo padrão já usado em
+// ── Gestor de momentos + submomentos — prompt() simples (mesmo padrão já usado em
 // editCompetitionLinks/criação de quartos em Estágios), aberto da lista ou do editor.
 function pbManageSubmomentosOpen(){
   _pbInitConfig();
-  const body=PB_CATEGORIES.map(([cat,label])=>{
+  const cats=_pbAllCategories();
+  const momChips=cats.map(([k,l])=>{
+    const isCustom=(APP.config.playbookMomentos||[]).some(m=>m.key===k);
+    return `<span style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--brd);border-radius:12px;display:inline-flex;align-items:center;gap:4px;margin:2px">${escHtml(l)}${isCustom?`<span style="cursor:pointer;color:var(--t2)" onclick="removePbMomento('${k}')" title="Remover">✕</span>`:''}</span>`;
+  }).join('');
+  const subsBody=cats.map(([cat,label])=>{
     const subs=APP.config.playbookSubmomentos[cat]||[];
     const chips=subs.map(s=>`<span style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--brd);border-radius:12px;display:inline-flex;align-items:center;gap:4px;margin:2px">${escHtml(s)}<span style="cursor:pointer;color:var(--t2)" onclick="removePbSubmomento('${cat}','${escHtml(s)}')" title="Remover">✕</span></span>`).join('');
     return `<div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:4px">${label}</div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:4px">${escHtml(label)}</div>
       <div>${chips||'<span style="font-size:11px;color:var(--t2)">Sem submomentos</span>'}</div>
       <button class="btn btn-xs btn-gh" style="margin-top:4px" onclick="addPbSubmomento('${cat}')">+ Adicionar</button>
     </div>`;
   }).join('');
-  openMod('⚙️ Gerir Submomentos do Playbook',body);
+  const body=`
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:4px">Momentos</div>
+      <div>${momChips}</div>
+      <button class="btn btn-xs btn-gh" style="margin-top:4px" onclick="addPbMomento()">+ Adicionar Momento</button>
+    </div>
+    <div style="font-size:12px;font-weight:700;margin:14px 0 10px;border-top:1px solid var(--brd);padding-top:12px">Submomentos por Momento</div>
+    ${subsBody}`;
+  openMod('⚙️ Gerir Momentos e Submomentos do Playbook',body);
+}
+function addPbMomento(){
+  _pbInitConfig();
+  const nome=(prompt('Novo momento:')||'').trim();if(!nome)return;
+  if(_pbAllCategories().some(c=>c[1].toLowerCase()===nome.toLowerCase())){toast('Já existe um momento com esse nome');return;}
+  const key='cm_'+uid();
+  APP.config.playbookMomentos.push({key,label:nome});
+  APP.config.playbookSubmomentos[key]=[];
+  saveData();pbManageSubmomentosOpen();
+  if(_pbDetailId)_renderPbDetail();else renderPlaybook();
+}
+function removePbMomento(key){
+  _pbInitConfig();
+  if(!confirm('Remover este momento da lista? As jogadas já criadas com ele mantêm o valor guardado, mas deixa de estar disponível para escolher em jogadas novas ou editadas.'))return;
+  APP.config.playbookMomentos=(APP.config.playbookMomentos||[]).filter(m=>m.key!==key);
+  delete APP.config.playbookSubmomentos[key];
+  saveData();pbManageSubmomentosOpen();
+  if(_pbDetailId)_renderPbDetail();else renderPlaybook();
 }
 function addPbSubmomento(cat){
   _pbInitConfig();
@@ -17014,7 +17064,7 @@ function removePbSubmomento(cat,nome){
 function addPbSubmomentoInline(pbid){
   const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
   _pbInitConfig();
-  const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||'';
+  const catLabel=_pbCatLabel(pb.category);
   const nome=(prompt('Novo submomento para '+catLabel+':')||'').trim();if(!nome)return;
   if(!APP.config.playbookSubmomentos[pb.category].includes(nome))APP.config.playbookSubmomentos[pb.category].push(nome);
   pb.submomento=nome;pb.updatedAt=new Date().toISOString();
@@ -17046,17 +17096,17 @@ function renderPlaybook(){
     }
     return true;
   }).sort((a,b)=>(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''));
-  const catOpts=PB_CATEGORIES.map(([k,l])=>`<option value="${k}" ${_pbFilterCat===k?'selected':''}>${l}</option>`).join('');
+  const catOpts=_pbAllCategories().map(([k,l])=>`<option value="${k}" ${_pbFilterCat===k?'selected':''}>${escHtml(l)}</option>`).join('');
   const subOpts=_pbFilterCat?(APP.config.playbookSubmomentos[_pbFilterCat]||[]).map(s=>`<option value="${escHtml(s)}" ${_pbFilterSub===s?'selected':''}>${escHtml(s)}</option>`).join(''):'';
   const formHtml=_showPbForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">Nova Jogada</div><button class="btn btn-sm btn-gh" onclick="_showPbForm=false;renderPlaybook()">✕</button></div>
     <div class="form-g"><label class="fl">Título *</label><input class="fc" id="pbf-titulo" placeholder="Ex: Canto curto — variante 1"></div>
-    <div class="form-g"><label class="fl">Momento *</label><select class="fc" id="pbf-cat">${PB_CATEGORIES.map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Momento *</label><select class="fc" id="pbf-cat" onchange="if(this.value==='__newmom__'){addPbMomentoInlineNew();}">${_pbAllCategories().map(([k,l])=>`<option value="${k}">${escHtml(l)}</option>`).join('')}<option value="__newmom__">+ Novo momento...</option></select></div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveNovaPbJogada()">💾 Criar Jogada</button><button class="btn btn-gh" onclick="_showPbForm=false;renderPlaybook()">Cancelar</button></div>
   </div>`:'';
   const rows=list.map(pb=>{
-    const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||pb.category;
+    const catLabel=_pbCatLabel(pb.category);
     return `<tr style="cursor:pointer" onclick="openPbJogada('${pb.id}')">
       <td>${escHtml(pb.title||'Jogada')}</td>
       <td>${escHtml(catLabel)}</td>
@@ -17094,6 +17144,42 @@ function saveNovaPbJogada(){
   APP.playbook.push(pb);
   _syncPlaybook(pb);saveData();_showPbForm=false;toast('Jogada criada ✓');openPbJogada(pb.id);
 }
+// sps-v215 (pedido do Roger 09/10/2026): "+ Novo momento..." no select do formulário de
+// NOVA jogada — ao contrário do select do editor de uma jogada já criada
+// (addPbMomentoInline, abaixo), aqui NÃO se pode fazer um re-render completo da página
+// (renderPlaybook()/_showPbForm): o título já escrito em #pbf-titulo ainda não está
+// guardado em lado nenhum, e um re-render perdia-o. Por isso insere a nova opção
+// diretamente no DOM do próprio <select> em vez de voltar a desenhar o formulário.
+function addPbMomentoInlineNew(){
+  _pbInitConfig();
+  const nome=(prompt('Novo momento:')||'').trim();if(!nome)return;
+  if(_pbAllCategories().some(c=>c[1].toLowerCase()===nome.toLowerCase())){toast('Já existe um momento com esse nome');return;}
+  const key='cm_'+uid();
+  APP.config.playbookMomentos.push({key,label:nome});
+  APP.config.playbookSubmomentos[key]=[];
+  saveData();
+  const sel=document.getElementById('pbf-cat');
+  if(sel){
+    const opt=document.createElement('option');
+    opt.value=key;opt.textContent=nome;
+    sel.insertBefore(opt,sel.lastElementChild); // antes de "+ Novo momento..." (última opção)
+    sel.value=key;
+  }
+}
+// Mesma ideia, mas para o select de uma jogada JÁ criada (_renderPbDetail) — aqui é seguro
+// fazer o re-render completo via _renderPbDetail (mesmo padrão de addPbSubmomentoInline),
+// porque todos os campos dessa jogada já estão persistidos (autosave, sps-v203).
+function addPbMomentoInline(pbid){
+  const pb=(APP.playbook||[]).find(x=>x.id===pbid);if(!pb)return;
+  _pbInitConfig();
+  const nome=(prompt('Novo momento:')||'').trim();if(!nome)return;
+  if(_pbAllCategories().some(c=>c[1].toLowerCase()===nome.toLowerCase())){toast('Já existe um momento com esse nome');return;}
+  const key='cm_'+uid();
+  APP.config.playbookMomentos.push({key,label:nome});
+  APP.config.playbookSubmomentos[key]=[];
+  pb.category=key;pb.submomento='';pb.updatedAt=new Date().toISOString();
+  _syncPlaybook(pb);saveData();_renderPbDetail();
+}
 function openPbJogada(id){
   const pb=(APP.playbook||[]).find(x=>x.id===id);if(!pb)return;
   _pbInit(pb);
@@ -17126,7 +17212,7 @@ function _renderPbDetail(){
   const pb=(APP.playbook||[]).find(x=>x.id===_pbDetailId);
   if(!pb){_pbDetailId=null;renderPlaybook();return;}
   _pbInit(pb);
-  const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||'';
+  const catLabel=_pbCatLabel(pb.category);
   document.getElementById('pg-playbook').innerHTML=`
   <div class="sh">
     <div style="display:flex;align-items:center;gap:12px">
@@ -17144,7 +17230,7 @@ function _renderPbDetail(){
   <div class="ipanel" style="margin-bottom:12px">
     <div class="form-g"><label class="fl">Título</label><input class="fc" value="${escHtml(pb.title||'')}" onblur="savePbField('${pb.id}','title',this.value)"></div>
     <div class="fr">
-      <div class="form-g"><label class="fl">Momento</label><select class="fc" onchange="savePbField('${pb.id}','category',this.value)">${PB_CATEGORIES.map(([k,l])=>`<option value="${k}" ${pb.category===k?'selected':''}>${l}</option>`).join('')}</select></div>
+      <div class="form-g"><label class="fl">Momento</label><select class="fc" onchange="if(this.value==='__newmom__'){addPbMomentoInline('${pb.id}');}else{savePbField('${pb.id}','category',this.value);}">${_pbAllCategories().map(([k,l])=>`<option value="${k}" ${pb.category===k?'selected':''}>${escHtml(l)}</option>`).join('')}<option value="__newmom__">+ Novo momento...</option></select></div>
       <div class="form-g"><label class="fl">Submomento</label>${_pbSubmomentoSelectHtml(pb)}</div>
     </div>
     <div class="fr">
@@ -17773,7 +17859,7 @@ function pbApplyToGameConfirm(pbid){
 let _pbPickerGid=null,_pbPickerCat='',_pbPickerSub='',_pbPickerText='';
 function pbLoadPickerOpen(gid){
   _pbPickerGid=gid;_pbPickerCat='';_pbPickerSub='';_pbPickerText='';
-  const catOpts=PB_CATEGORIES.map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
+  const catOpts=_pbAllCategories().map(([k,l])=>`<option value="${k}">${escHtml(l)}</option>`).join('');
   const body=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
     <select class="fc" style="width:auto" id="pb-picker-cat" onchange="_pbPickerCat=this.value;_pbPickerSub='';_pbPickerRefresh()"><option value="">Todos os momentos</option>${catOpts}</select>
     <select class="fc" style="width:auto" id="pb-picker-sub" onchange="_pbPickerSub=this.value;_pbPickerRefresh()" disabled><option value="">Todos os submomentos</option></select>
@@ -17804,7 +17890,7 @@ function _pbPickerRefresh(){
     return true;
   }).sort((a,b)=>(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''));
   const rowsHtml=list.map(pb=>{
-    const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||pb.category;
+    const catLabel=_pbCatLabel(pb.category);
     return `<div class="pb-pick-row" data-pbid="${pb.id}" style="padding:8px 10px;border:1px solid var(--brd);border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="pbLoadIntoGameConfirm('${pb.id}')">
       <div style="font-weight:600;font-size:13px">${escHtml(pb.title||'Jogada')}</div>
       <div style="font-size:11px;color:var(--t2)">${escHtml(catLabel)}${pb.submomento?' • '+escHtml(pb.submomento):''}${pb.formation?' • '+escHtml(pb.formation):''}</div>
@@ -17876,37 +17962,53 @@ function pbSaveFromGameBoard(gid,mode){
 
 // ── Export PDF — reaproveita _printWin(), diagrama único ou sequência de passos se houver
 // galeria (mesmo estilo/proporções de _oppSnapshotSvg/_pitchSnapshotSvg).
+// sps-v215 (pedido do Roger 09/10/2026): "ao gerar pdf quero que o campo ocupe o maior
+// espaço possível e podes para isso reduzir a lista" — diagrama bem maior (singleW: 400px
+// em campo inteiro, 560px em meio-campo — mais largo porque a proporção é mais baixa; a
+// altura segue sempre a mesma razão dentro de _pbSnapshotSvg, nunca hardcoded aqui) e
+// legenda comprimida numa grelha de 3 colunas em vez de uma tabela de 11 linhas numa só
+// coluna. Dimensões validadas antes de aplicar (vm+Playwright+pdftoppm, ver scratchpad
+// desta sessão) a caber sempre numa A4 — campo inteiro, meio-campo, e jogada com vários
+// passos na galeria.
 function printPlaybookPDF(id){
   const pb=(APP.playbook||[]).find(x=>x.id===id);if(!pb)return;
   _pbInit(pb);
-  const catLabel=(PB_CATEGORIES.find(c=>c[0]===pb.category)||['',''])[1]||pb.category;
+  const catLabel=_pbCatLabel(pb.category);
   const hasSteps=pb.snapshots&&pb.snapshots.length;
-  const stepsHtml=hasSteps?pb.snapshots.map((s,i)=>`<div style="display:inline-block;width:160px;margin:0 10px 14px 0;vertical-align:top;text-align:center">
-      ${_pbSnapshotSvg(s,150)}
+  const viewH=(hasSteps?(pb.snapshots[0]&&pb.snapshots[0].fullView):pb.fullView)?420:248;
+  const singleW=(viewH===420?400:560);
+  const stepsHtml=hasSteps?pb.snapshots.map((s,i)=>`<div style="display:inline-block;width:205px;margin:0 8px 10px 0;vertical-align:top;text-align:center">
+      ${_pbSnapshotSvg(s,185)}
       <div style="font-size:8pt;font-weight:700;margin-top:4px">Passo ${i+1}</div>
       ${s.note?`<div style="font-size:7.5pt;color:#555;margin-top:2px">${escHtml(s.note)}</div>`:''}
     </div>`).join('')
-    :`<div style="margin:0 auto;max-width:170mm">${_pbSnapshotSvg({positions:pb.positions,opponents:pb.opponents,ball:pb.ball,fullView:pb.fullView},220)}</div>`;
-  // Legenda Nº/Atleta — pedido do Roger (06/10/2026): mesmo espírito da legenda de
-  // printJogoCampo/_oppPdfBodyHtml, para poder imprimir a jogada com os nomes reais em
-  // vez de só números. Marcadores sem atleta atribuída ficam com "—".
-  const legendRows=Array.from({length:11},(_,i)=>i+1).map(i=>{
+    :`<div style="margin:0 auto;text-align:center">${_pbSnapshotSvg({positions:pb.positions,opponents:pb.opponents,ball:pb.ball,fullView:pb.fullView},singleW)}</div>`;
+  // Legenda Nº/Atleta, em grelha de 3 colunas (pedido do Roger 09/10/2026: reduzir o
+  // espaço da legenda para o diagrama poder crescer) — mesma informação de sempre (todos
+  // os 11 marcadores, "—" quando sem atleta), só mais compacta.
+  const legendCells=Array.from({length:11},(_,i)=>i+1).map(i=>{
     const aid=pb.athleteAssign&&pb.athleteAssign[i];
     const a=aid?APP.athletes.find(x=>x.id===aid):null;
-    return `<tr><td style="padding:3px 6px;font-size:8pt;width:24px;text-align:center;font-weight:700">${i}</td><td style="padding:3px 6px;font-size:8pt">${a?escHtml(_displayName(a)):'—'}</td></tr>`;
-  }).join('');
+    return `<td style="padding:2px 4px;font-size:7.5pt;width:16px;text-align:center;font-weight:700;color:#1d6f3b">${i}</td><td style="padding:2px 4px;font-size:7.5pt">${a?escHtml(_displayName(a)):'—'}</td>`;
+  });
+  const LCOLS=3;
+  let legendRows='';
+  for(let r=0;r<Math.ceil(legendCells.length/LCOLS);r++){
+    let tr='<tr>';
+    for(let c=0;c<LCOLS;c++){const idx=r*LCOLS+c;tr+=legendCells[idx]!==undefined?legendCells[idx]:'<td></td><td></td>';}
+    tr+='</tr>';legendRows+=tr;
+  }
   const body=`
     <div class="pr-title">📘 ${escHtml(pb.title||'Jogada')}</div>
-    <table style="width:100%;font-size:9.5pt;margin-bottom:14px"><tbody>
+    <table style="width:100%;font-size:9.5pt;margin-bottom:10px"><tbody>
       <tr><td style="font-weight:700;width:140px">Momento</td><td>${escHtml(catLabel)}</td></tr>
       <tr><td style="font-weight:700">Submomento</td><td>${escHtml(pb.submomento||'—')}</td></tr>
       <tr><td style="font-weight:700">Formação</td><td>${escHtml(pb.formation||'—')}</td></tr>
       ${pb.videoUrl?`<tr><td style="font-weight:700">Vídeo</td><td>${escHtml(pb.videoUrl)}</td></tr>`:''}
     </tbody></table>
-    ${pb.description?`<h3>Descrição</h3><p style="font-size:9.5pt;white-space:pre-wrap;margin-bottom:14px">${escHtml(pb.description)}</p>`:''}
-    <h3>${hasSteps?'Sequência de Passos':'Diagrama'}</h3>
+    ${pb.description?`<p style="font-size:9pt;white-space:pre-wrap;margin-bottom:8px;color:#444">${escHtml(pb.description)}</p>`:''}
     <div>${stepsHtml}</div>
-    <h3>Legenda — Atletas</h3>
+    <h3 style="margin-top:10px">Legenda — Atletas</h3>
     <table style="width:100%;border-collapse:collapse">
       <thead><tr><th style="padding:3px 6px;font-size:8pt">Nº</th><th style="padding:3px 6px;font-size:8pt">Atleta</th></tr></thead>
       <tbody>${legendRows}</tbody>

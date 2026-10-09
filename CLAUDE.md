@@ -4210,15 +4210,103 @@ por razões de infraestrutura própria, sem relação com este pedido (`test_coc
 
 **Ainda por fazer:** nada pendente para este pedido.
 
-## Pedido em aberto do Roger para a próxima sessão (07/10/2026)
+## sps-v215 (09/10/2026): Playbook — criação de novos Momentos + PDF com o campo a ocupar o máximo de espaço
 
-Roger pediu explicitamente para tratar, na próxima sessão: **o PDF gerado para impressão
-no Playbook**. Ainda não investigado nesta sessão — `printPlaybookPDF` já existe desde o
-sps-v201 (diagrama único ou sequência de passos da galeria, reaproveitando `_printWin()`,
-mesmo estilo de `_oppSnapshotSvg`/`_pitchSnapshotSvg`, com legenda de atletas desde o
-próprio sps-v201) e ganhou pernas brancas/boneco "colete" de borla no sps-v204/v205 (usa
-`_pbSnapshotSvg`, que por sua vez usa `_bibMarkerSvg`). Não há ainda nenhum detalhe do
-que está mal ou em falta no PDF — a próxima sessão deve perguntar ao Roger o que
-especificamente precisa de ajuste (layout, falta de alguma informação, tamanho/cabimento
-numa folha, etc.) antes de tocar em código, seguindo a prática já estabelecida neste
-projeto de confirmar o âmbito de pedidos abertos antes de implementar.
+Pedido verbatim do Roger: "no playbook sempre que crio um momento ou submomento quero
+que fique depois em lista. quero tambem ao gerar pdf que o campo ocupe o maior espaço
+possivel e podes para isso reduzie a lista" — dois pedidos distintos. O 2º é também o
+item que tinha ficado como "Pedido em aberto" no fim da sessão anterior (07/10/2026, ver
+nota substituída por esta entrada): o Roger não tinha ainda dito o que especificamente
+queria ajustar no PDF do Playbook — esta mensagem respondeu a essa pergunta em aberto.
+
+**Investigação do 1º pedido ("momento ou submomento"), antes de codificar:** escrito um
+script de verificação Playwright ao vivo (`quick_submomento_check3.js`) que confirmou que
+a criação de SUBMOMENTOS já funcionava corretamente desde o sps-v201 (`+ Novo
+submomento...` inline, persiste em `APP.config.playbookSubmomentos` e aparece de imediato
+no filtro e no modal "Gerir Submomentos"). O que faltava de facto era a mesma capacidade
+para MOMENTOS (as 5 categorias de topo), até agora fixas em `PB_CATEGORIES` sem forma de
+o utilizador criar as suas. Confirmado com o Roger por `AskUserQuestion` antes de
+implementar — ele confirmou: **"Quero poder criar novos Momentos também"**.
+
+**O que foi construído (Parte 1 — Momentos):**
+
+1. `APP.config.playbookMomentos` — array novo de `{key,label}` (lazy-init em
+   `_pbInitConfig()`, mesmo padrão de baixa frequência de escrita já usado para
+   `naGuidelines`/`hydrationGuidelines`/`playbookSubmomentos`), com `key` no formato
+   `'cm_'+uid()` (mesma convenção dos boards custom do sps-v207, `'cb_'+uid()`). Os 5
+   momentos fixos de `PB_CATEGORIES` nunca são apagáveis; os criados pelo utilizador
+   vivem só aqui.
+2. `_pbAllCategories()` (fixos + custom) e `_pbCatLabel(key)` — novos helpers que
+   substituem, em todo o código, as 8 leituras diretas de `PB_CATEGORIES` que existiam
+   antes desta versão (filtro da lista, formulário de Nova Jogada, linhas da lista,
+   cabeçalho do detalhe, select de Momento do editor, picker "Carregar do Playbook"
+   dentro de Jogo→Campo, e o PDF) — para um momento criado pelo utilizador aparecer
+   exatamente como um fixo em todos esses sítios, sem exceção.
+3. `pbManageSubmomentosOpen()` reescrito para mostrar também os Momentos (chips com ✕
+   para remover os custom) além dos Submomentos por Momento já existentes; `addPbMomento()`
+   / `removePbMomento(key)` novas (bloqueiam nome duplicado, case-insensitive;
+   `removePbMomento` pede confirmação e explica que jogadas já criadas mantêm o valor
+   guardado mesmo deixando de aparecer nas listas).
+4. "+ Novo momento..." em dois sítios, com tratamento diferente por serem dois contextos
+   diferentes (mesmo raciocínio já documentado no código para submomentos):
+   - **Formulário de Nova Jogada** (`#pbf-cat`): `addPbMomentoInlineNew()` insere a nova
+     `<option>` diretamente no DOM do select em vez de voltar a desenhar a página — um
+     re-render perderia o título já escrito em `#pbf-titulo`, que ainda não está
+     guardado em lado nenhum nesse ponto.
+   - **Editor de uma jogada já criada** (select de Momento em `_renderPbDetail`):
+     `addPbMomentoInline(pbid)` grava o novo momento, atualiza `pb.category` (reseta
+     `pb.submomento`, mesmo comportamento de `savePbField`) e faz um `_renderPbDetail()`
+     completo — seguro aqui porque todos os campos da jogada já estão persistidos
+     (autosave, sps-v203).
+
+**O que foi construído (Parte 2 — PDF do Playbook):** antes de tocar em código, construído
+um comparativo visual "antes vs. depois" com o código REAL extraído de `index.html`,
+renderizado a sério via Chromium headless (mesma metodologia já estabelecida em
+`test_pdf_a4_uma_pagina_v183.js`), enviado ao Roger, que confirmou **"Sim, avança"**:
+
+- Diagrama bem maior: `singleW` passou de 220px fixo para 400px (campo inteiro) / 560px
+  (meio-campo) — mais largo neste último porque a proporção é mais baixa; a altura segue
+  sempre a mesma razão dentro de `_pbSnapshotSvg`, nunca hardcoded. Sequência de passos
+  (galeria): miniaturas de 160px/SVG 150 para 205px/SVG 185.
+- Legenda "Nº/Atleta" comprimida de uma tabela de 11 linhas numa só coluna para uma
+  grelha de 3 colunas (`LCOLS=3`, 4 linhas no total) — mesma informação de sempre
+  ("—" para marcadores sem atleta atribuída), só mais compacta.
+- Espaço ganho também ao remover o heading "Descrição" (fica só o texto) e os headings
+  "Diagrama"/"Sequência de Passos" (vai direto da descrição para o diagrama/galeria), e
+  ao reduzir margens (`margin-bottom` da tabela de metadados 14px→10px, da galeria
+  14px→10px/10px→8px).
+- Validado com o harness vm+Playwright+pdftoppm (campo inteiro, meio-campo, e jogada com
+  3 passos na galeria) — as 3 situações cabem sempre numa única folha A4
+  (`pdfinfo`→`Pages: 1`).
+
+SW bump para `sps-v215`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_playbook_momentos_v215.js`, Playwright/browser real, 29 asserções):
+`_pbAllCategories()` só com os 5 fixos antes de qualquer criação; `addPbMomento()` (via
+modal "Gerir Momentos") cria e persiste de imediato, com a chave `cm_` certa; aparece no
+filtro/lista da própria página Playbook sem re-navegar; select de Nova Jogada lista o
+momento criado e tem "+ Novo momento..."; criar um 2º momento inline a partir desse
+formulário preserva o título já escrito em `#pbf-titulo` (inserção DOM, confirmando que
+não houve re-render); jogada criada com um momento custom guarda o `category` certo;
+editor de uma jogada já criada mostra o momento custom selecionado e tem "+ Novo
+momento..."; criar um 3º momento a partir do editor muda a categoria da jogada e reseta o
+submomento; bloqueio de nome duplicado (case-insensitive); modal "Gerir Momentos" mostra
+os fixos e os custom (só os custom com ✕); `removePbMomento` tira o momento da lista e de
+`_pbAllCategories()`. PDF: diagrama com largura 400/560, legenda em grelha
+multi-coluna (4 linhas para 11 marcadores), ausência dos headings "Diagrama"/"Sequência de
+Passos". Verificação visual adicional com o harness `vm`+Chromium headless+`pdftoppm`
+(scratchpad desta sessão) confirmando 1 página para os 3 cenários (campo inteiro,
+meio-campo, 3 passos) e inspeção visual das imagens geradas — igual ao preview já
+aprovado pelo Roger. Regressão completa re-corrida (44 ficheiros de teste, Playwright/
+`vm`): todos passaram, exceto os 4 testes antigos já documentados como obsoletos desde o
+sps-v203/v209 (`test_coc.js`, `test_coc2.js`, `test_coc_edit.js`,
+`test_fisio_metricas_v189.js`) e uma flakiness já documentada de `test_mobile_v187.js`
+quando corrido a seguir a muitos outros testes Playwright na mesma sessão (confirmada
+limpa em execução isolada). Uma asserção pré-existente em `test_playbook_v201.js`
+("printPlaybookPDF com passos gera HTML com sequência") testava literalmente o heading
+"Sequência de Passos" que este pedido removeu de propósito — atualizada para verificar as
+legendas "Passo 1"/"Passo 2" de cada miniatura, que continuam a existir; não é uma
+regressão disfarçada, é o mesmo comportamento novo intencional confirmado pelo Roger.
+
+**Ainda por fazer:** nada pendente para este pedido.
