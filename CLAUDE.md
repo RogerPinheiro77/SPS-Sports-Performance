@@ -4500,3 +4500,106 @@ Roger (decisão própria desta sessão, documentada acima): a forma exata como o
 representa exercícios extra (secção própria no fim, em vez de dentro da matriz) —
 vale a pena confirmar visualmente com o Roger assim que gerar um PDF real com
 exercícios extra, e ajustar se ele preferir outra apresentação.
+
+## sps-v218 (14/10/2026): Ginásio — Bloco 1 (vídeo, pesquisa, blocos/superséries, Modo Apresentação)
+
+Pedido do Roger a seguir ao sps-v217: "analisa, investiga e propoem antes de avançar
+como podemos melhorar esse espaço ginasio incluindo a 'app' de forma a tornar-se mais
+intuitiva, funcional e avançada?" — análise de mercado (Volt Athletics, TeamBuildr,
+TrainHeroic) + investigação do código existente, escritas numa proposta Claude Docs
+("SPS — Ginásio: Análise e Proposta (Plataforma + App)"), confirmada ponto a ponto por
+`AskUserQuestion`: quem regista continua só o staff; a atleta continua a ver o plano do
+dia (já existia); vídeo nos exercícios por **link externo (YouTube/Vimeo)**, não upload;
+avançar com o "Bloco 1" proposto primeiro. Esta entrada implementa esse Bloco 1.
+
+**1) Vídeo nos exercícios (link externo, mesmo padrão já usado em Treino/Playbook):**
+- Novo campo `videoUrl` na Biblioteca de Exercícios (`renderBiblioteca`/`saveExercise`/
+  `editExercise`) — link clicável "▶ Vídeo" (cor `#c0392b`, mesmo esquema de
+  `_exCardHtml` nas Unidades de Treino) no cartão da Biblioteca.
+- `_gymExResolve(ex)` passou a devolver também `videoUrl` (Biblioteca via `exId` →
+  fallback para o campo copiado na ficha/exercício extra) — usado por todos os sítios
+  que já mostram nome/imagem/descrição de um exercício de Ginásio.
+- `_pickGsEx`/`_pickExtraEx` (os dois pickers "Escolher da Biblioteca") copiam
+  `videoUrl` para o exercício escolhido, tal como já copiavam nome/imagem/categoria.
+- Mostrado: Ficha builder (`_renderGsDetail`, link "▶ Vídeo"), Ficha PDF
+  (`_gymSheetPdfHtml`, linha de texto "▶ Vídeo: <url>"), e Registo — um pequeno ícone
+  🎥 junto ao nome do exercício nas duas vistas (`_gymGridTableHtml`/
+  `_gymGridAccordionHtml`), incluindo nas linhas de exercício extra por atleta.
+- **Decisão de âmbito (não pedida, decidida nesta sessão):** o PDF de sessão/matriz
+  partilhada (`_gymPdfPageHtml`, Registos) NÃO ganhou vídeo — é um documento para
+  imprimir e levar para o ginásio, já ocupado (4 exercícios/página); o vídeo para
+  consulta já está na Ficha PDF. Vale a pena confirmar com o Roger se concorda.
+- Coluna nova `video_url` na tabela dedicada `exercises` (migração
+  `exercises_add_video_url`, aplicada via MCP do Supabase) + `_CLOUD_TABLE_SCHEMA.
+  exercises` (push) e o mapeamento de `pullCloud()` (pull) atualizados em conjunto
+  (disciplina sempre repetida nesta base de código — ver Incidentes #1-4).
+
+**2) Pesquisa textual (Biblioteca + os 2 pickers que usam a Biblioteca):**
+- `_libSearch` (novo estado) + campo de pesquisa em `renderBiblioteca()`, e um campo
+  equivalente dentro dos modais `pickExForGymSheet()`/`pickExForAthleteExtra()`
+  (`window._pickGsSearch`/`window._pickExtraSearch`). Filtro por nome, usando
+  `_stripAccents(...).toLowerCase()` já existente no ficheiro (sem distinguir
+  acentos/maiúsculas).
+- Os 3 campos usam `onblur` (não `oninput`), mesma convenção já estabelecida no
+  Playbook (`_pbFilterText`, sps-v201) — com `oninput` o campo perderia o foco a cada
+  tecla, porque o `innerHTML` do contentor é todo substituído em cada render.
+
+**3) Blocos/superséries opcionais na Ficha (Ficha builder + Ficha PDF; nunca no
+Registo/grelha — decisão de âmbito já confirmada com o Roger na proposta):**
+- Novo campo de texto livre `bloco` por exercício da ficha (via `_gsExField`
+  já existente). Quando preenchido e diferente do exercício anterior, mostra um
+  cabeçalho "🔗 Bloco: <nome>" antes desse exercício — só no início do grupo, nunca
+  repetido em cada exercício — e uma barra lateral colorida nos exercícios desse bloco,
+  tanto em `_renderGsDetail()` (ecrã) como em `_gymSheetPdfHtml()` (PDF). A grelha de
+  Registos (`_gymGridTableHtml`/`_gymGridAccordionHtml`) continua coluna-por-exercício,
+  sem agrupamento visual — mantém-se de propósito como já estava.
+
+**4) Modo Apresentação ao vivo, no Registo (reaproveitando o motor do sps-v202):**
+- Novo kind `'gym'` em `_presSvgFor`/`_presRender` (motor genérico partilhado com
+  Playbook/Set Pieces) — ao contrário dos outros kinds (que desenham um SVG de campo),
+  este devolve um slide HTML (`_presGymSlideHtml`, imagem/nome/reps×RIR/bloco/vídeo de
+  UM exercício da Ficha), com **return antecipado** antes do `.replace(/style="[^"]*"/,
+  ...)` do fim de `_presSvgFor` — esse regex substitui às cegas o 1º `style="..."` da
+  string (pensado só para o `<svg style="...">` dos outros kinds) e corromperia o
+  próprio `style` do slide HTML se passasse por ali.
+- `_presRender` passou a mostrar "Exercício X de N" (em vez de "Passo X de N") quando
+  `_presKind==='gym'` — único ajuste ao contador, partilhado com os outros kinds.
+- `gymOpenPresentation(eventId)`: frames = `ev.gymSheet.exercises` (a Ficha geral),
+  sempre resolvidos ao vivo via `_gymExResolve` — **nunca** a personalização por atleta
+  (`hiddenEx`/`extraEx`, sps-v217), porque este ecrã é para mostrar à equipa toda num
+  ecrã/TV do ginásio, não a vista de uma atleta específica.
+- Botão "🖥️ Modo Apresentação" acrescentado só a `renderGymSessionGrid()` (o modal de
+  Registar Sessão) — decisão de âmbito confirmada no Bloco 1: nunca na preview do
+  Ficha builder, que é para editar, não para mostrar.
+- Acessível tanto pela Plataforma normal como pelo atalho `?ginasio=1` (ambos chegam ao
+  mesmo `renderGymSessionGrid`/`openGymSessionGrid`), cobrindo a parte "app" do pedido
+  do Roger sem código extra — mesmo raciocínio já usado para `?tatico=1` no sps-v202.
+
+SW bump para `sps-v218`. Testado: `node --check` ao script extraído de `index.html` e a
+`sw.js`. Suite nova dedicada (`test_ginasio_bloco1_v218.js`, harness `vm` com o código
+REAL extraído, 16 testes): `_gymExResolve` resolve `videoUrl` da Biblioteca com
+fallback; `_CLOUD_TABLE_SCHEMA.exercises` com `video_url`; `saveExercise` grava o campo
+novo; pesquisa por texto (sem acentos) na Biblioteca e nos 2 pickers; `_pickGsEx`/
+`_pickExtraEx` copiam `videoUrl`; cabeçalho de bloco aparece só 1 vez por grupo na
+Ficha (ecrã e PDF); ícone 🎥 presente nas 2 vistas do Registo (exercícios principais e
+extra); `_presSvgFor('gym')` devolve HTML com o seu próprio `style` intacto (nunca
+corrompido pelo regex do SVG); `gymOpenPresentation` usa `gs.exercises` como frames;
+contador "Exercício X de N"; abrir/navegar/fechar o Modo Apresentação nunca muta
+`APP.schedule`/a Ficha. Migração `exercises_add_video_url` confirmada no Supabase
+(coluna `text` presente). Regressão: `test_marker_evolution_v204.js` (único outro
+ficheiro de teste ainda presente nesta pasta de trabalho) continua a falhar em 4 testes
+sobre o espelhamento de adversárias (`rotate(180)`) — confirmado como staleness
+pré-existente do próprio ficheiro de teste (ficou por atualizar desde o sps-v204,
+antes do espelhamento ter sido introduzido no sps-v210), sem relação com este pedido;
+nenhuma das funções que esses 4 testes tocam (`_pbOpponentsHtml`/`_pbSnapshotSvg`/
+`_pitchSnapshotSvg`) foi alterada nesta sessão.
+
+**Ainda por fazer:** nada pendente para o Bloco 1 confirmado. Ficam para um possível
+Bloco 2, não implementados por iniciativa própria: outras ideias "avançadas" da
+proposta (ex: progressão de carga sugerida, comparação com sessões anteriores,
+alertas de recorde pessoal) — não fizeram parte da confirmação do Roger ("Bloco 1
+primeiro"), por isso esperam por um novo pedido. Também por confirmar visualmente com
+o Roger, assim que a atualização chegar aos dispositivos: se o vídeo devia mesmo ficar
+fora do PDF de sessão/matriz (decisão própria desta sessão, documentada acima), e se o
+Modo Apresentação (slide a slide, sem imagem de fundo do campo) está no formato que
+ele tinha em mente para o ecrã/TV do ginásio.

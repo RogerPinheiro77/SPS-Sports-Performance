@@ -1586,16 +1586,39 @@ function presNext(){if(_presIdx>=_presFrames.length-1)return;_presIdx++;_presRen
 // estilo 100%/100% do palco — o viewBox existente faz o resto do trabalho (letterbox
 // automático em campo-inteiro ou meio-campo).
 function _presSvgFor(frame){
+  // 'gym' (sps-v218) é o único kind que não desenha um SVG de campo — é um slide HTML
+  // (imagem+nome+reps/RIR/bloco/vídeo de um exercício da Ficha de Ginásio). Por isso
+  // tem de dar return já aqui, ANTES do .replace(/style="[^"]*"/,...) no fim desta
+  // função: esse regex substitui às cegas o 1º atributo style="..." que encontrar na
+  // string — pensado para o <svg style="width:Npx;..."> dos outros kinds, mas corromperia
+  // o 1º style="..." de um slide HTML (ex: do próprio <div>) se passasse por ali.
+  if(_presKind==='gym')return _presGymSlideHtml(frame);
   let svg='';
   if(_presKind==='pb')svg=_pbSnapshotSvg(frame,300,_presCtx.pb.athleteAssign);
   else if(_presKind==='pitch')svg=_pitchSnapshotSvg(_presCtx.mode,frame,300,true);
   return svg.replace(/style="[^"]*"/,'style="width:100%;height:100%;display:block"');
 }
+// Slide HTML de um exercício da Ficha de Ginásio (Modo Apresentação, sps-v218) —
+// a overlay (#pres-stage) tem fundo escuro (#05070c) e chrome sempre claro, por isso
+// este slide hardcoda cores claras em vez de usar var(--t2)/var(--bg3) do resto da
+// app (que pressupõem o tema claro/escuro normal, não esta overlay).
+function _presGymSlideHtml(ex){
+  const full=_gymExResolve(ex||{});
+  const bloco=(ex&&ex.bloco||'').trim();
+  return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;text-align:center;padding:24px;box-sizing:border-box">
+    ${bloco?`<div style="font-size:clamp(14px,2vw,22px);font-weight:700;color:#c9a0dc">🔗 Bloco: ${escHtml(bloco)}</div>`:''}
+    ${full.img?`<img src="${full.img}" style="max-width:min(60vw,520px);max-height:45vh;object-fit:contain;border-radius:12px">`:'<div style="font-size:64px">🏋️‍♀️</div>'}
+    <div style="font-size:clamp(22px,4vw,44px);font-weight:800">${escHtml(full.name)}</div>
+    <div style="font-size:clamp(16px,2.4vw,26px);color:rgba(255,255,255,.85)">${escHtml(ex.reps||'—')}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div>
+    ${full.videoUrl?`<div style="font-size:clamp(13px,1.8vw,18px);color:#ff8a7a">▶ Vídeo: ${escHtml(full.videoUrl)}</div>`:''}
+  </div>`;
+}
 function _presRender(){
   const n=_presFrames.length;
   document.getElementById('pres-stage').innerHTML=_presSvgFor(_presFrames[_presIdx]||{});
   const counterEl=document.getElementById('pres-counter');
-  if(n>1){counterEl.style.display='';counterEl.textContent='Passo '+(_presIdx+1)+' de '+n;}
+  const counterLbl=_presKind==='gym'?'Exercício':'Passo';
+  if(n>1){counterEl.style.display='';counterEl.textContent=counterLbl+' '+(_presIdx+1)+' de '+n;}
   else counterEl.style.display='none';
   const prevBtn=document.getElementById('pres-prev'),nextBtn=document.getElementById('pres-next');
   if(n>1){
@@ -12164,7 +12187,7 @@ function _publishConvNow(id){
 // Dentro da app SPS-Ginásio (?ginasio=1), a Biblioteca só interessa para a categoria
 // Ginásio — evita começar sempre em "Todos" com exercícios de Tático/Físico à mistura.
 // Continua trocável manualmente (não bloqueia outras categorias). Pedido do Roger 01/09/2026.
-let _libCat=_forceGinasioMode?'Ginásio':'', _showLibForm=false, _editLibId=null;
+let _libCat=_forceGinasioMode?'Ginásio':'', _showLibForm=false, _editLibId=null, _libSearch='';
 const EX_CATS=['Tático','Físico','Técnico','Velocidade','Força','Resistência','Recuperação','Ativação','Ginásio'];
 function renderBiblioteca(){
   const formHtml=_showLibForm?`
@@ -12175,6 +12198,7 @@ function renderBiblioteca(){
     <div class="fr"><div class="form-g"><label class="fl">Músculos / Componente</label><input class="fc" id="lf-muscles" placeholder="Quadriceps, Core..."></div>
     <div class="form-g"><label class="fl">Dificuldade</label><select class="fc" id="lf-diff"><option>Leve</option><option>Médio</option><option>Intenso</option><option>Máximo</option></select></div></div>
     <div class="form-g"><label class="fl">Equipamento</label><input class="fc" id="lf-equip" placeholder="Bola, Cones, Barras..."></div>
+    <div class="form-g"><label class="fl">Vídeo (link externo — YouTube/Vimeo)</label><input class="fc" id="lf-video" placeholder="https://youtube.com/..."></div>
     <div class="form-g"><label class="fl">Descrição</label><textarea class="fc" id="lf-desc" rows="3"></textarea></div>
     <div class="form-g">
       <label class="fl">Esquema / Imagem (ex: exportado do Tactical Pad)</label>
@@ -12189,7 +12213,11 @@ function renderBiblioteca(){
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveExercise()">💾 Guardar</button><button class="btn btn-gh" onclick="_showLibForm=false;_editLibId=null;renderBiblioteca()">Cancelar</button></div>
   </div>`:'';
 
-  const list=APP.exercises.filter(e=>!_libCat||e.cat===_libCat);
+  let list=APP.exercises.filter(e=>!_libCat||e.cat===_libCat);
+  if(_libSearch){
+    const q=_stripAccents(_libSearch).toLowerCase();
+    list=list.filter(e=>_stripAccents(e.name||'').toLowerCase().includes(q));
+  }
   const catCounts={};APP.exercises.forEach(e=>{catCounts[e.cat]=(catCounts[e.cat]||0)+1;});
   const catBtns=[{k:'',v:'Todos ('+APP.exercises.length+')'},...EX_CATS.map(c=>({k:c,v:c+' ('+(catCounts[c]||0)+')'}))];
   const diffColors={Leve:'bg-g',Médio:'bg-b',Intenso:'bg-y',Máximo:'bg-r'};
@@ -12212,6 +12240,7 @@ function renderBiblioteca(){
     </div>
     ${e.muscles?`<div style="font-size:10px;color:var(--t2)">💪 ${e.muscles}</div>`:''}
     ${e.desc?`<div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.5">${e.desc}</div>`:''}
+    ${e.videoUrl?`<a href="${escHtml(e.videoUrl)}" target="_blank" style="display:inline-block;margin-top:5px;font-size:10.5px;color:#c0392b;text-decoration:none">▶ Vídeo</a>`:''}
     </div>
   </div>`).join('')}</div>`:`<div class="empty"><div class="ei">📚</div><p>Sem exercícios nesta categoria</p></div>`;
 
@@ -12219,12 +12248,13 @@ function renderBiblioteca(){
   <div class="sh"><div class="sh-t">📚 Biblioteca de Exercícios (${APP.exercises.length})</div>
   <button class="btn btn-g" onclick="_showLibForm=!_showLibForm;_editLibId=null;renderBiblioteca()">+ Novo Exercício</button></div>
   ${formHtml}
-  <div class="tabs">${catBtns.map(c=>`<button class="tab-btn ${c.k===_libCat?'on':''}" onclick="_libCat='${c.k}';renderBiblioteca()">${c.v}</button>`).join('')}</div>
+  <div class="tabs" style="align-items:center">${catBtns.map(c=>`<button class="tab-btn ${c.k===_libCat?'on':''}" onclick="_libCat='${c.k}';renderBiblioteca()">${c.v}</button>`).join('')}
+  <input class="fc" style="width:auto;flex:1;min-width:160px" placeholder="Pesquisar exercício..." value="${escHtml(_libSearch)}" onblur="_libSearch=this.value;renderBiblioteca()"></div>
   ${cardsHtml}`;
   if(_editLibId&&_showLibForm){
     const e=APP.exercises.find(x=>x.id===_editLibId);
     if(e){
-      ['name','cat','muscles','diff','equip','desc'].forEach(f=>{const el=document.getElementById('lf-'+f);if(el)el.value=e[f]||'';});
+      ['name','cat','muscles','diff','equip','desc','video'].forEach(f=>{const el=document.getElementById('lf-'+f);if(el)el.value=(f==='video'?e.videoUrl:e[f])||'';});
       if(e.img){
         const box=document.getElementById('lf-img-box');
         if(box){box.setAttribute('data-val',e.img);box.innerHTML='<img src="'+e.img+'" style="width:100%;height:100%;object-fit:cover">';}
@@ -12283,7 +12313,7 @@ function saveExercise(){
   const name=document.getElementById('lf-name').value.trim();
   if(!name)return toast('Nome obrigatório','err');
   const imgBox=document.getElementById('lf-img-box');
-  const e={id:_editLibId||uid(),name,cat:document.getElementById('lf-cat').value,muscles:document.getElementById('lf-muscles').value,diff:document.getElementById('lf-diff').value,equip:document.getElementById('lf-equip').value,desc:document.getElementById('lf-desc').value,img:imgBox?imgBox.getAttribute('data-val')||'':''};
+  const e={id:_editLibId||uid(),name,cat:document.getElementById('lf-cat').value,muscles:document.getElementById('lf-muscles').value,diff:document.getElementById('lf-diff').value,equip:document.getElementById('lf-equip').value,desc:document.getElementById('lf-desc').value,videoUrl:(document.getElementById('lf-video')?.value||'').trim(),img:imgBox?imgBox.getAttribute('data-val')||'':''};
   if(_editLibId){const i=APP.exercises.findIndex(x=>x.id===_editLibId);if(i>=0)APP.exercises[i]=e;}
   else APP.exercises.push(e);
   saveData();
@@ -12400,11 +12430,19 @@ async function deleteGymSheet(id){
 }
 function _renderGsDetail(){
   const f=_gsDraft;
+  let prevBloco='';
   const exHtml=(f.exercises||[]).length?f.exercises.map((ex,i)=>{
     const full=_gymExResolve(ex);
     const metaBits=[full.muscles?'💪 '+escHtml(full.muscles):'',full.diff?'Dificuldade: '+escHtml(full.diff):'',full.equip?'🏋️ '+escHtml(full.equip):''].filter(Boolean).join(' · ');
+    // Agrupamento opcional "bloco"/supersérie (sps-v218) — só visual, só aqui e no PDF
+    // da ficha (nunca no Registo/grelha): sempre que o valor de bloco muda de um
+    // exercício para o seguinte, mostra um cabeçalho novo com esse nome.
+    const bloco=(ex.bloco||'').trim();
+    const groupHeadHtml=(bloco&&bloco!==prevBloco)?`<div style="margin:10px 0 4px;font-size:11px;font-weight:700;color:#7d3c98;display:flex;align-items:center;gap:6px"><span>🔗</span><span>Bloco: ${escHtml(bloco)}</span></div>`:'';
+    prevBloco=bloco;
     return `
-  <div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
+  ${groupHeadHtml}
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:8px${bloco?';border-left:3px solid #7d3c98':''}">
     <div style="display:grid;grid-template-columns:1fr 120px;min-height:100px">
       <div style="padding:10px 12px;display:flex;flex-direction:column;gap:5px">
         <div style="display:flex;align-items:center;gap:8px">
@@ -12414,11 +12452,13 @@ function _renderGsDetail(){
         <div style="font-weight:700;font-size:13px">${escHtml(full.name)}</div>
         ${metaBits?`<div style="font-size:10.5px;color:var(--t2)">${metaBits}</div>`:''}
         ${full.desc?`<div style="font-size:11px;color:var(--t2);line-height:1.4">${escHtml(full.desc)}</div>`:''}
+        ${full.videoUrl?`<a href="${escHtml(full.videoUrl)}" target="_blank" style="font-size:10.5px;color:#c0392b;text-decoration:none">▶ Vídeo</a>`:''}
         <div class="fr3">
           <div class="form-g"><label class="fl">Séries×Reps</label><input class="fc" value="${escHtml(ex.reps||'')}" placeholder="2×12" oninput="_gsExField(${i},'reps',this.value)"></div>
           <div class="form-g"><label class="fl">RIR</label><input class="fc" value="${escHtml(ex.rir||'')}" placeholder="2-3" oninput="_gsExField(${i},'rir',this.value)"></div>
           <div class="form-g"><label class="fl">Nota</label><input class="fc" value="${escHtml(ex.note||'')}" placeholder="Opcional" oninput="_gsExField(${i},'note',this.value)"></div>
         </div>
+        <div class="form-g" style="max-width:220px"><label class="fl">Bloco / Supersérie (opcional)</label><input class="fc" value="${escHtml(ex.bloco||'')}" placeholder="Ex: Bloco A" oninput="_gsExField(${i},'bloco',this.value)"></div>
       </div>
       <div style="background:var(--bg3);border-left:1px solid var(--brd);display:flex;align-items:center;justify-content:center;overflow:hidden">
         ${full.img?`<img src="${full.img}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:22px;color:var(--t3)">📷</span>'}
@@ -12460,8 +12500,13 @@ function pickExForGymSheet(){
   const catCounts={};list.forEach(e=>{catCounts[e.cat]=(catCounts[e.cat]||0)+1;});
   const catBtns=[{k:'',v:'Todos'},...EX_CATS.filter(c=>catCounts[c]).map(c=>({k:c,v:c}))];
   window._pickGsCat=catCounts['Ginásio']?'Ginásio':'';
+  window._pickGsSearch='';
   window._renderPickGsList=function(){
-    const filtered=list.filter(e=>!window._pickGsCat||e.cat===window._pickGsCat);
+    let filtered=list.filter(e=>!window._pickGsCat||e.cat===window._pickGsCat);
+    if(window._pickGsSearch){
+      const q=_stripAccents(window._pickGsSearch).toLowerCase();
+      filtered=filtered.filter(e=>_stripAccents(e.name||'').toLowerCase().includes(q));
+    }
     const html=filtered.length?filtered.map(e=>`
     <div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;cursor:pointer;margin-bottom:6px" onclick="_pickGsEx('${e.id}')">
       <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg3);display:flex;align-items:center;justify-content:center">
@@ -12477,6 +12522,7 @@ function pickExForGymSheet(){
   };
   openMod('Escolher da Biblioteca',`
   <div class="tabs" id="pick-gs-cats" style="margin-bottom:10px">${catBtns.map(c=>`<button class="tab-btn ${c.k===window._pickGsCat?'on':''}" onclick="window._pickGsCat='${c.k}';document.querySelectorAll('#pick-gs-cats .tab-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on');window._renderPickGsList()">${c.v}</button>`).join('')}</div>
+  <input class="fc" style="margin-bottom:10px" placeholder="Pesquisar exercício..." value="" onblur="window._pickGsSearch=this.value;window._renderPickGsList()">
   <div id="pick-gs-list" style="max-height:55vh;overflow-y:auto"></div>`,'lg');
   setTimeout(window._renderPickGsList,10);
 }
@@ -12487,7 +12533,7 @@ function _pickGsEx(exId){
   // à Biblioteca (imagem, músculos, dificuldade, descrição) em vez de ficar presa a
   // uma cópia estática — ver _gymExResolve. Os restantes campos ficam também
   // copiados como fallback, para fichas antigas ou se o exercício for apagado.
-  _gsDraft.exercises.push({exId:e.id,name:e.name,desc:e.desc||'',img:e.img||'',cat:e.cat||'Ginásio',muscles:e.muscles||'',diff:e.diff||'',equip:e.equip||'',reps:'2×12',rir:'2-3',note:''});
+  _gsDraft.exercises.push({exId:e.id,name:e.name,desc:e.desc||'',img:e.img||'',cat:e.cat||'Ginásio',muscles:e.muscles||'',diff:e.diff||'',equip:e.equip||'',videoUrl:e.videoUrl||'',reps:'2×12',rir:'2-3',note:'',bloco:''});
   _renderGsDetail();
 }
 function saveGymSheet(){
@@ -12525,15 +12571,21 @@ function _gymExResolve(ex){
     muscles:(lib&&lib.muscles)||ex.muscles||'',
     diff:(lib&&lib.diff)||ex.diff||'',
     equip:(lib&&lib.equip)||ex.equip||'',
-    desc:(lib&&lib.desc)||ex.desc||''
+    desc:(lib&&lib.desc)||ex.desc||'',
+    videoUrl:(lib&&lib.videoUrl)||ex.videoUrl||''
   };
 }
 function _gymSheetPdfHtml(f){
+  let prevBloco='';
   const exHtml=(f.exercises||[]).map((ex,i)=>{
     const full=_gymExResolve(ex);
     const metaBits=[full.muscles?'💪 '+escHtml(full.muscles):'',full.diff?'Dificuldade: <b>'+escHtml(full.diff)+'</b>':'',full.equip?'🏋️ '+escHtml(full.equip):''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+    const bloco=(ex.bloco||'').trim();
+    const groupHeadHtml=(bloco&&bloco!==prevBloco)?`<div style="font-size:8.5pt;font-weight:700;color:#7d3c98;margin:8px 0 3px">🔗 Bloco: ${escHtml(bloco)}</div>`:'';
+    prevBloco=bloco;
     return `
-  <div style="display:flex;gap:10px;border:1px solid #ddd;border-radius:6px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">
+  ${groupHeadHtml}
+  <div style="display:flex;gap:10px;border:1px solid #ddd;${bloco?'border-left:3px solid #7d3c98;':''}border-radius:6px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">
     ${full.img?`<div style="width:70px;height:70px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#f3f3f3"><img src="${full.img}" style="width:100%;height:100%;object-fit:cover"></div>`:''}
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap">
@@ -12544,6 +12596,7 @@ function _gymSheetPdfHtml(f){
       <div style="font-size:8.5pt;color:#333">Séries×Reps: <b>${escHtml(ex.reps||'—')}</b> &nbsp;·&nbsp; RIR: <b>${escHtml(ex.rir||'—')}</b></div>
       ${metaBits?`<div style="font-size:7.5pt;color:#777;margin-top:2px">${metaBits}</div>`:''}
       ${full.desc?`<div style="font-size:8pt;color:#555;margin-top:3px;line-height:1.35">${escHtml(full.desc)}</div>`:''}
+      ${full.videoUrl?`<div style="font-size:7.5pt;color:#c0392b;margin-top:2px">▶ Vídeo: ${escHtml(full.videoUrl)}</div>`:''}
       ${ex.note?`<div style="font-size:8pt;color:#666;margin-top:2px"><i>Nota da ficha:</i> ${escHtml(ex.note)}</div>`:''}
     </div>
   </div>`;
@@ -12668,11 +12721,26 @@ function renderGymSessionGrid(){
   openMod(`📋 Registar Sessão — ${escHtml(gs.title||'Ficha')} (${fmtDate(ev.date)})`,`
   ${_gymRsvpStatusHtml(ev)}
   ${bodyHtml}
-  <div style="display:flex;gap:8px;margin-top:12px">
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
     <button class="btn btn-g" onclick="saveGymRecords()">💾 Guardar Registos</button>
     <button class="btn btn-gh" onclick="exportGymSessionPDFFromGrid()">🖨️ Exportar PDF</button>
+    <button class="btn btn-gh" onclick="gymOpenPresentation('${ev.id}')" title="Ecrã cheio para mostrar no ginásio">🖥️ Modo Apresentação</button>
     <button class="btn btn-gh" onclick="closeMod()">Fechar</button>
   </div>`,'xl');
+}
+// Modo Apresentação (sps-v218) — ecrã cheio, um exercício da Ficha por vez, para
+// mostrar num ecrã/TV do ginásio durante a sessão. Reaproveita o motor genérico de
+// _presOpen/_presRender (sps-v202, Playbook/Set Pieces) com um novo kind 'gym' — ver
+// _presGymSlideHtml. Frames = os exercícios da Ficha importada (gs.exercises), sempre
+// resolvidos ao vivo via _gymExResolve (nome/imagem/vídeo mais atuais da Biblioteca);
+// nunca mostra a personalização por atleta (hiddenEx/extraEx) — é um ecrã para a
+// equipa toda ver, não uma vista de uma atleta específica.
+function gymOpenPresentation(eventId){
+  const ev=APP.schedule.find(e=>e.id===eventId);
+  if(!ev||!ev.gymSheet)return;
+  const exs=ev.gymSheet.exercises||[];
+  if(!exs.length)return toast('Esta ficha não tem exercícios','err');
+  _presOpen('gym',{gs:ev.gymSheet},exs);
 }
 // 4 colunas por exercício (Carga/Séries/Reps/RIR), agrupadas sob o nome do
 // exercício numa 1ª linha de cabeçalho; separador mais grosso entre grupos de
@@ -12697,7 +12765,9 @@ function _gymPresentCheckbox(athId){
 function _gymGridTableHtml(gs,athletes){
   const groupHeadHtml=gs.exercises.map((ex,i)=>{
     const last=i===gs.exercises.length-1;
-    return `<th colspan="4" style="padding:6px 8px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--brd);${last?'':'border-right:2px solid var(--brd);'}background:var(--bg2)">${escHtml(ex.name)}<div style="font-weight:400;font-size:9.5px;color:var(--t2)">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div></th>`;
+    const vUrl=_gymExResolve(ex).videoUrl;
+    const vIcon=vUrl?` <a href="${escHtml(vUrl)}" target="_blank" title="Ver vídeo" style="text-decoration:none">🎥</a>`:'';
+    return `<th colspan="4" style="padding:6px 8px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--brd);${last?'':'border-right:2px solid var(--brd);'}background:var(--bg2)">${escHtml(ex.name)}${vIcon}<div style="font-weight:400;font-size:9.5px;color:var(--t2)">${escHtml(ex.reps||'')}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div></th>`;
   }).join('');
   const subHeadHtml=gs.exercises.map((ex,i)=>{
     const last=i===gs.exercises.length-1;
@@ -12720,10 +12790,12 @@ function _gymGridTableHtml(gs,athletes){
     }).join('');
     const extraRowsHtml=(d.extraEx||[]).map((ex,j)=>{
       const v=ex.val||{carga:'',series:'',reps:'',rir:''};
+      const exVUrl=_gymExResolve(ex).videoUrl;
+      const exVIcon=exVUrl?` <a href="${escHtml(exVUrl)}" target="_blank" title="Ver vídeo" style="text-decoration:none">🎥</a>`:'';
       const fieldsHtml=_GYM_FIELDS.map(([f,lbl])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><label style="font-size:8.5px;color:var(--t2)">${lbl}</label><input class="fc" style="width:${f==='carga'?'46px':'32px'};font-size:11px;padding:4px;text-align:center" value="${escHtml(v[f]||'')}" data-ath="${a.id}" data-exextra="${j}" data-field="${f}" oninput="_gymExtraCellInput(this)"></div>`).join('');
       return `<tr>
         <td style="padding:4px 8px;font-size:10.5px;color:var(--t2);white-space:nowrap">↳ Extra</td>
-        <td colspan="${exColspan}" style="padding:4px 8px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong style="font-size:11px">${escHtml(ex.name)}</strong>${fieldsHtml}<button class="btn btn-xs btn-r" onclick="_gymRemoveExtraEx('${a.id}',${j})">🗑️</button></div></td>
+        <td colspan="${exColspan}" style="padding:4px 8px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong style="font-size:11px">${escHtml(ex.name)}${exVIcon}</strong>${fieldsHtml}<button class="btn btn-xs btn-r" onclick="_gymRemoveExtraEx('${a.id}',${j})">🗑️</button></div></td>
         <td></td>
       </tr>`;
     }).join('');
@@ -12771,11 +12843,13 @@ function _gymGridAccordionHtml(gs,athletes){
       </div>`;
       }
       const v=d.vals[i]||{carga:'',series:'',reps:'',rir:''};
+      const vUrl=_gymExResolve(ex).videoUrl;
+      const vIcon=vUrl?` <a href="${escHtml(vUrl)}" target="_blank" title="Ver vídeo" style="text-decoration:none">🎥</a>`:'';
       const fields=_GYM_FIELDS.map(([f])=>`<div><label style="font-size:10px;color:var(--t2);display:block;margin-bottom:2px">${fieldLbl[f]}</label><input class="fc" value="${escHtml(v[f]||'')}" data-ath="${a.id}" data-ex="${i}" data-field="${f}" oninput="_gymCellInput(this)"></div>`).join('');
       return `
       <div style="margin-bottom:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
-          <label class="fl" style="margin-bottom:0">${escHtml(ex.name)}${ex.reps?` <span style="font-weight:400;color:var(--t2)">(${escHtml(ex.reps)}${ex.rir?' · RIR '+escHtml(ex.rir):''})</span>`:''}</label>
+          <label class="fl" style="margin-bottom:0">${escHtml(ex.name)}${vIcon}${ex.reps?` <span style="font-weight:400;color:var(--t2)">(${escHtml(ex.reps)}${ex.rir?' · RIR '+escHtml(ex.rir):''})</span>`:''}</label>
           <button class="btn btn-xs btn-gh" title="Dispensar este exercício para esta atleta" onclick="_gymToggleHiddenEx('${a.id}',${i})">🚫 Dispensar</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${fields}</div>
@@ -12783,11 +12857,13 @@ function _gymGridAccordionHtml(gs,athletes){
     }).join('');
     const extraRows=(d.extraEx||[]).map((ex,j)=>{
       const v=ex.val||{carga:'',series:'',reps:'',rir:''};
+      const exVUrl=_gymExResolve(ex).videoUrl;
+      const exVIcon=exVUrl?` <a href="${escHtml(exVUrl)}" target="_blank" title="Ver vídeo" style="text-decoration:none">🎥</a>`:'';
       const fields=_GYM_FIELDS.map(([f])=>`<div><label style="font-size:10px;color:var(--t2);display:block;margin-bottom:2px">${fieldLbl[f]}</label><input class="fc" value="${escHtml(v[f]||'')}" data-ath="${a.id}" data-exextra="${j}" data-field="${f}" oninput="_gymExtraCellInput(this)"></div>`).join('');
       return `
       <div style="margin-bottom:12px;border-left:2px solid var(--brd);padding-left:8px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
-          <label class="fl" style="margin-bottom:0">↳ ${escHtml(ex.name)} <span style="font-weight:400;color:var(--t2)">(extra)</span></label>
+          <label class="fl" style="margin-bottom:0">↳ ${escHtml(ex.name)}${exVIcon} <span style="font-weight:400;color:var(--t2)">(extra)</span></label>
           <button class="btn btn-xs btn-r" onclick="_gymRemoveExtraEx('${a.id}',${j})">🗑️</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${fields}</div>
@@ -12881,8 +12957,13 @@ function pickExForAthleteExtra(athId){
   const catCounts={};list.forEach(e=>{catCounts[e.cat]=(catCounts[e.cat]||0)+1;});
   const catBtns=[{k:'',v:'Todos'},...EX_CATS.filter(c=>catCounts[c]).map(c=>({k:c,v:c}))];
   window._pickExtraCat=catCounts['Ginásio']?'Ginásio':'';
+  window._pickExtraSearch='';
   window._renderPickExtraList=function(){
-    const filtered=list.filter(e=>!window._pickExtraCat||e.cat===window._pickExtraCat);
+    let filtered=list.filter(e=>!window._pickExtraCat||e.cat===window._pickExtraCat);
+    if(window._pickExtraSearch){
+      const q=_stripAccents(window._pickExtraSearch).toLowerCase();
+      filtered=filtered.filter(e=>_stripAccents(e.name||'').toLowerCase().includes(q));
+    }
     const html=filtered.length?filtered.map(e=>`
     <div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;cursor:pointer;margin-bottom:6px" onclick="_pickExtraEx('${e.id}')">
       <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg3);display:flex;align-items:center;justify-content:center">
@@ -12898,6 +12979,7 @@ function pickExForAthleteExtra(athId){
   };
   openMod('Escolher da Biblioteca — Exercício Extra',`
   <div class="tabs" id="pick-extra-cats" style="margin-bottom:10px">${catBtns.map(c=>`<button class="tab-btn ${c.k===window._pickExtraCat?'on':''}" onclick="window._pickExtraCat='${c.k}';document.querySelectorAll('#pick-extra-cats .tab-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on');window._renderPickExtraList()">${c.v}</button>`).join('')}</div>
+  <input class="fc" style="margin-bottom:10px" placeholder="Pesquisar exercício..." value="" onblur="window._pickExtraSearch=this.value;window._renderPickExtraList()">
   <div id="pick-extra-list" style="max-height:55vh;overflow-y:auto"></div>`,'lg');
   setTimeout(window._renderPickExtraList,10);
 }
@@ -12911,7 +12993,7 @@ function _pickExtraEx(exId){
   // Mesma cópia de fallback já usada em _pickGsEx (exId para ir buscar sempre a
   // versão mais atual à Biblioteca, mais os restantes campos copiados como
   // salvaguarda se o exercício vier a ser apagado da Biblioteca).
-  _gymGridData[athId].extraEx.push({exId:e.id,name:e.name,img:e.img||'',cat:e.cat||'Ginásio',reps:'2×12',rir:'2-3',val:{carga:'',series:'',reps:'',rir:''}});
+  _gymGridData[athId].extraEx.push({exId:e.id,name:e.name,img:e.img||'',cat:e.cat||'Ginásio',videoUrl:e.videoUrl||'',reps:'2×12',rir:'2-3',val:{carga:'',series:'',reps:'',rir:''}});
   renderGymSessionGrid();
 }
 // Grava (ou atualiza) um registo de presença 'treino' para esta atleta neste evento
@@ -21674,7 +21756,7 @@ async function pullCloud(){
       // 4 vezes seguidas por separadores com código antigo — ver
       // feedback_sps_biblioteca_exercicios_wipe). Fora do meta blob, um pushAppMeta()
       // de um separador desatualizado nunca mais consegue tocar nestes dados.
-      ['exercises','exercises',(d)=>APP.exercises=d.map(r=>({id:r.id,cat:r.cat,name:r.name,muscles:r.muscles,diff:r.diff,equip:r.equip,desc:r.desc,img:r.img}))],
+      ['exercises','exercises',(d)=>APP.exercises=d.map(r=>({id:r.id,cat:r.cat,name:r.name,muscles:r.muscles,diff:r.diff,equip:r.equip,desc:r.desc,img:r.img,videoUrl:r.video_url||''}))],
       ['gym_sheets','gymSheets',(d)=>APP.gymSheets=d.map(r=>({id:r.id,title:r.title,phase:r.phase,notes:r.notes,exercises:r.exercises||[],createdAt:r.created_at}))],
       // Unidades de Treino: tabela dedicada própria desde 15/09/2026 (antes viviam em
       // clubs.meta.trainings e dessincronizavam do Planeamento sempre que uma edição
@@ -22086,7 +22168,7 @@ const _CLOUD_TABLE_SCHEMA={
   // dedicadas (01/09/2026) — ver feedback_sps_biblioteca_exercicios_wipe. Uma
   // linha por exercício/ficha, mesmo padrão de cloudUpsert por id que todas as
   // outras tabelas aqui já usam, em vez de gravação do array inteiro.
-  exercises:{cols:['id','cat','name','muscles','diff','equip','desc','img'],rename:{}},
+  exercises:{cols:['id','cat','name','muscles','diff','equip','desc','img','video_url'],rename:{videoUrl:'video_url'}},
   gym_sheets:{cols:['id','title','phase','notes','exercises','created_at'],rename:{createdAt:'created_at'}},
   // Unidades de Treino: tabela dedicada desde 15/09/2026 (ver notas em pullCloud/
   // pushAppMeta e CLAUDE.md, incidente #2). Uma linha por UT, upsert por id em cada
