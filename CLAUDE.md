@@ -4603,3 +4603,48 @@ o Roger, assim que a atualização chegar aos dispositivos: se o vídeo devia me
 fora do PDF de sessão/matriz (decisão própria desta sessão, documentada acima), e se o
 Modo Apresentação (slide a slide, sem imagem de fundo do campo) está no formato que
 ele tinha em mente para o ecrã/TV do ginásio.
+
+## sps-v219 (14/10/2026): secção própria "Ginásio" na barra lateral + atalho para a Biblioteca de Exercícios
+
+Pedido do Roger, a seguir ao sps-v218: "NAO TE PARECE QUE FAÇA SENTIDO CRIAR UMA ABA
+GINASIO NA PLATAFORAM?" — pedido de opinião, não um comando direto; a página "Fichas de
+Ginásio" vivia escondida dentro da secção "Recursos", ao lado de Scouting e Treinos
+Individuais (sem relação temática), apesar de já cobrir Fichas + Registos com
+personalização por atleta, vídeo, pesquisa, blocos e Modo Apresentação (sps-v217/v218).
+Dada a opinião (sim, faz sentido — já está ao nível do Playbook/Estágios, que têm secção
+própria), 2 decisões confirmadas por `AskUserQuestion` antes de codar:
+
+1. **Biblioteca de Exercícios**: fica EXATAMENTE onde está, em "Recursos" — é uma única
+   tabela partilhada (`APP.exercises`), com categorias por especialidade (Tático, Físico,
+   Técnico, Velocidade, Força, Resistência, Recuperação, Ativação, **Ginásio**), usada
+   tanto pelas Unidades de Treino como pelas Fichas de Ginásio. O Roger confirmou
+   explicitamente que não quer uma 2ª Biblioteca nem duplicar dados — só um "link"
+   (atalho) a partir do Ginásio para essa mesma Biblioteca, já filtrada pela categoria
+   "Ginásio".
+2. **Estrutura interna**: Fichas e Registos continuam como 2 separadores (`_gsTab`) do
+   mesmo ecrã `fichas-ginasio` — não foram separados em 2 itens de menu.
+
+**O que foi construído:**
+- `ALL_PAGES`: nova `{sec:'Ginásio'}` extraída de "Recursos", contendo só
+  `fichas-ginasio` (id/label/ícone inalterados — `_NAV_TITLES` não precisou de
+  alteração). "Recursos" mantém Scouting, Biblioteca de Exercícios e Treinos
+  Individuais, pela mesma ordem.
+- `gsOpenBiblioteca()` (nova): `_libCat='Ginásio';navTo('biblioteca');` — mesmo defeito
+  de categoria já usado no atalho standalone `?ginasio=1`, agora disponível também a
+  partir da Plataforma normal. Função de navegação pura — nunca lê/escreve em `APP`.
+- Botão "📚 Biblioteca de Exercícios" acrescentado ao cabeçalho das 2 vistas da página
+  (`renderFichasGinasio` — lista de Fichas — e `renderGymRecordsList` — lista de
+  Registos), ao lado dos botões já existentes ("🗓️ Agendar Sessão"/"+ Nova Ficha").
+
+SW bump para `sps-v219`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_ginasio_tab_v219.js`, harness `vm` com o código REAL extraído, 6
+testes): `ALL_PAGES` tem a secção "Ginásio" com `fichas-ginasio` dentro (e só essa
+página, sem arrastar nenhuma outra); "Recursos" continua com `biblioteca`/`scouting`/
+`treinos-ind`; `_NAV_TITLES` inalterado; `gsOpenBiblioteca` existe, define
+`_libCat='Ginásio'` e chama `navTo('biblioteca')` exatamente uma vez; confirmação
+explícita de que a chamada nunca muta `APP` (diff do JSON completo antes/depois).
+Regressão re-corrida sem falhas: `test_ginasio_bloco1_v218.js` (16/16).
+
+**Ainda por fazer:** nada pendente para este pedido.

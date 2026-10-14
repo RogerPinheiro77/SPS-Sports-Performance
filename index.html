@@ -1058,10 +1058,11 @@ const ALL_PAGES=[
   {id:'treinos-extra',icon:'🏃',label:'Treinos Extra'},
   {id:'avaliacoes',icon:'⭐',label:'Avaliações'},
   {id:'convocatorias',icon:'📋',label:'Convocatórias'},
+  {sec:'Ginásio'},
+  {id:'fichas-ginasio',icon:'🏋️‍♀️',label:'Fichas de Ginásio'},
   {sec:'Recursos'},
   {id:'scouting',icon:'🔍',label:'Scouting'},
   {id:'biblioteca',icon:'📚',label:'Biblioteca de Exercícios'},
-  {id:'fichas-ginasio',icon:'🏋️‍♀️',label:'Fichas de Ginásio'},
   {id:'treinos-ind',icon:'🏋️',label:'Treinos Individuais'},
   {sec:'Clube'},
   {id:'codigo-conduta',icon:'📜',label:'Código de Conduta'},
@@ -12353,6 +12354,14 @@ function _gsTabsHtml(){
     <button class="tab-btn ${_gsTab==='registos'?'on':''}" onclick="_gsTab='registos';renderFichasGinasio()">Registos</button>
   </div>`;
 }
+// Atalho — abre a Biblioteca de Exercícios (partilhada por todas as especialidades,
+// Técnico/Físico/Ginásio/etc., em Recursos) já filtrada pela categoria "Ginásio".
+// Nunca cria uma 2ª Biblioteca nem move dados — é só um link direto para a mesma
+// tabela/página, com o filtro pré-aplicado (mesmo defeito já usado em ?ginasio=1).
+function gsOpenBiblioteca(){
+  _libCat='Ginásio';
+  navTo('biblioteca');
+}
 function renderFichasGinasio(){
   if(_gsView==='detail'&&_gsDraft){_renderGsDetail();return;}
   _gsView='list';_gsDraft=null;
@@ -12373,7 +12382,8 @@ function renderFichasGinasio(){
   </div>`).join(''):`<div class="empty"><div class="ei">🏋️‍♀️</div><p>Sem fichas de ginásio criadas</p></div>`;
   document.getElementById('pg-fichas-ginasio').innerHTML=`
   <div class="sh"><div class="sh-t">🏋️‍♀️ Fichas de Ginásio (${list.length})</div>
-  <div class="sh-a"><button class="btn btn-gh" onclick="_ginasioQuickScheduleModal()">🗓️ Agendar Sessão</button>
+  <div class="sh-a"><button class="btn btn-gh" onclick="gsOpenBiblioteca()">📚 Biblioteca de Exercícios</button>
+  <button class="btn btn-gh" onclick="_ginasioQuickScheduleModal()">🗓️ Agendar Sessão</button>
   <button class="btn btn-g" onclick="newGymSheet()">+ Nova Ficha</button></div></div>
   ${_gsTabsHtml()}
   <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Modelos de sessão de ginásio (exercícios + séries/reps/RIR) para importar depois numa sessão de Ginásio no Planeamento.</div>
@@ -12397,7 +12407,8 @@ function renderGymRecordsList(){
   }).join(''):`<div class="empty"><div class="ei">📋</div><p>Ainda não há sessões de Ginásio com ficha importada.</p></div>`;
   document.getElementById('pg-fichas-ginasio').innerHTML=`
   <div class="sh"><div class="sh-t">🏋️‍♀️ Fichas de Ginásio</div>
-  <div class="sh-a"><button class="btn btn-gh" onclick="_ginasioQuickScheduleModal()">🗓️ Agendar Sessão</button></div></div>
+  <div class="sh-a"><button class="btn btn-gh" onclick="gsOpenBiblioteca()">📚 Biblioteca de Exercícios</button>
+  <button class="btn btn-gh" onclick="_ginasioQuickScheduleModal()">🗓️ Agendar Sessão</button></div></div>
   ${_gsTabsHtml()}
   <div style="font-size:11px;color:var(--t2);margin:-6px 0 12px">Sessões de Ginásio já agendadas com ficha importada — abre para registar ou consultar carga/reps/RIR/observações por atleta.</div>
   ${rowsHtml}`;
