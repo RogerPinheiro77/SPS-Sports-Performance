@@ -12640,7 +12640,16 @@ function openGymSessionGrid(eventId){
   _gymAccOpen=null;
   _gymGridAthletes(ev).forEach(a=>{
     const rec=(APP.gymRecords||[]).find(r=>r.eventId===eventId&&r.athleteId===a.id);
-    _gymGridData[a.id]={vals:(rec&&rec.vals?rec.vals:[]).map(_gymParseVal),obs:(rec&&rec.obs)||''};
+    _gymGridData[a.id]={
+      vals:(rec&&rec.vals?rec.vals:[]).map(_gymParseVal),
+      obs:(rec&&rec.obs)||'',
+      // Personalização por atleta (sps-v217), vive só no Registo desta sessão — nunca
+      // na ficha/template partilhada (gs.exercises): hiddenEx = índices de gs.exercises
+      // dispensados só para esta atleta; extraEx = exercícios extra só desta atleta.
+      // Ver nota completa junto de _gymToggleHiddenEx/pickExForAthleteExtra.
+      hiddenEx:(rec&&Array.isArray(rec.hiddenEx))?rec.hiddenEx.slice():[],
+      extraEx:(rec&&Array.isArray(rec.extraEx))?rec.extraEx.map(e=>({...e,val:_gymParseVal(e.val)})):[]
+    };
   });
   renderGymSessionGrid();
 }
@@ -12694,18 +12703,37 @@ function _gymGridTableHtml(gs,athletes){
     const last=i===gs.exercises.length-1;
     return _GYM_FIELDS.map(([f,lbl],j)=>`<th style="padding:4px 5px;text-align:center;border-bottom:1px solid var(--brd);font-weight:400;font-size:9.5px;color:var(--t2);${j===3&&!last?'border-right:2px solid var(--brd);':''}">${lbl}</th>`).join('');
   }).join('');
+  const exColspan=Math.max(1,gs.exercises.length*4);
   const rowsHtml=athletes.length?athletes.map(a=>{
-    const d=_gymGridData[a.id]||{vals:[],obs:''};
+    const d=_gymGridData[a.id]||{vals:[],obs:'',hiddenEx:[],extraEx:[]};
+    const hidden=d.hiddenEx||[];
     const exCells=gs.exercises.map((ex,i)=>{
-      const v=d.vals[i]||{carga:'',series:'',reps:'',rir:''};
       const last=i===gs.exercises.length-1;
-      return _GYM_FIELDS.map(([f],j)=>`<td style="padding:3px 2px;${j===3&&!last?'border-right:2px solid var(--brd);':''}"><input class="fc" style="width:${f==='carga'?'46px':'32px'};font-size:11px;padding:5px 4px;text-align:center" value="${escHtml(v[f]||'')}" ${f==='carga'?'placeholder="kg"':''} data-ath="${a.id}" data-ex="${i}" data-field="${f}" oninput="_gymCellInput(this)"></td>`).join('');
+      if(hidden.includes(i)){
+        return `<td colspan="4" style="padding:3px 2px;text-align:center;color:var(--t2);font-size:10.5px;${last?'':'border-right:2px solid var(--brd);'}">Dispensado <button class="btn btn-xs btn-gh" style="padding:1px 5px;font-size:10px" title="Repor exercício" onclick="_gymToggleHiddenEx('${a.id}',${i})">↺</button></td>`;
+      }
+      const v=d.vals[i]||{carga:'',series:'',reps:'',rir:''};
+      return _GYM_FIELDS.map(([f],j)=>{
+        const hideBtn=j===3?`<button class="btn btn-xs btn-gh" style="padding:0 3px;font-size:9px;margin-left:2px" title="Dispensar este exercício para esta atleta" onclick="_gymToggleHiddenEx('${a.id}',${i})">🚫</button>`:'';
+        return `<td style="padding:3px 2px;${j===3&&!last?'border-right:2px solid var(--brd);':''}"><div style="display:flex;align-items:center;justify-content:center"><input class="fc" style="width:${f==='carga'?'46px':'32px'};font-size:11px;padding:5px 4px;text-align:center" value="${escHtml(v[f]||'')}" ${f==='carga'?'placeholder="kg"':''} data-ath="${a.id}" data-ex="${i}" data-field="${f}" oninput="_gymCellInput(this)">${hideBtn}</div></td>`;
+      }).join('');
+    }).join('');
+    const extraRowsHtml=(d.extraEx||[]).map((ex,j)=>{
+      const v=ex.val||{carga:'',series:'',reps:'',rir:''};
+      const fieldsHtml=_GYM_FIELDS.map(([f,lbl])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><label style="font-size:8.5px;color:var(--t2)">${lbl}</label><input class="fc" style="width:${f==='carga'?'46px':'32px'};font-size:11px;padding:4px;text-align:center" value="${escHtml(v[f]||'')}" data-ath="${a.id}" data-exextra="${j}" data-field="${f}" oninput="_gymExtraCellInput(this)"></div>`).join('');
+      return `<tr>
+        <td style="padding:4px 8px;font-size:10.5px;color:var(--t2);white-space:nowrap">↳ Extra</td>
+        <td colspan="${exColspan}" style="padding:4px 8px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong style="font-size:11px">${escHtml(ex.name)}</strong>${fieldsHtml}<button class="btn btn-xs btn-r" onclick="_gymRemoveExtraEx('${a.id}',${j})">🗑️</button></div></td>
+        <td></td>
+      </tr>`;
     }).join('');
     return `<tr>
       <td style="padding:6px 8px;font-weight:700;white-space:nowrap;border-bottom:1px solid var(--brd)"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">${_gymPresentCheckbox(a.id)}${escHtml(_shortName(a))}</label></td>
       ${exCells}
       <td style="padding:3px 6px"><input class="fc" style="width:160px;font-size:11px;padding:5px 7px" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></td>
-    </tr>`;
+    </tr>
+    ${extraRowsHtml}
+    <tr><td></td><td colspan="${exColspan+1}" style="padding:2px 8px 8px"><button class="btn btn-xs btn-gh" onclick="pickExForAthleteExtra('${a.id}')">+ Exercício Extra para esta atleta</button></td></tr>`;
   }).join(''):`<tr><td colspan="99" style="padding:16px;text-align:center;color:var(--t2)">Sem atletas nesta equipa.</td></tr>`;
   return `<div style="overflow-x:auto;max-height:60vh">
   <table style="border-collapse:collapse;width:100%">
@@ -12729,15 +12757,39 @@ function _gymGridAccordionHtml(gs,athletes){
   if(!athletes.length)return `<div class="empty"><div class="ei">🏋️‍♀️</div><p>Sem atletas nesta equipa.</p></div>`;
   const fieldLbl={carga:'Carga (kg)',series:'Séries',reps:'Repetições',rir:'RIR'};
   return `<div style="max-height:65vh;overflow-y:auto">`+athletes.map(a=>{
-    const d=_gymGridData[a.id]||{vals:[],obs:''};
-    const filled=d.vals.filter(v=>v&&(v.carga||v.series||v.reps||v.rir)).length;
+    const d=_gymGridData[a.id]||{vals:[],obs:'',hiddenEx:[],extraEx:[]};
+    const hidden=d.hiddenEx||[];
+    const visibleCount=gs.exercises.length-hidden.length;
+    const filled=d.vals.filter((v,i)=>v&&!hidden.includes(i)&&(v.carga||v.series||v.reps||v.rir)).length;
     const open=_gymAccOpen===a.id;
     const exRows=gs.exercises.map((ex,i)=>{
+      if(hidden.includes(i)){
+        return `
+      <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <label class="fl" style="margin-bottom:0;color:var(--t2)">${escHtml(ex.name)} — Dispensado</label>
+        <button class="btn btn-xs btn-gh" onclick="_gymToggleHiddenEx('${a.id}',${i})">↺ Repor</button>
+      </div>`;
+      }
       const v=d.vals[i]||{carga:'',series:'',reps:'',rir:''};
       const fields=_GYM_FIELDS.map(([f])=>`<div><label style="font-size:10px;color:var(--t2);display:block;margin-bottom:2px">${fieldLbl[f]}</label><input class="fc" value="${escHtml(v[f]||'')}" data-ath="${a.id}" data-ex="${i}" data-field="${f}" oninput="_gymCellInput(this)"></div>`).join('');
       return `
       <div style="margin-bottom:12px">
-        <label class="fl" style="display:block;margin-bottom:6px">${escHtml(ex.name)}${ex.reps?` <span style="font-weight:400;color:var(--t2)">(${escHtml(ex.reps)}${ex.rir?' · RIR '+escHtml(ex.rir):''})</span>`:''}</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+          <label class="fl" style="margin-bottom:0">${escHtml(ex.name)}${ex.reps?` <span style="font-weight:400;color:var(--t2)">(${escHtml(ex.reps)}${ex.rir?' · RIR '+escHtml(ex.rir):''})</span>`:''}</label>
+          <button class="btn btn-xs btn-gh" title="Dispensar este exercício para esta atleta" onclick="_gymToggleHiddenEx('${a.id}',${i})">🚫 Dispensar</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${fields}</div>
+      </div>`;
+    }).join('');
+    const extraRows=(d.extraEx||[]).map((ex,j)=>{
+      const v=ex.val||{carga:'',series:'',reps:'',rir:''};
+      const fields=_GYM_FIELDS.map(([f])=>`<div><label style="font-size:10px;color:var(--t2);display:block;margin-bottom:2px">${fieldLbl[f]}</label><input class="fc" value="${escHtml(v[f]||'')}" data-ath="${a.id}" data-exextra="${j}" data-field="${f}" oninput="_gymExtraCellInput(this)"></div>`).join('');
+      return `
+      <div style="margin-bottom:12px;border-left:2px solid var(--brd);padding-left:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+          <label class="fl" style="margin-bottom:0">↳ ${escHtml(ex.name)} <span style="font-weight:400;color:var(--t2)">(extra)</span></label>
+          <button class="btn btn-xs btn-r" onclick="_gymRemoveExtraEx('${a.id}',${j})">🗑️</button>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${fields}</div>
       </div>`;
     }).join('');
@@ -12747,13 +12799,15 @@ function _gymGridAccordionHtml(gs,athletes){
           ${_gymPresentCheckbox(a.id)}
           <span onclick="_gymToggleAcc('${a.id}')" style="cursor:pointer">
             <div style="font-weight:700;font-size:13px">${escHtml(_shortName(a))}</div>
-            <div style="font-size:11px;color:var(--t2)">${filled}/${gs.exercises.length} preenchido${filled!==1?'s':''}</div>
+            <div style="font-size:11px;color:var(--t2)">${filled}/${visibleCount} preenchido${filled!==1?'s':''}</div>
           </span>
         </label>
         <span style="font-size:16px;color:var(--t2);cursor:pointer" onclick="_gymToggleAcc('${a.id}')">${open?'▲':'▼'}</span>
       </div>
       ${open?`<div style="border-top:1px solid var(--brd);padding:12px 14px">
         ${exRows}
+        ${extraRows}
+        <button class="btn btn-xs btn-gh" style="margin-bottom:12px" onclick="pickExForAthleteExtra('${a.id}')">+ Exercício Extra para esta atleta</button>
         <div class="form-g"><label class="fl">Observações</label><input class="fc" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></div>
       </div>`:''}
     </div>`;
@@ -12761,7 +12815,7 @@ function _gymGridAccordionHtml(gs,athletes){
 }
 function _gymCellInput(el){
   const ath=el.getAttribute('data-ath');
-  if(!_gymGridData[ath])_gymGridData[ath]={vals:[],obs:''};
+  if(!_gymGridData[ath])_gymGridData[ath]={vals:[],obs:'',hiddenEx:[],extraEx:[]};
   const exIdx=el.getAttribute('data-ex');
   const field=el.getAttribute('data-field');
   const f=el.getAttribute('data-f');
@@ -12774,6 +12828,91 @@ function _gymCellInput(el){
   // treinador não precisa de marcar o "✓" à parte se já está a registar dados da
   // atleta. Só marca (nunca desmarca) — apagar um valor não retira a presença.
   if(el.value&&el.value.trim())_gymAutoMarkPresent(ath);
+}
+// ─── Personalização por atleta, dentro do Registo de uma sessão concreta (sps-v217)
+// ────────────────────────────────────────────────────────────────────────────────
+// Pedido do Roger (14/10/2026): "a ficha é geral, mas depois na área Registos ser
+// possível eliminar por atleta exercícios e adicionar" — confirmado por
+// AskUserQuestion: vive só nesta sessão (nunca na ficha/template partilhada,
+// gs.exercises, que continua geral e reutilizável); exercício extra usa a mesma
+// Biblioteca de sempre (mesmo picker de pickExForGymSheet/_pickGsEx, só que ligado a
+// uma atleta em vez de à ficha); um exercício dispensado desaparece só para essa
+// atleta, as outras continuam a vê-lo normalmente. Tudo guardado em _gymGridData
+// (rascunho em memória) e só persistido em gym_records ao clicar "Guardar Registos",
+// mesmo espírito do resto deste ecrã.
+function _gymToggleHiddenEx(athId,exIdx){
+  if(!_gymGridData[athId])_gymGridData[athId]={vals:[],obs:'',hiddenEx:[],extraEx:[]};
+  const d=_gymGridData[athId];
+  if(!d.hiddenEx)d.hiddenEx=[];
+  const pos=d.hiddenEx.indexOf(exIdx);
+  if(pos>=0)d.hiddenEx.splice(pos,1);else d.hiddenEx.push(exIdx);
+  renderGymSessionGrid();
+}
+function _gymExtraCellInput(el){
+  const ath=el.getAttribute('data-ath');
+  if(!_gymGridData[ath])_gymGridData[ath]={vals:[],obs:'',hiddenEx:[],extraEx:[]};
+  const idx=+el.getAttribute('data-exextra');
+  const field=el.getAttribute('data-field');
+  const d=_gymGridData[ath];
+  if(!d.extraEx||!d.extraEx[idx])return;
+  if(!d.extraEx[idx].val)d.extraEx[idx].val={carga:'',series:'',reps:'',rir:''};
+  d.extraEx[idx].val[field]=el.value;
+  if(el.value&&el.value.trim())_gymAutoMarkPresent(ath);
+}
+function _gymRemoveExtraEx(athId,idx){
+  const d=_gymGridData[athId];
+  if(!d||!d.extraEx)return;
+  if(!confirm('Remover este exercício extra desta atleta?'))return;
+  d.extraEx.splice(idx,1);
+  renderGymSessionGrid();
+}
+// Picker para adicionar um exercício extra a UMA atleta — mesma Biblioteca/mesmo
+// layout de pickExForGymSheet/_pickGsEx (ver linha ~12454), com globais próprios
+// (window._pickExtraAthId/_pickExtraCat) para nunca colidir com os globais do picker
+// da ficha (_gsDraft/_pickGsCat), que pode estar a ser usado noutro ecrã na mesma
+// sessão de trabalho.
+function pickExForAthleteExtra(athId){
+  const list=(APP.exercises||[]).slice().sort((a,b)=>(a.cat==='Ginásio'?-1:0)-(b.cat==='Ginásio'?-1:0));
+  if(!list.length){
+    openMod('Escolher da Biblioteca',`<div class="empty"><div class="ei">📚</div><p>A Biblioteca ainda não tem exercícios.</p></div>`,'lg');
+    return;
+  }
+  window._pickExtraAthId=athId;
+  const catCounts={};list.forEach(e=>{catCounts[e.cat]=(catCounts[e.cat]||0)+1;});
+  const catBtns=[{k:'',v:'Todos'},...EX_CATS.filter(c=>catCounts[c]).map(c=>({k:c,v:c}))];
+  window._pickExtraCat=catCounts['Ginásio']?'Ginásio':'';
+  window._renderPickExtraList=function(){
+    const filtered=list.filter(e=>!window._pickExtraCat||e.cat===window._pickExtraCat);
+    const html=filtered.length?filtered.map(e=>`
+    <div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;cursor:pointer;margin-bottom:6px" onclick="_pickExtraEx('${e.id}')">
+      <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg3);display:flex;align-items:center;justify-content:center">
+        ${e.img?`<img src="${e.img}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:20px">📚</span>'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:12px">${escHtml(e.name)}</div>
+        <div style="font-size:10px;color:var(--t2)">${e.cat}${e.equip?' · '+escHtml(e.equip):''}</div>
+      </div>
+    </div>`).join(''):`<div class="empty"><div class="ei">📚</div><p>Sem exercícios nesta categoria</p></div>`;
+    const el=document.getElementById('pick-extra-list');
+    if(el)el.innerHTML=html;
+  };
+  openMod('Escolher da Biblioteca — Exercício Extra',`
+  <div class="tabs" id="pick-extra-cats" style="margin-bottom:10px">${catBtns.map(c=>`<button class="tab-btn ${c.k===window._pickExtraCat?'on':''}" onclick="window._pickExtraCat='${c.k}';document.querySelectorAll('#pick-extra-cats .tab-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on');window._renderPickExtraList()">${c.v}</button>`).join('')}</div>
+  <div id="pick-extra-list" style="max-height:55vh;overflow-y:auto"></div>`,'lg');
+  setTimeout(window._renderPickExtraList,10);
+}
+function _pickExtraEx(exId){
+  const e=(APP.exercises||[]).find(x=>x.id===exId);
+  const athId=window._pickExtraAthId;
+  if(!e||!athId)return;
+  closeMod();
+  if(!_gymGridData[athId])_gymGridData[athId]={vals:[],obs:'',hiddenEx:[],extraEx:[]};
+  if(!_gymGridData[athId].extraEx)_gymGridData[athId].extraEx=[];
+  // Mesma cópia de fallback já usada em _pickGsEx (exId para ir buscar sempre a
+  // versão mais atual à Biblioteca, mais os restantes campos copiados como
+  // salvaguarda se o exercício vier a ser apagado da Biblioteca).
+  _gymGridData[athId].extraEx.push({exId:e.id,name:e.name,img:e.img||'',cat:e.cat||'Ginásio',reps:'2×12',rir:'2-3',val:{carga:'',series:'',reps:'',rir:''}});
+  renderGymSessionGrid();
 }
 // Grava (ou atualiza) um registo de presença 'treino' para esta atleta neste evento
 // de Ginásio específico — ao contrário de _autoMarkAttendance (que marca todos os
@@ -12824,7 +12963,7 @@ async function saveGymRecords(){
   if(!APP.gymRecords)APP.gymRecords=[];
   for(const athleteId in _gymGridData){
     const d=_gymGridData[athleteId];
-    const hasData=(d.vals||[]).some(v=>v&&(v.carga||v.series||v.reps||v.rir))||(d.obs&&d.obs.trim());
+    const hasData=(d.vals||[]).some(v=>v&&(v.carga||v.series||v.reps||v.rir))||(d.obs&&d.obs.trim())||(d.hiddenEx&&d.hiddenEx.length)||(d.extraEx&&d.extraEx.length);
     let rec=APP.gymRecords.find(r=>r.eventId===ev.id&&r.athleteId===athleteId);
     if(!hasData){
       if(rec){
@@ -12834,8 +12973,8 @@ async function saveGymRecords(){
       }
       continue;
     }
-    if(rec){rec.vals=d.vals;rec.obs=d.obs;rec.updatedAt=new Date().toISOString();delete rec.rirGeral;}
-    else{rec={id:uid(),eventId:ev.id,athleteId,vals:d.vals,obs:d.obs,updatedAt:new Date().toISOString()};APP.gymRecords.push(rec);}
+    if(rec){rec.vals=d.vals;rec.obs=d.obs;rec.hiddenEx=d.hiddenEx||[];rec.extraEx=d.extraEx||[];rec.updatedAt=new Date().toISOString();delete rec.rirGeral;}
+    else{rec={id:uid(),eventId:ev.id,athleteId,vals:d.vals,obs:d.obs,hiddenEx:d.hiddenEx||[],extraEx:d.extraEx||[],updatedAt:new Date().toISOString()};APP.gymRecords.push(rec);}
     if(_sync)await cloudUpsert('gym_records',{...rec,club_id:_cid});
   }
   saveData();
@@ -12891,7 +13030,12 @@ function _gymPdfPageHtml(pageExs,startIdx,pageNum,pageCount,athletes,dataMap){
   const headFieldRow=pageExs.map(()=>_GYM_FIELDS.map(([f,lbl])=>`<th style="padding:2px;border:1px solid #ccc;background:#f0f0f0;font-size:6.5pt;font-weight:400">${lbl}</th>`).join('')).join('');
   const rows=athletes.length?athletes.map((a,ai)=>{
     const d=dataMap[a.id]||{};
+    const hidden=d.hiddenEx||[];
     const cells=pageExs.map((ex,i)=>{
+      // Exercício dispensado para esta atleta (sps-v217, personalização por atleta no
+      // Registo) — fica uma célula só, em vez das 4 sub-colunas, as outras atletas
+      // continuam a ver o exercício normalmente nas suas próprias linhas.
+      if(hidden.includes(startIdx+i))return `<td colspan="4" style="padding:2px;border:1px solid #ddd;text-align:center;font-size:7.5pt;color:#999">Dispensado</td>`;
       const p=_gymParseVal((d.vals||[])[startIdx+i]);
       return _GYM_FIELDS.map(([f])=>`<td style="padding:2px;border:1px solid #ddd;text-align:center;font-size:8pt;height:5mm">${p[f]?escHtml(p[f]):'&nbsp;'}</td>`).join('');
     }).join('');
@@ -12909,6 +13053,26 @@ function _gymPdfPageHtml(pageExs,startIdx,pageNum,pageCount,athletes,dataMap){
     </table>
   </div>`;
 }
+// Exercícios extra por atleta (sps-v217, personalização por atleta) não cabem na
+// matriz partilhada (as colunas da matriz são as da ficha geral, iguais para todas
+// as atletas) — por isso ficam numa secção própria, só aparece se pelo menos uma
+// atleta tiver algum exercício extra nesta sessão.
+function _gymExtraPdfHtml(athletes,dataMap){
+  const withExtra=athletes.filter(a=>((dataMap[a.id]||{}).extraEx||[]).length);
+  if(!withExtra.length)return '';
+  const rows=withExtra.map(a=>{
+    const d=dataMap[a.id]||{};
+    const items=(d.extraEx||[]).map(ex=>`<div style="margin-bottom:3px"><b>${escHtml(ex.name)}</b> — ${escHtml(_gymValStr(ex.val))||'<span style="color:#999">sem registo</span>'}</div>`).join('');
+    return `<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;font-weight:700;vertical-align:top;white-space:nowrap">${escHtml(_shortName(a))}</td><td style="padding:5px 8px;border-bottom:1px solid #eee">${items}</td></tr>`;
+  }).join('');
+  return `<div style="page-break-before:always">
+    <div style="font-size:11pt;font-weight:700;color:#1d6f3b;margin-bottom:8px">Exercícios Extra (só desta atleta)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:9pt">
+      <thead><tr><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">Atleta</th><th style="text-align:left;padding:5px 8px;border-bottom:2px solid #1d6f3b">Exercícios</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
 function _gymSessionPdfHtml(ev,dataMap){
   const gs=ev.gymSheet;
   const athletes=_gymGridAthletes(ev);
@@ -12918,6 +13082,7 @@ function _gymSessionPdfHtml(ev,dataMap){
     const startIdx=p*_GYM_PDF_PER_PAGE;
     return _gymPdfPageHtml(exercises.slice(startIdx,startIdx+_GYM_PDF_PER_PAGE),startIdx,p+1,pageCount,athletes,dataMap);
   }).join(''):'<div style="color:#999;text-align:center;padding:30px">Esta ficha não tem exercícios.</div>';
+  const extraHtml=_gymExtraPdfHtml(athletes,dataMap);
   const summaryRows=athletes.length?athletes.map(a=>{
     const d=dataMap[a.id]||{};
     return `<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;font-weight:700">${escHtml(_shortName(a))}</td><td style="padding:5px 8px;border-bottom:1px solid #eee">${escHtml(d.obs||'')||'&nbsp;'}</td></tr>`;
@@ -12929,7 +13094,7 @@ function _gymSessionPdfHtml(ev,dataMap){
       <tbody>${summaryRows}</tbody>
     </table>
   </div>`;
-  return `<div>${blocksHtml}${summaryHtml}</div>`;
+  return `<div>${blocksHtml}${extraHtml}${summaryHtml}</div>`;
 }
 function exportGymSessionPDF(eventId){
   const ev=APP.schedule.find(e=>e.id===eventId);
@@ -12937,7 +13102,7 @@ function exportGymSessionPDF(eventId){
   const dataMap={};
   _gymGridAthletes(ev).forEach(a=>{
     const rec=(APP.gymRecords||[]).find(r=>r.eventId===eventId&&r.athleteId===a.id);
-    dataMap[a.id]=rec?{vals:rec.vals||[],obs:rec.obs||''}:{vals:[],obs:''};
+    dataMap[a.id]=rec?{vals:rec.vals||[],obs:rec.obs||'',hiddenEx:rec.hiddenEx||[],extraEx:rec.extraEx||[]}:{vals:[],obs:'',hiddenEx:[],extraEx:[]};
   });
   _printWin('Registo de Ginásio — '+(ev.gymSheet.title||'Ficha')+' ('+fmtDate(ev.date)+')',_gymSessionPdfHtml(ev,dataMap),null,false,false);
 }
@@ -21503,7 +21668,7 @@ async function pullCloud(){
       // event.gymSheet.exercises (mesmo índice = mesmo exercício). Tabela dedicada própria
       // (mesmo padrão de pse_records/attendance_records) em vez de meta blob — pode crescer
       // muito (1 linha por atleta por sessão de Ginásio). Ver project_sps_fichas_ginasio_fase2.
-      ['gym_records','gymRecords',(d)=>APP.gymRecords=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,rirGeral:r.rir_geral,updatedAt:r.updated_at,vals:r.vals||[]}))],
+      ['gym_records','gymRecords',(d)=>APP.gymRecords=d.map(r=>({...r,eventId:r.event_id,athleteId:r.athlete_id,rirGeral:r.rir_geral,updatedAt:r.updated_at,vals:r.vals||[],hiddenEx:r.hidden_ex||undefined,extraEx:r.extra_ex||undefined}))],
       // Biblioteca de Exercícios + Fichas de Ginásio: tabelas dedicadas desde
       // 01/09/2026 (antes viviam em clubs.meta e foram apagadas por sobreposição
       // 4 vezes seguidas por separadores com código antigo — ver
@@ -21910,8 +22075,13 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',selfReport:'self_report',selfReportUpdatedAt:'self_report_updated_at',nutriNotes:'nutri_notes',nutriNotesUpdatedAt:'nutri_notes_updated_at',nutriNotesUpdatedBy:'nutri_notes_updated_by',nutriNotesUpdatedById:'nutri_notes_updated_by_id',nutriViewedAt:'nutri_viewed_at'}},
   extra_training_records:{cols:['id','athlete_id','date','type','duration','pse','ua','summary','guidance','submitted_at'],
     rename:{athleteId:'athlete_id',submittedAt:'submitted_at'}},
-  gym_records:{cols:['id','event_id','athlete_id','vals','rir_geral','obs','updated_at'],
-    rename:{eventId:'event_id',athleteId:'athlete_id',rirGeral:'rir_geral',updatedAt:'updated_at'}},
+  // hidden_ex/extra_ex (sps-v217): personalização por atleta dentro do Registo de uma
+  // sessão concreta — nunca toca na ficha/template partilhada (ver nota em
+  // openGymSessionGrid/saveGymRecords). hidden_ex = índices de gs.exercises escondidos
+  // só para esta atleta; extra_ex = exercícios extra só desta atleta (mesma Biblioteca
+  // de sempre), cada um já com o seu próprio valor preenchido embutido.
+  gym_records:{cols:['id','event_id','athlete_id','vals','rir_geral','obs','updated_at','hidden_ex','extra_ex'],
+    rename:{eventId:'event_id',athleteId:'athlete_id',rirGeral:'rir_geral',updatedAt:'updated_at',hiddenEx:'hidden_ex',extraEx:'extra_ex'}},
   // Biblioteca de Exercícios e Fichas de Ginásio saíram do meta blob para tabelas
   // dedicadas (01/09/2026) — ver feedback_sps_biblioteca_exercicios_wipe. Uma
   // linha por exercício/ficha, mesmo padrão de cloudUpsert por id que todas as

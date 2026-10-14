@@ -4392,3 +4392,111 @@ pedida: incluir a lista de Marcadoras de Penalty nos PDFs exportados (Ficha Pré
 Lista de Convocados), tal como "Capitã:"/"Vice-Capitã:" já aparecem lá — fica como
 sugestão de baixo risco para um pedido futuro do Roger, não implementada por iniciativa
 própria.
+
+## sps-v217 (14/10/2026): Ginásio — personalização por atleta no Registo (dispensar/adicionar exercício)
+
+Pedido verbatim do Roger: "na plataforma ja temos algo criado para ginasio, quero
+melhorar essa parte, uma das melhorias a quando da criaçao da ficha como esta para o
+dia, que depois os parametros e a escolha dos exercicios seja possivel personalizar
+por atleta ou sejo, ha uma ficha geral, mas depois na area registos ser possivel
+eliminar por atleta exercicios e adicionar, analisa, investiga, da atua visao e
+propoem antes de avançar" — pedido explícito de análise/investigação/proposta antes
+de código. Investigação confirmou que o modelo até aqui só permitia diferenças de
+VALOR por atleta (carga/séries/reps/RIR), nunca de QUAIS exercícios existem — a Ficha
+(`APP.gymSheets`, template reutilizável) e os Registos (`APP.gymRecords`, um por
+atleta+evento, `vals[]` sempre paralelo a `gs.exercises[]`) eram sempre o mesmo
+conjunto de exercícios para toda a equipa. 3 decisões confirmadas por
+`AskUserQuestion`, todas com a opção recomendada: (1) a personalização vive **só
+nesse dia** — nunca toca na ficha/template partilhada, que continua geral e
+reutilizável para outras sessões; (2) adicionar um exercício extra usa **a mesma
+Biblioteca de sempre** (o mesmo picker já usado na ficha, `pickExForGymSheet`/
+`_pickGsEx`, agora ligado a uma atleta); (3) um exercício dispensado **desaparece só
+para essa atleta** — as outras continuam a vê-lo normalmente na mesma sessão.
+
+**O que foi construído — tudo dentro do Registo (`_gymGridData`, o rascunho em
+memória do ecrã "Registar Sessão"), nunca na ficha/template:**
+
+1. `_gymGridData[athleteId]` ganhou dois campos novos: `hiddenEx` (array de índices de
+   `gs.exercises` dispensados só para esta atleta) e `extraEx` (array de exercícios
+   extra só desta atleta, cada um com `exId`/`name`/`img`/`cat`/`reps`/`rir` — mesma
+   forma de uma entrada de `gs.exercises` — mais o seu próprio `val:{carga,series,
+   reps,rir}` já preenchido). `openGymSessionGrid` carrega os dois a partir do
+   `gym_records` já guardado (sempre como arrays, nunca `undefined`, mesmo sem
+   registo anterior).
+2. `_gymToggleHiddenEx(athId,exIdx)` — alterna dispensar/repor um exercício só para
+   essa atleta; `_gymExtraCellInput(el)` — atualiza um campo de um exercício extra
+   (mesmo padrão de `_gymCellInput`, por `data-exextra`/`data-field`);
+   `_gymRemoveExtraEx(athId,idx)` — remove um exercício extra (com confirmação).
+3. **Picker de exercício extra, por atleta** (`pickExForAthleteExtra`/`_pickExtraEx`) —
+   réplica do picker da ficha (`pickExForGymSheet`/`_pickGsEx`, mesmo layout/filtro por
+   categoria da Biblioteca), com globais próprios (`window._pickExtraAthId`/
+   `_pickExtraCat`) para nunca colidir com os globais do picker da ficha, que pode
+   estar aberto noutro ecrã na mesma sessão de trabalho.
+4. **Vista tabela** (`_gymGridTableHtml`): um exercício dispensado colapsa as 4
+   sub-colunas dessa atleta/exercício numa única célula "Dispensado ↺" (as outras
+   atletas continuam a ver as 4 colunas normais nessa mesma coluna de exercício); um
+   botão 🚫 discreto junto à célula de RIR de cada exercício visível dispensa-o;
+   exercícios extra entram como uma `<tr>` adicional por baixo da linha principal da
+   atleta ("↳ Extra"), com os seus 4 campos e um botão de remover; um botão "+
+   Exercício Extra para esta atleta" fecha o bloco de cada atleta.
+5. **Vista acordeão** (`_gymGridAccordionHtml`, mobile): mesmo espírito — um exercício
+   dispensado mostra "Dispensado"/"↺ Repor" em vez dos campos; cada exercício visível
+   ganha um botão "🚫 Dispensar"; exercícios extra aparecem com um traço lateral
+   diferenciador; mesmo botão "+ Exercício Extra"; a contagem "N/M preenchidos" do
+   cabeçalho do acordeão passou a excluir os exercícios dispensados do denominador.
+6. **`saveGymRecords`**: `hiddenEx`/`extraEx` não vazios passam a ser, por si só,
+   motivo suficiente para gravar (ou manter) o registo de uma atleta, mesmo sem
+   nenhum valor preenchido nem observações — e para apagar o registo quando ambos
+   voltam a ficar vazios e não há mais nenhum dado.
+7. **PDF** (decisão própria desta sessão, não cobertas pelas 3 perguntas ao Roger — a
+   matriz partilhada do PDF, exercícios em coluna, não permite um "corte" por
+   atleta/coluna sem distorcer as colunas das outras): na matriz normal
+   (`_gymPdfPageHtml`), um exercício dispensado para essa atleta mostra uma célula
+   "Dispensado" (colspan=4) só na linha dela, sem afetar as restantes; exercícios
+   extra, por não pertencerem à matriz partilhada da ficha, ganharam uma secção nova e
+   própria no fim do PDF, **"Exercícios Extra (só desta atleta)"**
+   (`_gymExtraPdfHtml`), listada só se pelo menos uma atleta tiver algum — uma linha
+   por atleta com nome+valor de cada exercício extra. `exportGymSessionPDF` (fora da
+   grelha) passou a ler `hiddenEx`/`extraEx` do `gym_record` guardado;
+   `exportGymSessionPDFFromGrid` já herda automaticamente por usar `_gymGridData`
+   diretamente.
+8. **Supabase**: 2 colunas novas em `gym_records` (`hidden_ex`, `extra_ex`, jsonb,
+   migração `gym_records_add_hidden_extra_ex`, aplicada via MCP) +
+   `_CLOUD_TABLE_SCHEMA.gym_records` (push) e o mapeador de `pullCloud()` (pull)
+   atualizados em conjunto, mesma disciplina sempre repetida nesta base de código
+   (ver Incidentes #1-4).
+
+**Testado:** `node --check` ao script extraído de `index.html`. Suite nova dedicada
+(`test_ginasio_personalizacao_v217.js`, harness `vm` com o código REAL extraído,
+17 testes): esconder/repor um exercício afeta só a atleta tocada, nunca as outras;
+`_gymToggleHiddenEx` cria a entrada em `_gymGridData` quando a atleta ainda não tinha
+rascunho; adicionar/editar/remover exercício extra (picker, `_gymExtraCellInput`
+preserva os campos irmãos e os de outras atletas, `_gymRemoveExtraEx` com e sem
+confirmação); `openGymSessionGrid` carrega `hiddenEx`/`extraEx` do registo guardado
+(incl. atletas sem registo a começarem com arrays vazios, nunca `undefined`);
+`saveGymRecords` grava mesmo sem valores/observações quando há `hiddenEx`/`extraEx`,
+e apaga o registo quando ambos voltam a ficar vazios; as duas vistas (tabela/acordeão)
+mostram "Dispensado"/exercícios extra só na atleta certa, sem HTML malformado; PDF
+(`_gymPdfPageHtml`/`_gymExtraPdfHtml`/`_gymSessionPdfHtml`/`exportGymSessionPDF`)
+reflete corretamente dispensas e extras por atleta; round-trip do schema
+`_CLOUD_TABLE_SCHEMA.gym_records` para os 2 campos novos. Regressão completa re-corrida
+(19 ficheiros de teste `vm`/Node, todos os que não dependem de Playwright/browser,
+mais a suite nova): todos passaram sem falhas novas
+(`test_autosave_v203.js`, `test_coc3.js`, `test_convoc_badge2.js`, `test_estagios.js`,
+`test_gdFoldRunning.js`, `test_guiao.js`, `test_lista_convocados.js`,
+`test_lista_convocados2.js`, `test_marker_evolution_v204.js`, `test_palestra_fields.js`,
+`test_palestra_ordem_v180.js`, `test_pdf_convocados_colunas.js`,
+`test_playbook_roundtrip.js`, `test_playbook_v201.js`, `test_presentation_v202.js`,
+`test_pull_bug_repro.js`, `test_pull_fix.js`, `test_saveEvent_preserva_rsvp.js`,
+`test_tatico.js`). Suites Playwright/browser (que precisam de um browser real e não
+foram corridas nesta sessão por não tocarem em nada do Ginásio) não foram re-corridas
+desta vez — nenhuma delas toca em código de Ginásio/Registos, e a suite dedicada cobre
+a renderização real (HTML gerado pelas funções de produção, não uma reimplementação).
+
+SW bump para `sps-v217`.
+
+**Ainda por fazer:** nada pendente para o pedido confirmado. Ficou por decidir com o
+Roger (decisão própria desta sessão, documentada acima): a forma exata como o PDF
+representa exercícios extra (secção própria no fim, em vez de dentro da matriz) —
+vale a pena confirmar visualmente com o Roger assim que gerar um PDF real com
+exercícios extra, e ajustar se ele preferir outra apresentação.
