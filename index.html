@@ -12682,6 +12682,30 @@ let _gymGridEventId=null, _gymGridData={}, _gymAccOpen=null;
 function _gymGridAthletes(ev){
   return APP.athletes.filter(a=>a.teamId===ev.teamId||(ev.guestIds||[]).includes(a.id)).sort((a,b)=>_shortName(a).localeCompare(_shortName(b)));
 }
+// Ligação à prontidão/wellness (App da Atleta — Bloco 2A, sps-v220): sinal só do
+// lado do staff, nunca visível à atleta — cruza o wellness que ela já reporta
+// (APP.wellness) com a baseline pessoal já existente (_athleteBaselineAt/_devSigma,
+// mesmo motor do perfil da atleta/Análise da Sessão, sps-v172) para avisar, na
+// grelha de Registo de Ginásio, quando o wellness do DIA da sessão está
+// significativamente abaixo do habitual dessa atleta — nunca comparado às outras
+// atletas, só ao histórico da própria. Sem dados suficientes (<_BASELINE_MIN_N
+// registos anteriores) não sinaliza nada, para nunca arriscar um falso alarme com
+// baseline fraca.
+function _gymWellnessSignal(athleteId,refDate){
+  const w=(APP.wellness||[]).find(x=>x.athleteId===athleteId&&x.date===refDate);
+  if(!w)return null;
+  const base=_athleteBaselineAt(athleteId,refDate).well;
+  const dev=_devSigma(+w.score||0,base);
+  if(dev===null||dev>-1)return null;
+  return {dev};
+}
+function _gymWellnessBadge(athId){
+  const ev=APP.schedule.find(e=>e.id===_gymGridEventId);
+  if(!ev)return '';
+  const sig=_gymWellnessSignal(athId,ev.date);
+  if(!sig)return '';
+  return ` <span class="bdg bg-y" title="Wellness do dia abaixo do habitual desta atleta (${sig.dev}σ face à sua baseline) — considera aliviar a carga" style="margin-left:4px">⚠️</span>`;
+}
 // Um valor de exercício era antes uma string livre ("40kg x 8"); agora é um
 // objeto {carga,series,reps,rir}. Esta função aceita as duas formas — usada
 // em todos os sítios que leem vals[i], para registos antigos continuarem a
@@ -12811,7 +12835,7 @@ function _gymGridTableHtml(gs,athletes){
       </tr>`;
     }).join('');
     return `<tr>
-      <td style="padding:6px 8px;font-weight:700;white-space:nowrap;border-bottom:1px solid var(--brd)"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">${_gymPresentCheckbox(a.id)}${escHtml(_shortName(a))}</label></td>
+      <td style="padding:6px 8px;font-weight:700;white-space:nowrap;border-bottom:1px solid var(--brd)"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">${_gymPresentCheckbox(a.id)}${escHtml(_shortName(a))}${_gymWellnessBadge(a.id)}</label></td>
       ${exCells}
       <td style="padding:3px 6px"><input class="fc" style="width:160px;font-size:11px;padding:5px 7px" value="${escHtml(d.obs||'')}" placeholder="Observações" data-ath="${a.id}" data-f="obs" oninput="_gymCellInput(this)"></td>
     </tr>
@@ -12885,7 +12909,7 @@ function _gymGridAccordionHtml(gs,athletes){
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="event.stopPropagation()">
           ${_gymPresentCheckbox(a.id)}
           <span onclick="_gymToggleAcc('${a.id}')" style="cursor:pointer">
-            <div style="font-weight:700;font-size:13px">${escHtml(_shortName(a))}</div>
+            <div style="font-weight:700;font-size:13px">${escHtml(_shortName(a))}${_gymWellnessBadge(a.id)}</div>
             <div style="font-size:11px;color:var(--t2)">${filled}/${visibleCount} preenchido${filled!==1?'s':''}</div>
           </span>
         </label>
@@ -13106,6 +13130,73 @@ function _gymValStr(v){
   if(p.series||p.reps)parts.push((p.series||'?')+'x'+(p.reps||'?'));
   if(p.rir)parts.push('RIR '+p.rir);
   return parts.join(' · ');
+}
+// "A tua Evolução (Ginásio)" — App da Atleta, Bloco 2A (sps-v220). Decisão
+// confirmada com o Roger: só setas de tendência, NUNCA os valores de carga em
+// bruto (ao contrário do card equivalente da Nutrição, sps-v167, onde o risco é
+// o inverso — aqui carga de treino não é dado sensível, mas o Roger preferiu
+// manter o mesmo nível de contenção visual). Agrupa por nome de exercício, mesmo
+// critério já usado no gymTimeline do relatório do staff (openAthleteModal) —
+// cruza gymRecords com a data do evento ligado — mas aqui só guarda o essencial
+// para calcular a tendência (carga numérica), nunca o valor em si.
+function _gymAthleteEvolution(athleteId){
+  const byEx={};
+  (APP.gymRecords||[]).filter(r=>r.athleteId===athleteId).forEach(r=>{
+    const gev=APP.schedule.find(e=>e.id===r.eventId);
+    if(!gev||!gev.gymSheet)return;
+    (gev.gymSheet.exercises||[]).forEach((ex,i)=>{
+      const v=_gymParseVal((r.vals||[])[i]);
+      const carga=parseFloat(String(v.carga||'').replace(',','.'));
+      if(isNaN(carga))return; // sem carga numérica — não entra na tendência
+      if(!byEx[ex.name])byEx[ex.name]=[];
+      byEx[ex.name].push({date:gev.date,carga});
+    });
+  });
+  return Object.keys(byEx).sort().map(name=>{
+    const hist=byEx[name].slice().sort((a,b)=>a.date.localeCompare(b.date));
+    const last=hist[hist.length-1],prev=hist.length>1?hist[hist.length-2]:null;
+    let trend='none';
+    if(prev)trend=last.carga>prev.carga?'up':(last.carga<prev.carga?'down':'same');
+    const maxBefore=hist.slice(0,-1).reduce((m,h)=>Math.max(m,h.carga),-Infinity);
+    return {name,trend,isPR:hist.length>1&&last.carga>maxBefore,sessions:hist.length};
+  });
+}
+function _gymEvolutionCardHtml(athleteId){
+  const data=_gymAthleteEvolution(athleteId);
+  if(!data.length)return '';
+  const ARROWS={up:'⬆️',down:'⬇️',same:'➡️',none:'🆕'};
+  const LABELS={up:'A subir',down:'A descer',same:'Estável',none:'1º registo'};
+  return `<div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct">📈 A tua Evolução (Ginásio)</span></div>
+    <div class="cb" style="padding:10px 14px">
+      ${data.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--brd);font-size:12px">
+        <span style="font-weight:700">${escHtml(d.name)}</span>
+        <span>${d.isPR?'<span class="bdg bg-g" style="margin-right:6px">🏆 Recorde</span>':''}<span style="color:var(--t2)">${ARROWS[d.trend]} ${LABELS[d.trend]}</span></span>
+      </div>`).join('')}
+      <div style="font-size:10px;color:var(--t2);margin-top:8px">Só mostra a tendência — fala com a equipa técnica para saber os valores exatos.</div>
+    </div>
+  </div>`;
+}
+// Streaks de consistência — App da Atleta, Bloco 2A (sps-v220): "N sessões
+// seguidas confirmadas", individual, nunca comparado com outras atletas (decisão
+// confirmada na proposta — ver doc "Ginásio: App da Atleta (Bloco 2)"). Conta
+// sessões de Ginásio passadas, da mais recente para trás, enquanto a atleta
+// tiver confirmado presença (RSVP "yes") — para a 1ª sem confirmação.
+function _gymConsistencyStreak(athleteId){
+  const at=APP.athletes.find(a=>a.id===athleteId);
+  const td=today();
+  const evs=APP.schedule.filter(e=>e.type==='Ginásio'&&e.date<=td&&(e.teamId===at?.teamId||!e.teamId)).sort((a,b)=>b.date.localeCompare(a.date));
+  let streak=0;
+  for(const e of evs){
+    const r=(e.rsvp&&e.rsvp[athleteId])||null;
+    if(r&&r.status==='yes')streak++;else break;
+  }
+  return streak;
+}
+function _gymStreakCardHtml(athleteId){
+  const n=_gymConsistencyStreak(athleteId);
+  if(n<2)return ''; // sem história suficiente — não vale a pena mostrar ainda
+  return `<div class="al al-g" style="margin-bottom:14px"><i class="ti ti-flame" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i><strong>${n} sessões de Ginásio seguidas confirmadas 🔥</strong></div>`;
 }
 const _GYM_PDF_PER_PAGE=4;
 function _gymPdfPageHtml(pageExs,startIdx,pageNum,pageCount,athletes,dataMap){
@@ -20681,6 +20772,15 @@ function atOpenEventDetail(eventId){
     const tr=(APP.trainings||[]).find(t=>t.eventId===ev.id);
     if(tr)return atOpenTreinoDetail(tr.id);
   }
+  // Ver o plano do dia (App da Atleta — Bloco 2A, sps-v220): um evento de Ginásio
+  // com ficha importada mostra os exercícios da sessão (séries/reps/RIR-alvo,
+  // imagem, vídeo) em vez dos campos genéricos abaixo — só leitura, nunca a
+  // personalização por atleta (hiddenEx/extraEx, sps-v217, que é do Registo, não
+  // da Ficha) e nunca o "dispensado"/valores já registados (isso é trabalho do
+  // staff). Reaproveita _gymExResolve para vir sempre com a versão mais atual da
+  // Biblioteca (nome/imagem/vídeo), mesmo motor já usado em _renderGsDetail/
+  // _gymGridTableHtml.
+  if(ev.type==='Ginásio'&&ev.gymSheet)return atOpenGinasioPlanoDia(eventId);
   const esc=v=>escHtml(v||'—');
   const rows=[
     ['Tipo',esc(ev.type)],
@@ -20699,6 +20799,42 @@ function atOpenEventDetail(eventId){
     ${ev.notes?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:4px">Notas</div><div style="font-size:12.5px;line-height:1.5">${escHtml(ev.notes)}</div></div>`:''}
   `;
   openMod('📅 '+escHtml(ev.title||ev.type||'Evento'),body);
+}
+// Plano do dia — Ginásio (App da Atleta — Bloco 2A, sps-v220). Só leitura: nunca
+// mostra inputs nem o estado de registo da atleta (isso é o Registo, do lado do
+// staff) — é o mesmo texto/imagem/vídeo que a ficha já tem, resolvido ao vivo via
+// _gymExResolve, com o mesmo agrupamento visual por "bloco" já usado em
+// _renderGsDetail/_gymSheetPdfHtml.
+function atOpenGinasioPlanoDia(eventId){
+  const ev=(APP.schedule||[]).find(e=>e.id===eventId);if(!ev||!ev.gymSheet)return;
+  const gs=ev.gymSheet;
+  let prevBloco='';
+  const exHtml=(gs.exercises||[]).map(ex=>{
+    const full=_gymExResolve(ex);
+    const bloco=(ex.bloco||'').trim();
+    const groupHeadHtml=(bloco&&bloco!==prevBloco)?`<div style="margin:10px 0 4px;font-size:11px;font-weight:700;color:#7d3c98;display:flex;align-items:center;gap:6px"><span>🔗</span><span>Bloco: ${escHtml(bloco)}</span></div>`:'';
+    prevBloco=bloco;
+    return `${groupHeadHtml}
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:8px${bloco?';border-left:3px solid #7d3c98':''}">
+      <div style="display:grid;grid-template-columns:1fr 84px;min-height:84px">
+        <div style="padding:10px 12px;display:flex;flex-direction:column;gap:4px;justify-content:center">
+          <div style="font-weight:700;font-size:13px">${escHtml(full.name)}</div>
+          <div style="font-size:11px;color:var(--t2)">${ex.reps?escHtml(ex.reps):''}${ex.rir?' · RIR '+escHtml(ex.rir):''}</div>
+          ${ex.note?`<div style="font-size:10.5px;color:var(--t2)">${escHtml(ex.note)}</div>`:''}
+          ${full.videoUrl?`<a href="${escHtml(full.videoUrl)}" target="_blank" style="font-size:10.5px;color:#c0392b;text-decoration:none">▶ Vídeo de demonstração</a>`:''}
+        </div>
+        <div style="background:var(--bg3);border-left:1px solid var(--brd);display:flex;align-items:center;justify-content:center;overflow:hidden">
+          ${full.img?`<img src="${full.img}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:20px;color:var(--t3)">📷</span>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const body=`
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${ev.time?ev.time.slice(0,5)+' · ':''}${escHtml(ev.location||'')}${ev.dur?' · '+ev.dur+'min':''}</div>
+    ${gs.notes?`<div class="al al-b" style="font-size:11.5px;margin-bottom:10px">${escHtml(gs.notes)}</div>`:''}
+    ${exHtml||'<div style="color:var(--t2);font-size:12px">Sem exercícios nesta ficha ainda.</div>'}
+  `;
+  openMod('📋 '+escHtml(gs.title||'Plano do Dia'),body,'lg');
 }
 function _atAgendaTabsHtml(){
   return `<div style="display:flex;gap:6px;margin-bottom:14px;background:var(--bg3);padding:4px;border-radius:8px">
@@ -21245,6 +21381,8 @@ function renderAtTreino(){
   const done=plans.filter(p=>p.done);
   document.getElementById('atp-treino').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-barbell" style="margin-right:6px;vertical-align:-3px;color:#94a3b8" aria-hidden="true"></i>Treino</div>
+  ${_gymStreakCardHtml(AID)}
+  ${_gymEvolutionCardHtml(AID)}
   ${active.length?`<div style="margin-bottom:14px">
     <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Planos individuais</div>
     ${active.map(p=>`<div class="card" style="margin-bottom:10px">

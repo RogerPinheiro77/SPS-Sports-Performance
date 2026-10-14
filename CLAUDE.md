@@ -4648,3 +4648,82 @@ explícita de que a chamada nunca muta `APP` (diff do JSON completo antes/depois
 Regressão re-corrida sem falhas: `test_ginasio_bloco1_v218.js` (16/16).
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v220 (14/10/2026): App da Atleta — Ginásio, Bloco 2A (plano do dia + vídeo,
+## A tua Evolução, streaks, sinal de wellness ao staff)
+
+Sequência direta do pedido "CERTO, ESTA QUESTAO GINASIO NA APP ATLETA COMO ESTA?"
+(14/10/2026): depois de confirmar por investigação de código que a App da Atleta só
+tinha RSVP (Vou/Não vou) para o Ginásio — nada de exercícios, vídeo, evolução ou
+registo próprio —, foi escrita a proposta "SPS — Ginásio: App da Atleta (Bloco 2)"
+(Claude Docs), com pesquisa de mercado (Volt Athletics/TeamBuildr/TrainHeroic) e
+grounding científico (risco de leaderboards em atletas adolescentes, fiabilidade do
+autorregisto de carga por sessão vs. semanal, limites das fórmulas de 1RM). O Roger
+confirmou avançar com o Bloco 2A ("ACHO QUE O BLOCO 2A JA FICA BASTANTE BEM") e
+resolveu o único ponto em aberto desse bloco — "A tua Evolução" mostra só setas de
+tendência, nunca a carga em bruto ("PARECE-ME BEM AS SETAS DE TENDENCIA"). Este
+release implementa as 5 peças do Bloco 2A, todas reaproveitando dados/estruturas já
+existentes (sps-v217/v218), sem nenhuma tabela nova no Supabase.
+
+1. **Ver o plano do dia + vídeo**: `atOpenEventDetail()` passou a desviar para
+   `atOpenGinasioPlanoDia(eventId)` sempre que o evento é `'Ginásio'` e já tem
+   `gymSheet` — mostra os exercícios da sessão (nome, séries×reps/RIR-alvo, imagem,
+   link "▶ Vídeo", agrupamento por bloco/supersérie) resolvidos ao vivo via
+   `_gymExResolve` (mesma função do staff, sps-v218 — vem sempre com a versão mais
+   atual da Biblioteca). Só leitura: nunca mostra o estado de registo/personalização
+   por atleta (`hiddenEx`/`extraEx`, sps-v217 — isso é trabalho do staff no
+   Registo). Sem ficha importada, o evento continua a cair no caminho genérico já
+   existente (tipo/data/hora/local/notas).
+2. **"A tua Evolução (Ginásio)"** — novo card em `renderAtTreino()` (aba Treino da
+   atleta). `_gymAthleteEvolution(athleteId)` agrupa `gymRecords` por nome de
+   exercício (mesmo critério do `gymTimeline` do relatório do staff,
+   `openAthleteModal`), mas só guarda o necessário para calcular uma tendência
+   (carga numérica parseada via `_gymParseVal` — registos antigos sem carga
+   numérica ficam de fora, nunca inventam um valor); `_gymEvolutionCardHtml`
+   desenha só uma seta (⬆️/⬇️/➡️/🆕) e um selo "🏆 Recorde" por exercício —
+   **nunca o número da carga**, decisão confirmada pelo Roger e testada
+   explicitamente (`!html.includes('40')`/etc.) como teste de segurança central,
+   mesmo espírito do card equivalente da Nutrição (`_naEvolutionCardHtml`,
+   sps-v167), só que aqui a cautela foi pedido direto do Roger, não um risco de
+   bem-estar identificado na literatura.
+3. **Streaks de consistência** — `_gymConsistencyStreak(athleteId)` conta, a partir
+   de hoje e para trás, quantos eventos de Ginásio consecutivos têm RSVP
+   `status:'yes'` dessa atleta (para no primeiro sem confirmação); `_gymStreakCardHtml`
+   só aparece a partir de 2 sessões seguidas, nunca compara com outras atletas
+   (decisão já confirmada na proposta).
+4. **Ligação à prontidão/wellness (sinal ao staff)** — decisão de âmbito: fica no
+   Registo de Ginásio (`renderGymSessionGrid`), nunca na app da atleta.
+   `_gymWellnessSignal(athleteId,refDate)` reaproveita o motor de baseline pessoal já
+   existente (`_athleteBaselineAt`/`_devSigma`, sps-v172 — baseline só com histórico
+   ANTERIOR à data, nunca contaminada pelo próprio valor do dia) e sinaliza quando o
+   wellness do dia da sessão está ≥1σ abaixo do habitual dessa atleta; sem
+   `_BASELINE_MIN_N` registos anteriores, não sinaliza nada (nunca um alarme com
+   baseline fraca). `_gymWellnessBadge` mostra um "⚠️" junto ao nome da atleta nas
+   duas vistas do Registo (`_gymGridTableHtml`/`_gymGridAccordionHtml`), lido a
+   partir de `_gymGridEventId` (mesmo padrão de `_gymIsPresent`) — nunca aparece no
+   plano do dia da atleta (testado explicitamente).
+5. SW bump para `sps-v220`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_ginasio_atleta_bloco2a_v220.js`, harness `vm` com o código REAL
+extraído, 19 testes): plano do dia (abre para evento com ficha, cai no caminho
+genérico sem ficha, agrupamento por bloco só 1 vez, vídeo só quando existe);
+evolução (tendência ⬆️/⬇️/➡️/🆕 nos 4 casos, recorde pessoal só quando supera o
+máximo anterior, ignora cargas não numéricas, nunca mistura atletas, **nunca expõe
+o número da carga no HTML** — teste de segurança central —, vazio sem histórico);
+streak (conta consecutivas, para na 1ª sem confirmação, nunca compara atletas, só
+aparece a partir de 2); sinal de wellness (sinaliza com baseline suficiente e desvio
+≥1σ, não sinaliza sem baseline/sem registo do dia, aparece nas 2 vistas do Registo,
+nunca aparece no plano do dia da atleta); integração em `renderAtTreino` (os 2 cards
+novos aparecem quando há histórico). Regressão re-corrida sem falhas:
+`test_ginasio_bloco1_v218.js` (16/16), `test_ginasio_tab_v219.js` (6/6).
+`test_marker_evolution_v204.js` (4 falhas) é staleness pré-existente já documentada
+no sps-v218 (espelhamento de adversárias introduzido no sps-v210, depois do teste ter
+sido escrito) — sem relação com este pedido, nenhuma das funções tocadas aqui.
+
+**Ainda por fazer:** o Bloco 2B (Registo próprio, Pedido de substituição, Sugestão
+automática de carga, Alertas de estagnação, Testes de referência) continua por
+decidir/implementar — precisa primeiro da decisão do Roger sobre "Registo próprio"
+(complemento ao staff vs. substituto nalgumas sessões, ver a proposta). Leaderboard
+de carga e vídeo de correção de técnica continuam fora de âmbito, por decisão já
+confirmada.
