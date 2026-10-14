@@ -4727,3 +4727,83 @@ decidir/implementar — precisa primeiro da decisão do Roger sobre "Registo pr�
 (complemento ao staff vs. substituto nalgumas sessões, ver a proposta). Leaderboard
 de carga e vídeo de correção de técnica continuam fora de âmbito, por decisão já
 confirmada.
+
+## sps-v221 (14/10/2026): App da Atleta — card único "Ginásio" + separar
+## "Convocatória" de "Gameday" na Home
+
+Pedido do Roger: "QUERO FAZER DUAS ALTERAÇOES NESSA APP, UMA É TER MESMO SO UM
+CARD DEDICADO AO GINASIO [...] E QUERO TAMBEM FAZER UMA ALTERAÇAO, O CARD
+CONVOCATORIA PASSA A GAMEDAY EM DIA DE JOGO, QUERO SEPARAR ESSES DOIS CARDS, NO
+QUAL O GAMEDAY SO ANUNCIA A DATA E HORA DO PROXIMO JOGO E PASSA A ACTIVO NO DIA
+EM SI" — pedido explícito de análise/investigação/mockup antes de código.
+Investigação (agente de exploração, só leitura) confirmou a estrutura exata de
+`renderAtHome()`/`renderAtTreino()` antes de qualquer alteração; mockup HTML
+(`mockup_ginasio_gameday_v1.html`, antes/depois dos dois cards + 2 opções de
+posição para o Gameday) enviado e aprovado ponto a ponto por
+`AskUserQuestion` ("FAZ AS PERGUNTAS UMA A UMA"): posição do card Gameday =
+**no topo, antes da grelha** (logo a seguir ao Código de Conduta); card
+Gameday em dia normal = **só informativo, sem ação ao tocar**.
+
+**1) Card único "Ginásio" (aba Treino):** `_gymStreakCardHtml`/
+`_gymEvolutionCardHtml` (sps-v220) eram 2 blocos soltos, sem moldura comum.
+Substituídos por uma única função, `_gymAthleteCardHtml(athleteId)` — card
+`.card`/`.ch`/`.cb` com cabeçalho "🏋️‍♀️ Ginásio", streak em cima (quando
+≥2 sessões seguidas) e evolução a seguir (quando há histórico) — mantém
+inalteradas as 2 funções de dados (`_gymConsistencyStreak`/
+`_gymAthleteEvolution`) e a regra de nunca mostrar a carga em bruto. Sem
+nenhum dos dois, o card não aparece; com só um dos dois, mostra só essa
+parte (nunca uma secção vazia). `renderAtTreino` passou a chamar só
+`_gymAthleteCardHtml(AID)` em vez das 2 funções antigas.
+
+**2) Separar "Convocatória" de "Gameday" (Home):** antes, o 7º slot da
+grelha 2×4 tinha uma lógica de 3 vias (Dia de Jogo vermelho / Hoje há jogo
+azul / Convocatória normal) — um único elemento a mudar de identidade
+consoante o dia. Passou a 2 elementos distintos:
+- A tile **"Convocatórias"** da grelha fica sempre com a versão normal
+  (`convoc?'Convocada! '+fmtDate(...)':'Sem convocatórias'`), já sem
+  depender de `gameHoje`/`gameHojeEquipa` — nunca mais é substituída.
+- Novo card **"Gameday"**, full-width, inserido logo a seguir ao card do
+  Código de Conduta (antes do Estágio ativo/aniversário/grelha), com 3
+  estados:
+  - **Dia normal**: `_atNextGame(at)` (nova — próximo jogo da equipa,
+    `date>=hoje`, ordenado, independentemente de convocação, mesmo
+    princípio de `_atGameHojeEquipa`) — "⚽ Gameday" neutro, "Próximo
+    jogo: vs X · data · hora". Sem `onclick` (decisão confirmada: só
+    informativo).
+  - **Dia de jogo + convocada**: reaproveita `gameHoje`
+    (`_atGameHoje`/`_atDiaJogoWindowActive`, inalterados) — vermelho/
+    ativo, "⚽ Gameday — Hoje!", `onclick="_atOpenDiaJogo(...)"` (mesmo
+    ecrã/checklist de sempre).
+  - **Dia de jogo + não convocada**: reaproveita `gameHojeEquipa` — azul,
+    "⚽ Gameday — Hoje", `onclick="_atOpenGameDiaEquipa(...)"` (mesmo
+    ecrã de sempre).
+  Nenhuma das funções de detecção/abertura de dia de jogo foi alterada —
+  só a sua ligação ao HTML mudou de sítio (saiu do slot da grelha, passou
+  a card próprio).
+
+SW bump para `sps-v221`. Sem alterações de schema Supabase.
+
+Testado: `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite
+nova dedicada (`test_home_gameday_ginasiocard_v221.js`, harness `vm` com o
+código REAL extraído, 14 testes): card único (ambas as partes, só uma, nenhuma,
+nunca expõe carga em bruto, `_gymStreakCardHtml`/`_gymEvolutionCardHtml`
+confirmados removidos); `_atNextGame` filtra por equipa e por data; card
+Gameday nos 3 estados (normal sem onclick, dia de jogo convocada → vermelho +
+`_atOpenDiaJogo`, dia de jogo não convocada → azul + `_atOpenGameDiaEquipa`);
+sem jogo nenhum agendado o card Gameday não aparece mas a tile Convocatória
+continua; tile Convocatória sempre normal mesmo em dia de jogo (nunca
+duplicada/substituída); convocatória sem jogo ligado continua a navegar para a
+tab normalmente. `test_ginasio_atleta_bloco2a_v220.js` atualizado (3 testes
+que chamavam diretamente as funções removidas passaram a chamar
+`_gymAthleteCardHtml`, mesmas garantias de segurança/conteúdo; 1 asserção de
+integração ajustada ao texto novo) — 19/19 a passar depois do ajuste.
+Regressão: `test_ginasio_bloco1_v218.js` (16/16), `test_ginasio_tab_v219.js`
+(6/6) sem alterações necessárias. `test_marker_evolution_v204.js` continua com
+as mesmas 4 falhas pré-existentes já documentadas desde o sps-v218
+(espelhamento de adversárias, sps-v210) — sem relação com este pedido,
+nenhuma das funções tocadas aqui.
+
+**Ainda por fazer:** nada pendente para este pedido. Confirmar visualmente
+com o Roger, assim que a atualização chegar aos dispositivos, as 3
+aparências do card Gameday (sobretudo as cores/textos nos dois estados de
+dia de jogo, que só mudaram de sítio, nunca de lógica).

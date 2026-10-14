@@ -13161,22 +13161,6 @@ function _gymAthleteEvolution(athleteId){
     return {name,trend,isPR:hist.length>1&&last.carga>maxBefore,sessions:hist.length};
   });
 }
-function _gymEvolutionCardHtml(athleteId){
-  const data=_gymAthleteEvolution(athleteId);
-  if(!data.length)return '';
-  const ARROWS={up:'⬆️',down:'⬇️',same:'➡️',none:'🆕'};
-  const LABELS={up:'A subir',down:'A descer',same:'Estável',none:'1º registo'};
-  return `<div class="card" style="margin-bottom:14px">
-    <div class="ch"><span class="ct">📈 A tua Evolução (Ginásio)</span></div>
-    <div class="cb" style="padding:10px 14px">
-      ${data.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--brd);font-size:12px">
-        <span style="font-weight:700">${escHtml(d.name)}</span>
-        <span>${d.isPR?'<span class="bdg bg-g" style="margin-right:6px">🏆 Recorde</span>':''}<span style="color:var(--t2)">${ARROWS[d.trend]} ${LABELS[d.trend]}</span></span>
-      </div>`).join('')}
-      <div style="font-size:10px;color:var(--t2);margin-top:8px">Só mostra a tendência — fala com a equipa técnica para saber os valores exatos.</div>
-    </div>
-  </div>`;
-}
 // Streaks de consistência — App da Atleta, Bloco 2A (sps-v220): "N sessões
 // seguidas confirmadas", individual, nunca comparado com outras atletas (decisão
 // confirmada na proposta — ver doc "Ginásio: App da Atleta (Bloco 2)"). Conta
@@ -13193,10 +13177,31 @@ function _gymConsistencyStreak(athleteId){
   }
   return streak;
 }
-function _gymStreakCardHtml(athleteId){
-  const n=_gymConsistencyStreak(athleteId);
-  if(n<2)return ''; // sem história suficiente — não vale a pena mostrar ainda
-  return `<div class="al al-g" style="margin-bottom:14px"><i class="ti ti-flame" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i><strong>${n} sessões de Ginásio seguidas confirmadas 🔥</strong></div>`;
+// Card único "Ginásio" na aba Treino (pedido do Roger, 14/10/2026) — antes eram
+// 2 blocos soltos (streak + evolução), sem moldura comum; passam a viver dentro
+// do mesmo .card (streak em cima, evolução a seguir). Mantém a regra de nunca
+// mostrar a carga em bruto (_gymAthleteEvolution só expõe tendência) e o
+// limiar de 2 sessões para o streak valer a pena mostrar. Sem nenhum dos dois,
+// o card não aparece; com só um dos dois, mostra só essa parte.
+function _gymAthleteCardHtml(athleteId){
+  const streak=_gymConsistencyStreak(athleteId);
+  const data=_gymAthleteEvolution(athleteId);
+  if(streak<2&&!data.length)return '';
+  const ARROWS={up:'⬆️',down:'⬇️',same:'➡️',none:'🆕'};
+  const LABELS={up:'A subir',down:'A descer',same:'Estável',none:'1º registo'};
+  const streakHtml=streak>=2?`<div class="al al-g" style="margin-bottom:${data.length?'12px':'0'}"><i class="ti ti-flame" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i><strong>${streak} sessões seguidas confirmadas 🔥</strong></div>`:'';
+  const evoHtml=data.length?`${data.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--brd);font-size:12px">
+        <span style="font-weight:700">${escHtml(d.name)}</span>
+        <span>${d.isPR?'<span class="bdg bg-g" style="margin-right:6px">🏆 Recorde</span>':''}<span style="color:var(--t2)">${ARROWS[d.trend]} ${LABELS[d.trend]}</span></span>
+      </div>`).join('')}
+      <div style="font-size:10px;color:var(--t2);margin-top:8px">Só mostra a tendência — fala com a equipa técnica para saber os valores exatos.</div>`:'';
+  return `<div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct">🏋️‍♀️ Ginásio</span></div>
+    <div class="cb" style="padding:10px 14px">
+      ${streakHtml}
+      ${evoHtml}
+    </div>
+  </div>`;
 }
 const _GYM_PDF_PER_PAGE=4;
 function _gymPdfPageHtml(pageExs,startIdx,pageNum,pageCount,athletes,dataMap){
@@ -20223,6 +20228,14 @@ function _atGameHojeEquipa(at){
   if(g&&!_atDiaJogoWindowActive(g))return null;
   return g;
 }
+// "Próximo Jogo" — usado pelo card Gameday da Home (sps-v221) fora da janela de
+// dia de jogo (_atDiaJogoWindowActive). Sempre o próximo jogo da equipa da
+// atleta, independentemente de convocação — não revela nada que a Agenda já
+// não mostre (mesmo princípio de _atGameHojeEquipa).
+function _atNextGame(at){
+  const td=today();
+  return (APP.games||[]).filter(g=>g.date>=td&&(g.teamId===at.teamId||(!g.teamId&&!at.teamId))).sort((a,b)=>a.date.localeCompare(b.date))[0]||null;
+}
 function _atOpenGameDiaEquipa(gid){
   const g=(APP.games||[]).find(x=>x.id===gid);if(!g)return;
   const body=`
@@ -20363,20 +20376,7 @@ function renderAtHome(){
       injCount?`${injCount} lesão${injCount>1?'ões':''} ativa${injCount>1?'s':''}`:'Disponível ✓',
       injCount?'#f87171':'#4ade80',
       _bdg(injCount||'','#dc2626'),'220,38,38'),
-    gameHoje
-      ? `<div class="at-gameday-card" onclick="_atOpenDiaJogo('${gameHoje.id}')" style="background:rgba(220,38,38,.18);border:1.5px solid rgba(220,38,38,.55);border-radius:12px;padding:13px 11px;cursor:pointer;position:relative;min-height:90px">
-          ${_bdg('🏆','#dc2626')}
-          <i class="ti ti-trophy" style="font-size:24px;color:#f87171;display:block;margin-bottom:6px" aria-hidden="true"></i>
-          <div style="font-size:12px;font-weight:800;color:var(--t1)">Dia de Jogo!</div>
-          <div style="font-size:10px;color:#f87171;margin-top:3px;line-height:1.3">vs ${escHtml(gameHoje.opp)}${gameHoje.time?' · '+gameHoje.time:''}</div>
-        </div>`
-      : gameHojeEquipa
-      ? `<div onclick="_atOpenGameDiaEquipa('${gameHojeEquipa.id}')" style="background:rgba(56,189,248,.14);border:1.5px solid rgba(56,189,248,.4);border-radius:12px;padding:13px 11px;cursor:pointer;position:relative;min-height:90px">
-          <i class="ti ti-calendar-event" style="font-size:24px;color:#38bdf8;display:block;margin-bottom:6px" aria-hidden="true"></i>
-          <div style="font-size:12px;font-weight:800;color:var(--t1)">Hoje há jogo</div>
-          <div style="font-size:10px;color:#38bdf8;margin-top:3px;line-height:1.3">vs ${escHtml(gameHojeEquipa.opp)}${gameHojeEquipa.time?' · '+gameHojeEquipa.time:''}</div>
-        </div>`
-      : _card('convoc','clipboard-list','#2dd4bf','Convocatórias',
+    _card('convoc','clipboard-list','#2dd4bf','Convocatórias',
       convoc?`Convocada! ${fmtDate(convoc.date)}`:'Sem convocatórias',
       convoc?'#2dd4bf':'var(--t2)',
       convoc?_bdg('✓','#16a34a'):'',' 14,98,81'),
@@ -20405,6 +20405,41 @@ function renderAtHome(){
     </div>
     ${cocPending?'<i class="ti ti-chevron-right" style="font-size:18px;color:var(--t2)" aria-hidden="true"></i>':''}
   </div>`:''}
+  ${(()=>{
+    // Card "Gameday" (sps-v221) — separado da tile "Convocatórias" da grelha
+    // (pedido do Roger, 14/10/2026: "o card Convocatória passa a Gameday em
+    // dia de jogo, quero separar esses dois cards"). Em dia normal mostra só
+    // data/hora do próximo jogo (_atNextGame, sem revelar convocação); em dia
+    // de jogo (_atDiaJogoWindowActive) fica ativo/destacado, reaproveitando
+    // exatamente os mesmos dois estados que já existiam nesta grelha antes
+    // desta versão (convocada → _atOpenDiaJogo; não convocada → _atOpenGameDiaEquipa).
+    // Em dia normal não tem ação ao tocar (decisão confirmada com o Roger —
+    // só informativo, mesmo espírito dos cards de Ginásio/Evolução).
+    if(gameHoje)return `<div onclick="_atOpenDiaJogo('${gameHoje.id}')" style="background:rgba(220,38,38,.18);border:1.5px solid rgba(220,38,38,.55);border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
+      <i class="ti ti-trophy" style="font-size:26px;color:#f87171;flex-shrink:0" aria-hidden="true"></i>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:800;color:#f87171">⚽ Gameday — Hoje!</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">vs ${escHtml(gameHoje.opp)}${gameHoje.time?' · '+gameHoje.time:''} · toca para abrir o Dia de Jogo</div>
+      </div>
+      <i class="ti ti-chevron-right" style="font-size:18px;color:var(--t2)" aria-hidden="true"></i>
+    </div>`;
+    if(gameHojeEquipa)return `<div onclick="_atOpenGameDiaEquipa('${gameHojeEquipa.id}')" style="background:rgba(56,189,248,.14);border:1.5px solid rgba(56,189,248,.4);border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
+      <i class="ti ti-calendar-event" style="font-size:26px;color:#38bdf8;flex-shrink:0" aria-hidden="true"></i>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:800;color:#38bdf8">⚽ Gameday — Hoje</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">vs ${escHtml(gameHojeEquipa.opp)}${gameHojeEquipa.time?' · '+gameHojeEquipa.time:''}</div>
+      </div>
+    </div>`;
+    const nextG=_atNextGame(at);
+    if(!nextG)return '';
+    return `<div style="background:rgba(148,163,184,.08);border:1.5px solid rgba(148,163,184,.25);border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+      <i class="ti ti-ball-football" style="font-size:26px;color:var(--t2);flex-shrink:0" aria-hidden="true"></i>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:800">⚽ Gameday</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">Próximo jogo: vs ${escHtml(nextG.opp)} · ${fmtDate(nextG.date)}${nextG.time?' · '+nextG.time:''}</div>
+      </div>
+    </div>`;
+  })()}
   ${estAtivo?`<div onclick="atOpenEstagio('${estAtivo.id}')" style="background:${!estRsvp?'rgba(245,158,11,.18)':'rgba(56,189,248,.12)'};border:1.5px solid ${!estRsvp?'rgba(245,158,11,.55)':'rgba(56,189,248,.35)'};border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
     <i class="ti ${!estRsvp?'ti-alert-triangle':'ti-briefcase'}" style="font-size:26px;color:${!estRsvp?'#fbbf24':'#38bdf8'};flex-shrink:0" aria-hidden="true"></i>
     <div style="flex:1">
@@ -21381,8 +21416,7 @@ function renderAtTreino(){
   const done=plans.filter(p=>p.done);
   document.getElementById('atp-treino').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-barbell" style="margin-right:6px;vertical-align:-3px;color:#94a3b8" aria-hidden="true"></i>Treino</div>
-  ${_gymStreakCardHtml(AID)}
-  ${_gymEvolutionCardHtml(AID)}
+  ${_gymAthleteCardHtml(AID)}
   ${active.length?`<div style="margin-bottom:14px">
     <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Planos individuais</div>
     ${active.map(p=>`<div class="card" style="margin-bottom:10px">
