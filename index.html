@@ -20660,7 +20660,7 @@ function renderAtHome(){
   </div>`:''}
   ${inj?`<div class="al al-r" style="margin-bottom:10px"><i class="ti ti-stethoscope" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Em acompanhamento: <strong>${inj.diagnosis||inj.type}</strong> — Fase ${inj.phase}/5</div>`:''}
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">${cards.join('')}</div>
-  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct"><i class="ti ti-calendar-event" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Hoje</span></div><div class="cb" style="padding:10px 14px">${todayEvs.map(e=>{const c=EV_COLORS[e.type]||'#27a34a';return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd);cursor:pointer" onclick="atOpenEventDetail('${e.id}')"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span><div><div style="font-size:12px;font-weight:700">${e.title}</div><div style="font-size:10px;color:var(--t2)">${e.time?e.time.slice(0,5)+' · ':''}${e.location||''}</div></div></div>`;}).join('')}</div></div>`:''}
+  ${todayEvs.length?`<div class="card"><div class="ch"><span class="ct"><i class="ti ti-calendar-event" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Hoje</span></div><div class="cb" style="padding:10px 14px 4px">${todayEvs.map(_atEvCardHtml).join('')}</div></div>`:''}
   ${(()=>{const ss=_seasonStatsFor(AID);if(!ss.jogos)return'';
     const compRows=Object.values(ss.byComp).filter(b=>b.jogos>0).sort((a,b)=>b.goals-a.goals||b.assists-a.assists||b.mins-a.mins).map(b=>`
       <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--brd)">
@@ -21754,6 +21754,13 @@ function _gymRsvpDeadlinePassed(ev){
 }
 function _gymRsvpOf(ev){return (ev.rsvp&&ev.rsvp[AID])||null;}
 let _gymRsvpDeclining=new Set();
+// Redesenha a página da atleta onde o RSVP está a ser respondido — antes (sps-v224 e
+// antes) chamava sempre renderAtAgenda(), o que era seguro enquanto o bloco de RSVP só
+// aparecia na Agenda; passou a aparecer também na lista "Hoje" da Casa (pedido do
+// Roger, 15/10/2026: poder confirmar presença logo ali), por isso tem de redesenhar
+// sempre a página ATUAL (_atPage/_AT_RENDERS), nunca uma fixa — senão, responder a
+// partir da Casa deixava o botão "preso" visualmente até a atleta navegar e voltar.
+function _gymRsvpRerender(){if(_AT_RENDERS[_atPage])_AT_RENDERS[_atPage]();}
 async function atGymRsvpYes(eventId){
   const ev=(APP.schedule||[]).find(e=>e.id===eventId);if(!ev)return;
   if(_gymRsvpDeadlinePassed(ev))return toast('Prazo de resposta terminado','err');
@@ -21762,10 +21769,10 @@ async function atGymRsvpYes(eventId){
   _gymRsvpDeclining.delete(eventId);
   saveData();
   if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
-  renderAtAgenda();toast('Confirmaste presença ✓');
+  _gymRsvpRerender();toast('Confirmaste presença ✓');
 }
-function atGymRsvpDeclineStart(eventId){_gymRsvpDeclining.add(eventId);renderAtAgenda();}
-function atGymRsvpDeclineCancel(eventId){_gymRsvpDeclining.delete(eventId);renderAtAgenda();}
+function atGymRsvpDeclineStart(eventId){_gymRsvpDeclining.add(eventId);_gymRsvpRerender();}
+function atGymRsvpDeclineCancel(eventId){_gymRsvpDeclining.delete(eventId);_gymRsvpRerender();}
 async function atGymRsvpDeclineConfirm(eventId){
   const ev=(APP.schedule||[]).find(e=>e.id===eventId);if(!ev)return;
   if(_gymRsvpDeadlinePassed(ev))return toast('Prazo de resposta terminado','err');
@@ -21777,7 +21784,7 @@ async function atGymRsvpDeclineConfirm(eventId){
   _gymRsvpDeclining.delete(eventId);
   saveData();
   if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
-  renderAtAgenda();toast('Resposta registada');
+  _gymRsvpRerender();toast('Resposta registada');
 }
 async function atGymRsvpReset(eventId){
   const ev=(APP.schedule||[]).find(e=>e.id===eventId);if(!ev)return;
@@ -21786,7 +21793,7 @@ async function atGymRsvpReset(eventId){
   _gymRsvpDeclining.delete(eventId);
   saveData();
   if(_sync)await cloudUpsert('schedule_events',{...ev,club_id:_cid});
-  renderAtAgenda();
+  _gymRsvpRerender();
 }
 function _gymRsvpCardBlockHtml(ev){
   if(ev.date<today())return '';

@@ -5029,3 +5029,61 @@ duas correções ao harness não alteraram nenhuma linha de `index.html`/`sw.js`
 ir colando os links de vídeo do YouTube nos exercícios importados (o atalho "🔍
 Procurar no YouTube" ajuda nisso) — sem isso, os exercícios da categoria Ginásio
 importados ficam sem vídeo até serem editados manualmente, como esperado/pedido.
+
+## sps-v225 (15/10/2026): RSVP do Ginásio passa a estar disponível também na lista "Hoje" da Casa
+
+Pedido do Roger, com screenshot da Casa da App Atleta ("Hoje" mostrando "PRÉ TREINO -
+GINASIO 19:30 · Academia Moreirense"): "quero que na app atleta onde esta definido o
+pré treino ginasio, tambem ai elas possam clicar e colocar se vai ou nao, vê isso" —
+a confirmação de presença (Vou/Não vou) do Ginásio já existia, mas só na Agenda; na
+Casa, o mesmo evento aparecia só como uma linha informativa, sem nenhuma ação.
+
+**Investigação:** confirmado por grep que `_atEvCardHtml` (o cartão de evento usado na
+Agenda) já condiciona um bloco RSVP inline (`_gymRsvpCardBlockHtml`) a `e.type==='Ginásio'`
+— mecanismo pronto, só não chegava à Casa. A lista "Hoje" de `renderAtHome()` tinha o seu
+próprio renderizador mais simples (uma linha por evento, sem RSVP) em vez de reutilizar
+`_atEvCardHtml`. Confirmado também, por consulta direta à Supabase (`schedule_events`),
+que os eventos "PRÉ TREINO - GINASIO" são de facto `type:'Ginásio'` (sem `gym_sheet`
+associado) — exatamente o tipo que já tem RSVP, só não estava ligado à Casa.
+
+**Fix:**
+- `renderAtHome()` — a lista "Hoje" passou a gerar cada cartão com
+  `todayEvs.map(_atEvCardHtml)` em vez do seu próprio HTML em linha — ganha
+  automaticamente o bloco RSVP inline para eventos de Ginásio (Vou/Não vou, motivo de
+  recusa, prazo de 2h, "mudar resposta"), exatamente como já acontecia na Agenda.
+  Eventos de outro tipo (Treino, Jogo, etc.) continuam a aparecer normalmente, sem RSVP.
+- `atGymRsvpYes`/`atGymRsvpDeclineStart`/`atGymRsvpDeclineCancel`/
+  `atGymRsvpDeclineConfirm`/`atGymRsvpReset` — até aqui redesenhavam sempre
+  `renderAtAgenda()` depois de gravar, seguro enquanto o RSVP só existia ali. Passaram a
+  chamar um novo helper, `_gymRsvpRerender()` (`if(_AT_RENDERS[_atPage])_AT_RENDERS[_atPage]();`),
+  que redesenha sempre a página ATUALMENTE visível (`_atPage`), nunca uma fixa — sem
+  isto, responder a partir da Casa deixaria os botões "presos" visualmente (a resposta
+  ficava gravada, mas só visível depois de navegar para a Agenda e voltar).
+
+Testado: `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_home_ginasio_rsvp_v225.js`, harness `vm` com o código REAL extraído, 15
+testes): evento de Ginásio hoje mostra o prompt "Vais ao ginásio?" com os botões
+Vou/Não vou; evento de Treino (não-Ginásio) no mesmo dia nunca mostra RSVP; os dois no
+mesmo dia — só o Ginásio tem o prompt; atleta já confirmada mostra "Confirmaste
+presença" em vez do prompt; `atGymRsvpYes` chamado com `_atPage==='home'` redesenha
+`atp-home` (nunca falha por depender de `atp-agenda`); chamado com `_atPage==='agenda'`
+continua a redesenhar `atp-agenda` (regressão explícita) e nunca escreve em `atp-home`;
+fluxo completo de "Não vou" com motivo (seletor aparece, bloqueia sem motivo, grava com
+motivo, cancelar volta ao prompt sem gravar) a partir da Casa; "mudar resposta"
+(reset) a partir da Casa; depois do prazo de 2h, a Casa mostra o aviso de prazo
+terminado em vez do prompt, e `atGymRsvpYes` não altera o registo. Regressão completa
+re-corrida (todos os `test_*.js` presentes nesta pasta de trabalho): todos passaram —
+`test_at_ginasio_treino_split_v222.js`, `test_biblioteca_import_ginasio_v224.js`,
+`test_ginasio_atleta_bloco2a_v220.js`, `test_ginasio_bloco1_v218.js`,
+`test_ginasio_tab_v219.js`, `test_home_gameday_ginasiocard_v221.js`,
+`test_home_ginasio_card_v223.js` — exceto as mesmas 4 falhas já documentadas de
+`test_marker_evolution_v204.js` (staleness pré-existente desde o espelhamento de
+adversárias do sps-v210, sem relação com este pedido — nenhuma das funções tocadas
+aqui).
+
+SW bump para `sps-v225`.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
+visualmente, depois da atualização chegar aos dispositivos, que o botão Vou/Não vou
+aparece mesmo na Casa junto ao evento de Ginásio e que responder por ali não deixa
+nada "preso" visualmente.
