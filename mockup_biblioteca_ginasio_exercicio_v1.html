@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — Ficha de um exercício importado (Biblioteca)</title>
+<style>
+:root{
+  --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+  --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+  --c1:#2563eb;--c1l:#3b82f6;--r:10px;--rs:7px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg0);color:var(--t1);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:22px}
+.wrap{max-width:620px;margin:0 auto}
+.note{background:rgba(37,99,235,.12);border:1px solid rgba(37,99,235,.35);border-radius:var(--r);padding:12px 15px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#cbd5e1}
+.note b{color:#fff}
+.sub{color:var(--t2);font-size:12px;margin-bottom:16px}
+h1{font-size:16px;margin:0 0 4px}
+.ipanel{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--r);padding:16px;margin-bottom:16px}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
+.sh-t{font-size:14px;font-weight:800}
+.bdg{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;margin-left:7px;vertical-align:1px}
+.bg-gr{background:rgba(100,116,139,.2);color:#94a3b8}
+.bg-b{background:rgba(2,132,199,.2);color:#38bdf8}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.form-g{margin-bottom:11px}
+.fl{display:block;font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.fc{width:100%;padding:8px 11px;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rs);color:var(--t1);font-size:12px}
+.fc[disabled]{color:var(--t2);cursor:default}
+textarea.fc{resize:vertical;min-height:58px;font-family:inherit}
+.vid-row{display:flex;gap:6px}
+.vid-row .fc{flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--rs);font-size:11.5px;font-weight:700;cursor:pointer;border:none;color:#fff;white-space:nowrap}
+.btn-g{background:var(--c1)}
+.btn-gh{background:var(--bg2);color:var(--t1);border:1px solid var(--brd)}
+.btn-r{background:rgba(220,38,38,.18);color:#f87171;border:1px solid rgba(220,38,38,.3)}
+.empty-video{margin-top:6px;font-size:10.5px;color:#fbbf24;display:flex;align-items:center;gap:5px}
+.imgbox{width:100%;max-width:340px;height:150px;border:1.5px dashed var(--brd);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--t2);gap:5px;background:var(--bg2)}
+.actions{display:flex;gap:8px;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>📚 Biblioteca de Exercícios — vista de um exercício importado</h1>
+  <div class="sub">Mockup — como ficaria ao abrires, dentro da Biblioteca, um dos exercícios trazidos do StrengthLog, já preenchido, à espera só do vídeo.</div>
+
+  <div class="note">
+    <b>O que vem já preenchido pela importação:</b> Nome, Categoria (Ginásio), Músculos, Equipamento e Descrição. <b>O que fica vazio de propósito:</b> o campo Vídeo — é aí que entra a tua curadoria manual no YouTube. Pus também um botão de atalho "🔍 Procurar no YouTube" que já abre a pesquisa com o nome do exercício preenchido, só para agilizar — cola o link do vídeo que escolheres e fica na mesma importação.
+  </div>
+
+  <div class="ipanel">
+    <div class="sh">
+      <div class="sh-t">Editar Exercício <span class="bdg bg-gr">Ginásio</span><span class="bdg bg-b">Importado</span></div>
+    </div>
+
+    <div class="fr">
+      <div class="form-g"><label class="fl">Nome *</label><input class="fc" value="Agachamento Livre com Barra" disabled></div>
+      <div class="form-g"><label class="fl">Categoria</label><input class="fc" value="Ginásio" disabled></div>
+    </div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">Músculos / Componente</label><input class="fc" value="Quadricep, Glúteo, Core" disabled></div>
+      <div class="form-g"><label class="fl">Dificuldade</label><input class="fc" value="Médio" disabled></div>
+    </div>
+    <div class="form-g"><label class="fl">Equipamento</label><input class="fc" value="Barra, Rack de Agachamento" disabled></div>
+
+    <div class="form-g">
+      <label class="fl">Vídeo (link externo — YouTube/Vimeo)</label>
+      <div class="vid-row">
+        <input class="fc" placeholder="https://youtube.com/...">
+        <button class="btn btn-gh">🔍 Procurar no YouTube</button>
+      </div>
+      <div class="empty-video">⚠️ Ainda sem vídeo — foi deixado vazio na importação, à espera da tua escolha</div>
+    </div>
+
+    <div class="form-g">
+      <label class="fl">Descrição</label>
+      <textarea class="fc" disabled>Movimento base de agachamento com barra apoiada no trapézio. Pés à largura dos ombros, descida controlada até à profundidade confortável mantendo a lombar neutra, subida pela extensão de quadricep e glúteo.</textarea>
+    </div>
+
+    <div class="form-g">
+      <label class="fl">Esquema / Imagem</label>
+      <div class="imgbox">
+        <div style="font-size:24px">🖼️</div>
+        <div style="font-size:11px">Sem imagem importada — opcional, podes adicionar depois</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-g">💾 Guardar</button>
+      <button class="btn btn-gh">Cancelar</button>
+      <button class="btn btn-r" style="margin-left:auto">🗑️ Remover da Biblioteca</button>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

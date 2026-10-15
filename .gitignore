@@ -19,3 +19,9 @@ screenshots_app_atleta/
 slide_qr_acesso_app.png
 node_modules/
 package-lock.json
+
+# Patches gerados pelo fluxo de fallback (git format-patch) quando o push direto
+# a partir da sandbox cloud está bloqueado pelo proxy — ficam só locais, servem
+# para levar um commit até ao PC do Roger via SendUserFile/git am; não fazem
+# parte do código da plataforma e tornam-se irrelevantes depois de aplicados.
+*.patch
