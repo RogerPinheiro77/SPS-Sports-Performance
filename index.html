@@ -593,6 +593,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-page" id="atp-agenda"></div>
     <div class="at-page" id="atp-nutri"></div>
     <div class="at-page" id="atp-fisio"></div>
+    <div class="at-page" id="atp-ginasio"></div>
     <div class="at-page" id="atp-treino"></div>
     <div class="at-page" id="atp-convoc"></div>
     <div class="at-page" id="atp-aval"></div>
@@ -604,7 +605,8 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-ni" onclick="atNav('agenda',this)"><span class="ic"><i class="ti ti-calendar" aria-hidden="true"></i></span>Agenda</div>
     <div class="at-ni" onclick="atNav('nutri',this)"><span class="ic"><i class="ti ti-salad" aria-hidden="true"></i></span>Nutri</div>
     <div class="at-ni" onclick="atNav('fisio',this)"><span class="ic"><i class="ti ti-first-aid-kit" aria-hidden="true"></i></span>Fisio</div>
-    <div class="at-ni" onclick="atNav('treino',this)"><span class="ic"><i class="ti ti-barbell" aria-hidden="true"></i></span>Treino</div>
+    <div class="at-ni" onclick="atNav('ginasio',this)"><span class="ic"><i class="ti ti-barbell" aria-hidden="true"></i></span>Ginásio</div>
+    <div class="at-ni" onclick="atNav('treino',this)"><span class="ic"><i class="ti ti-run" aria-hidden="true"></i></span>Individual</div>
     <div class="at-ni" onclick="atNav('aval',this)"><span class="ic"><i class="ti ti-star" aria-hidden="true"></i></span>Aval.</div>
     <div class="at-ni" onclick="atNav('convoc',this)"><span class="ic"><i class="ti ti-clipboard-list" aria-hidden="true"></i></span>Convoc.</div>
   </nav>
@@ -20145,7 +20147,7 @@ function _extraEditable(entry){
   if(!entry||!entry.submittedAt)return false;
   return (Date.now()-new Date(entry.submittedAt).getTime())<_EXTRA_EDIT_WINDOW_H*3600*1000;
 }
-const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval()};
+const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),ginasio:()=>renderAtGinasio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval()};
 function atNav(page,el){
   _atPage=page;
   document.querySelectorAll('.at-page').forEach(p=>p.classList.remove('on'));
@@ -21407,6 +21409,29 @@ function atOpenTreinoDetail(trId){
   `;
   openMod('🏋️ '+escHtml(tr.title||'Treino'),body);
 }
+// Separador próprio "Ginásio" (pedido do Roger, 15/10/2026: "ter uma aba só para
+// ginásio à parte e a outra do treino individual em separado" — antes vivam juntos
+// dentro do separador "Treino", que passou a ser só "Treino Individual" abaixo).
+// Mostra o card de streak/evolução já existente (_gymAthleteCardHtml, sps-v220/v221,
+// inalterado) e, quando há uma sessão de Ginásio agendada para hoje com ficha
+// importada, um atalho direto para o plano do dia (reaproveita atOpenGinasioPlanoDia,
+// sps-v220 — nunca duplica essa lógica).
+function renderAtGinasio(){
+  const at=APP.athletes.find(a=>a.id===AID);
+  const td=today();
+  const todayEv=(APP.schedule||[]).find(e=>e.type==='Ginásio'&&e.date===td&&(e.teamId===at?.teamId||!e.teamId)&&e.gymSheet);
+  document.getElementById('atp-ginasio').innerHTML=`
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-barbell" style="margin-right:6px;vertical-align:-3px;color:#94a3b8" aria-hidden="true"></i>Ginásio</div>
+  ${todayEv?`<div onclick="atOpenGinasioPlanoDia('${todayEv.id}')" style="background:rgba(148,163,184,.12);border:1.5px solid rgba(148,163,184,.4);border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
+    <i class="ti ti-calendar" style="font-size:26px;color:#94a3b8;flex-shrink:0" aria-hidden="true"></i>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:800">Sessão de hoje${todayEv.title?': '+escHtml(todayEv.title):''}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:2px">Toca para ver o plano e os vídeos dos exercícios</div>
+    </div>
+    <i class="ti ti-chevron-right" style="font-size:18px;color:var(--t2)" aria-hidden="true"></i>
+  </div>`:''}
+  ${_gymAthleteCardHtml(AID)||'<div class="al al-g" style="margin-top:8px"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Ainda sem histórico de Ginásio</div>'}`;
+}
 function renderAtTreino(){
   const at=APP.athletes.find(a=>a.id===AID);
   const td=today();
@@ -21415,8 +21440,7 @@ function renderAtTreino(){
   const active=plans.filter(p=>!p.done);
   const done=plans.filter(p=>p.done);
   document.getElementById('atp-treino').innerHTML=`
-  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-barbell" style="margin-right:6px;vertical-align:-3px;color:#94a3b8" aria-hidden="true"></i>Treino</div>
-  ${_gymAthleteCardHtml(AID)}
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-run" style="margin-right:6px;vertical-align:-3px;color:#94a3b8" aria-hidden="true"></i>Treino Individual</div>
   ${active.length?`<div style="margin-bottom:14px">
     <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Planos individuais</div>
     ${active.map(p=>`<div class="card" style="margin-bottom:10px">

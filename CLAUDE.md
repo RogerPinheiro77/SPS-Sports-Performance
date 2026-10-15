@@ -4807,3 +4807,88 @@ nenhuma das funções tocadas aqui.
 com o Roger, assim que a atualização chegar aos dispositivos, as 3
 aparências do card Gameday (sobretudo as cores/textos nos dois estados de
 dia de jogo, que só mudaram de sítio, nunca de lógica).
+
+## sps-v222 (15/10/2026): App da Atleta — separador próprio "Ginásio",
+## "Treino" passa a ser só "Treino Individual"
+
+Pedido do Roger: "a ideia é ter uma aba só para ginásio à parte e a outra
+do treino individual em separado, a do ginásio é para o que criamos agora
+para treinos liderado pela equipa técnica o individual a atleta pode fazer
+em qualquer lugar, em casa, ginásio próprio, etc" — pedido explícito de
+análise/proposta antes de código ("analisa, propoem, mas só avançamos
+amanhã"). Investigação confirmou que, do lado da Plataforma, Ginásio
+(Fichas de Ginásio) e Treinos Individuais já são páginas/secções
+separadas desde o sps-v219 — o problema era só na App da Atleta, onde um
+único separador "Treino" misturava 3 coisas: o card "🏋️‍♀️ Ginásio"
+(streak+evolução, sps-v220/v221, liderado pela equipa técnica), os
+"Planos Individuais" (fichas que o staff cria em Treinos Individualizados
+— físico/técnico/tático/velocidade/etc., para a atleta fazer onde
+quiser) e "Treinos Extra" (registo próprio da atleta, já descrito no
+próprio código como "treinos fora do clube — ginásio, corrida, treino em
+casa, etc."). Proposta (mockup em texto, sem código) confirmada ponto a
+ponto: novo separador "Ginásio" só com o card já existente; "Treino"
+passa a mostrar só Planos Individuais + Treinos Extra — e o Roger
+confirmou explicitamente que "Treinos Extra" fica dentro de "Treino
+Individual".
+
+**O que foi construído — separação pura de UI na App da Atleta, zero
+alterações de schema Supabase, zero alterações à lógica de dados
+(`_gymAthleteCardHtml`/`_gymConsistencyStreak`/`_gymAthleteEvolution`/
+`APP.trainingPlans`/`APP.extraTrainings` inalterados):**
+
+1. Novo container `<div class="at-page" id="atp-ginasio"></div>` e novo
+   botão na bottom nav (`atNav('ginasio',this)`, ícone 🏋️ `ti-barbell` —
+   o mesmo que "Treino" já usava) — a bottom nav já tinha scroll
+   horizontal (`.at-bnav{overflow-x:auto}`) para 9 itens, por isso um
+   10º não precisou de nenhum ajuste de CSS.
+2. Botão "Treino" mudou o ícone para `ti-run` (o mesmo já usado no
+   cabeçalho de "Treino Extra") e o rótulo para "Individual" — já
+   consistente com o card "Treino Ind." que a Home da atleta mostra há
+   muito tempo (`_card('treino',...,'Treino Ind.',...)`, inalterado,
+   continua a apontar para a mesma página `treino`).
+3. `_AT_RENDERS` ganhou a entrada `ginasio:()=>renderAtGinasio()`.
+4. **`renderAtGinasio()` (nova)**: cabeçalho "Ginásio" + `_gymAthleteCardHtml(AID)`
+   (exatamente a mesma função de sempre, só mudou de sítio) — com um
+   estado vazio explícito ("Ainda sem histórico de Ginásio") quando a
+   função devolve `''`, para o separador nunca ficar com um espaço em
+   branco sem explicação. Acrescentado, de propósito (não pedido
+   explicitamente, mas reaproveitando lógica já existente sem duplicar
+   nada): quando há uma sessão de Ginásio agendada para HOJE, da equipa
+   da atleta, com ficha importada, mostra um atalho "Sessão de hoje" que
+   chama `atOpenGinasioPlanoDia()` (sps-v220, inalterada) — sem ficha ou
+   de outra equipa, o atalho não aparece.
+5. **`renderAtTreino()`**: perdeu a chamada a `_gymAthleteCardHtml(AID)`;
+   cabeçalho passou de "Treino" para "Treino Individual" (ícone `ti-run`,
+   a condizer com o novo rótulo da nav). Resto da função (Planos
+   Individuais + `_atExtraHtml()`) inalterado — continuam no mesmo
+   separador `treino`/`atp-treino`, por isso `markTreinoDone`/
+   `submitExtraTraining`/`editExtraTraining`/`deleteExtraTraining` (que
+   chamam `renderAtTreino()` no fim) não precisaram de nenhuma alteração.
+6. SW bump para `sps-v222`. Sem alterações de schema Supabase.
+
+Testado: `node --check` ao `index.html` (script extraído) e a `sw.js`.
+Suite nova dedicada (`test_at_ginasio_treino_split_v222.js`, harness `vm`
+com o código REAL extraído, 13 testes): wiring (container/botão/rótulo
+"Individual"/`_AT_RENDERS.ginasio`); `renderAtGinasio` nos 2 estados
+(vazio vs. com card) e no atalho "Sessão de hoje" (presente só com ficha
+e só para a equipa certa, ausente sem ficha ou de outra equipa);
+`renderAtTreino` com o cabeçalho novo, sem o card de Ginásio, com Planos
+Individuais e com Treino Extra intactos; teste de isolamento cruzado
+(dados de Ginásio nunca vazam para "Treino Individual" e vice-versa).
+Regressão: `test_home_gameday_ginasiocard_v221.js` (15/15, com 2
+asserções atualizadas — a antiga "renderAtTreino insere o card único"
+separou-se em duas, uma para cada separador, mesma garantia de conteúdo
+de antes) e `test_ginasio_atleta_bloco2a_v220.js` (19/19, com a asserção
+de integração em "[5]" migrada de `renderAtTreino`/`atp-treino` para
+`renderAtGinasio`/`atp-ginasio` — mesma garantia, separador novo);
+`test_ginasio_bloco1_v218.js` (16/16) e `test_ginasio_tab_v219.js` (6/6)
+sem alterações necessárias. `test_marker_evolution_v204.js` continua com
+as mesmas 4 falhas pré-existentes já documentadas desde o sps-v218
+(espelhamento de adversárias, sps-v210) — sem relação com este pedido.
+
+**Ainda por fazer:** nada pendente para este pedido. Continua bloqueado,
+à espera de decisão do Roger (ver sps-v220): o Bloco 2B do Ginásio na App
+da Atleta (Registo próprio, Pedido de substituição de exercício,
+Sugestão automática de carga, Alertas de estagnação, Testes de
+referência) — precisa primeiro de saber se o "Registo próprio" vai
+complementar o registo do staff ou substituí-lo em algumas sessões.
