@@ -4942,3 +4942,90 @@ dois tiles de treino; card nunca expõe carga em bruto (mesma regra de sempre); 
 decisão do Roger (ver sps-v220): o Bloco 2B do Ginásio na App da Atleta (Registo
 próprio, Pedido de substituição de exercício, Sugestão automática de carga, Alertas de
 estagnação, Testes de referência).
+
+## sps-v224 (23/10/2026): Biblioteca de Exercícios — importação em massa da categoria
+## "Ginásio" (catálogo de referência + picker com dedup, vídeo sempre deixado vazio)
+
+Pedido do Roger: a partir da pesquisa anterior de fontes de vídeos de exercícios
+(curadoria manual no YouTube escolhida como abordagem), perguntou se fazia sentido
+extrair a ESTRUTURA de uma biblioteca de exercícios de uma das fontes investigadas,
+deixando o campo de vídeo vazio para ele preencher manualmente mais tarde — pedido
+explícito de conselho + mockup antes de código ("que te parece [...] que aconselhas e
+faz mockup"), seguido de um 2º mockup pedido à parte ("mockup dentro do exercicio",
+terso, a pedir especificamente a vista de edição de UM exercício já importado) e só
+depois aprovação final ("parece-me bem, avancemos para codigo").
+
+**Fonte usada só como inspiração de taxonomia, nunca de texto:** StrengthLog Exercise
+Directory (strengthlog.com/exercise-directory/), ~400 exercícios agrupados por músculo,
+cada um com vídeo. A licença deles permite reutilização de descrições/imagens/vídeos
+com atribuição, mas só para projetos não-comerciais — condição que não se aplica
+necessariamente a este projeto a longo prazo. Por isso só os NOMES/estrutura dos
+exercícios serviram de inspiração; todas as descrições em português foram escritas de
+raiz nesta sessão, para o catálogo nunca depender dessa licença.
+
+**O que foi construído:**
+
+1. `_GYM_IMPORT_CATALOG` — catálogo de referência (~87 exercícios, 10 grupos
+   musculares: Peito/Ombro/Bicep/Tricep/Perna/Costas/Glúteo/Abdominal/Gémeos/
+   Antebraço), cada entrada `{grupo,name,muscles,equip,desc}` — **nunca** com
+   `videoUrl` próprio (campo inexistente no catálogo, não só vazio — o vídeo é sempre
+   decidido no momento da importação, nunca antes). `_GYM_IMPORT_GRUPOS` — grupos
+   únicos derivados do catálogo (`[...new Set(...)]`), para o filtro do picker.
+2. **Picker de importação** (`openGymImportPicker`/`closeGymImportPicker`/
+   `_gymImportPickerHtml`, dentro da Biblioteca de Exercícios, botão "📥 Importar
+   Exercícios (Ginásio)"): grelha de cartões com checkbox, filtro por grupo muscular,
+   `_gymImportIsDup(entry)` assinala com badge "Já existe" qualquer exercício cujo nome
+   já exista na categoria "Ginásio" (comparação sem acentos/maiúsculas,
+   `_stripAccents`; categorias diferentes nunca colidem) — esses ficam visíveis mas
+   nunca selecionáveis para importar; `_gymImportToggle`/`_gymImportSetVisible`
+   (marcar/desmarcar individual ou em massa, respeitando sempre os duplicados).
+3. `importGymExercisesSelected()`: cria um exercício novo por cada entrada
+   selecionada+não-duplicada, sempre com `videoUrl:''` — nunca toca no registo já
+   existente de um duplicado (preserva qualquer vídeo que já lá estivesse); idempotente
+   (reimportar depois de importar tudo não duplica nada).
+4. **Atalho "🔍 Procurar no YouTube"** (`_libSearchYoutube`), no formulário de edição de
+   um exercício (Biblioteca): abre a pesquisa do YouTube já preenchida com o nome do
+   exercício (`lf-name`), numa nova aba — nunca grava nada sozinho, só agiliza colar o
+   link escolhido manualmente no campo Vídeo a seguir. Sem nome preenchido, avisa por
+   `toast` em vez de abrir uma pesquisa vazia.
+
+SW bump para `sps-v224`.
+
+**Testado:** `node --check` ao script extraído de `index.html`. Suite nova dedicada
+(`test_biblioteca_import_ginasio_v224.js`, harness `vm` com o código REAL extraído, 22
+asserções — mesmo padrão de `test_ginasio_tab_v219.js`/`test_ginasio_bloco1_v218.js`):
+integridade do catálogo (sem campos vazios, sem `videoUrl` próprio, sem nomes
+duplicados, grupos derivados sem duplicados); `_gymImportIsDup` (novo/duplicado/
+insensível a acentos/maiúsculas/scoped por categoria); abrir/fechar o picker (reinicia
+seleções, fecha o formulário de edição); seleção individual/em massa (nunca marca um
+duplicado); `_gymImportPickerHtml` só de leitura (nunca muta `APP` nem o catálogo);
+`importGymExercisesSelected` (importa só os não-duplicados/não-desmarcados, nunca
+substitui um registo já existente, idempotente, vídeo sempre `''`, campos sempre
+string); `_libSearchYoutube` (URL correto com o nome codificado, nada sem nome). Dois
+bugs do PRÓPRIO harness (não de produção) foram corrigidos durante a verificação: (1)
+`_GYM_IMPORT_CATALOG`/`_GYM_IMPORT_GRUPOS` são `const` no script real — por isso, tal
+como as outras variáveis `let`/`const` do ficheiro, só ficam acessíveis fora do `vm`
+context através do mecanismo de ponte (`BRIDGE_VARS`/`ctx.$NOME`) já usado nesta
+suite; faltavam na lista, o que fazia `ctx['_GYM_IMPORT_CATALOG']` devolver `undefined`
+e a maioria dos testes falhar por esse motivo, nada relacionado com o código de
+produção — corrigido acrescentando as duas à lista `BRIDGE_VARS` e trocando os acessos
+para `ctx.$_GYM_IMPORT_CATALOG`/`ctx.$_GYM_IMPORT_GRUPOS`. (2) O runner `test(name,fn)`
+não aguardava testes `async` (a secção [6], toda sobre `importGymExercisesSelected`,
+que é `async`) — uma função `async` que falha antes de qualquer `await` devolve uma
+promise rejeitada em vez de lançar sincronamente, por isso o `try/catch` do runner
+nunca via a falha e marcava sempre ✓, mascarando qualquer bug real nessa secção
+inteira; corrigido tornando `test()` `async`/`await fn()` e envolvendo toda a bateria
+de chamadas `test(...)` num `(async()=>{...})()` com `await` em cada uma. Depois destas
+duas correções ao harness, uma 3ª falha real do teste (não de produção) apareceu:
+`assert.deepStrictEqual(grupos, expected)` comparava um array criado dentro do `vm`
+context (outro "realm", protótipo `Array` diferente) com um array literal deste
+ficheiro — mesmo conteúdo, falha "same structure but not reference-equal"; corrigido
+comparando por `JSON.stringify` em vez de `deepStrictEqual` direto, mesmo cuidado já
+usado noutros pontos desta mesma suite para os objetos vindos do `vm` context.
+Resultado final: 22/22 a passar, desta vez com as asserções genuinamente a correr (as
+duas correções ao harness não alteraram nenhuma linha de `index.html`/`sw.js`).
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para, aos poucos,
+ir colando os links de vídeo do YouTube nos exercícios importados (o atalho "🔍
+Procurar no YouTube" ajuda nisso) — sem isso, os exercícios da categoria Ginásio
+importados ficam sem vídeo até serem editados manualmente, como esperado/pedido.

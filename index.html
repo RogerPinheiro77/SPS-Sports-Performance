@@ -12192,6 +12192,118 @@ function _publishConvNow(id){
 // Continua trocável manualmente (não bloqueia outras categorias). Pedido do Roger 01/09/2026.
 let _libCat=_forceGinasioMode?'Ginásio':'', _showLibForm=false, _editLibId=null, _libSearch='';
 const EX_CATS=['Tático','Físico','Técnico','Velocidade','Força','Resistência','Recuperação','Ativação','Ginásio'];
+
+// ─── IMPORTAÇÃO DA BIBLIOTECA (Ginásio) ───────────────────────────────────
+// Pedido do Roger (15/10/2026, "curadoria manual no YouTube... extrair a
+// biblioteca de exercícios"): catálogo de referência para popular a categoria
+// "Ginásio" de uma vez, agrupado por grupo muscular (mesma taxonomia do
+// Exercise Directory do strengthlog.com, usado só como estrutura/nomes —
+// descrições escritas de propósito como texto original nosso, não copiadas de
+// nenhuma fonte, para não depender da condição de uso não-comercial de
+// terceiros). O campo `videoUrl` fica sempre vazio — é preenchido depois,
+// exercício a exercício, pela curadoria manual no YouTube (ver botão
+// "🔍 Procurar no YouTube" no formulário de edição). Mockup aprovado pelo
+// Roger em 15/10/2026 antes deste código.
+const _GYM_IMPORT_CATALOG=[
+  {grupo:'Peito',name:'Press de Peito com Barra (banco plano)',muscles:'Peitoral, Tríceps, Ombro anterior',equip:'Barra, Banco',desc:'Exercício base de empurrar horizontal: a barra desce controlada ao peito e sobe até extensão total dos braços.'},
+  {grupo:'Peito',name:'Press de Peito com Halteres (banco plano)',muscles:'Peitoral, Tríceps',equip:'Halteres, Banco',desc:'Variante com halteres — maior amplitude de movimento e mais exigência de estabilização em cada braço.'},
+  {grupo:'Peito',name:'Press de Peito com Barra (banco inclinado)',muscles:'Peitoral superior, Ombro anterior',equip:'Barra, Banco inclinado',desc:'Mesma mecânica do press plano, com a inclinação do banco a dar mais ênfase à porção superior do peitoral.'},
+  {grupo:'Peito',name:'Press de Peito com Halteres (banco inclinado)',muscles:'Peitoral superior',equip:'Halteres, Banco inclinado',desc:'Variante com halteres do press inclinado, com maior amplitude de movimento.'},
+  {grupo:'Peito',name:'Press de Peito com Barra (banco declinado)',muscles:'Peitoral inferior',equip:'Barra, Banco declinado',desc:'Variante declinada do press de peito, com mais ênfase na porção inferior do peitoral.'},
+  {grupo:'Peito',name:'Crucifixo com Halteres (banco plano)',muscles:'Peitoral',equip:'Halteres, Banco',desc:'Movimento de abertura/adução dos braços em arco, isolando o peitoral sem o apoio dos tríceps.'},
+  {grupo:'Peito',name:'Crucifixo no Cabo (Cable Fly)',muscles:'Peitoral',equip:'Cabo/Polia',desc:'Versão em polia do crucifixo, com tensão constante ao longo de toda a amplitude.'},
+  {grupo:'Peito',name:'Peck Deck (máquina)',muscles:'Peitoral',equip:'Máquina',desc:'Movimento guiado de adução dos braços à frente do peito, isolando o peitoral com trajetória fixa.'},
+  {grupo:'Peito',name:'Flexões de Braços (Push-up)',muscles:'Peitoral, Tríceps, Core',equip:'Peso do corpo',desc:'Exercício de peso do corpo, empurrando o tronco a partir do solo com apoio das mãos e dos pés.'},
+  {grupo:'Peito',name:'Press de Peito na Máquina (Chest Press)',muscles:'Peitoral, Tríceps',equip:'Máquina',desc:'Versão guiada do press de peito, trajetória fixa, boa opção para técnica/progressão inicial.'},
+
+  {grupo:'Ombro',name:'Press Militar com Barra (em pé)',muscles:'Ombro, Tríceps',equip:'Barra',desc:'Empurrar vertical a partir dos ombros até à extensão total dos braços, em pé e com exigência de core.'},
+  {grupo:'Ombro',name:'Press de Ombros com Halteres (sentado)',muscles:'Ombro, Tríceps',equip:'Halteres, Banco',desc:'Variante sentada e com halteres do press de ombros, maior amplitude e trabalho unilateral.'},
+  {grupo:'Ombro',name:'Press Arnold',muscles:'Ombro (todas as cabeças)',equip:'Halteres',desc:'Press de ombros com rotação dos halteres a meio do movimento, trabalhando as três cabeças do deltoide.'},
+  {grupo:'Ombro',name:'Elevação Lateral com Halteres',muscles:'Deltoide lateral',equip:'Halteres',desc:'Elevação dos braços lateralmente até à altura dos ombros, isolando a cabeça lateral do deltoide.'},
+  {grupo:'Ombro',name:'Elevação Lateral no Cabo',muscles:'Deltoide lateral',equip:'Cabo/Polia',desc:'Versão em polia da elevação lateral, com tensão constante ao longo do movimento.'},
+  {grupo:'Ombro',name:'Elevação Frontal com Halteres',muscles:'Deltoide anterior',equip:'Halteres',desc:'Elevação dos braços à frente do corpo, isolando a cabeça anterior do deltoide.'},
+  {grupo:'Ombro',name:'Elevação Frontal com Barra',muscles:'Deltoide anterior',equip:'Barra',desc:'Variante com barra da elevação frontal, trabalho simétrico dos dois ombros.'},
+  {grupo:'Ombro',name:'Crucifixo Invertido (Reverse Fly)',muscles:'Deltoide posterior',equip:'Halteres',desc:'Abertura dos braços com o tronco inclinado à frente, isolando a cabeça posterior do deltoide.'},
+  {grupo:'Ombro',name:'Face Pull no Cabo',muscles:'Deltoide posterior, Rodadores externos',equip:'Cabo/Polia',desc:'Puxada da polia em direção à cara, abrindo os cotovelos — bom para a saúde do ombro e postura.'},
+  {grupo:'Ombro',name:'Encolhimento de Ombros (Shrug)',muscles:'Trapézio',equip:'Barra ou Halteres',desc:'Elevação vertical dos ombros, isolando o trapézio superior.'},
+
+  {grupo:'Bicep',name:'Rosca Direta com Barra',muscles:'Bicep',equip:'Barra',desc:'Flexão do cotovelo com pegada supinada na barra, exercício base para o bicep.'},
+  {grupo:'Bicep',name:'Rosca Direta com Barra EZ',muscles:'Bicep, Antebraço',equip:'Barra EZ',desc:'Variante com barra EZ, pegada mais confortável para o pulso que a barra reta.'},
+  {grupo:'Bicep',name:'Rosca Alternada com Halteres',muscles:'Bicep',equip:'Halteres',desc:'Flexão do cotovelo alternando os braços, com rotação do punho até supinação no topo.'},
+  {grupo:'Bicep',name:'Rosca Martelo',muscles:'Bicep, Antebraço',equip:'Halteres',desc:'Rosca com pegada neutra (palmas viradas uma para a outra), trabalhando também o braquiorradial.'},
+  {grupo:'Bicep',name:'Rosca Scott (banco Scott)',muscles:'Bicep',equip:'Barra ou Halteres, Banco Scott',desc:'Rosca com o braço apoiado no banco inclinado, limitando a ajuda dos ombros/costas.'},
+  {grupo:'Bicep',name:'Rosca Concentrada',muscles:'Bicep',equip:'Halteres',desc:'Rosca unilateral com o cotovelo apoiado na coxa, isolamento máximo do bicep.'},
+  {grupo:'Bicep',name:'Rosca no Cabo (barra reta)',muscles:'Bicep',equip:'Cabo/Polia',desc:'Versão em polia da rosca direta, tensão constante ao longo do movimento.'},
+  {grupo:'Bicep',name:'Rosca Inversa',muscles:'Antebraço, Bicep',equip:'Barra',desc:'Rosca com pegada pronada (palmas para baixo), dando mais ênfase ao antebraço.'},
+
+  {grupo:'Tricep',name:'Extensão de Tríceps na Polia (corda)',muscles:'Tríceps',equip:'Cabo/Polia',desc:'Extensão do cotovelo com corda na polia alta, permitindo abrir as mãos no final do movimento.'},
+  {grupo:'Tricep',name:'Extensão de Tríceps na Polia (barra reta)',muscles:'Tríceps',equip:'Cabo/Polia',desc:'Variante com barra reta na polia alta, trajetória mais fixa que a corda.'},
+  {grupo:'Tricep',name:'Francês com Halteres (Skull Crusher)',muscles:'Tríceps',equip:'Halteres, Banco',desc:'Extensão do cotovelo em decúbito dorsal, halteres a descer em direção à testa.'},
+  {grupo:'Tricep',name:'Francês com Barra EZ',muscles:'Tríceps',equip:'Barra EZ, Banco',desc:'Variante com barra EZ do francês, mesma mecânica de extensão de cotovelo em decúbito dorsal.'},
+  {grupo:'Tricep',name:'Press Francês em Pé (acima da cabeça)',muscles:'Tríceps',equip:'Halteres ou Barra',desc:'Extensão de tríceps com os braços acima da cabeça, em pé, trabalhando a cabeça longa do tríceps.'},
+  {grupo:'Tricep',name:'Mergulho em Banco (Bench Dip)',muscles:'Tríceps',equip:'Peso do corpo, Banco',desc:'Flexão/extensão dos cotovelos com as mãos apoiadas no banco e pés no solo ou noutro banco.'},
+  {grupo:'Tricep',name:'Mergulho em Paralelas (Dips)',muscles:'Tríceps, Peitoral inferior',equip:'Paralelas',desc:'Empurrar vertical nas paralelas, descendo o corpo com os cotovelos a flexionar.'},
+  {grupo:'Tricep',name:'Kickback de Tríceps com Halteres',muscles:'Tríceps',equip:'Halteres',desc:'Extensão do cotovelo com o braço para trás, tronco inclinado à frente, isolamento do tríceps.'},
+
+  {grupo:'Perna',name:'Agachamento Livre com Barra',muscles:'Quadricep, Glúteo, Core',equip:'Barra, Rack de Agachamento',desc:'Movimento base de agachamento, barra apoiada no trapézio, descida controlada mantendo a lombar neutra.'},
+  {grupo:'Perna',name:'Agachamento Frontal',muscles:'Quadricep, Core',equip:'Barra, Rack de Agachamento',desc:'Variante com a barra à frente, mais ênfase no quadricep e maior exigência postural.'},
+  {grupo:'Perna',name:'Leg Press 45°',muscles:'Quadricep, Glúteo',equip:'Máquina',desc:'Empurrar a plataforma inclinada com as pernas, trajetória guiada pela máquina.'},
+  {grupo:'Perna',name:'Afundo com Halteres (Lunge)',muscles:'Quadricep, Glúteo',equip:'Halteres',desc:'Passo à frente com descida do joelho de trás, trabalho unilateral de quadricep e glúteo.'},
+  {grupo:'Perna',name:'Afundo Búlgaro (Bulgarian Split Squat)',muscles:'Quadricep, Glúteo, Equilíbrio',equip:'Halteres, Banco',desc:'Afundo com o pé de trás elevado num banco, maior exigência de equilíbrio e amplitude.'},
+  {grupo:'Perna',name:'Cadeira Extensora',muscles:'Quadricep',equip:'Máquina',desc:'Extensão do joelho sentado na máquina, isolamento do quadricep.'},
+  {grupo:'Perna',name:'Cadeira Flexora',muscles:'Isquiotibiais',equip:'Máquina',desc:'Flexão do joelho na máquina (sentado ou em decúbito ventral), isolamento dos isquiotibiais.'},
+  {grupo:'Perna',name:'Levantamento Terra Romeno',muscles:'Isquiotibiais, Glúteo, Lombar',equip:'Barra',desc:'Flexão do quadril com a barra a descer junto às pernas, joelhos quase estendidos.'},
+  {grupo:'Perna',name:'Levantamento Terra Sumo',muscles:'Quadricep, Glúteo, Lombar',equip:'Barra',desc:'Variante com pegada/postura larga do levantamento terra, mais ênfase no quadricep e adutores.'},
+  {grupo:'Perna',name:'Good Morning',muscles:'Isquiotibiais, Lombar',equip:'Barra',desc:'Flexão do quadril com a barra nos ombros, tronco a inclinar à frente mantendo a lombar neutra.'},
+  {grupo:'Perna',name:'Agachamento Hack (Hack Squat)',muscles:'Quadricep',equip:'Máquina',desc:'Agachamento guiado na máquina hack, trajetória fixa e maior isolamento do quadricep.'},
+  {grupo:'Perna',name:'Step-Up com Halteres',muscles:'Quadricep, Glúteo',equip:'Halteres, Caixa/Banco',desc:'Subida a uma caixa/banco com halteres, trabalho unilateral de quadricep e glúteo.'},
+
+  {grupo:'Costas',name:'Puxada Alta (Lat Pulldown, pegada larga)',muscles:'Grande dorsal, Bicep',equip:'Cabo/Polia',desc:'Puxada da barra alta em direção ao peito, pegada larga, foco no grande dorsal.'},
+  {grupo:'Costas',name:'Puxada Alta (pegada supinada)',muscles:'Grande dorsal, Bicep',equip:'Cabo/Polia',desc:'Variante da puxada alta com pegada supinada, mais participação do bicep.'},
+  {grupo:'Costas',name:'Remada Curvada com Barra',muscles:'Grande dorsal, Trapézio médio',equip:'Barra',desc:'Puxada da barra em direção ao abdómen com o tronco inclinado à frente.'},
+  {grupo:'Costas',name:'Remada com Halteres (unilateral)',muscles:'Grande dorsal, Romboides',equip:'Halteres, Banco',desc:'Remada de um braço apoiado no banco, trabalho unilateral do dorsal e romboides.'},
+  {grupo:'Costas',name:'Remada Sentada no Cabo (baixa)',muscles:'Grande dorsal, Romboides',equip:'Cabo/Polia',desc:'Remada sentado com cabo baixo, puxada em direção ao abdómen.'},
+  {grupo:'Costas',name:'Remada Cavalinho (T-Bar Row)',muscles:'Grande dorsal, Trapézio médio',equip:'Barra T',desc:'Remada com a barra apoiada numa pega em T, tronco inclinado à frente.'},
+  {grupo:'Costas',name:'Barra Fixa (Pull-up)',muscles:'Grande dorsal, Bicep',equip:'Peso do corpo, Barra fixa',desc:'Puxada do corpo até ao queixo passar a barra, exercício de peso do corpo para o dorsal.'},
+  {grupo:'Costas',name:'Pulldown Reto (Straight-Arm Pulldown)',muscles:'Grande dorsal',equip:'Cabo/Polia',desc:'Puxada da barra com os braços estendidos, isolando o grande dorsal sem flexão do cotovelo.'},
+  {grupo:'Costas',name:'Hiperextensão Lombar (banco romano)',muscles:'Lombar, Glúteo',equip:'Banco romano',desc:'Extensão do tronco a partir da cintura, apoiado no banco romano, trabalho da lombar e glúteo.'},
+  {grupo:'Costas',name:'Levantamento Terra Convencional',muscles:'Grande dorsal, Glúteo, Isquiotibiais, Lombar',equip:'Barra',desc:'Levantamento da barra do solo até à extensão total do corpo, exercício global de cadeia posterior.'},
+
+  {grupo:'Glúteo',name:'Hip Thrust com Barra',muscles:'Glúteo',equip:'Barra, Banco',desc:'Extensão do quadril com as costas apoiadas num banco e a barra sobre o quadril, isolamento do glúteo.'},
+  {grupo:'Glúteo',name:'Ponte de Glúteo (Glute Bridge)',muscles:'Glúteo',equip:'Peso do corpo',desc:'Extensão do quadril a partir do solo, versão simplificada do hip thrust.'},
+  {grupo:'Glúteo',name:'Abdução de Quadril na Máquina',muscles:'Glúteo médio',equip:'Máquina',desc:'Abertura lateral das pernas sentado na máquina, isolamento do glúteo médio.'},
+  {grupo:'Glúteo',name:'Abdução de Quadril no Cabo',muscles:'Glúteo médio',equip:'Cabo/Polia',desc:'Abertura lateral da perna com cabo no tornozelo, trabalho unilateral do glúteo médio.'},
+  {grupo:'Glúteo',name:'Cadeira Abdutora',muscles:'Glúteo médio',equip:'Máquina',desc:'Variante da abdução de quadril na máquina, mesmo movimento, outro layout de equipamento.'},
+  {grupo:'Glúteo',name:'Agachamento Sumo com Halter',muscles:'Glúteo, Quadricep',equip:'Halter',desc:'Agachamento com postura larga e halter entre as pernas, ênfase no glúteo e adutores.'},
+  {grupo:'Glúteo',name:'Elevação de Quadril Unilateral',muscles:'Glúteo',equip:'Peso do corpo ou Halter',desc:'Ponte de glúteo feita com uma só perna, maior exigência unilateral.'},
+  {grupo:'Glúteo',name:'Coice de Glúteo no Cabo (Cable Kickback)',muscles:'Glúteo',equip:'Cabo/Polia',desc:'Extensão da perna para trás com cabo no tornozelo, isolamento do glúteo.'},
+
+  {grupo:'Abdominal',name:'Prancha Isométrica (Plank)',muscles:'Core, Transverso abdominal',equip:'Peso do corpo',desc:'Manutenção isométrica da posição horizontal do corpo apoiado nos antebraços e pés.'},
+  {grupo:'Abdominal',name:'Prancha Lateral (Side Plank)',muscles:'Oblíquos, Core',equip:'Peso do corpo',desc:'Variante lateral da prancha, apoiada num antebraço, trabalho dos oblíquos.'},
+  {grupo:'Abdominal',name:'Elevação de Pernas Suspenso',muscles:'Reto abdominal, Flexores do quadril',equip:'Barra fixa',desc:'Elevação das pernas suspenso na barra, trabalho do reto abdominal inferior.'},
+  {grupo:'Abdominal',name:'Elevação de Pernas no Solo',muscles:'Reto abdominal inferior',equip:'Peso do corpo',desc:'Elevação das pernas em decúbito dorsal, variante mais acessível da elevação suspensa.'},
+  {grupo:'Abdominal',name:'Crunch Abdominal',muscles:'Reto abdominal',equip:'Peso do corpo',desc:'Flexão do tronco a partir do solo, movimento clássico de isolamento do reto abdominal.'},
+  {grupo:'Abdominal',name:'Crunch no Cabo (Cable Crunch)',muscles:'Reto abdominal',equip:'Cabo/Polia',desc:'Flexão do tronco ajoelhado com cabo alto, tensão adicional sobre o abdominal.'},
+  {grupo:'Abdominal',name:'Rotação de Tronco no Cabo (Wood Chop)',muscles:'Oblíquos, Core',equip:'Cabo/Polia',desc:'Rotação do tronco com o cabo numa trajetória diagonal, trabalho dos oblíquos.'},
+  {grupo:'Abdominal',name:'Roda Abdominal (Ab Wheel Rollout)',muscles:'Core, Reto abdominal',equip:'Roda abdominal',desc:'Extensão do corpo a partir dos joelhos com a roda, forte exigência de controlo do core.'},
+  {grupo:'Abdominal',name:'Russian Twist com Peso',muscles:'Oblíquos',equip:'Haltere ou Disco',desc:'Rotação do tronco sentado com um peso, pés elevados ou apoiados no solo.'},
+  {grupo:'Abdominal',name:'Abdominal na Máquina (Ab Crunch Machine)',muscles:'Reto abdominal',equip:'Máquina',desc:'Flexão do tronco guiada pela máquina, trajetória fixa com resistência ajustável.'},
+
+  {grupo:'Gémeos',name:'Elevação de Gémeos em Pé (Standing Calf Raise)',muscles:'Gastrocnémio',equip:'Máquina ou Barra',desc:'Elevação dos calcanhares em pé, isolamento do gastrocnémio.'},
+  {grupo:'Gémeos',name:'Elevação de Gémeos Sentado (Seated Calf Raise)',muscles:'Sóleo',equip:'Máquina',desc:'Elevação dos calcanhares sentado, com o joelho fletido — ênfase no sóleo.'},
+  {grupo:'Gémeos',name:'Elevação de Gémeos no Leg Press',muscles:'Gastrocnémio, Sóleo',equip:'Máquina',desc:'Elevação dos calcanhares na plataforma do leg press, variante com carga guiada.'},
+  {grupo:'Gémeos',name:'Elevação de Gémeos Unilateral',muscles:'Gastrocnémio',equip:'Peso do corpo ou Halter',desc:'Elevação do calcanhar com uma só perna, maior exigência por membro.'},
+  {grupo:'Gémeos',name:'Elevação de Gémeos na Smith',muscles:'Gastrocnémio, Sóleo',equip:'Máquina Smith',desc:'Elevação dos calcanhares com a barra guiada na máquina Smith.'},
+
+  {grupo:'Antebraço',name:'Flexão de Pulso com Barra (Wrist Curl)',muscles:'Flexores do antebraço',equip:'Barra',desc:'Flexão do pulso com os antebraços apoiados, isolamento dos flexores.'},
+  {grupo:'Antebraço',name:'Extensão de Pulso com Barra (Reverse Wrist Curl)',muscles:'Extensores do antebraço',equip:'Barra',desc:'Extensão do pulso com pegada pronada, isolamento dos extensores do antebraço.'},
+  {grupo:'Antebraço',name:'Rosca de Punho com Halteres',muscles:'Flexores do antebraço',equip:'Halteres',desc:'Variante com halteres da flexão de pulso, trabalho unilateral.'},
+  {grupo:'Antebraço',name:"Farmer's Walk",muscles:'Antebraço, Core, Trapézio',equip:'Halteres ou Kettlebells',desc:'Caminhada a carregar peso em cada mão, forte exigência de preensão e postura.'},
+  {grupo:'Antebraço',name:'Suspensão na Barra (Dead Hang)',muscles:'Antebraço, Grande dorsal',equip:'Barra fixa',desc:'Suspensão isométrica na barra fixa, trabalho de preensão e descompressão da coluna.'},
+  {grupo:'Antebraço',name:'Enrolamento de Pulso (Wrist Roller)',muscles:'Flexores e extensores do antebraço',equip:'Wrist roller',desc:'Enrolar/desenrolar uma corda com peso através da rotação do pulso.'},
+];
+const _GYM_IMPORT_GRUPOS=[...new Set(_GYM_IMPORT_CATALOG.map(e=>e.grupo))];
+let _showGymImportPicker=false, _gymImportGrupo='', _gymImportUnchecked=new Set();
 function renderBiblioteca(){
   const formHtml=_showLibForm?`
   <div class="ipanel">
@@ -12201,7 +12313,9 @@ function renderBiblioteca(){
     <div class="fr"><div class="form-g"><label class="fl">Músculos / Componente</label><input class="fc" id="lf-muscles" placeholder="Quadriceps, Core..."></div>
     <div class="form-g"><label class="fl">Dificuldade</label><select class="fc" id="lf-diff"><option>Leve</option><option>Médio</option><option>Intenso</option><option>Máximo</option></select></div></div>
     <div class="form-g"><label class="fl">Equipamento</label><input class="fc" id="lf-equip" placeholder="Bola, Cones, Barras..."></div>
-    <div class="form-g"><label class="fl">Vídeo (link externo — YouTube/Vimeo)</label><input class="fc" id="lf-video" placeholder="https://youtube.com/..."></div>
+    <div class="form-g"><label class="fl">Vídeo (link externo — YouTube/Vimeo)</label>
+      <div style="display:flex;gap:6px"><input class="fc" id="lf-video" placeholder="https://youtube.com/..." style="flex:1"><button type="button" class="btn btn-gh" style="white-space:nowrap" onclick="_libSearchYoutube()">🔍 Procurar no YouTube</button></div>
+    </div>
     <div class="form-g"><label class="fl">Descrição</label><textarea class="fc" id="lf-desc" rows="3"></textarea></div>
     <div class="form-g">
       <label class="fl">Esquema / Imagem (ex: exportado do Tactical Pad)</label>
@@ -12215,6 +12329,8 @@ function renderBiblioteca(){
     </div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveExercise()">💾 Guardar</button><button class="btn btn-gh" onclick="_showLibForm=false;_editLibId=null;renderBiblioteca()">Cancelar</button></div>
   </div>`:'';
+
+  const importHtml=_showGymImportPicker?_gymImportPickerHtml():'';
 
   let list=APP.exercises.filter(e=>!_libCat||e.cat===_libCat);
   if(_libSearch){
@@ -12249,8 +12365,9 @@ function renderBiblioteca(){
 
   document.getElementById('pg-biblioteca').innerHTML=`
   <div class="sh"><div class="sh-t">📚 Biblioteca de Exercícios (${APP.exercises.length})</div>
-  <button class="btn btn-g" onclick="_showLibForm=!_showLibForm;_editLibId=null;renderBiblioteca()">+ Novo Exercício</button></div>
+  <div style="display:flex;gap:8px"><button class="btn btn-gh" onclick="openGymImportPicker()">📥 Importar Exercícios (Ginásio)</button><button class="btn btn-g" onclick="_showGymImportPicker=false;_showLibForm=!_showLibForm;_editLibId=null;renderBiblioteca()">+ Novo Exercício</button></div></div>
   ${formHtml}
+  ${importHtml}
   <div class="tabs" style="align-items:center">${catBtns.map(c=>`<button class="tab-btn ${c.k===_libCat?'on':''}" onclick="_libCat='${c.k}';renderBiblioteca()">${c.v}</button>`).join('')}
   <input class="fc" style="width:auto;flex:1;min-width:160px" placeholder="Pesquisar exercício..." value="${escHtml(_libSearch)}" onblur="_libSearch=this.value;renderBiblioteca()"></div>
   ${cardsHtml}`;
@@ -12264,6 +12381,83 @@ function renderBiblioteca(){
       }
     }
   }
+}
+// Atalho "🔍 Procurar no YouTube" (formulário de edição/criação de exercício, ver
+// botão junto a "lf-video") — abre a pesquisa do YouTube com o nome já escrito no
+// campo "Nome", para agilizar a curadoria manual do vídeo (nunca escolhe/preenche
+// o link sozinho, é só um atalho de pesquisa).
+function _libSearchYoutube(){
+  const name=(document.getElementById('lf-name')?.value||'').trim();
+  if(!name)return toast('Escreve o nome do exercício primeiro','err');
+  window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(name),'_blank');
+}
+// ── Importação em massa para a categoria "Ginásio" (ver _GYM_IMPORT_CATALOG acima) ──
+function _gymImportIsDup(entry){
+  const q=_stripAccents(entry.name||'').toLowerCase();
+  return APP.exercises.some(e=>e.cat==='Ginásio'&&_stripAccents(e.name||'').toLowerCase()===q);
+}
+function openGymImportPicker(){
+  _showLibForm=false;_editLibId=null;
+  _showGymImportPicker=true;_gymImportGrupo='';_gymImportUnchecked=new Set();
+  renderBiblioteca();
+}
+function closeGymImportPicker(){_showGymImportPicker=false;renderBiblioteca();}
+function _gymImportToggle(idx){
+  if(_gymImportUnchecked.has(idx))_gymImportUnchecked.delete(idx);else _gymImportUnchecked.add(idx);
+  renderBiblioteca();
+}
+function _gymImportSetVisible(checked){
+  _GYM_IMPORT_CATALOG.forEach((e,i)=>{
+    if(_gymImportGrupo&&e.grupo!==_gymImportGrupo)return;
+    if(_gymImportIsDup(e))return;
+    if(checked)_gymImportUnchecked.delete(i);else _gymImportUnchecked.add(i);
+  });
+  renderBiblioteca();
+}
+function _gymImportPickerHtml(){
+  const grupoBtns=[{k:'',v:'Todos ('+_GYM_IMPORT_CATALOG.length+')'},...(_GYM_IMPORT_GRUPOS.map(g=>({k:g,v:g+' ('+_GYM_IMPORT_CATALOG.filter(e=>e.grupo===g).length+')'})))];
+  const visible=_GYM_IMPORT_CATALOG.map((e,i)=>({e,i})).filter(x=>!_gymImportGrupo||x.e.grupo===_gymImportGrupo);
+  const selectedCount=_GYM_IMPORT_CATALOG.filter((e,i)=>!_gymImportIsDup(e)&&!_gymImportUnchecked.has(i)).length;
+  const dupCount=_GYM_IMPORT_CATALOG.filter(e=>_gymImportIsDup(e)).length;
+  const cards=visible.map(({e,i})=>{
+    const dup=_gymImportIsDup(e);
+    const checked=!dup&&!_gymImportUnchecked.has(i);
+    return `<div class="card" style="padding:13px${dup?';opacity:.5':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <div style="font-size:12px;font-weight:800;line-height:1.3">${escHtml(e.name)}</div>
+        ${dup?'':`<input type="checkbox" style="width:16px;height:16px;flex:none;margin-top:1px" ${checked?'checked':''} onchange="_gymImportToggle(${i})">`}
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px">
+        <span class="bdg bg-gr">Ginásio</span><span class="bdg bg-b">${escHtml(e.grupo)}</span>
+        ${dup?'<span class="bdg bg-y">Já existe</span>':''}
+      </div>
+      <div style="font-size:10px;color:var(--t2)">💪 ${escHtml(e.muscles)}</div>
+      ${e.equip?`<div style="font-size:10px;color:var(--t2);margin-top:2px">🔧 ${escHtml(e.equip)}</div>`:''}
+      <div style="margin-top:6px;font-size:10.5px;color:var(--t3);border:1px dashed var(--brd);border-radius:6px;padding:4px 8px;display:inline-block">▶ Sem vídeo — preencher depois</div>
+    </div>`;
+  }).join('');
+  return `<div class="ipanel">
+    <div class="sh"><div class="sh-t">📥 Importar Exercícios — Ginásio</div><button class="btn btn-sm btn-gh" onclick="closeGymImportPicker()">✕</button></div>
+    <div style="font-size:11.5px;color:var(--t2);margin-bottom:12px;line-height:1.5">Catálogo de referência (nomes/grupos musculares do Exercise Directory do strengthlog.com; descrições escritas por nós). O vídeo fica sempre vazio — preenches depois, exercício a exercício, com o botão "🔍 Procurar no YouTube" já disponível em cada ficha. Exercícios já existentes na Biblioteca (por nome) são ignorados automaticamente, nunca duplicam.</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn btn-sm btn-gh" onclick="_gymImportSetVisible(true)">Marcar Todos (visíveis)</button><button class="btn btn-sm btn-gh" onclick="_gymImportSetVisible(false)">Desmarcar Todos (visíveis)</button></div>
+    <div class="tabs" style="align-items:center">${grupoBtns.map(g=>`<button class="tab-btn ${g.k===_gymImportGrupo?'on':''}" onclick="_gymImportGrupo='${g.k}';renderBiblioteca()">${g.v}</button>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:14px">${cards}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--brd);padding-top:12px">
+      <div style="font-size:12px;color:var(--t2)"><b style="color:var(--t1)">${selectedCount}</b> selecionados para importar · <b style="color:var(--t1)">${dupCount}</b> já existem (ignorados) · <b style="color:var(--t1)">0</b> com vídeo</div>
+      <div style="display:flex;gap:8px"><button class="btn btn-gh" onclick="closeGymImportPicker()">Cancelar</button><button class="btn btn-g" onclick="importGymExercisesSelected()">Importar Selecionados (${selectedCount})</button></div>
+    </div>
+  </div>`;
+}
+async function importGymExercisesSelected(){
+  const toImport=_GYM_IMPORT_CATALOG.filter((e,i)=>!_gymImportIsDup(e)&&!_gymImportUnchecked.has(i));
+  if(!toImport.length)return toast('Nenhum exercício selecionado','err');
+  const created=toImport.map(e=>({id:uid(),cat:'Ginásio',name:e.name,muscles:e.muscles,diff:'Médio',equip:e.equip||'',desc:e.desc||'',videoUrl:'',img:''}));
+  APP.exercises.push(...created);
+  saveData();
+  if(_sync)for(const e of created){try{await cloudUpsert('exercises',e);}catch(err){_warnSyncFailure('exercises (importar)',err);}}
+  _showGymImportPicker=false;
+  toast('Importados '+created.length+' exercícios ✓');
+  renderBiblioteca();
 }
 // Upload de imagem da Biblioteca de Exercícios: passa a ir para o Supabase Storage
 // (bucket 'exercicios', público) em vez de ficar embutida em base64 no registo —
