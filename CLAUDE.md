@@ -4892,3 +4892,53 @@ da Atleta (Registo próprio, Pedido de substituição de exercício,
 Sugestão automática de carga, Alertas de estagnação, Testes de
 referência) — precisa primeiro de saber se o "Registo próprio" vai
 complementar o registo do staff ou substituí-lo em algumas sessões.
+
+## sps-v223 (15/10/2026): App da Atleta — card "Ginásio" de volta à grelha da Casa
+
+Depois do sps-v222 (separador próprio "Ginásio" na bottom nav), o Roger reportou que
+não encontrava o card de Ginásio na Casa ("NA APP ATLETA... NAO APARECE NENHUM CARD" —
+na verdade a app estava correta, o separador novo fica fora da zona visível da barra
+inferior, que tem scroll horizontal com 10 abas). Expliquei que a bottom nav tem scroll
+e que bastava deslizar para a direita. Pedido seguinte do Roger, explícito: "quero como
+card nem que para isso seja necessario reduzir os outros cards" — ou seja, quer mesmo
+um card dedicado na grelha da Casa, além do separador próprio, mesmo que isso obrigue a
+encolher os outros 8 já lá existentes.
+
+**O que foi construído, só em `renderAtHome()`:**
+- Grelha da Casa passou de 2 para 3 colunas (`grid-template-columns:repeat(3,1fr)`,
+  antes `1fr 1fr`) — com 9 tiles agora, 3 colunas dá 3 linhas exatas, sem tile órfão.
+- Tiles ligeiramente mais compactos para caber a 3ª coluna sem ficar apertado: padding
+  13px 11px→10px 8px, min-height 90px→80px, ícone 24px→21px, título 12px→11px,
+  subtítulo 10px→9.5px, gap 9px→8px. Nenhum tile foi removido — os 8 já existentes
+  (Wellness/PSE/Agenda/Avaliações/Nutrição/Fisio/Convocatórias/Treino Ind.) continuam
+  todos lá, só mais pequenos.
+- Novo 9º tile **"Ginásio"** (`_atNavTo('ginasio')`, ícone `ti-barbell`, cor âmbar
+  `#fbbf24`/`217,119,6`), a seguir a "Treino Ind." — subtítulo reaproveita
+  `_gymConsistencyStreak(AID)` (já existente desde sps-v220): "N sessões seguidas 🔥"
+  com streak≥2, senão "Treinos da equipa técnica" em cinzento neutro. Mesmo critério de
+  streak já usado dentro do card da própria aba Ginásio — sem inventar uma 2ª métrica.
+- De passagem, o ícone do tile "Treino Ind." (grelha da Casa) mudou de `ti-barbell`
+  para `ti-run` — ficou inconsistente desde o sps-v222, que já tinha mudado o ícone da
+  bottom nav para `ti-run` mas esqueceu este tile da grelha; agora os dois batem certo
+  (barbell = Ginásio, run = Treino Individual, em toda a app da atleta).
+- Nenhuma alteração a `_gymAthleteCardHtml`/`_gymConsistencyStreak`/`_gymAthleteEvolution`
+  nem a `renderAtGinasio` (separador próprio, sps-v222) — o card novo da Casa é só mais
+  um atalho de navegação, não duplica a lógica/dados do separador.
+
+SW bump para `sps-v223`. Sem alterações de schema Supabase.
+
+Testado: `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_home_ginasio_card_v223.js`, harness `vm` com o código REAL extraído, 10
+testes): grelha com 3 colunas; tile "Ginásio" presente com `onclick` para a página certa;
+subtítulo genérico sem streak suficiente vs. contagem real com streak≥2; os 8 tiles
+antigos continuam todos presentes; 9 tiles no total; ícones `run`/`barbell` corretos nos
+dois tiles de treino; card nunca expõe carga em bruto (mesma regra de sempre); separador
+`renderAtGinasio` continua a funcionar sem alteração. Regressão re-corrida sem falhas:
+`test_home_gameday_ginasiocard_v221.js` (15/15), `test_at_ginasio_treino_split_v222.js`
+(13/13), `test_ginasio_atleta_bloco2a_v220.js` (19/19), `test_ginasio_bloco1_v218.js`
+(16/16), `test_ginasio_tab_v219.js` (6/6).
+
+**Ainda por fazer:** nada pendente para este pedido. Continua bloqueado, à espera de
+decisão do Roger (ver sps-v220): o Bloco 2B do Ginásio na App da Atleta (Registo
+próprio, Pedido de substituição de exercício, Sugestão automática de carga, Alertas de
+estagnação, Testes de referência).
