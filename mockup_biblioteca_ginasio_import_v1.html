@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — Importação da Biblioteca de Exercícios (Ginásio)</title>
+<style>
+:root{
+  --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+  --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+  --c1:#2563eb;--c1l:#3b82f6;--r:10px;--rs:7px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg0);color:var(--t1);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:22px}
+.wrap{max-width:1040px;margin:0 auto}
+.note{background:rgba(37,99,235,.12);border:1px solid rgba(37,99,235,.35);border-radius:var(--r);padding:14px 16px;margin-bottom:18px;font-size:12.5px;line-height:1.55;color:#cbd5e1}
+.note b{color:#fff}
+.note.warn{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.35)}
+h1{font-size:17px;margin:0 0 4px}
+.sub{color:var(--t2);font-size:12px;margin-bottom:18px}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap}
+.sh-t{font-size:14px;font-weight:800}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;border:none;color:#fff}
+.btn-sm{padding:5px 9px;font-size:11px}
+.btn-g{background:var(--c1)}
+.btn-gh{background:var(--bg3);color:var(--t1);border:1px solid var(--brd)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tab-btn{padding:6px 12px;border-radius:4px;font-size:11px;font-weight:700;color:var(--t2);background:var(--bg2);cursor:pointer}
+.tab-btn.on{background:var(--c1);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:13px;position:relative}
+.card.dup{opacity:.5}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.card .nm{font-size:12px;font-weight:800;line-height:1.3}
+.chk{width:16px;height:16px;flex:none;margin-top:1px;accent-color:var(--c1)}
+.bdgs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}
+.bdg{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.bg-b{background:rgba(2,132,199,.2);color:#38bdf8}
+.bg-gr{background:rgba(100,116,139,.2);color:#94a3b8}
+.bg-y{background:rgba(245,158,11,.2);color:#fbbf24}
+.bg-g{background:rgba(22,163,74,.2);color:#4ade80}
+.musc{font-size:10px;color:var(--t2);margin-bottom:8px}
+.vidph{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--t3);border:1px dashed var(--brd);border-radius:6px;padding:4px 8px;cursor:default}
+.footer-bar{position:sticky;bottom:0;margin-top:20px;background:var(--bg1);border:1px solid var(--brd);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.footer-bar .txt{font-size:12px;color:var(--t2)}
+.footer-bar .txt b{color:var(--t1)}
+.legend{display:flex;gap:16px;font-size:11px;color:var(--t2);margin-bottom:16px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>📚 Biblioteca de Exercícios — Importar Ginásio</h1>
+  <div class="sub">Mockup de pré-visualização — nada aqui está ligado à app real ainda. Objetivo: confirmar a fonte e o formato antes de qualquer importação a sério.</div>
+
+  <div class="note">
+    <b>Fonte sugerida para extrair nomes/categorias:</b> em vez de um canal de YouTube isolado (cuja lista de vídeos nunca é um "catálogo" completo nem organizado por grupo muscular), sugiro usar o <b>Exercise Directory do StrengthLog</b> (strengthlog.com) — um diretório gratuito com cerca de 400 exercícios de musculação, organizado por grupo muscular (Peito, Ombro, Bicep, Tricep, Perna, Costas, Glúteo, Abdominal, Gémeos, Antebraço, Pescoço, Cardio), cada um com descrição + indicação de músculos trabalhados + vídeo de demonstração. É um site de referência, não um canal de vídeos avulsos — dá-nos uma lista limpa e completa para preencher a Biblioteca de uma vez.
+    <br><br>
+    <b>Como ficam os vídeos:</b> conforme combinado, o campo de vídeo fica <b>vazio de propósito</b> em todos os exercícios importados — o preenchimento continua a ser feito manualmente por nós, exercício a exercício, com a curadoria no YouTube que já tínhamos decidido. Isto só resolve a parte de "que exercícios é que a Biblioteca deveria ter", não a parte do vídeo.
+  </div>
+  <div class="note warn">
+    <b>Nota legal a confirmar:</b> o StrengthLog permite reutilizar as descrições/imagens no nosso site desde que citemos a fonte e o uso seja <b>não comercial</b>. A SPS é uma ferramenta interna do Moreirense (não é vendida nem monetizada), por isso acho que se enquadra — mas vale a pena confirmares que concordas antes de avançarmos, já que é uma condição deles, não nossa.
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#38bdf8"></span> Novo — será importado</span>
+    <span><span class="dot" style="background:#5a6582"></span> Já existe na Biblioteca — ignorado automaticamente (sem duplicar)</span>
+  </div>
+
+  <div class="sh">
+    <div class="sh-t">Pré-visualização — 24 de ~400 exercícios encontrados</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-gh btn-sm">Marcar Todos</button>
+      <button class="btn btn-gh btn-sm">Desmarcar Todos</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn on">Todos (400)</button>
+    <button class="tab-btn">Peito (34)</button>
+    <button class="tab-btn">Ombro (41)</button>
+    <button class="tab-btn">Bicep (22)</button>
+    <button class="tab-btn">Tricep (28)</button>
+    <button class="tab-btn">Perna (57)</button>
+    <button class="tab-btn">Costas (45)</button>
+    <button class="tab-btn">Glúteo (31)</button>
+    <button class="tab-btn">Abdominal (49)</button>
+    <button class="tab-btn">Gémeos (12)</button>
+    <button class="tab-btn">Antebraço (18)</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="footer-bar">
+    <div class="txt"><b>22</b> selecionados para importar · <b>2</b> ignorados (já existem) · <b>0</b> com vídeo (espaço reservado para preencheres depois)</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-gh">Cancelar</button>
+      <button class="btn btn-g">Importar Selecionados (22)</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const EX = [
+  {name:"Press de Peito com Barra (banco plano)",muscles:"Peitoral, Tríceps, Ombro anterior",cat:"Peito",dup:false},
+  {name:"Press de Peito com Halteres (banco inclinado)",muscles:"Peitoral superior, Ombro anterior",cat:"Peito",dup:false},
+  {name:"Crucifixo com Halteres",muscles:"Peitoral",cat:"Peito",dup:false},
+  {name:"Peck Deck (máquina)",muscles:"Peitoral",cat:"Peito",dup:true},
+  {name:"Press Militar com Barra",muscles:"Ombro, Tríceps",cat:"Ombro",dup:false},
+  {name:"Elevação Lateral com Halteres",muscles:"Deltoide lateral",cat:"Ombro",dup:false},
+  {name:"Elevação Frontal com Halteres",muscles:"Deltoide anterior",cat:"Ombro",dup:false},
+  {name:"Face Pull (cabo)",muscles:"Deltoide posterior, Rodadores externos",cat:"Ombro",dup:false},
+  {name:"Rosca Direta com Barra",muscles:"Bicep",cat:"Bicep",dup:false},
+  {name:"Rosca Alternada com Halteres",muscles:"Bicep",cat:"Bicep",dup:true},
+  {name:"Rosca Martelo",muscles:"Bicep, Antebraço",cat:"Bicep",dup:false},
+  {name:"Extensão de Tríceps na Polia (corda)",muscles:"Tríceps",cat:"Tricep",dup:false},
+  {name:"Francês com Halteres",muscles:"Tríceps",cat:"Tricep",dup:false},
+  {name:"Agachamento Livre com Barra",muscles:"Quadricep, Glúteo, Core",cat:"Perna",dup:false},
+  {name:"Leg Press 45°",muscles:"Quadricep, Glúteo",cat:"Perna",dup:false},
+  {name:"Afundo Búlgaro (Bulgarian Split Squat)",muscles:"Quadricep, Glúteo, Equilíbrio",cat:"Perna",dup:false},
+  {name:"Cadeira Extensora",muscles:"Quadricep",cat:"Perna",dup:false},
+  {name:"Cadeira Flexora",muscles:"Isquiotibiais",cat:"Perna",dup:false},
+  {name:"Levantamento Terra Romeno",muscles:"Isquiotibiais, Glúteo, Lombar",cat:"Perna",dup:false},
+  {name:"Hip Thrust com Barra",muscles:"Glúteo",cat:"Glúteo",dup:false},
+  {name:"Elevação de Gémeos em Pé",muscles:"Gastrocnémio",cat:"Gémeos",dup:false},
+  {name:"Puxada Alta (Lat Pulldown)",muscles:"Grande dorsal, Bicep",cat:"Costas",dup:false},
+  {name:"Remada Curvada com Barra",muscles:"Grande dorsal, Trapézio médio",cat:"Costas",dup:false},
+  {name:"Remada Sentada na Máquina (cabo baixo)",muscles:"Grande dorsal, Romboides",cat:"Costas",dup:false},
+  {name:"Prancha Isométrica (Plank)",muscles:"Core, Transverso abdominal",cat:"Abdominal",dup:false},
+  {name:"Elevação de Pernas Suspenso",muscles:"Reto abdominal, Flexores do quadril",cat:"Abdominal",dup:false}
+];
+const cols={Peito:'bg-b',Ombro:'bg-y',Bicep:'bg-g',Tricep:'bg-g',Perna:'bg-b',Costas:'bg-y',Glúteo:'bg-b',Gémeos:'bg-gr',Abdominal:'bg-g'};
+document.getElementById('grid').innerHTML = EX.map(e=>`
+  <div class="card ${e.dup?'dup':''}">
+    <div class="top">
+      <div class="nm">${e.name}</div>
+      ${e.dup?'':'<input type="checkbox" class="chk" checked>'}
+    </div>
+    <div class="bdgs">
+      <span class="bdg bg-gr">Ginásio</span>
+      <span class="bdg ${cols[e.cat]||'bg-gr'}">${e.cat}</span>
+      ${e.dup?'<span class="bdg bg-y">Já existe</span>':''}
+    </div>
+    <div class="musc">💪 ${e.muscles}</div>
+    <div class="vidph">▶ Sem vídeo — preencher depois</div>
+  </div>
+`).join('');
+</script>
+</body>
+</html>
