@@ -5515,3 +5515,76 @@ dispositivos, as atletas que já tinham duplicados hoje vão ver o registo mais 
 (o que a limpeza manteve) ao abrir o questionário — não há nada a corrigir manualmente da
 parte delas. Vale a pena o Roger confirmar com as atletas que relataram "dificuldade" que
 o comportamento agora é claro (aviso + escalas pré-preenchidas + botão "Atualizar").
+
+## sps-v232 (16/10/2026): pullCloud() sem paginação — tabelas com mais de 1000 linhas perdiam os registos mais recentes (relatório de Wellness "sem dados" para hoje)
+
+Pedido verbatim do Roger, poucas horas depois do sps-v231 já estar em produção: "A
+QUESTAO É QUE QUANDO TENTO ACEDER AOS DADOS DE HOJE, DA SEM DADOS" — com uma captura de
+ecrã do cartão "Wellness" em Relatórios & Exportações, data 16/10/2026, "Diário — todas
+as atletas", a dar sempre "Sem dados para imprimir" mesmo depois de (a pedido meu) ter
+recarregado a página.
+
+**Investigação, antes de assumir que era outra vez o mesmo bug:** confirmei por SQL direto
+à Supabase que os 20 registos de Wellness de hoje estavam mesmo lá, bem guardados, sem
+duplicados (a limpeza do sps-v231 continuava válida). Repliquei a função real `_getWellData()`
+extraída de `index.html` num harness `vm`, dando-lhe exatamente os 20 registos reais — o
+filtro `w.date===dt` funcionava perfeitamente. Ou seja, o bug não estava no código de
+filtragem do relatório, tinha de estar em como os dados chegam ao dispositivo. Com o Claude
+in Chrome liguei-me diretamente ao site em produção (`rogerpinheiro77.github.io/...`) e
+repliquei, a partir do browser real (não deste sandbox, que tem rede restrita), o MESMO
+pedido que o `pullCloud()` faz: `GET /rest/v1/wellness_records?select=*&club_id=eq.<clube>`
+— resposta `200 OK`, mas com exatamente **1000 linhas**, as mais antigas, parando em
+2026-10-15 — os registos de hoje nunca lá chegavam. Confirmado por SQL: a tabela
+`wellness_records` do Moreirense tinha acabado de passar das 1000 linhas (1020 no total,
+desde 11/08/2026) — e o Supabase (PostgREST) tem um limite por defeito de 1000 linhas por
+pedido (`db-max-rows`), devolvido em silêncio, sem erro nenhum, sempre que um pedido sem
+paginação excede esse limite.
+
+**Causa raiz:** o loop que lê todas as tabelas do clube dentro de `pullCloud()` —
+`_supa.from(tbl).select('*').eq('club_id',_cid)` — nunca teve paginação nem `order()`.
+Enquanto cada tabela tinha menos de 1000 linhas por clube, isto nunca se notou. A
+`wellness_records` (crescimento diário, 1 linha por atleta por dia) foi a primeira a
+ultrapassar o limite, mas o mesmo iria acontecer mais cedo ou tarde a `pse_records`,
+`attendance_records`, `gym_records`, `extra_training_records`, `hydration_records`,
+`training_plans` e qualquer outra tabela deste padrão (série temporal por atleta) — este
+loop é partilhado por TODAS elas.
+
+**O que foi construído:** nova função `_fetchAllClubRows(tbl)` dentro de `pullCloud()`
+que pagina com `.order('id',{ascending:true}).range(from,from+999)` em blocos de 1000,
+acumulando tudo até a última página vir incompleta (sinal de que já não há mais linhas).
+`order('id', …)` garante uma ordem estável entre páginas (necessário para paginação com
+`.range()` não saltar/repetir linhas se houver escritas concorrentes entre pedidos — sem
+isso, a ordem devolvida pelo Postgres não é garantida). O loop principal (`for(const [tbl,,setter]
+of pulls)`) passou a chamar esta função em vez do `select` direto — aplica-se
+automaticamente a TODAS as tabelas da lista `pulls` (atletas, wellness, PSE, lesões,
+tratamentos, nutrição, estágios, playbook, hidratação, suplementação, fisio, calendário,
+planos de treino, presenças, utilizadores, anamneses, treino extra, registos de ginásio,
+exercícios, fichas de ginásio, unidades de treino, jogos — toda a lista), não só
+`wellness_records`. Deixa de depender do limite configurado no projeto Supabase, seja ele
+1000 ou outro valor qualquer no futuro — mesmo que o projeto baixe ainda mais esse
+limite, a paginação continua a trazer tudo, só com mais pedidos.
+
+Sem alterações de schema Supabase (o limite de 1000 linhas é uma definição do próprio
+PostgREST/Supabase, não uma coluna ou índice). SW bump para `sps-v232`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_wellness_report_pagination_v232.js`, harness `vm` com o código REAL
+extraído de `index.html` — incluindo o `pullCloud()` real, com um backend Supabase falso
+que simula fielmente o comportamento real: nunca devolve mais de 1000 linhas por pedido,
+haja ou não `.range()` a pedir mais — 3 asserções): tabela com 1500 linhas (1480 antigas +
+20 de "hoje", mesmo padrão do caso real) fica com as 1500 todas em `APP.wellness` depois
+de `pullCloud()`, incluindo os 20 registos de hoje, confirmando por contagem de chamadas
+`.range()` que foram mesmo pedidas 2+ páginas (prova direta de paginação, não coincidência);
+regressão — tabela pequena (3 linhas) continua a ser lida por inteiro numa única página,
+sem pedidos extra desnecessários; regressão — tabela vazia na cloud não apaga dados
+só-locais ainda não sincronizados (proteção `if(data&&data.length)setter(data)` já
+existente, inalterada). Resultado: 3 passaram, 0 falharam. Regressão completa re-corrida
+(todos os `test_*.js` presentes nesta pasta de trabalho) sem falhas novas;
+`test_marker_evolution_v204.js` continua com as mesmas 4 falhas pré-existentes já
+documentadas desde o sps-v210 (espelhamento de adversárias), sem relação com este pedido.
+
+**Ainda por fazer:** nada pendente para este pedido. Vale a pena manter este padrão em
+mente para o futuro — qualquer tabela nova deste género (série temporal por atleta) que
+venha a crescer precisa de continuar a passar por `_fetchAllClubRows`/`pulls` (já
+acontece automaticamente, não precisa de código extra por tabela), mas se algum dia se
+criar um pull fora deste loop central, convém lembrar este incidente.
