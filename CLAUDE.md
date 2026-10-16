@@ -5087,3 +5087,46 @@ SW bump para `sps-v225`.
 visualmente, depois da atualização chegar aos dispositivos, que o botão Vou/Não vou
 aparece mesmo na Casa junto ao evento de Ginásio e que responder por ali não deixa
 nada "preso" visualmente.
+
+## sps-v226 (16/10/2026): Código de Conduta — lista de quem já confirmou "Li e aceito"
+
+Pedido do Roger: "COMO SEI QUAIS AS ATLETAS QUE JA ACEITARAM O CODIGO DE CONDUTA?" —
+confirmado por investigação que a página Código de Conduta (📜) só mostrava uma
+contagem ("X/Y atletas já confirmaram") e, quando havia 8 ou menos pendentes, os
+nomes de quem FALTAVA — nunca uma lista de quem já tinha confirmado, e a lista de
+pendentes desaparecia com mais de 8 por responder.
+
+**Fix:**
+- `_cocAckStats()` passou a devolver também `ackAthletes` (o array de atletas que já
+  confirmaram a versão em vigor, não só a contagem `ack`) — `ack`/`total`/`pending`
+  mantidos exatamente como antes (retrocompatível com qualquer chamador existente).
+- `renderCodigoConduta()`: a linha de estatística ficou só com a contagem; por baixo,
+  um novo `<details>` colapsável ("👥 Ver lista completa") mostra as duas listas por
+  extenso, cada atleta pelo nome de exibição (`_displayName` — alcunha quando existe)
+  e ordenadas alfabeticamente: "✅ Já confirmaram (N)" e "⏳ Ainda não confirmaram
+  (N)" — a lista de pendentes deixou de ter o limite de 8, mostra sempre todas.
+- Sem alterações de schema Supabase — `cocAckVersion`/`cocAckAt` já existiam por
+  atleta desde o sps-v196; esta versão só lê esses campos de forma mais completa na
+  UI, nunca grava nada de novo.
+
+SW bump para `sps-v226`.
+
+Testado: `node --check` ao script extraído de `index.html` e a `sw.js`. Suite nova
+dedicada (`test_coc_ack_list_v226.js`, harness `vm` com o código REAL extraído, 6
+testes): `_cocAckStats` devolve `ackAthletes` com a contagem/ids certos (incl. caso
+sem nenhuma confirmação, `ackAthletes=[]` sem erro); `renderCodigoConduta` mostra a
+lista de quem já confirmou (nomes com e sem alcunha); lista de pendentes aparece
+sempre, mesmo com 10 (sem o limite antigo de 8); sem o Código ativo nenhuma lista
+aparece; as duas listas saem ordenadas alfabeticamente pelo nome de exibição.
+Regressão completa re-corrida (todos os `test_*.js` presentes nesta pasta de
+trabalho): `test_at_ginasio_treino_split_v222.js`, `test_biblioteca_import_ginasio_v224.js`,
+`test_ginasio_atleta_bloco2a_v220.js`, `test_ginasio_bloco1_v218.js`,
+`test_ginasio_tab_v219.js`, `test_home_gameday_ginasiocard_v221.js`,
+`test_home_ginasio_card_v223.js`, `test_home_ginasio_rsvp_v225.js` — todos sem
+falhas novas; `test_marker_evolution_v204.js` continua com as mesmas 4 falhas
+pré-existentes já documentadas desde o sps-v210 (espelhamento de adversárias), sem
+relação com este pedido.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
+visualmente, depois da atualização chegar aos dispositivos, que a lista de quem já
+aceitou aparece corretamente na página Código de Conduta.

@@ -16725,8 +16725,8 @@ const _CODIGO_CONDUTA_SECOES=[
 function _cocAckStats(){
   const ats=APP.athletes||[];
   const v=(APP.codeOfConduct&&APP.codeOfConduct.version)||1;
-  const ack=ats.filter(a=>a.cocAckVersion===v);
-  return{total:ats.length,ack:ack.length,pending:ats.filter(a=>a.cocAckVersion!==v)};
+  const ackAthletes=ats.filter(a=>a.cocAckVersion===v);
+  return{total:ats.length,ack:ackAthletes.length,ackAthletes,pending:ats.filter(a=>a.cocAckVersion!==v)};
 }
 // Pedido do Roger (02/10/2026): "QUERO QUE O CODIGO DE CONDUTA SEJA EDITAVEL E
 // EXPORTAVEL(PDF) NA PLATAFORMA" — o texto deixa de ser só fixo em código: a
@@ -16759,7 +16759,19 @@ function renderCodigoConduta(){
         ?`<button class="btn btn-gh" style="color:#f87171;border-color:#f87171" onclick="desativarCodigoConduta()">⏸️ Desativar na App Atleta</button>`
         :`<button class="btn btn-g" onclick="ativarCodigoConduta()">✅ Dar o Visto — Ativar na App Atleta</button>`)
     :`<div class="al al-b" style="font-size:11px">Só quem tem acesso de administrador pode ativar ou desativar o Código na App Atleta.</div>`;
-  const ackHtml=active?`<div style="margin-top:4px;font-size:11.5px;color:var(--t2)">${st.ack}/${st.total} atletas já confirmaram "Li e aceito" nesta versão.${st.pending.length&&st.pending.length<=8?' Pendentes: '+st.pending.map(a=>escHtml(_displayName(a))).join(', ')+'.':''}</div>`:'';
+  // sps-v226: além da contagem, lista completa (quem já confirmou + quem falta) num
+  // <details> colapsável — antes só listava nomes de pendentes, e só até 8; o Roger
+  // pediu para conseguir ver também quem JÁ aceitou, por isso deixou de depender de
+  // um limite de atletas (lista sempre completa, nos dois grupos).
+  const cocAckNames=[...st.ackAthletes].sort((a,b)=>_displayName(a).localeCompare(_displayName(b))).map(a=>escHtml(_displayName(a)));
+  const cocPendingNames=[...st.pending].sort((a,b)=>_displayName(a).localeCompare(_displayName(b))).map(a=>escHtml(_displayName(a)));
+  const ackHtml=active?`<div style="margin-top:4px;font-size:11.5px;color:var(--t2)">${st.ack}/${st.total} atletas já confirmaram "Li e aceito" nesta versão.</div>
+    <details style="margin-top:6px"><summary style="font-size:11px;color:var(--c1l);cursor:pointer;list-style:none">👥 Ver lista completa (quem já confirmou / quem falta)</summary>
+      <div style="margin-top:6px;font-size:11.5px;line-height:1.6">
+        ${cocAckNames.length?`<div style="color:#4ade80"><b>✅ Já confirmaram (${cocAckNames.length}):</b> ${cocAckNames.join(', ')}</div>`:''}
+        ${cocPendingNames.length?`<div style="color:#fbbf24;margin-top:4px"><b>⏳ Ainda não confirmaram (${cocPendingNames.length}):</b> ${cocPendingNames.join(', ')}</div>`:''}
+      </div>
+    </details>`:'';
   const editedHtml=customized?`<div style="margin-top:4px;font-size:11px;color:var(--t2)"><i class="ti ti-edit" style="margin-right:3px;vertical-align:-2px" aria-hidden="true"></i>Texto personalizado${cc.sectionsUpdatedBy?' por '+escHtml(cc.sectionsUpdatedBy):''}${cc.sectionsUpdatedAt?' em '+fmtDate(cc.sectionsUpdatedAt.slice(0,10)):''}.</div>`:'';
   // sps-v203: a versão deixou de subir automaticamente a reboque de uma gravação de
   // texto (agora cada ponto grava sozinho, sem um momento único de "guardar") — fica

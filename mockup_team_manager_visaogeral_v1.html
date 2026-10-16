@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — SPS Team Manager · Visão Geral</title>
+<style>
+  :root{
+    --c1:#1d6f3b;--c1d:#155c2f;--c1l:#27a34a;
+    --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+    --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+    --sw:242px;
+    --warn:#e0a92b;--warn-bg:#e0a92b22;
+    --danger:#e2504a;--danger-bg:#e2504a22;
+    --ok:#27a34a;--ok-bg:#27a34a22;
+    --info:#5cd0e8;--info-bg:#0c7b9333;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--bg0);color:var(--t1);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+  }
+  /* ===== Topbar (mesmo padrão dos outros modos standalone — sidebar escondida) ===== */
+  #topbar{
+    height:56px;background:var(--bg1);border-bottom:1px solid var(--brd);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 16px;position:sticky;top:0;z-index:10;
+  }
+  .tb-left{display:flex;align-items:center;gap:10px;}
+  .tb-logo{
+    width:32px;height:32px;border-radius:8px;background:var(--c1);
+    display:flex;align-items:center;justify-content:center;font-size:17px;
+  }
+  .tb-title{font-weight:700;font-size:15px;color:var(--t1);}
+  .tb-sub{font-size:11px;color:var(--t2);}
+  .role-badge{
+    background:#0c7b9333;color:#5cd0e8;
+    font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;
+    display:flex;align-items:center;gap:5px;
+  }
+  .tb-right{display:flex;align-items:center;gap:10px;}
+  .tb-btn{
+    width:34px;height:34px;border-radius:9px;background:var(--bg3);
+    border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;
+    font-size:15px;color:var(--t2);
+  }
+  /* ===== Layout principal ===== */
+  #main{max-width:720px;margin:0 auto;padding:16px 14px 90px;}
+  .hello{margin-bottom:14px;}
+  .hello h1{font-size:19px;font-weight:700;color:var(--t1);}
+  .hello p{font-size:12.5px;color:var(--t2);margin-top:2px;}
+
+  .card{
+    background:var(--bg1);border:1px solid var(--brd);border-radius:14px;
+    padding:14px 15px;margin-bottom:12px;
+  }
+  .card-h{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .card-h .lbl{
+    font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;
+    letter-spacing:.03em;display:flex;align-items:center;gap:6px;
+  }
+  .card-h .lbl .ic{font-size:14px;}
+  .pill{
+    font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;
+  }
+  .pill.warn{background:var(--warn-bg);color:var(--warn);}
+  .pill.danger{background:var(--danger-bg);color:var(--danger);}
+  .pill.ok{background:var(--ok-bg);color:var(--ok);}
+
+  /* Próximo jogo */
+  .game-row{display:flex;align-items:center;gap:12px;}
+  .game-badge{
+    width:46px;height:46px;border-radius:12px;background:var(--bg3);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    flex-shrink:0;border:1px solid var(--brd);
+  }
+  .game-badge .d{font-size:16px;font-weight:800;color:var(--t1);line-height:1;}
+  .game-badge .m{font-size:9px;color:var(--t2);text-transform:uppercase;}
+  .game-info{flex:1;min-width:0;}
+  .game-opp{font-size:14.5px;font-weight:700;color:var(--t1);}
+  .game-meta{font-size:11.5px;color:var(--t2);margin-top:2px;}
+  .game-meta span{margin-right:8px;}
+  .btn{
+    background:var(--c1);color:#fff;border:none;border-radius:9px;
+    font-size:12px;font-weight:600;padding:9px 13px;white-space:nowrap;
+  }
+  .btn.ghost{background:var(--bg3);color:var(--t1);border:1px solid var(--brd);}
+  .btn.full{width:100%;margin-top:10px;}
+
+  /* Estágio */
+  .stage-row{display:flex;align-items:center;gap:12px;}
+  .stage-ic{
+    width:46px;height:46px;border-radius:12px;background:var(--info-bg);
+    display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;
+  }
+  .stage-info{flex:1;min-width:0;}
+  .stage-title{font-size:14px;font-weight:700;color:var(--t1);}
+  .stage-meta{font-size:11.5px;color:var(--t2);margin-top:2px;}
+  .rsvp-count{
+    font-size:11px;font-weight:700;color:var(--warn);background:var(--warn-bg);
+    padding:5px 10px;border-radius:9px;white-space:nowrap;
+  }
+
+  /* Alerta convocatória pendente */
+  .alert-row{display:flex;align-items:flex-start;gap:11px;}
+  .alert-ic{font-size:19px;flex-shrink:0;margin-top:1px;}
+  .alert-text{font-size:12.5px;color:var(--t1);line-height:1.5;}
+  .alert-text b{color:var(--warn);}
+
+  /* Código de Conduta */
+  .coc-row{display:flex;align-items:center;gap:12px;}
+  .coc-ring{
+    width:46px;height:46px;border-radius:50%;flex-shrink:0;
+    background:conic-gradient(var(--ok) 0% 83%, var(--bg3) 83% 100%);
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+  }
+  .coc-ring::before{
+    content:'';position:absolute;inset:4px;border-radius:50%;background:var(--bg1);
+  }
+  .coc-ring span{position:relative;font-size:11px;font-weight:800;color:var(--t1);}
+  .coc-info{flex:1;}
+  .coc-title{font-size:13.5px;font-weight:700;color:var(--t1);}
+  .coc-meta{font-size:11.5px;color:var(--t2);margin-top:2px;}
+
+  /* Atalhos */
+  .shortcuts{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:9px;
+  }
+  .sc-tile{
+    background:var(--bg2);border:1px solid var(--brd);border-radius:12px;
+    padding:12px 8px;display:flex;flex-direction:column;align-items:center;
+    gap:6px;text-align:center;
+  }
+  .sc-tile .ic{font-size:21px;}
+  .sc-tile .lbl{font-size:10.5px;font-weight:600;color:var(--t1);line-height:1.2;}
+
+  .note{
+    text-align:center;font-size:10.5px;color:var(--t3);margin-top:16px;padding:0 10px;
+  }
+  .note b{color:var(--t2);}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">🧳</div>
+    <div>
+      <div class="tb-title">SPS Team Manager</div>
+      <div class="tb-sub">Moreirense FC Feminino</div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <div class="role-badge">🧳 Team Manager</div>
+  </div>
+</div>
+
+<div id="main">
+
+  <div class="hello">
+    <h1>Olá, Carla 👋</h1>
+    <p>Visão geral da equipa — tudo o que precisas de acompanhar, num único lugar.</p>
+  </div>
+
+  <!-- Próximo Jogo -->
+  <div class="card">
+    <div class="card-h">
+      <div class="lbl"><span class="ic">⚽</span> Próximo Jogo</div>
+    </div>
+    <div class="game-row">
+      <div class="game-badge"><div class="d">27</div><div class="m">Set</div></div>
+      <div class="game-info">
+        <div class="game-opp">vs Destreza Aventura</div>
+        <div class="game-meta">
+          <span>🕒 15:00</span>
+          <span>📍 Campo do Moreirense</span>
+        </div>
+      </div>
+    </div>
+    <button class="btn full" onclick="">📋 Abrir Convocatória</button>
+  </div>
+
+  <!-- Próximo Estágio -->
+  <div class="card">
+    <div class="card-h">
+      <div class="lbl"><span class="ic">🧳</span> Próximo Estágio</div>
+    </div>
+    <div class="stage-row">
+      <div class="stage-ic">🏨</div>
+      <div class="stage-info">
+        <div class="stage-title">Deslocação — Vila Real</div>
+        <div class="stage-meta">04-05 Out · Hotel Montanha</div>
+      </div>
+      <div class="rsvp-count">6 sem RSVP</div>
+    </div>
+  </div>
+
+  <!-- Convocatória pendente -->
+  <div class="card" style="border-color:var(--warn-bg);">
+    <div class="card-h">
+      <div class="lbl"><span class="ic">⚠️</span> Convocatória Pendente</div>
+      <span class="pill warn">Ação necessária</span>
+    </div>
+    <div class="alert-row">
+      <div class="alert-ic">🟡</div>
+      <div class="alert-text">
+        A convocatória do jogo de <b>27 de Setembro</b> ainda não tem o onze
+        e os suplentes definidos. Faltam também <b>3 confirmações</b> de presença.
+      </div>
+    </div>
+  </div>
+
+  <!-- Código de Conduta -->
+  <div class="card">
+    <div class="card-h">
+      <div class="lbl"><span class="ic">📜</span> Código de Conduta</div>
+    </div>
+    <div class="coc-row">
+      <div class="coc-ring"><span>19/23</span></div>
+      <div class="coc-info">
+        <div class="coc-title">19 de 23 atletas confirmaram</div>
+        <div class="coc-meta">4 atletas ainda não leram/aceitaram a versão atual</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Atalhos -->
+  <div class="card">
+    <div class="card-h">
+      <div class="lbl"><span class="ic">🔗</span> Atalhos</div>
+    </div>
+    <div class="shortcuts">
+      <div class="sc-tile"><div class="ic">⚽</div><div class="lbl">Jogos</div></div>
+      <div class="sc-tile"><div class="ic">🏆</div><div class="lbl">Competições</div></div>
+      <div class="sc-tile"><div class="ic">📋</div><div class="lbl">Convocatórias</div></div>
+      <div class="sc-tile"><div class="ic">🗓️</div><div class="lbl">Planeamento</div></div>
+      <div class="sc-tile"><div class="ic">📚</div><div class="lbl">Biblioteca</div></div>
+      <div class="sc-tile"><div class="ic">📊</div><div class="lbl">Relatórios</div></div>
+      <div class="sc-tile"><div class="ic">📜</div><div class="lbl">Código de Conduta</div></div>
+      <div class="sc-tile"><div class="ic">🗺️</div><div class="lbl">Guião Jogo Fora</div></div>
+      <div class="sc-tile"><div class="ic">🧳</div><div class="lbl">Estágios</div></div>
+    </div>
+  </div>
+
+  <div class="note">
+    Isto é um <b>mockup estático</b> (dados fictícios, sem ligação à app) — só para
+    validar o layout e o conteúdo antes de qualquer código.
+  </div>
+
+</div>
+
+</body>
+</html>
