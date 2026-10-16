@@ -5337,3 +5337,98 @@ feita nesta sessão.
 visualmente, depois da atualização chegar aos dispositivos, que a Lista de Convocados já
 não mostra nenhuma referência a Capitã/Vice-Capitã/Bancada e que a coluna de Assinatura
 está bem alinhada.
+
+## sps-v230 (16/10/2026): App Team Manager — botão para enviar a Ficha de Jogo Tática em PDF por WhatsApp
+
+Pedido verbatim do Roger: "NA APP TEAM MANAGER QUERO BOTAO PARA PDF DA FICHA DE JOGO
+PARA ENVIAR FORMATO PDF POR WHATSAAP, O TEAM MANAGER AO CLICAR ABRE A TAL FICHA DE JOGO
+TATICA COM OPÇAO ENVIAR POR WHATSAAP, ESTAS A VER A IDEIA?" — um botão na App Team
+Manager (`?teammanager=1`) que abre a Ficha de Jogo Tática (`exportJogoPDF(gid,'prejogo')`)
+já com uma opção de enviar o PDF por WhatsApp.
+
+**Investigação, antes de codificar:** `_printWin()` (o motor de PDF/impressão partilhado
+por praticamente todos os relatórios da app) nunca produziu um Blob/File — abre um popup,
+escreve o HTML e chama `window.print()` automaticamente; depende inteiramente da caixa de
+diálogo nativa de impressão do browser, sem nenhuma forma de obter os bytes do PDF
+gerado. O precedente já existente de partilha de ficheiro via Web Share API
+(`shareJogoCampoImage`, canvas→Blob→`navigator.share`/fallback de download) não serve
+diretamente aqui, porque gera uma imagem PNG de um `<svg>`, não um documento HTML inteiro
+(cabeçalho/rodapé/tabela da Ficha). Não havia nenhuma biblioteca de HTML→PDF carregada
+(`html2canvas`/`jsPDF`/`html2pdf`) — confirmado por grep antes de decidir a abordagem.
+Os links `wa.me/?text=...` já usados noutros sítios da app (credenciais) só pré-preenchem
+texto, nunca anexam ficheiro — confirma que qualquer envio de ficheiro por WhatsApp tem de
+passar pela Web Share API do próprio dispositivo (Share Sheet nativo), nunca por um link.
+
+**O que foi construído:**
+
+1. **`_printWin()` ganhou um 6º parâmetro opcional, `shareOptions` (`{fileName}`)** — só
+   quando presente, o HTML gerado ganha: uma barra flutuante (`position:fixed`, escondida
+   em `@media print`) com dois botões, "🖨️ Imprimir" e "📲 Enviar por WhatsApp"; os scripts
+   `html2canvas`+`jsPDF` (CDN, carregados só neste caso); e uma função `_spsShareWhats()`
+   definida dentro do próprio popup — tudo dentro de `${shareOptions?...:''}`, de propósito,
+   para `shareOptions` ausente (todos os outros chamadores de `_printWin` na app) continuar
+   a produzir exatamente o mesmo HTML de sempre, sem qualquer CSS/script extra. `_spsShareWhats()`:
+   - Esconde a própria barra, captura `document.body` com `html2canvas` (`scale:2,useCORS:true`),
+   - monta um PDF A4 com `jsPDF` a partir do canvas (fatiado em várias páginas se o conteúdo
+     não couber numa só — mesmo padrão clássico de "canvas para PDF multi-página"),
+   - gera um `File` (`application/pdf`) e tenta `navigator.share({files:[file],...})`
+     (feature-detection `navigator.canShare`, mesmo padrão já usado em `shareJogoCampoImage`);
+   - sem suporte a partilha de ficheiros (ou erro), cai para download automático do PDF +
+     aviso para anexar manualmente no WhatsApp — nunca falha em silêncio.
+   - Erro de carregamento dos scripts (rede lenta) é tratado com um aviso a pedir para
+     tentar de novo, em vez de rebentar.
+2. **`exportJogoPDF(gid,'prejogo')`** passou a chamar `_printWin` com `shareOptions`
+   (`fileName` derivado do adversário+data, ex. `Ficha_FC_Tadim_2026-10-18.pdf`) — só para
+   este tipo (`'prejogo'`, a própria Ficha de Jogo Tática/Pré-Jogo que o Roger descreveu);
+   os outros tipos (`'campo'`/`'posjogo'`/`'full'`) continuam exatamente como antes, sem a
+   barra. Isto cobre automaticamente TODOS os sítios que já chamam
+   `exportJogoPDF(gid,'prejogo')` — Exportar (Jogo), Relatórios → Convocatórias, e o botão
+   novo abaixo — sem precisar de 3 implementações separadas.
+3. **Atalho direto na App Team Manager**: novo botão "📲 Ficha de Jogo (PDF) — WhatsApp"
+   no cartão "Próximo Jogo" de `renderVisaoGeral()` (sps-v227), junto ao já existente
+   "📋 Abrir Convocatória / Pré-Jogo" — chama `exportJogoPDF(nextGame.id,'prejogo')`
+   diretamente, sem navegar de página primeiro (a função não depende da página/UI atual).
+4. Sem alterações de schema Supabase. `html2canvas`/`jsPDF` acrescentados a `sw.js`
+   (`ASSETS`) para disponibilidade offline, mesmo padrão dos outros CDN scripts já
+   cacheados (Chart.js, Supabase, pdf-lib).
+5. SW bump para `sps-v230`.
+
+**Risco conhecido, documentado em comentário no código (não resolvido nesta versão):**
+a origem de `APP.config.clubLogo` não é garantidamente same-origin (é um URL livre
+configurado em Configurações, pode ser uma imagem alojada fora do GitHub Pages). Se for
+uma origem cruzada sem CORS, o `html2canvas` pode não conseguir desenhar essa imagem no
+PDF partilhado (o logótipo do clube fica em branco nesse PDF específico) — não afeta o
+resto do documento, a impressão normal, nem nenhum outro relatório da app (os URLs do
+rodapé — UEFA/contactos/assinatura — já são confirmados same-origin desde a investigação
+anterior).
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_whatsapp_pdf_share_v230.js`, harness `vm` com o código REAL extraído de
+`index.html`, 22 asserções): `_printWin` sem `shareOptions` nunca injeta a barra/scripts
+(regressão central — nenhum outro relatório da app é afetado); `_printWin` com
+`shareOptions` injeta a barra com os dois botões, os scripts html2canvas/jsPDF, a função
+`_spsShareWhats`, o `fileName` certo embutido, e as tags `<script>` balanceadas no HTML
+gerado (confirma que a técnica de escape `<\/script>` não deixou nada por fechar);
+`exportJogoPDF('prejogo')` passa `shareOptions` com o `fileName` derivado do jogo;
+`exportJogoPDF('campo'/'full')` e `exportConvocatoriaListPDF` nunca ganham a barra
+(fora do âmbito deste pedido); botão novo em `renderVisaoGeral()` presente e ligado a
+`exportJogoPDF(nextGame.id,'prejogo')`, com o botão antigo de navegação ainda presente
+(regressão). Regressão completa re-corrida (todos os `test_*.js` presentes nesta pasta de
+trabalho): `test_at_ginasio_treino_split_v222.js`, `test_biblioteca_import_ginasio_v224.js`,
+`test_coc_ack_list_v226.js`, `test_convocados_simplify_v229.js`,
+`test_ginasio_atleta_bloco2a_v220.js`, `test_ginasio_bloco1_v218.js`,
+`test_ginasio_tab_v219.js`, `test_home_gameday_ginasiocard_v221.js`,
+`test_home_ginasio_card_v223.js`, `test_home_ginasio_rsvp_v225.js`,
+`test_team_manager_v227.js` — todos sem falhas novas; `test_marker_evolution_v204.js`
+continua com as mesmas 4 falhas pré-existentes já documentadas desde o sps-v210
+(espelhamento de adversárias), sem relação com este pedido. Verificação visual ao vivo
+(partilha real via WhatsApp num telemóvel) não foi feita nesta sessão — depende do
+dispositivo/OS reais (Web Share API com ficheiros varia por browser/OS).
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
+visualmente, num telemóvel real, depois da atualização chegar aos dispositivos: que o
+botão "📲 Enviar por WhatsApp" dentro da Ficha de Jogo Tática (e o atalho direto na Visão
+Geral da App Team Manager) abre mesmo o ecrã de partilha do WhatsApp com o PDF já
+anexado — o comportamento exato da Web Share API com ficheiros varia por
+browser/dispositivo (funciona bem em Chrome/Safari móvel recentes; browsers de desktop
+sem suporte caem sempre no download automático + aviso para anexar manualmente).

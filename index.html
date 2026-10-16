@@ -9260,12 +9260,18 @@ function exportJogoPDF(gid,type){
       <h2 style="border-bottom:2px solid #333;padding-bottom:8px">🧩 Adversário (galeria cronológica)</h2>${oppBody}</div>`;
   }
   const _compact=type==='prejogo';
+  // sps-v230 — pedido do Roger: na App Team Manager, um botão que abre a Ficha de Jogo
+  // Tática já com opção de enviar em PDF por WhatsApp. shareOptions só é passado para
+  // type==='prejogo' (a própria Ficha de Jogo Tática que ele descreveu) — os outros tipos
+  // (Folha Tática/Relatório Pós-Jogo/Relatório Completo) continuam exatamente como antes.
+  const _shareOpts=type==='prejogo'?{fileName:`Ficha_${String(g.opp||'Jogo').replace(/[^\w]+/g,'_')}_${g.date||''}.pdf`}:undefined;
   _printWin(`${type==='full'?'Relatório Completo':type==='prejogo'?'Ficha Pré-Jogo':type==='campo'?'Folha Tática':'Relatório Pós-Jogo'} — ${g.opp} ${dateStr}`,
     `${_compact?_pdfCompactStyleHtml(_pdfRowScale(_prejogoRows,'prejogo')):''}<div class="${_compact?'pr-compact':''}" style="font-family:Arial,sans-serif;padding:${_compact?'6px':'20px'}">
       <div style="text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:14px;margin-bottom:20px">
         <h1 style="font-size:20px;margin:0">${club}</h1>
         <p style="margin:6px 0 0;font-size:14px;color:#555">${g.opp} • ${dateStr}${comp}${g.loc?' • '+g.loc:''}</p>
-      </div>${body}</div>`);
+      </div>${body}</div>`,
+    undefined,undefined,undefined,_shareOpts);
 }
 // Lista de Convocados (ordem alfabética) — para afixar/entregar, distinta
 // da Ficha Pré-Jogo tática (que mantém a ordem do onze/formação). Mostra o
@@ -18842,12 +18848,25 @@ function _dlCSV(rows,filename){
   const a=document.createElement('a');a.href=url;a.download=filename;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-function _printWin(title,bodyHtml,headerExtra,sideLogo,landscape){
+function _printWin(title,bodyHtml,headerExtra,sideLogo,landscape,shareOptions){
   const club=APP.config.clubName||'Sport Performance';
   const season=APP.config.season||'';
   const logo=APP.config.clubLogo?`<img src="${APP.config.clubLogo}" style="height:48px;object-fit:contain">`:club.slice(0,1);
+  // shareOptions (opcional, {fileName}) — sps-v230, pedido do Roger: botão na App Team
+  // Manager para abrir a Ficha de Jogo Tática com opção de enviar em PDF por WhatsApp.
+  // _printWin nunca produziu um Blob/File (só abre o popup e chama window.print()) — por
+  // isso, só quando shareOptions é passado, injeta-se também uma barra flutuante
+  // (Imprimir/Enviar por WhatsApp) e os scripts html2canvas+jsPDF, tudo dentro do próprio
+  // popup, para gerar um PDF real a partir do documento já renderizado e partilhá-lo via
+  // Web Share API (com fallback de download). shareOptions ausente (todos os outros
+  // chamadores) = HTML idêntico ao de sempre, zero alteração de comportamento. Risco
+  // conhecido, documentado: se APP.config.clubLogo vier de uma origem cruzada sem CORS, o
+  // html2canvas pode não conseguir desenhar essa imagem no PDF partilhado (fica em
+  // branco) — não afeta o resto do documento nem a impressão normal.
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  ${shareOptions?`<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>`:''}
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:Arial,sans-serif;font-size:11pt;color:#111;background:#fff;padding:18mm 15mm}
@@ -18881,10 +18900,18 @@ function _printWin(title,bodyHtml,headerExtra,sideLogo,landscape){
     .kpi-v{font-size:16pt;font-weight:900;color:#1d6f3b}
     .kpi-l{font-size:7pt;color:#666;text-transform:uppercase;margin-top:2px}
     h3{font-size:11pt;font-weight:700;color:#1d6f3b;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid #eee}
+    ${shareOptions?`.pr-toolbar{position:fixed;top:10px;right:10px;z-index:9999;display:flex;gap:8px}
+    .pr-toolbar button{border:none;border-radius:6px;padding:9px 14px;font-size:9.5pt;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+    .pr-tb-print{background:#1d6f3b;color:#fff}
+    .pr-tb-wa{background:#25D366;color:#fff}`:''}
     @page{size:${landscape==='A3'?'A3 landscape':(landscape?'A4 landscape':'A4')}}
-    @media print{body{padding:10mm 10mm}@page{margin:8mm}}
+    @media print{body{padding:10mm 10mm}@page{margin:8mm}${shareOptions?'.pr-toolbar{display:none!important}':''}}
   </style>
   </head><body>
+  ${shareOptions?`<div class="pr-toolbar" id="pr-toolbar">
+    <button class="pr-tb-print" onclick="window.print()">🖨️ Imprimir</button>
+    <button class="pr-tb-wa" id="pr-tb-wa-btn" onclick="_spsShareWhats()">📲 Enviar por WhatsApp</button>
+  </div>`:''}
   <div class="pr-header" style="${headerExtra?'align-items:flex-start':''}">
     <div class="pr-logo">${logo}</div>
     <div style="flex-shrink:0"><div class="pr-club">${club}</div><div class="pr-sub">${season} · Gerado em ${new Date().toLocaleDateString('pt-PT',{day:'2-digit',month:'long',year:'numeric'})}</div></div>
@@ -18905,6 +18932,61 @@ function _printWin(title,bodyHtml,headerExtra,sideLogo,landscape){
     </div>
     <img class="pr-footer-sig" src="${RODAPE_ASSINATURA_URL}">
   </div>
+  ${shareOptions?`<script>
+    function _spsShareWhats(){
+      var btn=document.getElementById('pr-tb-wa-btn');
+      var tb=document.getElementById('pr-toolbar');
+      if(typeof html2canvas==='undefined'||typeof window.jspdf==='undefined'){
+        alert('Ainda a preparar o PDF — espera alguns segundos e tenta de novo.');
+        return;
+      }
+      var prevTxt=btn.innerHTML;
+      btn.innerHTML='A gerar...';btn.disabled=true;
+      tb.style.display='none';
+      html2canvas(document.body,{scale:2,useCORS:true,backgroundColor:'#ffffff'}).then(function(canvas){
+        tb.style.display='flex';
+        var jsPDFCtor=window.jspdf.jsPDF;
+        var pdf=new jsPDFCtor({unit:'mm',format:'a4',orientation:'portrait'});
+        var imgData=canvas.toDataURL('image/jpeg',0.92);
+        var pageW=210,pageH=297;
+        var imgW=pageW;
+        var imgH=canvas.height*imgW/canvas.width;
+        var heightLeft=imgH,position=0;
+        pdf.addImage(imgData,'JPEG',0,position,imgW,imgH);
+        heightLeft-=pageH;
+        while(heightLeft>0){
+          position=heightLeft-imgH;
+          pdf.addPage();
+          pdf.addImage(imgData,'JPEG',0,position,imgW,imgH);
+          heightLeft-=pageH;
+        }
+        var blob=pdf.output('blob');
+        var fileName=${JSON.stringify((shareOptions&&shareOptions.fileName)||'Ficha.pdf')};
+        var file=new File([blob],fileName,{type:'application/pdf'});
+        function fallbackDownload(){
+          var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName;document.body.appendChild(a);a.click();
+          setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(a.href);},2000);
+          alert('PDF descarregado. Abre o WhatsApp e anexa o ficheiro "'+fileName+'" manualmente.');
+          btn.innerHTML=prevTxt;btn.disabled=false;
+        }
+        if(navigator.canShare&&navigator.canShare({files:[file]})){
+          navigator.share({files:[file],title:${JSON.stringify(title||'')}}).then(function(){
+            btn.innerHTML=prevTxt;btn.disabled=false;
+          }).catch(function(e){
+            btn.innerHTML=prevTxt;btn.disabled=false;
+            if(e&&e.name==='AbortError')return;
+            fallbackDownload();
+          });
+        }else{
+          fallbackDownload();
+        }
+      }).catch(function(err){
+        tb.style.display='flex';
+        btn.innerHTML=prevTxt;btn.disabled=false;
+        alert('Não foi possível gerar o PDF para partilhar: '+(err&&err.message?err.message:'erro desconhecido'));
+      });
+    }
+  <\/script>`:''}
   </body></html>`;
   const w=window.open('','_blank','width=900,height=700');
   w.document.write(html);w.document.close();
@@ -20164,7 +20246,8 @@ function renderVisaoGeral(){
         <div style="text-align:center;flex:1">${rightLogo}<div style="font-size:10px;color:var(--t2);margin-top:3px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(rightName||'')}</div></div>
       </div>
       ${nextGame.loc?`<div style="font-size:10px;color:var(--t3);text-align:center;margin-top:6px">📍 ${escHtml(nextGame.loc)}</div>`:''}
-      <div class="btn btn-g" style="margin-top:10px;width:100%;text-align:center" onclick="navTo('jogos');openJogo('${nextGame.id}','prejogo')">📋 Abrir Convocatória / Pré-Jogo</div>`;
+      <div class="btn btn-g" style="margin-top:10px;width:100%;text-align:center" onclick="navTo('jogos');openJogo('${nextGame.id}','prejogo')">📋 Abrir Convocatória / Pré-Jogo</div>
+      <div class="btn" style="margin-top:8px;width:100%;text-align:center;background:#25D366;color:#fff" onclick="exportJogoPDF('${nextGame.id}','prejogo')">📲 Ficha de Jogo (PDF) — WhatsApp</div>`;
   }
 
   // Próximo Estágio — mesmo espírito, com um atalho direto para o detalhe do Estágio.
