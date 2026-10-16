@@ -5432,3 +5432,86 @@ Geral da App Team Manager) abre mesmo o ecrã de partilha do WhatsApp com o PDF 
 anexado — o comportamento exato da Web Share API com ficheiros varia por
 browser/dispositivo (funciona bem em Chrome/Safari móvel recentes; browsers de desktop
 sem suporte caem sempre no download automático + aviso para anexar manualmente).
+
+## sps-v231 (16/10/2026): questionário Wellness — atletas a submeter 2-3x no mesmo dia (registos duplicados na cloud)
+
+Pedido verbatim do Roger: "VE O QUE SE PASSA COM OS QUESTIONARIOS WELNESS, APARENTEMENTE
+HOJE HOUVE ATLETAS COM DIFICULDADES EM SUBMETER" — investigar relatos de atletas com
+dificuldade em submeter o questionário de Wellness.
+
+**Investigação, antes de codificar:** a App da Atleta não reporta erros a submeter, por
+isso comecei por olhar diretamente para os dados em produção (Supabase, tabela
+`wellness_records`, clube real do Roger) em vez de assumir a causa. Encontrei 5 atletas
+com 2-3 registos de Wellness no dia de hoje (16/10/2026), cada um com `submitted_at`
+diferente (horas de intervalo) e respostas ligeiramente diferentes entre si — não eram
+submissões falhadas, eram submissões bem-sucedidas a MAIS, duplicadas. Confirmei por SQL
+que isto já acontecia esporadicamente desde 2026-08-11, só que hoje concentrou-se em
+várias atletas ao mesmo tempo (provavelmente treino coletivo, todas a abrir a app em
+sequência). Também verifiquei a hipótese do bloqueio por horário (`wellnessStart`/
+`wellnessEnd`, dependente do relógio do telemóvel) como causa de "dificuldade" — os
+timestamps reais das submissões (≈05:35–10:06 UTC) estão confortavelmente dentro da
+janela do clube (06:00–12:00 local), por isso descartei essa pista.
+
+**Causa raiz, duas partes:**
+1. `submitWellness()` gerava sempre um `id` novo (`uid()`, aleatório) em CADA submissão,
+   mesmo quando já existia um registo local para o mesmo dia. `cloudUpsert()` faz
+   `upsert(payload,{onConflict:'id'})` — ou seja, upsert por `id`. Um `id` novo em cada
+   chamada faz o Supabase inserir uma linha NOVA em vez de atualizar a existente, sempre
+   que a atleta resubmetia. Mesma classe de bug já documentada nos Incidentes #1-4
+   (CLAUDE.md): uma operação que devia ser idempotente não era.
+2. `renderAtWellness()`, depois de submeter, repunha `_wfVals` a zero e voltava a
+   desenhar o formulário completo — vazio, totalmente clicável, por baixo de um pequeno
+   aviso verde. Sem nenhuma confirmação visual forte (as escalas ficavam todas apagadas),
+   era razoável para uma atleta pensar que a submissão não tinha resultado em nada e
+   voltar a preencher tudo "para ter a certeza" — o próprio comportamento que gerava os
+   duplicados encontrados no Supabase.
+
+**O que foi construído:**
+1. `submitWellness()` passa a reaproveitar o `id` do registo local existente para
+   `athleteId`+data de hoje, se houver; senão usa um `id` DETERMINÍSTICO (nunca aleatório)
+   derivado de `'w_'+athleteId+'_'+data` — nunca `uid()`. Assim, mesmo num cenário de
+   `pullCloud()` a meio (app em 2º plano >60s, ver `visibilitychange`) ter "esquecido"
+   localmente que já houve submissão hoje antes do 1º `cloudUpsert` chegar à cloud, uma
+   resubmissão calcula sempre o MESMO `id` e o upsert acaba sempre por atualizar a mesma
+   linha — nunca criar uma 2ª. Cobre tanto o caso direto (reutilização local) como a
+   race condition (fallback determinístico).
+2. `renderAtWellness()` passa a pré-preencher `_wfVals` com o registo já submetido hoje
+   (só quando ainda não se tocou em nada nesta visita, ou seja `_wfVals` ainda nos valores
+   de reset) — a atleta vê sempre a sua resposta de hoje nas escalas, pode confirmá-la como
+   está ou editá-la, nunca um formulário em branco a convidar a reintroduzir tudo. O botão
+   passa a mostrar "Atualizar Questionário" (em vez de "Submeter Questionário") quando já
+   há uma submissão de hoje, deixando claro que uma nova submissão é uma atualização, não
+   uma entrada nova.
+3. **Limpeza de dados em produção** (Supabase, `wellness_records`): apagados os 10
+   registos duplicados históricos encontrados (2026-08-11 a 2026-10-16), mantendo sempre
+   o mais recente por atleta+dia (`row_number() over (partition by athlete_id,date order
+   by submitted_at desc)`); confirmado por query de verificação que não restam grupos
+   `(athlete_id,date)` com mais de 1 registo.
+4. **Nova unique index** como rede de segurança estrutural, mesmo padrão já usado noutros
+   incidentes deste tipo: `create unique index wellness_records_athlete_date_uniq on
+   wellness_records (club_id, athlete_id, date)` — mesmo que o código volte a ter este
+   bug no futuro, a base de dados já não aceita um 2º registo para o mesmo
+   atleta+clube+dia.
+5. Sem outras alterações de schema. SW bump para `sps-v231`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_wellness_dup_fix_v231.js`, harness `vm` com o código REAL extraído de
+`index.html`, 9 asserções): 1ª submissão gera `id` determinístico (`w_a1_<data>`);
+resubmissão no mesmo dia com valores diferentes mantém o array em 1 registo e reaproveita
+o mesmo `id`, atualizando os valores; simulação da race condition (array local esvaziado
+a meio, simulando um `pullCloud()` que "esqueceu" a submissão de hoje) continua a produzir
+o MESMO `id` na resubmissão, provando a proteção do fallback determinístico; duas atletas
+diferentes no mesmo dia geram `id`s distintos; regressão confirmada — faltar um campo
+obrigatório continua a bloquear a submissão por completo; depois de submeter, o HTML
+reaparece com as escalas pré-preenchidas/destacadas com os valores certos e o aviso verde
+"já submetiste hoje"; o botão mostra "Submeter Questionário" antes da 1ª submissão e
+"Atualizar Questionário" depois. Resultado: 9 passaram, 0 falharam. Regressão completa
+re-corrida (todos os `test_*.js` presentes nesta pasta de trabalho) sem falhas novas;
+`test_marker_evolution_v204.js` continua com as mesmas 4 falhas pré-existentes já
+documentadas desde o sps-v210 (espelhamento de adversárias), sem relação com este pedido.
+
+**Ainda por fazer:** nada pendente para este pedido. Depois da atualização chegar aos
+dispositivos, as atletas que já tinham duplicados hoje vão ver o registo mais recente
+(o que a limpeza manteve) ao abrir o questionário — não há nada a corrigir manualmente da
+parte delas. Vale a pena o Roger confirmar com as atletas que relataram "dificuldade" que
+o comportamento agora é claro (aviso + escalas pré-preenchidas + botão "Atualizar").

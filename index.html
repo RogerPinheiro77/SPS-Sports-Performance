@@ -20967,11 +20967,25 @@ function renderAtWellness(){
   const wDims=[{k:'sleep',label:'Sono',sub:'Qualidade do sono (1=Mau → 5=Excelente)',max:5},{k:'fatigue',label:'Fadiga',sub:'Nível de fadiga (1=Sem fadiga → 10=Exausto)',max:10},{k:'stress',label:'Stress',sub:'Stress/Ansiedade (1=Sem stress → 10=Muito stressado)',max:10},{k:'pain',label:'Dor Muscular',sub:'Dores musculares (0=Sem dor → 10=Muita dor)',max:10,min:0},{k:'mood',label:'Humor',sub:'Estado de humor (1=Muito mau → 5=Excelente)',max:5}];
   const scaleHtml=(k,min,max)=>{const nums=Array.from({length:max-(min||1)+1},(_,i)=>(min||1)+i);return`<div class="wf-sc">${nums.map(n=>`<button class="wsb ${_wfVals[k]==n?'on':''}" onclick="_wfVals['${k}']=${n};this.closest('.wf-row').querySelectorAll('.wsb').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${n}</button>`).join('')}</div>`;};
   const cycleOpts=['N/A','Menstruação','Folicular','Ovulação','Lútea'];
+  // sps-v231: depois de já ter submetido hoje, o formulário continuava a aparecer em
+  // branco (_wfVals reposto a 0 dentro de submitWellness) por baixo do aviso verde —
+  // sem nenhum valor selecionado nas escalas, parecia que a submissão não tinha
+  // resultado em nada, convidando a atleta a preencher tudo outra vez "para ter a
+  // certeza" (causa confirmada por SQL do pedido do Roger, 16/10/2026: várias atletas
+  // com 2-3 registos de wellness no mesmo dia). Agora, só quando ainda não se tocou em
+  // nada nesta visita (_wfVals ainda nos valores de reset), pré-preenche com o que já
+  // está guardado — a atleta vê sempre a sua resposta de hoje, pode confirmá-la como
+  // está ou editá-la, nunca um formulário vazio a convidar a reintroduzir tudo.
+  if(alreadyToday&&!_wfVals.sleep&&!_wfVals.fatigue&&!_wfVals.stress&&!_wfVals.mood){
+    _wfVals.sleep=alreadyToday.sleep;_wfVals.fatigue=alreadyToday.fatigue;_wfVals.stress=alreadyToday.stress;
+    _wfVals.pain=alreadyToday.pain||0;_wfVals.mood=alreadyToday.mood;
+    _wfVals.cycle=alreadyToday.cycle||'N/A';_wfVals.cycleImpact=alreadyToday.cycleImpact||0;
+  }
 
   document.getElementById('atp-wellness').innerHTML=`
   <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:4px"><i class="ti ti-heart-rate-monitor" style="margin-right:6px;vertical-align:-3px;color:#38bdf8" aria-hidden="true"></i>Questionário Wellness</div>
   <div style="font-size:12px;color:var(--t2);margin-bottom:16px">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</div>
-  ${alreadyToday?`<div class="al al-g"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Já submetiste o questionário de hoje! Score: <strong>${alreadyToday.score}/100</strong></div>`:''}
+  ${alreadyToday?`<div class="al al-g"><i class="ti ti-circle-check" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Já submetiste o questionário de hoje! Score: <strong>${alreadyToday.score}/100</strong> — podes atualizar as respostas abaixo se precisares.</div>`:''}
   <div class="card" style="margin-bottom:14px">
     <div class="cb" style="padding:12px 14px">
       <div class="wellness-form">
@@ -20987,7 +21001,7 @@ function renderAtWellness(){
       </div>
     </div>
   </div>
-  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitWellness()"><i class="ti ti-send" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>Submeter Questionário</button>
+  <button class="btn btn-g" style="width:100%;padding:13px;font-size:14px" onclick="submitWellness()"><i class="ti ti-send" style="margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>${alreadyToday?'Atualizar Questionário':'Submeter Questionário'}</button>
   <div class="sh-t" style="margin-top:18px;margin-bottom:10px;font-size:13px;font-weight:800">Histórico (últimos 14 dias)</div>
   <div class="tw"><table><thead><tr><th>Data</th><th>Sono</th><th>Fadiga</th><th>Stress</th><th>Dor</th><th>Humor</th><th>Score</th><th>Ciclo</th><th>Impacto</th></tr></thead>
   <tbody>${APP.wellness.filter(w=>w.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(w=>{const sc=w.score;const c=sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';return`<tr><td>${fmtDate(w.date)}</td><td>${w.sleep}</td><td>${w.fatigue}</td><td>${w.stress}</td><td>${w.pain}</td><td>${w.mood}</td><td><span class="bdg ${c}">${sc}</span></td><td>${w.cycle||'—'}</td><td>${w.cycleImpact!==undefined&&w.cycleImpact!==null?w.cycleImpact:'—'}</td></tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--t2);padding:16px">Sem registos</td></tr>'}</tbody></table></div>`;
@@ -20998,7 +21012,20 @@ function submitWellness(){
   const score=calcWellnessScore(v);
   const td=today();
   const existing=APP.wellness.findIndex(w=>w.athleteId===AID&&w.date===td);
-  const entry={id:uid(),athleteId:AID,date:td,sleep:v.sleep,fatigue:v.fatigue,stress:v.stress,pain:v.pain||0,mood:v.mood,score,cycle:v.cycle||'N/A',cycleImpact:v.cycleImpact||0,submittedAt:new Date().toISOString()};
+  // sps-v231: reaproveitar sempre o MESMO id para o registo do dia — antes gerava-se
+  // um uid() novo em CADA submissão (mesmo resubmetendo no mesmo dia), o que fazia o
+  // cloudUpsert (upsert por id) criar uma linha NOVA na cloud em vez de atualizar a
+  // existente, duplicando o registo sempre que a atleta resubmetia (investigação do
+  // pedido do Roger "athletes com dificuldade em submeter wellness", 16/10/2026—
+  // confirmado por SQL: várias atletas com 2-3 registos para o mesmo dia). Quando já
+  // há um registo local conhecido, reaproveita o id dele; senão usa um id DETERMINÍSTICO
+  // (nunca aleatório) derivado de athleteId+data — assim, mesmo que um pull da cloud a
+  // meio (ex: app em 2º plano >60s, ver visibilitychange) tenha "esquecido" localmente
+  // que já houve submissão hoje antes do 1º cloudUpsert chegar, uma resubmissão calcula
+  // sempre o MESMO id e o upsert acaba sempre por atualizar a mesma linha, nunca criar
+  // uma 2ª — mesma classe de bug já documentada nos Incidentes #1-4 (CLAUDE.md).
+  const entryId=existing>=0?APP.wellness[existing].id:('w_'+AID+'_'+td);
+  const entry={id:entryId,athleteId:AID,date:td,sleep:v.sleep,fatigue:v.fatigue,stress:v.stress,pain:v.pain||0,mood:v.mood,score,cycle:v.cycle||'N/A',cycleImpact:v.cycleImpact||0,submittedAt:new Date().toISOString()};
   if(existing>=0)APP.wellness[existing]=entry;else APP.wellness.push(entry);
   if(_sync)cloudUpsert('wellness_records',{...entry,athlete_id:entry.athleteId,club_id:_cid});
   saveData();_wfVals={sleep:0,fatigue:0,stress:0,pain:0,mood:0,cycle:'',cycleImpact:0};toast('Wellness submetido! Score: '+score+'/100');renderAtWellness();
