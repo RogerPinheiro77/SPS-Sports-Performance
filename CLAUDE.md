@@ -5245,3 +5245,47 @@ visualmente, depois da atualização chegar aos dispositivos: o atalho `?teamman
 escrita dele em Estágios (deslocações/quartos/convocatória) nos dois sítios (atalho e
 Plataforma normal), e que o Diretor continua sem conseguir editar nada fora de
 Estágios.
+
+## sps-v228 (16/10/2026): logo real do SPS Team Manager (substitui o placeholder "TM")
+
+O Roger forneceu o logo oficial do SPS Team Manager (badge circular preto/verde-lima,
+treinador de costas com prancheta tática + equipa técnica atrás, faixa "TEAM MANAGER"),
+mesmo padrão histórico de entrega de logo já visto no Gameday/Ginásio/Tático/Set Pieces
+Board — substitui o ícone "TM" gerado como placeholder no sps-v227.
+
+**Remoção de fundo — método diferente do já documentado no sps-v191 (Tático), por
+necessidade:** o PNG original (1254×1254, sem canal alfa) tinha um fundo quase-branco
+mas com grão/textura subtil (brilho 235-255, não uniforme). Um flood-fill simples a
+partir dos 4 cantos (a técnica usada no sps-v191) revelou-se insuficiente aqui — o
+flood-fill do PIL só propaga por pixels contíguos dentro do limiar face à cor da
+semente, e o grão do fundo quebrava essa continuidade em centenas de pequenas ilhas
+não alcançadas, deixando uma "nuvem" de pixels semi-opacos espalhados pelo fundo
+(visível como ruído ao testar o resultado sobre um fundo escuro, a cor real da app).
+Corrigido com deteção de componentes ligados (`scipy.ndimage.label`) sobre uma máscara
+de distância de cor ao branco (≤55), mantendo só os componentes que tocam a margem da
+imagem como fundo — mais tolerante ao grão porque não depende de continuidade
+pixel-a-pixel a partir de um único ponto semente, só da distância de cor.
+
+**Ficheiros substituídos** (mesmos nomes/dimensões de sempre, só o conteúdo mudou):
+`assets/icon_teammanager_192.png`/`_512.png` (RGBA, fundo transparente, recortados ao
+conteúdo real do logo + padding de 8px, centrados num canvas quadrado) e
+`assets/icon_teammanager_apple.png` (180×180, fundo sólido `#0c0f14` — mesma cor já
+usada no ícone Apple do Tático, Apple não lida bem com transparência).
+
+Nenhuma alteração de lógica em `index.html` — só comentários atualizados (já não
+descrevem um placeholder) perto de `_TEAMMANAGER_ICON_192/512/APPLE` e do ramo
+`applyPWAManifest` do `?teammanager=1`, que já apontavam para estes mesmos ficheiros
+desde o sps-v227 sem precisar de mudança de código quando o logo real chegasse.
+
+SW bump para `sps-v228`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Verificação
+visual do resultado da remoção de fundo composto sobre um fundo escuro equivalente ao
+da app (antes/depois do método de componentes ligados) — confirmado sem ruído/halo
+visível à volta do badge. Sem harness `vm` novo — mudança é só de assets de imagem e
+comentários, sem lógica nova para testar.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
+visualmente o ícone no ecrã principal depois de reinstalar o atalho `?teammanager=1`
+(o Service Worker com cache `sps-v228` precisa de um reload/reinstalação para os
+dispositivos já instalados apanharem o ícone novo).

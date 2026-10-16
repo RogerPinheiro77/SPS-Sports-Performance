@@ -22868,10 +22868,11 @@ var _GINASIO_ICON_APPLE='assets/icon_ginasio_apple.png';
 var _TATICO_ICON_192='assets/icon_tatico_192.png';
 var _TATICO_ICON_512='assets/icon_tatico_512.png';
 var _TATICO_ICON_APPLE='assets/icon_tatico_apple.png';
-// Ícone "TM" gerado (placeholder, sps-v227) para o SPS-Team Manager (?teammanager=1) —
-// mesmo padrão usado inicialmente para o Gameday/Ginásio/Tático antes de terem logo
-// próprio fornecido pelo Roger; substituir em assets/icon_teammanager_* quando o Roger
-// o der (e nesse ponto não é preciso tocar aqui, só nos próprios ficheiros).
+// Ícone do SPS-Team Manager (?teammanager=1) — logo real fornecido pelo Roger
+// (sps-v228, substitui o placeholder "TM" gerado no sps-v227); fundo removido por
+// deteção de componentes ligados à margem da imagem (mesmo espírito do flood-fill já
+// usado no logo do Tático, sps-v191, mas robusto ao grão/textura do fundo do PNG
+// original, que partia um flood-fill simples em muitos pedaços pequenos).
 var _TEAMMANAGER_ICON_192='assets/icon_teammanager_192.png';
 var _TEAMMANAGER_ICON_512='assets/icon_teammanager_512.png';
 var _TEAMMANAGER_ICON_APPLE='assets/icon_teammanager_apple.png';
@@ -23007,9 +23008,10 @@ function _swMaybeShowUpdateBanner(){
       // pelo Roger) — o ícone instalado reabria a plataforma inteira, não o quadro tático.
       applyPWAManifest({name:'SPS Set Pieces Board',shortName:'Set Pieces',icon192:_TATICO_ICON_192,icon512:_TATICO_ICON_512,iconType:'image/png',themeColor:'#8bc634',appleIcon:_TATICO_ICON_APPLE,startUrl:location.pathname+'?tatico=1'});
     } else if(typeof _forceTeamManagerMode!=='undefined'&&_forceTeamManagerMode){
-      // SPS-Team Manager standalone (?teammanager=1, sps-v227) — mesmo motivo dos
-      // anteriores (ícone certo já antes do login terminar); ícone "TM" gerado até o
-      // Roger fornecer um logo próprio (mesmo padrão histórico do Gameday/Ginásio/Tático).
+      // SPS-Team Manager standalone (?teammanager=1, sps-v227/v228) — mesmo motivo dos
+      // anteriores (ícone certo já antes do login terminar); logo real do Roger desde o
+      // sps-v228 (antes era um "TM" gerado, mesmo padrão histórico do Gameday/Ginásio/
+      // Tático).
       applyPWAManifest({name:'SPS Team Manager',shortName:'Team Manager',icon192:_TEAMMANAGER_ICON_192,icon512:_TEAMMANAGER_ICON_512,iconType:'image/png',themeColor:'#0d9488',appleIcon:_TEAMMANAGER_ICON_APPLE,startUrl:location.pathname+'?teammanager=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
