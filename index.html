@@ -9298,15 +9298,17 @@ function exportConvocatoriaListPDF(gid){
   const guestAthletes=APP.athletes.filter(a=>a.teamId!==g.teamId&&squadSet.has(a.id));
   const ats=[...ownAthletes,...guestAthletes].sort((a,b)=>a.name.localeCompare(b.name));
   const nConv=ats.filter(a=>squadSet.has(a.id)).length;
-  const cap=APP.athletes.find(a=>a.id===g.captain);
-  const vc=APP.athletes.find(a=>a.id===g.viceCaptain);
-  // sps-v214 (pedido do Roger 09/10/2026): "B" (Bancada) — convocada a mais, fora da Ficha
-  // de Jogo/Campo Tático (onze+suplentes) mas continua nesta lista, com visto normal — a
-  // coluna já existia (em branco, sem rótulo) e passa a mostrar "B" nessas linhas.
-  const bancSet=new Set(g.bancada||[]);
+  // sps-v229 (pedido do Roger 16/10/2026): "NA LISTA DE CONVOCADAS, NAO QUERO MEÇAO NEM A
+  // CAPITA OU VICE, NEM A QUEM VAI PARA A BANCADA" — a coluna C/VC (sps-v185/v191) e a
+  // coluna "Banco"/B (sps-v214) saem desta lista por completo (nenhuma informação de
+  // capitania/bancada fica visível aqui); a célula final volta a ser a "Assinatura" em
+  // branco pensada no desenho original (sps-v181), agora realmente alinhada com o seu
+  // cabeçalho — antes a célula de C/VC ficava por baixo do cabeçalho "Banco" e a célula
+  // de Bancada ficava por baixo do cabeçalho "Assinatura", sem nenhuma célula em branco a
+  // sério (ver nota no changelog, sps-v229).
   const rows=ats.map(a=>{
     const conv=squadSet.has(a.id);
-    return `<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center;width:48px">${conv?'<span style="color:#16a34a;font-weight:800;font-size:13pt">✓</span>':''}</td><td style="text-align:center">${g.captain===a.id?'C':g.viceCaptain===a.id?'VC':''}</td><td style="text-align:center;font-weight:700;color:#777">${bancSet.has(a.id)?'B':''}</td></tr>`;
+    return `<tr><td>${escHtml(_displayName(a))}</td><td style="text-align:center">${a.number||a.num||'—'}</td><td>${a.pos||'—'}</td><td style="text-align:center;width:48px">${conv?'<span style="color:#16a34a;font-weight:800;font-size:13pt">✓</span>':''}</td><td style="width:150px"></td></tr>`;
   }).join('');
   const body=`
     <h2 style="border-bottom:2px solid #333;padding-bottom:8px">📋 Lista de Convocados</h2>
@@ -9321,10 +9323,10 @@ function exportConvocatoriaListPDF(gid){
        pedido do Roger, 02/10/2026 (ver comentário em exportJogoPDF). */''}
     ${g.preGameNotes?`<p><b>Notas:</b> ${g.preGameNotes}</p>`:''}
     <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed">
-      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th style="width:30px">Nº</th><th style="width:60px">Posição</th><th style="width:48px;font-size:9pt">Convocada</th><th style="width:36px;font-size:9pt" title="Bancada — fora da Ficha de Jogo">Banco</th><th style="width:150px">Assinatura</th></tr></thead>
+      <thead style="background:#eee"><tr><th>Nome (ordem alfabética)</th><th style="width:30px">Nº</th><th style="width:60px">Posição</th><th style="width:48px;font-size:9pt">Convocada</th><th style="width:150px">Assinatura</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="margin-top:10px;font-size:9pt;color:#666">Convocadas: ${nConv} de ${ats.length}${cap?' · Capitã: '+cap.name:''}${vc?' · Vice-Capitã: '+vc.name:''}</p>
+    <p style="margin-top:10px;font-size:9pt;color:#666">Convocadas: ${nConv} de ${ats.length}</p>
   `;
   _printWin(`Lista de Convocados — ${g.opp} ${dateStr}`,
     `${_pdfCompactStyleHtml(_pdfRowScale(ats.length,'convocados'))}<div class="pr-compact" style="font-family:Arial,sans-serif;padding:6px">

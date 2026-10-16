@@ -5289,3 +5289,51 @@ comentários, sem lógica nova para testar.
 visualmente o ícone no ecrã principal depois de reinstalar o atalho `?teammanager=1`
 (o Service Worker com cache `sps-v228` precisa de um reload/reinstalação para os
 dispositivos já instalados apanharem o ícone novo).
+
+## sps-v229 (16/10/2026): Lista de Convocados — sem Capitã/Vice-Capitã nem Bancada
+
+Pedido verbatim do Roger, com screenshot de uma Lista de Convocados real (Moreirense FC
+vs FC Tadim, 18/10/2026): "NA LISTA DE CONVOCADAS, NAO QUERO MEÇAO NEM A CAPITA OU VICE,
+NEM A QUEM VAI PARA A BANCADA" — a coluna C/VC (introduzida no desenho original,
+sps-v181/v185/v191) e a coluna "Banco"/B (Bancada, sps-v214) saem por completo desta
+lista, tal como o texto "Capitã: X · Vice-Capitã: Y" do rodapé.
+
+**Investigação, antes de tocar em código:** confirmado (lendo a função completa,
+`exportConvocatoriaListPDF`, linhas 9289-9335) que a tabela já tinha um problema de
+alinhamento por baixo deste pedido — o cabeçalho tinha 6 colunas (Nome/Nº/Posição/
+Convocada/Banco/Assinatura), mas cada linha de atleta gerava 6 `<td>` na ordem Nome/Nº/
+Posição/Convocada/**C-ou-VC**/**B-de-Bancada** — ou seja, a célula de capitania caía por
+baixo do cabeçalho "Banco" e a célula de Bancada caía por baixo do cabeçalho
+"Assinatura", sem NENHUMA célula em branco real para assinar, apesar do desenho
+original (sps-v181) ter sido pensado exatamente para isso. É consistente com o aspeto
+"comprimido"/mal alinhado do cabeçalho visto no screenshot do Roger.
+
+**Fix:** removida a célula de C/VC e a célula de Bancada do `rows` (template de cada
+atleta); removida a coluna "Banco" do `<thead>` (incl. o seu `title` "Bancada — fora da
+Ficha de Jogo"); a última célula de cada linha voltou a ser a "Assinatura" REALMENTE em
+branco, agora alinhada a sério com o seu cabeçalho — fica como desenho final: Nome / Nº
+/ Posição / Convocada / Assinatura (5 colunas, em vez das 6 anteriores). Removida a
+linha do rodapé `Capitã: X · Vice-Capitã: Y` (e as variáveis `cap`/`vc`, que só serviam
+essa linha) — fica só "Convocadas: N de M". `g.bancada`/`bancSet` deixaram de ser lidos
+nesta função (continuam a existir e a ser geridos normalmente no Pré-Jogo — sps-v214 —
+só deixaram de aparecer NESTE relatório específico). A Ficha de Jogo Tática
+(`exportJogoPDF`, tipo `'prejogo'`) não foi tocada — já não mostra Capitã/Vice-Capitã
+por extenso nem Bancada (lê sempre `g.lineup`/`g.subs`, nunca `g.bancada`) e o pedido do
+Roger foi especificamente sobre a Lista de Convocados.
+
+SW bump para `sps-v229`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_convocados_simplify_v229.js`, harness `vm` com o código REAL extraído de
+`index.html`, 24 asserções): nenhuma menção a "Capitã"/"Vice-Capitã" em todo o HTML
+gerado; nenhuma célula com "C"/"VC"/"B"; cabeçalho da tabela com exatamente 5 colunas
+(Nome/Nº/Posição/Convocada/Assinatura); cada uma das 5 linhas de atleta com exatamente 5
+`<td>`, com a última (Assinatura) sempre vazia; visto verde de "Convocada" continua a
+aparecer corretamente para as 5 atletas convocadas; rodapé reduzido a "Convocadas: 5 de
+5", sem qualquer menção a capitania. Verificação visual ao vivo do PDF impresso não foi
+feita nesta sessão.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
+visualmente, depois da atualização chegar aos dispositivos, que a Lista de Convocados já
+não mostra nenhuma referência a Capitã/Vice-Capitã/Bancada e que a coluna de Assinatura
+está bem alinhada.
