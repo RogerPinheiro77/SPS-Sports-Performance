@@ -5130,3 +5130,118 @@ relação com este pedido.
 **Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
 visualmente, depois da atualização chegar aos dispositivos, que a lista de quem já
 aceitou aparece corretamente na página Código de Conduta.
+
+## sps-v227 (16/10/2026): Team Manager — Bloco 1 (atalho `?teammanager=1` + página
+## "Visão Geral" + Diretor ganha escrita só em Estágios)
+
+Pedido combinado com o Roger em sessão anterior (confirmado por `AskUserQuestion`, todas
+as respostas já fechadas antes desta sessão): um atalho standalone `?teammanager=1`
+(mesmo padrão exato de `?gameday=1`/`?ginasio=1`/`?fisio=1`/`?nutri=1`/`?tatico=1`) a
+aterrar numa página nova dedicada "Visão Geral"; o Diretor (até aqui 100% só-consulta)
+ganha também acesso a este atalho e, além disso, ganha permissão de ESCRITA — mas só em
+Estágios (deslocações/quartos/convocatória), nos dois sítios (atalho standalone e
+Plataforma normal). Ficaram deliberadamente fora deste Bloco 1 (próximos blocos, já
+combinados): sistema de mensagens Team Manager→Atletas, e checklist de equipamento/
+material.
+
+**Investigação feita antes de codificar (sessão anterior):** `_applyReadOnlyLock()`
+(chamada de um único sítio, dentro de `navTo()`) só desativa `<button>` (exceto
+export/imprimir/pdf), `<input>`, `<textarea>` e `<select>` dentro de `.pg.on` — nunca
+toca em `<div onclick="...">`. Isto tornou possível dar ao Diretor um atalho de
+navegação funcional em qualquer página (incl. a própria Visão Geral, que continua
+bloqueada para escrita como qualquer outra página fora da exceção) sem ter de alterar o
+mecanismo de bloqueio em si: os "Atalhos" da Visão Geral são sempre `<div onclick>`,
+nunca `<button>`. Confirmado também que nenhuma função de escrita de Estágios
+(`saveEstagioField`, `toggleEstagioConvocada`, `convocarTodasEstagio`,
+`addEstagioQuarto`, etc.) tem qualquer gate de cargo/`isAdmin` próprio — só o bloqueio
+de UI genérico, por isso bastou isentar a página `estagios` desse bloqueio para o
+Diretor.
+
+**O que foi construído:**
+
+1. **`?teammanager=1` standalone**, mesmo padrão exato dos outros 5 atalhos:
+   `_forceTeamManagerMode` (const, lido da URL), `_teamManagerEligibleRole(role)`
+   (elegível quem tiver `'visao-geral'` em `ROLE_DEFS[role].pages` — ao contrário de
+   `_taticoEligibleRole`/etc., esta função não exige `!def.readOnly`, de propósito, para
+   cobrir o Diretor) e `_maybeEnterTeamManagerMode()` (chamada nos 4 sítios de sempre:
+   `createFirstAdmin`, `handleLogin`, `_saveStaffPwdSetup`, e o restauro de sessão em
+   `initSession()`), classe CSS `.tm-mode` (sidebar escondida, topbar reduzida a
+   Home/Sair, mesmos seletores `.tt-mode` replicados), e um ramo em `initPWA()`/
+   `applyPWAManifest` ("SPS Team Manager", tema `#0d9488`, `start_url` com
+   `?teammanager=1`). Ícone "TM" gerado como placeholder (mesmo padrão histórico do
+   Gameday/Ginásio/Tático antes de terem logo próprio) — `assets/icon_teammanager_192/
+   512/apple.png`, acrescentados ao `sw.js` (`ASSETS`).
+2. **`ROLE_DEFS.team_manager.pages`**: `'dashboard'` substituído por `'visao-geral'`
+   (landing page deste cargo passa a ser a Visão Geral, não o Dashboard técnico, que
+   nunca fez parte do seu âmbito).
+3. **`ROLE_DEFS.diretor.pages`**: ganha `'visao-geral'` (mantém `'dashboard'` — o
+   Diretor não perde nada do que já tinha); ganha `writeExceptions:['estagios']`.
+4. **`navTo()`** — o bloqueio `if(...readOnly)_applyReadOnlyLock()` passou a respeitar
+   `ROLE_DEFS[ROLE].writeExceptions` (array opcional, hoje só usado pelo Diretor): se a
+   página atual estiver nessa lista, o bloqueio não corre. Mecanismo genérico (qualquer
+   cargo readOnly futuro pode ganhar exceções do mesmo modo), não específico do Diretor.
+5. **`ALL_PAGES`/`_NAV_TITLES`/mapa `renders` do `navTo()`**: nova entrada
+   `{id:'visao-geral',icon:'🧳',label:'Visão Geral'}` (secção "Técnico", logo depois do
+   Dashboard), título qualificado e `renderVisaoGeral` ligados.
+6. **`renderVisaoGeral()`** (nova página): cartão "Próximo Jogo" (mesmo visual já usado
+   no Dashboard, com atalho direto `navTo('jogos');openJogo(id,'prejogo')` para a
+   Convocatória/Pré-Jogo); cartão "Próximo Estágio" (contagem de convocadas/por
+   confirmar, atalho `navTo('estagios');openEstagio(id)`); alerta informativo
+   "Convocatória pendente" (sem botão de ação) quando o próximo jogo ainda não tem
+   convocatória publicada, onze por definir, ou RSVPs em falta; cartão do Código de
+   Conduta (reaproveita `_cocAckStats()`/`svgRing`, sps-v196/226 — só aparece com o
+   Código ativo); grelha de "Atalhos" com uma entrada por página visível a este cargo
+   (`_navForRole(ROLE)`, excluindo a própria Visão Geral e o Dashboard), cada uma como
+   `<div onclick="navTo(...)">` — nunca `<button>`, para continuar clicável mesmo com
+   `_applyReadOnlyLock()` a correr nesta página para o Diretor (que não tem exceção
+   aqui, só em Estágios).
+7. SW bump para `sps-v227`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_team_manager_v227.js`, harness `vm` com o código REAL extraído, 25
+testes): elegibilidade (`team_manager`/`diretor`/`treinador`/`treinador_adj` elegíveis;
+`fisio`/`nutri`/`treinador_gr`/`prep_fisico` não; cargo inexistente não rebenta);
+`ROLE_DEFS` (team_manager com `visao-geral` em vez de `dashboard`; diretor com os dois +
+`writeExceptions:['estagios']`; nenhum outro cargo ganhou `writeExceptions` por engano);
+`navTo()` — o Diretor NÃO aciona `_applyReadOnlyLock` em `estagios` mas CONTINUA a
+acionar em `visao-geral`/`jogos` (as duas outras páginas, fora da exceção); o Team
+Manager (não readOnly) nunca aciona o bloqueio, em nenhuma página; `_maybeEnterTeamManagerMode`
+nos 3 casos (sem o parâmetro na URL não navega; com o parâmetro e cargo elegível navega
+para `visao-geral`; com o parâmetro e cargo não elegível avisa e não navega) — usando
+dois contextos `vm` distintos (um com `?teammanager=1` na `location.search`, outro sem),
+mesmo princípio dos `_forceXxxMode` já usados nesta base de código; `renderVisaoGeral`
+nos vários estados de dados (sem jogos/estágios → estados vazios sem alerta; jogo sem
+convocatória publicada → alerta; convocatória publicada com onze completo e RSVPs todos
+respondidos → sem alerta; estágio com contagem de convocadas/pendentes e atalho;
+Código de Conduta ativo mostra o cartão com a % certa, inativo não mostra nada); grid de
+Atalhos reflete exatamente `_navForRole(ROLE)` (todas as páginas presentes, a própria
+Visão Geral ausente) e é sempre `<div onclick>` nunca `<button>`, confirmado também para
+o Diretor (que continua a ver os atalhos, incl. Estágios, mesmo com o bloqueio readOnly
+geral ativo nesta página). Regressão completa re-corrida (todos os `test_*.js`
+presentes nesta pasta de trabalho): `test_at_ginasio_treino_split_v222.js`,
+`test_biblioteca_import_ginasio_v224.js`, `test_ginasio_atleta_bloco2a_v220.js`,
+`test_ginasio_bloco1_v218.js`, `test_ginasio_tab_v219.js`,
+`test_home_gameday_ginasiocard_v221.js`, `test_home_ginasio_card_v223.js`,
+`test_home_ginasio_rsvp_v225.js`, `test_coc_ack_list_v226.js` — todos sem falhas novas;
+`test_marker_evolution_v204.js` continua com as mesmas 4 falhas pré-existentes já
+documentadas desde o sps-v210 (espelhamento de adversárias), sem relação com este
+pedido. Verificação visual ao vivo (atalho `?teammanager=1` e o acesso do Diretor) não
+foi feita nesta sessão — a app ainda não foi publicada.
+
+**Nota de workflow (não é código):** confirmado nesta sessão que o canal `device_bash`
+(ligação ao PC "fabrica" do Roger) consegue correr `git am` mas não tem credenciais
+GitHub configuradas para `git push` (`fatal: could not read Username for
+'https://github.com'`) — é uma VM Linux efémera separada da sessão interativa do Roger
+no Windows, onde as credenciais só existem no ambiente real dele. Enquanto isto não
+mudar, o `git push` final (depois do `git am` do patch) tem de ser corrido pelo próprio
+Roger, num terminal (CMD) na pasta do clone — o `git am` em si pode continuar a ser
+feito via `device_bash` quando esse canal estiver disponível.
+
+**Ainda por fazer:** os blocos seguintes já combinados com o Roger (mensagens Team
+Manager→Atletas; checklist de equipamento/material) continuam por implementar — ficam
+para pedidos futuros, fora do âmbito deste Bloco 1. Pedir ao Roger para confirmar
+visualmente, depois da atualização chegar aos dispositivos: o atalho `?teammanager=1`
+(ícone/nome/arranque direto na Visão Geral), o acesso do Diretor à Visão Geral e a
+escrita dele em Estágios (deslocações/quartos/convocatória) nos dois sítios (atalho e
+Plataforma normal), e que o Diretor continua sem conseguir editar nada fora de
+Estágios.

@@ -141,6 +141,13 @@ ul{list-style:none}
 .tt-mode #tb-cfg-btn,.tt-mode .tb-btn[onclick="toggleSb()"]{display:none}
 .tt-only{display:none}
 .tt-mode .tt-only{display:flex}
+/* SPS-Team Manager standalone (?teammanager=1, sps-v227) — mesmo padrão exato do
+   tt-mode acima: sidebar escondida, topbar reduzida a título + atalho Visão Geral/Sair. */
+.tm-mode #sidebar{display:none}
+.tm-mode #main{margin-left:0}
+.tm-mode #tb-cfg-btn,.tm-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.tm-only{display:none}
+.tm-mode .tm-only{display:flex}
 /* Home+Agenda Geral (sps-v130) acrescentaram atalhos à topbar do fs-mode/nu-mode —
    flex-wrap evita cortar botões em telemóveis mais estreitos. */
 .fs-mode .topbar,.nu-mode .topbar{flex-wrap:wrap;height:auto;min-height:var(--th);padding:8px 12px;row-gap:6px}
@@ -202,6 +209,8 @@ ul{list-style:none}
 .nu-mode .tb-btn{width:38px;height:38px}
 /* Em modo Tático, mesmo motivo — usado de pé, no banco, muitas vezes com pressa. */
 .tt-mode .tb-btn{width:38px;height:38px}
+/* Em modo Team Manager, mesmo motivo. */
+.tm-mode .tb-btn{width:38px;height:38px}
 
 /* CARDS */
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
@@ -516,6 +525,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn nu-only" id="nu-home-btn" onclick="navTo('nutri-home')" title="Home">🏠</button>
       <button class="tb-btn gd-only" id="gd-home-btn" onclick="_jogoView='list';navTo('jogos')" title="Home">🏠</button>
       <button class="tb-btn tt-only" id="tt-home-btn" onclick="_jogoView='list';navTo('jogos')" title="Home">🏠</button>
+      <button class="tb-btn tm-only" id="tm-home-btn" onclick="navTo('visao-geral')" title="Home">🏠</button>
       <span class="topbar-title" id="pg-title">Dashboard</span>
       <button class="tb-btn" onclick="pullCloud()" title="Atualizar (traz os dados mais recentes da cloud)">🔄</button>
       <button class="tb-btn" id="tb-cfg-btn" onclick="navTo('config')" title="Config">⚙️</button>
@@ -526,6 +536,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <button class="tb-btn fs-only" onclick="logout()" title="Sair">🚪</button>
       <button class="tb-btn nu-only" onclick="logout()" title="Sair">🚪</button>
       <button class="tb-btn tt-only" onclick="logout()" title="Sair">🚪</button>
+      <button class="tb-btn tm-only" onclick="logout()" title="Sair">🚪</button>
     </div>
     <div class="pg-content">
       <div class="pg on" id="pg-dashboard"></div>
@@ -570,6 +581,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-guiao-jogo-fora"></div>
       <div class="pg" id="pg-estagios"></div>
       <div class="pg" id="pg-playbook"></div>
+      <div class="pg" id="pg-visao-geral"></div>
       <div class="pg" id="pg-config"></div>
       <div class="pg" id="pg-relatorios"></div>
     </div>
@@ -811,6 +823,11 @@ const _forceNutriMode=new URLSearchParams(location.search).get('nutri')==='1';
 // SPS-Gameday, a mostrar só o Campo Tático (Jogo → Campo) — ver
 // [[project_sps_quadro_tatico_bolas_paradas]].
 const _forceTaticoMode=new URLSearchParams(location.search).get('tatico')==='1';
+// SPS-Team Manager standalone (?teammanager=1) — mesmo padrão exato do ?tatico=1 acima:
+// login normal de staff, exige acesso à página "Visão Geral" (ver _teamManagerEligibleRole),
+// só muda o que acontece DEPOIS do login (ver _maybeEnterTeamManagerMode). Bloco 1 do
+// projeto Team Manager — ver CLAUDE.md.
+const _forceTeamManagerMode=new URLSearchParams(location.search).get('teammanager')==='1';
 function renderLoginScreen(){
   const el=document.getElementById('login-main');if(!el)return;
   if(APP.users.length===0){
@@ -888,7 +905,7 @@ async function createFirstAdmin(){
   setSession({userId:user.id,role:'treinador',isAdmin:true,name:user.name});
   ROLE='treinador';showStaffApp();toast('Bem-vindo, '+name+'! 🎉');
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();_maybeEnterTeamManagerMode();
 }
 async function handleLogin(){
   const username=(document.getElementById('login-user')?.value||'').trim();
@@ -910,7 +927,7 @@ async function handleLogin(){
   setSession({userId:user.id,role:user.role,isAdmin:!!user.isAdmin,name:user.name});
   ROLE=user.role;showStaffApp();
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();_maybeEnterTeamManagerMode();
 }
 // ── 1º acesso staff: obrigar a definir password própria (troca a password fixa inicial) ──
 function _showStaffPwdSetup(user){
@@ -943,7 +960,7 @@ async function _saveStaffPwdSetup(userId){
   ROLE=user.role;showStaffApp();
   toast('Password definida ✓ Bem-vindo, '+user.name+'!');
   _maybeEnterGamedayMode();
-  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();
+  _maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();_maybeEnterTeamManagerMode();
 }
 async function handleAthleteLogin(){
   const username=(document.getElementById('at-login-user')?.value||'').trim();
@@ -1044,6 +1061,7 @@ function showAtletaApp(at){
 const ALL_PAGES=[
   {sec:'Técnico'},
   {id:'dashboard',icon:'🏠',label:'Dashboard'},
+  {id:'visao-geral',icon:'🧳',label:'Visão Geral'},
   {id:'plantel',icon:'👥',label:'Plantel'},
   {id:'planeamento',icon:'📅',label:'Planeamento'},
   {id:'presencas',icon:'✅',label:'Presenças'},
@@ -1108,8 +1126,8 @@ const ROLE_DEFS={
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas','guiao-jogo-fora','estagios','playbook'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
-  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['dashboard','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
-  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','relatorios','avaliacoes','convocatorias','jogos','competicoes','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:true,manageUsers:false}
+  team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['visao-geral','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
+  diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','visao-geral','relatorios','avaliacoes','convocatorias','jogos','competicoes','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:true,manageUsers:false,writeExceptions:['estagios']}
 };
 // SPS-Gameday standalone (?gameday=1, sps-v78) — só faz sentido entrar direto no Gameday
 // para cargos que têm acesso a Jogos E podem registar eventos (não os só-consulta, ex.
@@ -1217,11 +1235,30 @@ function _maybeEnterTaticoMode(){
   document.body.classList.add('tt-mode');
   navTo('jogos');
 }
+// SPS-Team Manager standalone (?teammanager=1) — Bloco 1. Elegível quem tem acesso à
+// página "Visão Geral" (team_manager e, deliberadamente, também diretor — apesar de ser
+// readOnly, ganha este atalho e a página fica navegável mesmo em modo consulta, como os
+// outros atalhos standalone, que nunca aplicam _applyReadOnlyLock a elementos de
+// navegação pura, só a botões/inputs reais). Por isso, ao contrário de
+// _taticoEligibleRole/_gamedayEligibleRole/etc., esta função NÃO exige !def.readOnly.
+function _teamManagerEligibleRole(role){
+  const def=ROLE_DEFS[role];
+  return !!def&&def.pages.includes('visao-geral');
+}
+function _maybeEnterTeamManagerMode(){
+  if(typeof _forceTeamManagerMode==='undefined'||!_forceTeamManagerMode)return;
+  if(!_teamManagerEligibleRole(ROLE)){
+    toast('Este acesso é para o SPS-Team Manager — o teu cargo não tem acesso a esta área','err');
+    return;
+  }
+  document.body.classList.add('tm-mode');
+  navTo('visao-geral');
+}
 // Títulos qualificados por página — partilhado entre navTo() (cabeçalho da página) e
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',playbook:'Playbook',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',playbook:'Playbook','visao-geral':'Visão Geral',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1305,9 +1342,16 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,playbook:renderPlaybook,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,playbook:renderPlaybook,'visao-geral':renderVisaoGeral,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
-  if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly)_applyReadOnlyLock();
+  if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly){
+    // sps-v227 (Team Manager Bloco 1): writeExceptions permite a um cargo readOnly (hoje
+    // só Diretor) continuar a editar numa página específica — hoje só Estágios
+    // (deslocações/quartos/convocatória), a pedido do Roger. Fora dessa lista, o
+    // bloqueio de sempre aplica-se sem alteração.
+    const wex=ROLE_DEFS[ROLE].writeExceptions||[];
+    if(!wex.includes(id))_applyReadOnlyLock();
+  }
   window.scrollTo(0,0);
 }
 function toggleSb(){
@@ -20085,6 +20129,116 @@ function showAthleteCredsFromProfile(id){
   if(at.passwordHash){if(confirm('Gerar nova password para '+at.name+'?'))resetAthletePwd(id);}
   else resetAthletePwd(id);
 }
+// ─── VISÃO GERAL (Team Manager, Bloco 1) ───────────────────
+// Página de entrada do atalho standalone ?teammanager=1 (ver _maybeEnterTeamManagerMode)
+// e novo destino por defeito do cargo Team Manager na Plataforma normal (substitui o
+// Dashboard completo, que exige acesso a todo o histórico/condição do plantel — fora do
+// âmbito deste cargo). Também acessível ao Diretor (readOnly), que ganha aqui o mesmo
+// atalho + os cartões informativos de sempre — nunca nada de escrita, à exceção dos
+// atalhos de navegação em si (<div onclick>, nunca <button>, para nunca ficarem
+// desativados por _applyReadOnlyLock — ver navTo()/writeExceptions, que só isenta a
+// própria página de Estágios da escrita, não esta).
+function renderVisaoGeral(){
+  const td=today();
+  const mainTeamId=APP.teams[0]?.id||'';
+  const nextGame=(APP.games||[]).filter(g=>g.teamId===mainTeamId&&g.date>=td).sort((a,b)=>a.date.localeCompare(b.date))[0]||null;
+  const nextEstagio=(APP.estagios||[]).filter(e=>e.teamId===mainTeamId&&(e.dataFim||e.dataInicio||'')>=td).sort((a,b)=>(a.dataInicio||'').localeCompare(b.dataInicio||''))[0]||null;
+
+  // Próximo Jogo — mesmo visual do cartão já usado no Dashboard (renderDashboard), com um
+  // atalho direto para a Convocatória/Pré-Jogo desse jogo.
+  let jogoCardHtml='<div style="color:var(--t2);font-size:12px;text-align:center;padding:16px">Sem jogos agendados</div>';
+  if(nextGame){
+    const myLogo=APP.config.clubLogo?`<img src="${APP.config.clubLogo}" style="width:38px;height:38px;object-fit:contain;border-radius:6px" onerror="this.style.display='none'">`:'<span style="font-size:26px">⚽</span>';
+    const opLogo=nextGame.oppLogo?`<img src="${nextGame.oppLogo}" style="width:38px;height:38px;object-fit:contain;border-radius:6px" onerror="this.style.display='none'">`:'<span style="font-size:26px">⚽</span>';
+    const isFora=nextGame.ha==='fora';
+    const leftLogo=isFora?opLogo:myLogo, rightLogo=isFora?myLogo:opLogo;
+    const leftName=isFora?nextGame.opp:APP.config.clubName, rightName=isFora?APP.config.clubName:nextGame.opp;
+    const haBadge=isFora?'<span class="bdg bg-y" style="font-size:9px">Fora</span>':'<span class="bdg bg-g" style="font-size:9px">Casa</span>';
+    jogoCardHtml=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">${haBadge}<span style="font-size:10px;color:var(--t2)">${fmtDate(nextGame.date)}${nextGame.time?' · '+nextGame.time:''}</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-around;gap:4px">
+        <div style="text-align:center;flex:1">${leftLogo}<div style="font-size:10px;color:var(--t2);margin-top:3px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(leftName||'')}</div></div>
+        <div style="font-size:12px;font-weight:800;color:var(--t2);flex-shrink:0">VS</div>
+        <div style="text-align:center;flex:1">${rightLogo}<div style="font-size:10px;color:var(--t2);margin-top:3px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(rightName||'')}</div></div>
+      </div>
+      ${nextGame.loc?`<div style="font-size:10px;color:var(--t3);text-align:center;margin-top:6px">📍 ${escHtml(nextGame.loc)}</div>`:''}
+      <div class="btn btn-g" style="margin-top:10px;width:100%;text-align:center" onclick="navTo('jogos');openJogo('${nextGame.id}','prejogo')">📋 Abrir Convocatória / Pré-Jogo</div>`;
+  }
+
+  // Próximo Estágio — mesmo espírito, com um atalho direto para o detalhe do Estágio.
+  let estagioCardHtml='<div style="color:var(--t2);font-size:12px;text-align:center;padding:16px">Sem estágios agendados</div>';
+  if(nextEstagio){
+    const nConv=(nextEstagio.convocatoria||[]).length;
+    const nPend=(nextEstagio.convocatoria||[]).filter(id=>{const r=(nextEstagio.rsvp||{})[id];return !r||!r.status;}).length;
+    estagioCardHtml=`
+      <div style="font-size:13px;font-weight:800">${escHtml(nextEstagio.titulo||'Estágio')}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:3px">${fmtDate(nextEstagio.dataInicio||'')}${nextEstagio.dataFim&&nextEstagio.dataFim!==nextEstagio.dataInicio?' – '+fmtDate(nextEstagio.dataFim):''}</div>
+      ${nextEstagio.local?`<div style="font-size:10px;color:var(--t3);margin-top:2px">📍 ${escHtml(nextEstagio.local)}</div>`:''}
+      <div style="font-size:11px;color:var(--t2);margin-top:8px">🧳 ${nConv} convocada${nConv===1?'':'s'}${nPend?` · <span style="color:#fbbf24">${nPend} por confirmar</span>`:''}</div>
+      <div class="btn btn-gh" style="margin-top:10px;width:100%;text-align:center" onclick="navTo('estagios');openEstagio('${nextEstagio.id}')">🧳 Abrir Estágio</div>`;
+  }
+
+  // Convocatória Pendente — só informativo (sem botão de ação), avisa quando o próximo
+  // jogo ainda não tem a convocatória publicada, o onze por definir, ou RSVPs em falta.
+  let convAlertHtml='';
+  if(nextGame){
+    const c=(APP.convocatorias||[]).find(x=>x.gameId===nextGame.id);
+    const pendingRsvp=c?(c.athletes||[]).filter(id=>{const r=(c.rsvp||{})[id];return !r||!r.status;}).length:0;
+    const lineupLen=(nextGame.lineup||[]).length;
+    const needsAttention=!nextGame.convocatoriaLaunched||lineupLen<11||pendingRsvp>0;
+    if(needsAttention){
+      const bits=[];
+      if(!nextGame.convocatoriaLaunched)bits.push('convocatória ainda não publicada');
+      else if(lineupLen<11)bits.push('onze ainda por definir');
+      if(pendingRsvp>0)bits.push(`${pendingRsvp} confirmação${pendingRsvp===1?'':'ões'} por responder`);
+      convAlertHtml=`<div class="card" style="border-color:rgba(251,191,36,.4)">
+        <div class="cb" style="padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:20px">⚠️</span>
+          <div style="font-size:11px;color:var(--t2)"><strong style="color:#fbbf24">Convocatória pendente</strong> — ${bits.join(', ')}.</div>
+        </div>
+      </div>`;
+    }
+  }
+
+  // Código de Conduta — reaproveita _cocAckStats() (sps-v196/226), mesmo motor do ecrã
+  // próprio; aqui é só um resumo visual com o anel de progresso (svgRing).
+  let cocCardHtml='';
+  if(APP.codeOfConduct&&APP.codeOfConduct.active){
+    const st=_cocAckStats();
+    const pct=st.total?Math.round(st.ack/st.total*100):0;
+    const color=pct>=100?'#4ade80':pct>=50?'#fbbf24':'#f87171';
+    cocCardHtml=`<div class="card">
+      <div class="ch"><span class="ct">📜 CÓDIGO DE CONDUTA</span></div>
+      <div class="cb" style="padding:12px 14px;display:flex;align-items:center;gap:12px">
+        <div style="position:relative;width:52px;height:52px;flex-shrink:0">${svgRing(pct,color,52)}<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">${pct}%</div></div>
+        <div style="font-size:11px;color:var(--t2)">${st.ack} de ${st.total} atleta${st.total===1?'':'s'} já confirmaram "Li e aceito".</div>
+      </div>
+    </div>`;
+  }
+
+  // Atalhos — mesmas páginas visíveis a este cargo (_navForRole), exceto a própria Visão
+  // Geral e o Dashboard técnico (que o Team Manager/Diretor já não usam como landing).
+  // <div onclick>, nunca <button> — ver nota no topo da função sobre _applyReadOnlyLock.
+  const nav=_navForRole(ROLE).filter(n=>!n.sec&&n.id!=='visao-geral'&&n.id!=='dashboard');
+  const atalhosHtml=nav.map(n=>`
+    <div onclick="navTo('${n.id}')" style="background:var(--bg3);border:1px solid var(--brd);border-radius:12px;padding:13px 11px;cursor:pointer;min-height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px">
+      <span style="font-size:22px">${n.icon}</span>
+      <span style="font-size:11px;font-weight:700">${escHtml(n.label)}</span>
+    </div>`).join('');
+
+  document.getElementById('pg-visao-geral').innerHTML=`
+  <div class="sh"><div class="sh-t">🧳 Visão Geral</div></div>
+  ${convAlertHtml}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:${convAlertHtml?'12px':'0'}">
+    <div class="card"><div class="ch"><span class="ct">⚽ PRÓXIMO JOGO</span></div><div class="cb" style="padding:12px 14px">${jogoCardHtml}</div></div>
+    <div class="card"><div class="ch"><span class="ct">🧳 PRÓXIMO ESTÁGIO</span></div><div class="cb" style="padding:12px 14px">${estagioCardHtml}</div></div>
+  </div>
+  ${cocCardHtml?`<div style="margin-top:12px">${cocCardHtml}</div>`:''}
+  <div style="margin-top:16px">
+    <div style="font-size:11px;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Atalhos</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:9px">${atalhosHtml}</div>
+  </div>`;
+}
 // ─── CONFIGURAÇÕES ────────────────────────────────────────
 function renderConfig(){
   document.getElementById('pg-config').innerHTML=`
@@ -22714,6 +22868,13 @@ var _GINASIO_ICON_APPLE='assets/icon_ginasio_apple.png';
 var _TATICO_ICON_192='assets/icon_tatico_192.png';
 var _TATICO_ICON_512='assets/icon_tatico_512.png';
 var _TATICO_ICON_APPLE='assets/icon_tatico_apple.png';
+// Ícone "TM" gerado (placeholder, sps-v227) para o SPS-Team Manager (?teammanager=1) —
+// mesmo padrão usado inicialmente para o Gameday/Ginásio/Tático antes de terem logo
+// próprio fornecido pelo Roger; substituir em assets/icon_teammanager_* quando o Roger
+// o der (e nesse ponto não é preciso tocar aqui, só nos próprios ficheiros).
+var _TEAMMANAGER_ICON_192='assets/icon_teammanager_192.png';
+var _TEAMMANAGER_ICON_512='assets/icon_teammanager_512.png';
+var _TEAMMANAGER_ICON_APPLE='assets/icon_teammanager_apple.png';
 function applyPWAManifest(opts){
   try{
     var name=opts.name, shortName=opts.shortName, iconSrc=opts.iconSrc, icon192=opts.icon192||iconSrc, icon512=opts.icon512||iconSrc, iconType=opts.iconType||'image/png', themeColor=opts.themeColor||'#1d6f3b', appleIcon=opts.appleIcon||iconSrc;
@@ -22845,6 +23006,11 @@ function _swMaybeShowUpdateBanner(){
       // do clube (sem o ?tatico=1 no startUrl, e sem o logo próprio entretanto fornecido
       // pelo Roger) — o ícone instalado reabria a plataforma inteira, não o quadro tático.
       applyPWAManifest({name:'SPS Set Pieces Board',shortName:'Set Pieces',icon192:_TATICO_ICON_192,icon512:_TATICO_ICON_512,iconType:'image/png',themeColor:'#8bc634',appleIcon:_TATICO_ICON_APPLE,startUrl:location.pathname+'?tatico=1'});
+    } else if(typeof _forceTeamManagerMode!=='undefined'&&_forceTeamManagerMode){
+      // SPS-Team Manager standalone (?teammanager=1, sps-v227) — mesmo motivo dos
+      // anteriores (ícone certo já antes do login terminar); ícone "TM" gerado até o
+      // Roger fornecer um logo próprio (mesmo padrão histórico do Gameday/Ginásio/Tático).
+      applyPWAManifest({name:'SPS Team Manager',shortName:'Team Manager',icon192:_TEAMMANAGER_ICON_192,icon512:_TEAMMANAGER_ICON_512,iconType:'image/png',themeColor:'#0d9488',appleIcon:_TEAMMANAGER_ICON_APPLE,startUrl:location.pathname+'?teammanager=1'});
     } else {
       applyPWAManifest({name:clubName+' · App',shortName:shortName,iconSrc:iconSrc,iconType:iconType,themeColor:clubColor});
     }
@@ -22941,7 +23107,7 @@ const _initTimeout=new Promise(r=>setTimeout(r,4000));
       AID=sess.userId;
       const at=APP.athletes.find(a=>a.id===AID);
       if(at){showAtletaApp(at);return;}
-    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();return;}
+    } else {showStaffApp();_maybeEnterGamedayMode();_maybeEnterGinasioMode();_maybeEnterFisioMode();_maybeEnterNutriMode();_maybeEnterTaticoMode();_maybeEnterTeamManagerMode();return;}
   }
   if(_checkAtletaToken()) return;
   // Sessão persistente da atleta (localStorage)
