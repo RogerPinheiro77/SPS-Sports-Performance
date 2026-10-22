@@ -3359,6 +3359,16 @@ function saveAttendance(eventId){
   saveData();
   toast('Presenças guardadas: '+pres+'/'+total+' ✓');
   window._attState={};
+  // sps-v235: nem a grelha de Presenças nem o calendário de Planeamento se
+  // atualizavam sozinhos depois de gravar — o modal fecha (ver onclick de
+  // "Guardar"), mas a célula/ícone clicado ficava com o aspeto de "por
+  // marcar" até a página ser reaberta manualmente. Dava a impressão de que a
+  // gravação não tinha funcionado (confirmado: os dados ficavam bem
+  // guardados em APP.attendance/cloud), levando a reclicar/desistir a meio —
+  // causa raiz do reportado "o preparador físico não consegue registar
+  // presenças de ginásio". Mesmo padrão de refrescar a página atual já usado
+  // noutros sítios desta base de código (`navTo(_curPg)`).
+  if(ROLE!=='atleta'&&_curPg)navTo(_curPg);
 }
 let _showEvForm=false, _editEvId=null, _selDate=null;
 const EV_TYPES=['Treino','Ginásio','Jogo','Reunião','Consulta Nutri','Fisio','Ativação','Recuperação','Folga'];

@@ -5767,3 +5767,80 @@ visualmente, depois da atualização chegar aos dispositivos, os 6 PDFs novos �
 particular o checklist de Anamnese & Diário (nunca deve expor conteúdo da própria
 anamnese) e a ficha individual de Hidratação (depende de já existir um registo
 guardado para a combinação atleta+jogo escolhida).
+
+## sps-v235 (23/10/2026): fix — presenças de Ginásio não atualizavam a grelha depois de gravar (bloqueava o PSE de Ginásio das atletas)
+
+Pedido do Roger: "ve o que se passa, o preparador fisico nao esta a conseguir
+registar presenças de ginasio e as atletas no seguimento nao conseguiram registar
+o pse da sessao de ginasio de ontem" — investigação pedida antes de qualquer
+código, seguindo a prática habitual deste projeto de ir direto aos dados reais da
+Supabase de produção em vez de assumir a causa.
+
+**Investigação, por SQL direto contra a Supabase de produção:** confirmado o evento
+real de Ginásio de "ontem" (21/10/2026, `schedule_events` id `mvhqk08v9mo5`, equipa
+T1 — 23 atletas) e a Unidade de Treino principal do mesmo dia (`mc1_045`, "UT30").
+`attendance_records` do evento de Ginásio tinha só **7 de 23** atletas marcadas
+`status:'treino'`, criadas entre as 18:38 e as 19:14 UTC em grupos de 2-3 segundos
+entre si (padrão de várias interações separadas no modal de presenças — célula a
+célula — não uma falha isolada); as outras 16 ficaram sem nenhum registo.
+`pse_records` de 21/10/2026 tinha 19 linhas, mas **todas** ligadas ao `event_id` da
+UT principal (`mc1_045`) — nenhuma ao Ginásio. Confirmado em `renderAtPSE()` (app da
+atleta): para eventos `'Ginásio'`, o PSE só desbloqueia com um registo
+`attendance.status==='treino'` nesse evento específico (regra deliberada desde o
+sps-v182/sps-v217, para não confundir o PSE do Ginásio com o da UT principal do
+mesmo dia) — sem esse registo, a atleta só tem a UT disponível para avaliar, daí as
+19 atletas terem submetido PSE da UT em vez do Ginásio, exatamente o sintoma
+reportado.
+
+**Causa raiz do lado do treinador:** `saveAttendance()` (chamada pelo botão "💾
+Guardar" do modal de presenças, aberto quer pela grelha de Presenças — célula a
+célula — quer pelo ícone 📋 do Planeamento) gravava corretamente em
+`APP.attendance`/cloud, mas **nunca refrescava a página de onde o modal tinha sido
+aberto** — nem `renderPresencas()` nem `renderPlaneamento()` eram chamadas depois de
+gravar. A célula clicada ficava com o aspeto de "por marcar" (—) até a página ser
+reaberta manualmente (trocar de separador/mês e voltar), dando a impressão de que a
+gravação não tinha funcionado. É muito provável que seja esta a razão de só 7 das
+23 atletas terem ficado marcadas — o preparador físico, sem ver nenhuma confirmação
+visual a cada "Guardar", terá concluído que não estava a resultar e desistido a
+meio, repetindo tentativas em vez de continuar.
+
+**Fix:** `saveAttendance()` passou a chamar `navTo(_curPg)` no fim (depois de
+`saveData()`/`toast()`), condicionado a `ROLE!=='atleta'` — mesmo padrão de
+refrescar a página atualmente visível já usado noutros sítios desta base de código
+(`importData`, os toggles de avisos do Dashboard de Fisio/Nutri). Cobre os dois
+pontos de entrada (grelha de Presenças e calendário de Planeamento) sem precisar de
+duplicar lógica — `navTo()` já sabe redesenhar a página certa a partir de `_curPg`.
+
+SW bump para `sps-v235`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite
+nova dedicada (`test_presencas_refresh_v235.js`, harness `vm` com o código REAL
+extraído, 7 testes): regressão de que `saveAttendance()` continua a gravar
+corretamente um registo por atleta (status/present/reason certos); confirmação
+direta do fix — depois de gravar, estando na página `presencas`, a grelha já não
+mostra a célula como "por marcar", mostra o ícone ✅ de imediato, sem precisar de
+reabrir a página; o mesmo a partir de `_curPg=planeamento` não rebenta e persiste
+os dados; reprodução do cenário exato do Roger (23 atletas, marcadas uma a uma,
+célula a célula) confirmando que cada gravação deixa a grelha atualizada de
+imediato; confirmação de que o gate do PSE de Ginásio (sem relação direta com este
+fix, mas é a consequência reportada) depende mesmo de `attendance.status==='treino'`
+nesse evento, nos dois sentidos (bloqueado sem registo, desbloqueado com); guarda de
+segurança `ROLE!=='atleta'` nunca impede a gravação em si. Regressão completa
+re-corrida (todos os `test_*.js` desta pasta): sem falhas novas;
+`test_marker_evolution_v204.js` continua com as mesmas 4 falhas pré-existentes já
+documentadas desde o sps-v210 (espelhamento de adversárias), sem relação com este
+pedido.
+
+**Ainda por fazer:** nada pendente para este fix em si. As 16 atletas que não
+ficaram com presença registada na sessão de Ginásio de 21/10/2026 continuam sem
+esse registo (não há reparação retroativa possível a partir daqui, mesmo padrão já
+documentado noutros incidentes deste ficheiro) — se o Roger quiser, pode agora
+voltar a abrir o modal de presenças desse evento e marcá-las, já com a grelha a
+confirmar visualmente cada gravação; as 19 atletas que submeteram PSE da UT em vez
+do Ginásio mantêm esse registo tal como está (não há "PSE de Ginásio" delas para
+recuperar, visto que nunca chegaram a conseguir submeter esse). Vale a pena, como
+melhoria futura não pedida ainda, considerar um atalho de "marcar toda a equipa de
+uma vez" diretamente na grelha de Presenças (hoje só existe via o ícone 📋 do
+Planeamento, que já abre o modal para a equipa toda em vez de atleta a atleta) —
+teria reduzido a tentação de ir célula a célula, que foi o que tornou este bug
+visível na prática.
