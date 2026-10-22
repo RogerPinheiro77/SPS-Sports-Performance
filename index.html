@@ -2285,6 +2285,15 @@ function buildChart(id,labels,data,label,borderColor,bgColor,min,max){
   if(c._chart)c._chart.destroy();
   c._chart=new Chart(c,{type:'line',data:{labels,datasets:[{label,data,borderColor,backgroundColor:bgColor,borderWidth:2,pointRadius:4,pointBackgroundColor:borderColor,fill:true,tension:.4,spanGaps:true}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{min,max,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#94a3b8',font:{size:10}}},x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#94a3b8',font:{size:10}}}}}});
 }
+// buildMultiLineChart: várias séries (sem preenchimento sob a linha, para não
+// sobrepor cores quando há 3 linhas no mesmo gráfico) — usado em PSE & Wellness
+// para separar PSE Médio/UA Total por tipo de sessão (Treino/Ginásio/Outros),
+// sps-v236. `series` é [{label,data,color}]; `max` opcional (null = automático).
+function buildMultiLineChart(id,labels,series,max){
+  const c=document.getElementById(id);if(!c)return;
+  if(c._chart)c._chart.destroy();
+  c._chart=new Chart(c,{type:'line',data:{labels,datasets:series.map(s=>({label:s.label,data:s.data,borderColor:s.color,backgroundColor:s.color+'26',borderWidth:2,pointRadius:3,pointBackgroundColor:s.color,fill:false,tension:.4,spanGaps:true}))},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#94a3b8',font:{size:10}}},x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#94a3b8',font:{size:10}}}}}});
+}
 
 // ─── PLANTEL ──────────────────────────────────────────────
 let _plantelTeam='T1', _showAtForm=false, _editAtId=null;
@@ -10958,6 +10967,41 @@ function printSessaoPSEWellness(){
   `;
   _printWin(title,body);
 }
+// Cores por tipo de PSE (Treino/Ginásio/Outros), confirmadas com o Roger via mockup
+// (v1→v2→v3 "final") antes de ir a código, sps-v236: Ginásio em roxo — a mesma cor já
+// usada para Ginásio em EV_COLORS (calendário do Planeamento), em _TE_ORIGEM_COLOR
+// (Treinos Extra) e no ícone da app SPS-Ginásio — nunca âmbar, para não haver 2 cores
+// diferentes para a mesma categoria em sítios diferentes da app. Fica só nesta página
+// (PSE & Wellness) — Análise da Sessão/Relatório de Atleta/Condição do Plantel já
+// ligam a uma sessão/tipo só, sem ganho real com esta cor extra (decisão confirmada).
+const PSE_GROUP_COLORS={treino:'#27a34a',ginasio:'#7d3c98',outros:'#5cd0e8'};
+const PSE_GROUP_LABELS={treino:'PSE Treino',ginasio:'PSE Ginásio',outros:'PSE Outros'};
+// _pseGroup: agrupa o sessionType em 3 categorias para a página PSE & Wellness —
+// 'Ginásio' isolado (gating/fluxo próprio, sps-v182/v217/v235), 'Treino' (ou em
+// branco, PSE antigos sem sessionType gravado — mesmo fallback já usado em _pweT/
+// _pwAddPse) e 'Outros' a juntar Jogo/Reabilitação/Ativação (separar os 3 sobrecarregava
+// a tabela sem ganho prático, decisão confirmada com o Roger no mockup).
+function _pseGroup(sessionType){
+  if(sessionType==='Ginásio')return'ginasio';
+  if(!sessionType||sessionType==='Treino')return'treino';
+  return'outros';
+}
+// _pseRelDay: "Hoje"/"Ontem"/"N dias" relativo a hoje, para a célula de PSE por tipo
+// na tabela Individual (substitui a coluna "Última Sub." que existia antes do
+// agrupamento por tipo) — fmtDate como fallback defensivo para uma data futura
+// (não deveria acontecer, mas evita um "-1 dias" sem sentido).
+function _pseRelDay(dateStr){
+  const diff=Math.round((new Date(today()+'T00:00:00')-new Date(dateStr+'T00:00:00'))/86400000);
+  if(diff===0)return'Hoje';
+  if(diff===1)return'Ontem';
+  if(diff>1)return diff+' dias';
+  return fmtDate(dateStr);
+}
+function _pseTypeCellHtml(p,grp){
+  if(!p)return`<span style="color:var(--t3);font-size:11px">—</span>`;
+  const c=PSE_GROUP_COLORS[grp];
+  return`<div style="display:flex;align-items:center;gap:7px;white-space:nowrap"><span style="min-width:36px;text-align:center;font-weight:700;font-size:11px;padding:2px 7px;border-radius:7px;background:${c}22;color:${c}">${p.pse}/10</span><span style="font-size:10px;color:var(--t2)">${p.duration}min · UA ${p.ua}<br>${_pseRelDay(p.date)}</span></div>`;
+}
 function renderPSEWellness(){
   const td=today();
   const days=Array.from({length:_pwPeriod},(_,i)=>{const d=new Date(td+'T00:00:00');d.setDate(d.getDate()-(_pwPeriod-1-i));return _fmtISO(d);});
@@ -10967,12 +11011,15 @@ function renderPSEWellness(){
 
   let html='';
   if(_pwTab==='pse'){
-    // Collective PSE chart
+    // Collective PSE charts — 3 séries (Treino/Ginásio/Outros), sps-v236
     const labels=days.map(d=>fmtDateShort(d));
-    const avgPSE=days.map(d=>{const ps=APP.pse.filter(p=>p.date===d&&athletes.find(a=>a.id===p.athleteId));return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.pse||0),0)/ps.length*10)/10:null;});
-    const totalUA=days.map(d=>{const ps=APP.pse.filter(p=>p.date===d&&athletes.find(a=>a.id===p.athleteId));return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.ua||0),0)):null;});
+    const avgPSEByType={}, totalUAByType={};
+    ['treino','ginasio','outros'].forEach(grp=>{
+      avgPSEByType[grp]=days.map(d=>{const ps=APP.pse.filter(p=>p.date===d&&_pseGroup(p.sessionType)===grp&&athletes.find(a=>a.id===p.athleteId));return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.pse||0),0)/ps.length*10)/10:null;});
+      totalUAByType[grp]=days.map(d=>{const ps=APP.pse.filter(p=>p.date===d&&_pseGroup(p.sessionType)===grp&&athletes.find(a=>a.id===p.athleteId));return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.ua||0),0)):null;});
+    });
 
-    // Individual table
+    // Individual table — 1 coluna por tipo de PSE (último registo desse tipo no período)
     const atRows=athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(at=>{
       const atPSE=APP.pse.filter(p=>p.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
       const last7=atPSE.filter(p=>days.slice(-7).includes(p.date));
@@ -10981,11 +11028,12 @@ function renderPSEWellness(){
       const chronic=last28.length?Math.round(last28.reduce((s,p)=>s+(+p.ua||0),0)/28*10)/10:0;
       const acwr=chronic?Math.round(acute/chronic*100)/100:0;
       const acwrClass=acwr>1.5||acwr<0.8?'bg-r':acwr>=1.0?'bg-g':'bg-y';
-      const lastSub=atPSE[0];
+      const lastByType={treino:null,ginasio:null,outros:null};
+      atPSE.forEach(p=>{const grp=_pseGroup(p.sessionType);if(days.includes(p.date)&&!lastByType[grp])lastByType[grp]=p;});
       const expKey='pse_'+at.id;
       const isExp=_pwExpand.has(expKey);
       const hist=atPSE.slice(0,10);
-      const histRow=isExp?`<tr><td colspan="9" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)} — edita para corrigir um erro</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th><th>Ações</th></tr></thead><tbody>${hist.length?hist.map(p=>`<tr>
+      const histRow=isExp?`<tr><td colspan="8" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)} — edita para corrigir um erro</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th><th>Ações</th></tr></thead><tbody>${hist.length?hist.map(p=>`<tr>
         <td>${fmtDate(p.date)}</td>
         <td><select id="pweS-${p.id}" class="fc" style="padding:2px 4px;font-size:11px;width:52px">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${p.pse==n?'selected':''}>${n}</option>`).join('')}</select></td>
         <td><input id="pweD-${p.id}" class="fc" type="number" min="1" max="300" value="${p.duration}" style="width:58px;padding:2px 4px;font-size:11px"></td>
@@ -10994,13 +11042,12 @@ function renderPSEWellness(){
         <td style="white-space:nowrap"><button class="btn btn-xs btn-g" title="Guardar" onclick="_pwSavePse('${p.id}')">💾</button> <button class="btn btn-xs btn-gh" title="Apagar" onclick="_pwDeletePse('${p.id}')">🗑️</button></td>
       </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--t2);padding:8px">Sem registos</td></tr>'}</tbody></table></div></td></tr>`:'';
       return`<tr><td><div style="display:flex;align-items:center;gap:7px" title="${escHtml(at.name)}"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:2px 6px">${isExp?'▴':'▾'}</button>${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_shortName(at))}</strong></div></td><td>${at.pos||'—'}</td>
-      <td style="text-align:center">${lastSub?lastSub.pse:'—'}</td>
-      <td style="text-align:center">${lastSub?lastSub.duration+'min':'—'}</td>
-      <td style="text-align:center">${lastSub?lastSub.ua:'—'}</td>
+      <td>${_pseTypeCellHtml(lastByType.treino,'treino')}</td>
+      <td>${_pseTypeCellHtml(lastByType.ginasio,'ginasio')}</td>
+      <td>${_pseTypeCellHtml(lastByType.outros,'outros')}</td>
       <td style="text-align:center">${acute}</td>
       <td style="text-align:center">${chronic}</td>
-      <td style="text-align:center">${acwr?`<span class="bdg ${acwrClass}">${acwr}</span>`:'—'}</td>
-      <td><span style="font-size:10px;color:var(--t2)">${lastSub?lastSub.date:'Sem dados'}</span></td></tr>${histRow}`;
+      <td style="text-align:center">${acwr?`<span class="bdg ${acwrClass}">${acwr}</span>`:'—'}</td></tr>${histRow}`;
     }).join('');
 
     // Formulário "Adicionar PSE em falta" — atleta sem telemóvel/não conseguiu submeter.
@@ -11026,12 +11073,14 @@ function renderPSEWellness(){
         </div>
       </div>
     </div>`:'';
+    const pseLegendHtml=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--t2);font-weight:600">${['treino','ginasio','outros'].map(grp=>`<span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:${PSE_GROUP_COLORS[grp]};display:inline-block"></span>${grp==='outros'?'PSE Outros (Jogo · Reabilitação · Ativação)':PSE_GROUP_LABELS[grp]}</span>`).join('')}</div>`;
     html=`
     ${addFormHtml}
+    ${pseLegendHtml}
     <div class="g2" style="margin-bottom:16px">
-      <div class="card"><div class="ch"><span class="ct">PSE Médio Coletivo</span></div>
+      <div class="card"><div class="ch"><span class="ct">PSE Médio por Tipo</span></div>
       <div class="cb"><div class="chart-wrap"><canvas id="chart-pse-col"></canvas></div></div></div>
-      <div class="card"><div class="ch"><span class="ct">Unidades de Carga (UA) Total</span></div>
+      <div class="card"><div class="ch"><span class="ct">Unidades de Carga (UA) Total por Tipo</span></div>
       <div class="cb"><div class="chart-wrap"><canvas id="chart-ua-col"></canvas></div></div></div>
     </div>
     <div class="card">
@@ -11045,12 +11094,12 @@ function renderPSEWellness(){
           </select>
         </div>
       </div>
-      <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>PSE</th><th>Dur</th><th>UA</th><th>Carga Aguda</th><th>Carga Crónica</th><th>ACWR</th><th>Última Sub.</th></tr></thead>
-      <tbody>${atRows||'<tr><td colspan="9" style="text-align:center;color:var(--t2);padding:20px">Sem dados PSE</td></tr>'}</tbody></table></div></div>
+      <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th style="color:${PSE_GROUP_COLORS.treino}">PSE Treino</th><th style="color:${PSE_GROUP_COLORS.ginasio}">PSE Ginásio</th><th style="color:${PSE_GROUP_COLORS.outros}">PSE Outros</th><th>Carga Aguda</th><th>Carga Crónica</th><th>ACWR</th></tr></thead>
+      <tbody>${atRows||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Sem dados PSE</td></tr>'}</tbody></table></div></div>
     </div>`;
     setTimeout(()=>{
-      buildChart('chart-pse-col',labels,avgPSE,'PSE Médio','rgba(29,111,59,.7)','rgba(29,111,59,.15)',0,10);
-      buildChart('chart-ua-col',labels,totalUA,'UA Total','rgba(2,132,199,.7)','rgba(2,132,199,.15)',0,null);
+      buildMultiLineChart('chart-pse-col',labels,['treino','ginasio','outros'].map(grp=>({label:PSE_GROUP_LABELS[grp],data:avgPSEByType[grp],color:PSE_GROUP_COLORS[grp]})),10);
+      buildMultiLineChart('chart-ua-col',labels,['treino','ginasio','outros'].map(grp=>({label:PSE_GROUP_LABELS[grp],data:totalUAByType[grp],color:PSE_GROUP_COLORS[grp]})),null);
     },50);
   } else if(_pwTab==='wellness'){
     // WELLNESS heatmap

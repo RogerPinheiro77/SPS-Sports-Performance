@@ -5844,3 +5844,104 @@ uma vez" diretamente na grelha de Presenças (hoje só existe via o ícone 📋 
 Planeamento, que já abre o modal para a equipa toda em vez de atleta a atleta) —
 teria reduzido a tentação de ir célula a célula, que foi o que tornou este bug
 visível na prática.
+
+## sps-v236 (23/10/2026): "PSE & Wellness cores por tipo" — a funcionalidade dos mockups anteriores, finalmente implementada
+
+Pedido do Roger: "faz mensagem de whatssap para equipa tecnica com as actualizaçoes
+do pse". Ao escrever a mensagem, listei inicialmente o sps-v172 (RPE-alvo/PSE
+integração) como "a atualização de PSE" — o Roger corrigiu ("isso e o que
+alteramos anteriormente relativamente aos varios pse's"), e depois esclareceu de
+vez colando a proposta exata de um mockup: "3 cores fixas [...] 🟢 verde = Treino,
+🟡 âmbar = Ginásio, 🔵 azul = Outros [...] Tabela: 3 colunas em vez de 1 [...] Os 2
+gráficos do topo [...] passam de 1 linha para 3 linhas" — "estava a falar disto".
+
+**Investigação antes de assumir que já estava feito:** `git log` e os ficheiros da
+pasta confirmaram que "PSE & Wellness cores por tipo" só existia como 3 mockups
+HTML de uma sessão anterior (`mockup_pse_wellness_cores_v1/v2/v3.html`, datados de
+22/10/2026) — nunca chegou a `index.html`/`sw.js`. O v3 estava marcado "final",
+com as decisões já confirmadas pelo Roger via `AskUserQuestion` nessa sessão,
+incluindo a correção de cor do mockup v1→v3: Ginásio deixou de ser âmbar (🟡) e
+passou a roxo (🟣/`#7d3c98`) — a mesma cor já usada para Ginásio em `EV_COLORS`
+(calendário), `_TE_ORIGEM_COLOR` (Treinos Extra) e o ícone da app SPS-Ginásio,
+evitando 2 cores diferentes para a mesma categoria em sítios diferentes da app
+(já confirmado pelo `_pseTypeBadge` existente, com comentário próprio sobre isso).
+
+Confrontado com o facto de a funcionalidade nunca ter sido construída, perguntei
+ao Roger como avançar (`AskUserQuestion`) em vez de assumir — ele escolheu
+explicitamente **"Avançar para código agora"**: construir a funcionalidade real
+antes de enviar qualquer mensagem à equipa técnica a anunciá-la.
+
+**O que foi construído — só no separador "PSE/Carga" de PSE & Wellness, seguindo o
+mockup v3 à letra (o separador "Wellness" e a "Imprimir" ficaram deliberadamente
+fora, conforme a nota de âmbito do próprio mockup):**
+
+1. `buildMultiLineChart(id,labels,series,max)` — novo, ao lado de `buildChart`: a
+   mesma wrapper de Chart.js, mas para várias séries ao mesmo tempo (`fill:false`,
+   para não sobrepor cores quando há 3 linhas no mesmo gráfico; `spanGaps:true`,
+   `tension:.4` a condizer com o resto da app — o mockup usava `.3`, desvio
+   deliberado para consistência).
+2. `PSE_GROUP_COLORS`/`PSE_GROUP_LABELS` — as 3 cores/rótulos confirmados
+   (Treino `#27a34a`, Ginásio `#7d3c98`, Outros `#5cd0e8`). `_pseGroup(sessionType)`
+   — classifica Ginásio isolado, Treino/em-branco junto (mesmo fallback `||'Treino'`
+   já usado no resto da app), e Jogo/Reabilitação/Ativação agrupados em "Outros"
+   (separar os 3 sobrecarregava a tabela sem ganho prático, decisão do mockup).
+   `_pseRelDay(dateStr)` — "Hoje"/"Ontem"/"N dias" (substitui a antiga coluna
+   "Última Sub."). `_pseTypeCellHtml(p,grp)` — a pílula colorida com PSE/10 +
+   duração+UA+dia relativo, ou "—" sem registo desse tipo.
+3. **Tabela Individual reestruturada**: as antigas colunas PSE/Duração/UA/Última
+   Sub. (1 registo só) deram lugar a 3 colunas — PSE Treino / PSE Ginásio / PSE
+   Outros — cada uma com o ÚLTIMO registo desse tipo no período selecionado (nunca
+   mais escondido por trás de um registo mais recente de outro tipo). Carga
+   Aguda/Crónica/ACWR mantidos inalterados a seguir. `colspan` dos estados vazios/
+   linha de histórico ajustado de 6/9 para 8 (8 colunas na tabela nova).
+4. **Legenda nova** (3 pontos coloridos + rótulos, com "PSE Outros (Jogo ·
+   Reabilitação · Ativação)" por extenso) acima da tabela, para o agrupamento
+   nunca ficar ambíguo.
+5. **Os 2 gráficos coletivos** (PSE Médio / UA Total por dia) passaram de 1 série
+   para 3 (`buildMultiLineChart`), uma por tipo, nas mesmas 3 cores da legenda e da
+   tabela — cálculo (`avgPSEByType`/`totalUAByType`) agrupado por `_pseGroup`, com
+   `null` (nunca `0`) nos dias sem nenhum registo desse tipo, para o `spanGaps`
+   funcionar como nos outros gráficos da app.
+
+SW bump para `sps-v236`.
+
+**Gap de teste identificado e resolvido nesta sessão:** o harness `vm` usado em
+todos os testes deste projeto nunca teve um stub de `Chart` (confirmado por grep,
+`buildChart\|new Chart(` em `test_*.js` devolvia vazio) — nenhuma funcionalidade
+anterior precisou de inspecionar o que é passado ao construtor do Chart.js. Como
+`buildMultiLineChart` corre dentro de um `setTimeout(...,50)`, o novo ficheiro de
+teste (`test_pse_wellness_cores_v236.js`) resolveu os dois problemas juntos: um
+`setTimeout` síncrono no sandbox (chama a callback de imediato — o cache de
+elementos deste harness é um mapa plano por id, não uma árvore DOM real, por isso
+não há problema em construir o canvas antes do container pai existir) e um stub
+`Chart` que captura `config` por id de canvas (`__chartCalls`), permitindo
+verificar diretamente o número de séries, rótulos, cores e os próprios dados
+calculados (`avgPSEByType`/`totalUAByType`) sem precisar de nenhuma biblioteca de
+Chart.js real.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`, duas
+vezes. Suite nova dedicada (`test_pse_wellness_cores_v236.js`, harness `vm` com o
+código REAL extraído, 22 asserções): `_pseGroup` (Ginásio isolado, Treino/em-branco
+juntos, Jogo/Reabilitação/Ativação agrupados em Outros); `_pseRelDay` (Hoje/Ontem/
+N dias, fallback defensivo para data futura); `_pseTypeCellHtml` (fallback "—",
+pílula com os valores certos, cor por grupo); as 3 cores confirmadas do mockup v3;
+legenda com o rótulo agrupado de Outros; cabeçalho com as 3 colunas por tipo
+(nunca mais "Última Sub."); estado vazio com colspan=8; atleta sem registo mostra
+"—" nas 3 colunas; o último registo de cada tipo é escolhido corretamente por
+atleta (um Treino mais recente substitui o antigo, sem misturar com Ginásio/
+Outros); linha de histórico expandida com colspan=8; os 2 gráficos coletivos com
+3 séries/cores/rótulos certos; dados do gráfico corretos (UA=PSE×duração no dia);
+dia sem registo fica `null`, nunca `0`. Regressão completa re-corrida (todos os
+18 ficheiros `test_*.js` presentes nesta pasta de trabalho): sem falhas novas;
+`test_marker_evolution_v204.js` continua com as mesmas 4 falhas pré-existentes já
+documentadas desde o sps-v210 (espelhamento de adversárias), sem relação com este
+pedido.
+
+**Ainda por fazer:** nada pendente para esta funcionalidade em si. Verificação
+visual ao vivo não foi feita nesta sessão — a funcionalidade só existe no código
+ainda não publicado; pedir ao Roger para confirmar visualmente (as 3 cores, a
+legenda, as 2 colunas novas na tabela e os 2 gráficos com 3 linhas) depois da
+atualização chegar aos dispositivos. Só depois disso a mensagem de WhatsApp à
+equipa técnica deve ser finalizada/enviada a descrever esta funcionalidade como
+disponível — os rascunhos anteriores (focados no sps-v172) estão agora
+desatualizados/incompletos e não devem ser enviados tal como estavam.
