@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Nutrição: PDF Plantel SPS + PDF Plantel Clube</title>
+<style>
+  :root{
+    --c1:#1d6f3b;--c1d:#155c2f;--c1l:#27a34a;
+    --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+    --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+    --warn:#e0a92b;--warn-bg:#e0a92b22;
+    --danger:#e2504a;--danger-bg:#e2504a22;
+    --ok:#27a34a;--ok-bg:#27a34a22;
+    --info:#5cd0e8;--info-bg:#0c7b9333;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg0);color:var(--t1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;}
+  #topbar{height:56px;background:var(--bg1);border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;padding:0 16px;position:sticky;top:0;z-index:10;}
+  .tb-left{display:flex;align-items:center;gap:10px;}
+  .tb-logo{width:32px;height:32px;border-radius:8px;background:var(--c1);display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .tb-title{font-weight:700;font-size:15px;color:var(--t1);}
+  .tb-sub{font-size:11px;color:var(--t2);}
+  .mock-badge{background:#e0a92b22;color:#e0a92b;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;}
+  #main{max-width:1280px;margin:0 auto;padding:18px 16px 90px;}
+  .note{background:var(--bg2);border:1px solid var(--brd);border-left:4px solid var(--warn);border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:12.5px;color:var(--t2);}
+  .note b{color:var(--t1);}
+  .note.open{border-left-color:var(--info);}
+  .section-h{font-size:14px;font-weight:700;color:var(--t1);margin:22px 0 10px;display:flex;align-items:center;gap:8px;}
+
+  /* --- cabeçalho da página real (print 1), para contexto --- */
+  .fake-page-head{background:var(--bg1);border:1px solid var(--brd);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  .fake-page-head .ph-t{font-size:15px;font-weight:700;color:var(--t1);display:flex;align-items:center;gap:7px;}
+  .btn{padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--brd);background:var(--bg3);color:var(--t1);white-space:nowrap;}
+  .btn-gh{background:transparent;color:var(--t1);}
+  .btn-g{background:var(--c1);border-color:var(--c1);color:#fff;}
+  .btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  select.fc{background:var(--bg3);border:1px solid var(--brd);color:var(--t1);border-radius:8px;padding:6px 8px;font-size:12px;}
+
+  /* --- folha de impressão (fundo branco, estilo real de _printWin) --- */
+  .sheet{background:#fff;color:#222;border-radius:10px;padding:16px 18px;overflow-x:auto;}
+  .sheet .pr-title{font-size:13pt;font-weight:700;color:#15532c;margin-bottom:4px;}
+  .sheet .pr-sub{font-size:8.5pt;color:#666;margin-bottom:10px;}
+  table.club{border-collapse:collapse;width:100%;table-layout:fixed;}
+  table.club col.nmcol{width:34mm;}
+  table.club col.agecol{width:11mm;}
+  table.club col.hcol{width:12mm;}
+  table.club col.dcol{width:15mm;}
+  table.club col.avcol{width:46mm;}
+  table.club thead tr.grp th{background:#1d6f3b;color:#fff;padding:5px 2px;text-align:center;font-size:7.3pt;font-weight:700;border-left:2px solid #e9f3ee;}
+  table.club thead tr.grp th.nmcol,table.club thead tr.grp th.agecol,table.club thead tr.grp th.hcol,table.club thead tr.grp th.avcol{background:#15532c;border-left:none;}
+  table.club thead tr.sub th{background:#e9f3ee;color:#1d6f3b;padding:3px 2px;text-align:center;font-size:6.6pt;font-weight:700;text-transform:uppercase;letter-spacing:.2px;}
+  table.club td{padding:4px 3px;font-size:7.4pt;text-align:center;border-bottom:1px solid #eee;}
+  table.club td.nm{text-align:left;font-weight:700;font-size:7.6pt;padding-left:5px;white-space:nowrap;}
+  table.club td.av{text-align:left;font-size:7pt;color:#444;padding-left:5px;}
+  table.club td.dash{color:#ccc;}
+  .soma-pill{display:inline-block;min-width:26px;padding:2px 4px;border-radius:4px;font-weight:700;}
+  .sp-g{background:#d4edda;color:#155724;}
+  .sp-y{background:#fff3cd;color:#856404;}
+  .sp-o{background:#ffe0b2;color:#a45c00;}
+  .sp-r{background:#f8d7da;color:#721c24;}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:7.3pt;color:#555;margin-top:10px;align-items:center;}
+  .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">🥗</div>
+    <div><div class="tb-title">Nutrição — Avaliações</div><div class="tb-sub">Moreirense FC Feminino</div></div>
+  </div>
+  <div class="mock-badge">🧪 MOCKUP — não é a app real</div>
+</div>
+
+<div id="main">
+  <div class="note">
+    <b>O que mudou:</b> o espaço de impressão atual ("PDF Plantel (2 últimas)") fica exatamente como está — só passa a chamar-se <b>"PDF Plantel (SPS)"</b>, para se distinguir do novo. Acrescenta-se um botão novo, <b>"PDF Plantel (Clube)"</b>, que gera o formato da tua folha de referência: Atleta/Idade/Altura + Peso/Soma de Pregas por mês + coluna de Avaliação.
+  </div>
+
+  <div class="section-h">1. Nutrição → Avaliações (botões)</div>
+  <div class="fake-page-head">
+    <div class="ph-t">📏 Avaliações Antropométricas</div>
+    <div class="btn-row">
+      <select class="fc"><option>Selecionar atleta…</option></select>
+      <button class="btn btn-gh">🖨️ PDF Evolução</button>
+      <button class="btn btn-gh">🖨️ PDF Plantel (SPS)</button>
+      <button class="btn btn-gh" style="border-color:#7d3c98;color:#c08fe0">🖨️ PDF Plantel (Clube)</button>
+      <button class="btn btn-g">+ Nova Avaliação</button>
+    </div>
+  </div>
+
+  <div class="section-h">2. PDF Plantel (Clube) — proposta</div>
+  <div class="sheet">
+    <div class="pr-title">Avaliação Antropométrica — Seniores Feminino</div>
+    <div class="pr-sub">Moreirense FC Feminino · Setembro a Dezembro 2026/27 · gerado em 22/10/2026</div>
+    <table class="club" id="club-table">
+      <colgroup><col class="nmcol"><col class="agecol"><col class="hcol"><col class="dcol"><col class="dcol"><col class="dcol"><col class="dcol"><col class="dcol"><col class="dcol"><col class="dcol"><col class="dcol"><col class="avcol"></colgroup>
+      <thead>
+        <tr class="grp">
+          <th class="nmcol" rowspan="2">Atleta</th><th class="agecol" rowspan="2">Idade</th><th class="hcol" rowspan="2">Altura</th>
+          <th colspan="2">Setembro</th><th colspan="2">Outubro</th><th colspan="2">Novembro</th><th colspan="2">Dezembro</th>
+          <th class="avcol" rowspan="2">Avaliação</th>
+        </tr>
+        <tr class="sub">
+          <th>Peso</th><th>Soma Pregas</th><th>Peso</th><th>Soma Pregas</th><th>Peso</th><th>Soma Pregas</th><th>Peso</th><th>Soma Pregas</th>
+        </tr>
+      </thead>
+      <tbody id="club-tbody"></tbody>
+    </table>
+    <div class="legend">
+      <span><span class="sw sp-g"></span>Soma Pregas — 1º quartil do plantel (mais baixo)</span>
+      <span><span class="sw sp-y"></span>2º quartil</span>
+      <span><span class="sw sp-o"></span>3º quartil</span>
+      <span><span class="sw sp-r"></span>4º quartil (mais alto)</span>
+      <span style="color:#999">cor relativa ao próprio plantel nesse mês — recalculada sempre que há avaliações novas, nunca um limiar fixo</span>
+    </div>
+    <p style="font-size:7pt;color:#999;margin-top:6px">"Avaliação" = resumo automático comparando a 1ª com a última avaliação do período mostrado (igual ao texto já usado no PDF de Evolução) — sempre editável pela nutricionista antes de imprimir.</p>
+  </div>
+
+  <div class="note open">
+    <b>3 pontos em aberto, mando já a pergunta ao lado para confirmares:</b><br>
+    1) Cor da Soma de Pregas — não existe hoje nenhuma banda absoluta no resto da app para esta métrica, de propósito (decisão do sps-v168: varia muito consoante o desporto/atleta, ver literatura já citada). Proponho cor <b>relativa ao próprio plantel</b> (quartis, recalculados sempre) em vez de inventar números fixos.<br>
+    2) Texto da coluna "Avaliação" — automático (como no PDF de Evolução) e editável, ou sempre escrito à mão pela nutricionista?<br>
+    3) Meses — a época tem 10+ meses, não cabe tudo numa A3 de cada vez. Mostro um intervalo escolhido (ex: por trimestre) em vez da época toda?
+  </div>
+</div>
+
+<script>
+// dados aproximados a partir do teu print (só para ilustrar o formato — os valores reais
+// virão sempre da base de dados, não são retranscritos à mão na versão final)
+const ROWS=[
+  {name:'Ana Romeu',idade:24,altura:'1,64',set:{peso:'59,9',soma:93.0},out:null},
+  {name:'Lisa',idade:22,altura:'1,59',set:{peso:'63,7',soma:134.5},out:{peso:'62,8',soma:128.0}},
+  {name:'Rafaela Silva',idade:17,altura:'1,71',set:{peso:'76,2',soma:185},out:null},
+  {name:'Chica',idade:21,altura:'1,72',set:{peso:'66,9',soma:135},out:{peso:'66,2',soma:129}},
+  {name:'Mariana Silva',idade:20,altura:'1,62',set:{peso:'57,6',soma:125},out:null},
+  {name:'Marta Lemos',idade:28,altura:'1,61',set:{peso:'58',soma:72},out:null},
+  {name:'Ivone Oliveira',idade:21,altura:'1,75',set:{peso:'65,7',soma:130},out:{peso:'65,0',soma:126}},
+  {name:'Jéssica',idade:24,altura:'1,62',set:{peso:'57,7',soma:111.0},out:null},
+  {name:'Luna',idade:19,altura:'1,64',set:{peso:'59,2',soma:75.0},out:null},
+  {name:'Rita Machado',idade:23,altura:'1,64',set:{peso:'65,6',soma:151},out:null},
+  {name:'Mariana Couto',idade:25,altura:'1,66',set:{peso:'67,7',soma:76},out:null},
+  {name:'Melissa',idade:26,altura:'1,60',set:{peso:'52,7',soma:77},out:null},
+  {name:'Lara Atilano',idade:20,altura:'1,58',set:{peso:'54,6',soma:119},out:null},
+  {name:'Inês Lopes',idade:22,altura:'1,73',set:{peso:'71,3',soma:96},out:{peso:'70,5',soma:90}},
+  {name:'Mariana Trigo',idade:25,altura:'1,63',set:{peso:'53,5',soma:92.0},out:null},
+  {name:'Lara Reguengo',idade:19,altura:'1,67',set:{peso:'68,5',soma:139.0},out:null},
+  {name:'Margarida Maia',idade:null,altura:null,set:null,out:null},
+  {name:'Carol Freitas',idade:27,altura:'1,76',set:{peso:'76,1',soma:122},out:null},
+  {name:'Mada Lopes',idade:30,altura:'1,56',set:{peso:'56',soma:84},out:null},
+  {name:'Joana Cunha',idade:25,altura:'1,53',set:{peso:'51,8',soma:75},out:null},
+  {name:'Natasha Moreira',idade:34,altura:'1,65',set:{peso:'57,8',soma:125},out:null},
+  {name:'Sofia Leite',idade:19,altura:'1,69',set:{peso:'66,6',soma:114},out:null},
+];
+
+function quartileColorer(vals){
+  const v=vals.filter(x=>x!=null).sort((a,b)=>a-b);
+  const q=p=>v[Math.min(v.length-1,Math.floor(p*(v.length-1)))];
+  const p25=q(.25),p50=q(.5),p75=q(.75);
+  return val=>{
+    if(val==null)return '';
+    if(val<=p25)return 'sp-g';
+    if(val<=p50)return 'sp-y';
+    if(val<=p75)return 'sp-o';
+    return 'sp-r';
+  };
+}
+const setVals=ROWS.map(r=>r.set?r.set.soma:null);
+const outVals=ROWS.map(r=>r.out?r.out.soma:null);
+const colorSet=quartileColorer(setVals);
+const colorOut=quartileColorer(outVals);
+
+function avaliacaoTxt(r){
+  if(!r.set||!r.out)return '';
+  const dp=Math.round((r.out.soma-r.set.soma)*10)/10;
+  const dw=Math.round((parseFloat(r.out.peso.replace(',','.'))-parseFloat(r.set.peso.replace(',','.')))*10)/10;
+  const parts=[];
+  if(dp<0)parts.push('Diminuição % de massa gorda');
+  else if(dp>0)parts.push('Aumento % de massa gorda');
+  if(dw<0)parts.push('peso corporal');
+  if(!parts.length)return 'Estável';
+  return parts.length>1?'Diminuição % de massa gorda e peso corporal':parts[0];
+}
+
+document.getElementById('club-tbody').innerHTML=ROWS.map(r=>{
+  const cell=(obj,colorer)=>{
+    if(!obj)return `<td class="dash">—</td><td class="dash">—</td>`;
+    const cls=colorer(obj.soma);
+    return `<td>${obj.peso}</td><td><span class="soma-pill ${cls}">${obj.soma}</span></td>`;
+  };
+  return `<tr>
+    <td class="nm">${r.name}</td>
+    <td>${r.idade??'—'}</td>
+    <td>${r.altura??'—'}</td>
+    ${cell(r.set,colorSet)}
+    ${cell(r.out,colorOut)}
+    <td class="dash">—</td><td class="dash">—</td>
+    <td class="dash">—</td><td class="dash">—</td>
+    <td class="av">${avaliacaoTxt(r)}</td>
+  </tr>`;
+}).join('');
+</script>
+</body>
+</html>

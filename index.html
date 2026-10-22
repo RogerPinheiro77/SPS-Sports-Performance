@@ -15384,9 +15384,9 @@ function renderNutriAval(){
   const formHtml=_showNaForm?`
   <div class="ipanel">
     <div class="sh"><div class="sh-t">Nova Avaliação ${_naAtId?'— '+APP.athletes.find(a=>a.id===_naAtId)?.name:''}</div><button class="btn btn-sm btn-gh" onclick="_showNaForm=false;renderNutriAval()">✕</button></div>
-    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="na-at" onchange="_naAtId=this.value;_naAutoMuscle()">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_naAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
-    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="na-date" type="date" value="${today()}" onchange="_naAutoMuscle()"></div></div>
-    <div class="fr3"><div class="form-g"><label class="fl">Peso (kg)</label><input class="fc" id="na-wt" type="number" step="0.1" oninput="calcBMI();_naAutoMuscle()"></div>
+    <div class="fr"><div class="form-g"><label class="fl">Atleta *</label><select class="fc" id="na-at" onchange="_naAtId=this.value;_naAutoMuscle();_naClubNoteAuto()">${APP.athletes.sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${a.id}" ${a.id===_naAtId?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select></div>
+    <div class="form-g"><label class="fl">Data *</label><input class="fc" id="na-date" type="date" value="${today()}" onchange="_naAutoMuscle();_naClubNoteAuto()"></div></div>
+    <div class="fr3"><div class="form-g"><label class="fl">Peso (kg)</label><input class="fc" id="na-wt" type="number" step="0.1" oninput="calcBMI();_naAutoMuscle();_naClubNoteAuto()"></div>
     <div class="form-g"><label class="fl">Altura (cm)</label><input class="fc" id="na-ht" type="number" oninput="calcBMI();_naAutoMuscle()"></div>
     <div class="form-g"><label class="fl">IMC (auto)</label><input class="fc" id="na-bmi" readonly placeholder="—"></div></div>
     <div class="fr3">
@@ -15423,6 +15423,8 @@ function renderNutriAval(){
     </div>
     <div class="form-g" style="margin-top:9px"><label class="fl">Notas</label><textarea class="fc" id="na-notes" rows="2"></textarea></div>
     <div class="form-g" style="margin-top:9px"><label class="fl">💬 Nota para a Atleta <span style="font-weight:400;color:var(--t2)">(opcional — aparece na app dela, em vez de números)</span></label><textarea class="fc" id="na-athnote" rows="2" placeholder="Ex: Continuas a evoluir bem na força, boa consistência nas últimas semanas."></textarea></div>
+    <div class="form-g" style="margin-top:9px"><label class="fl">📋 Avaliação (formato Clube) <span style="font-weight:400;color:var(--t2)">(auto, editável — usada no "PDF Plantel (Clube)")</span></label>
+      <div style="display:flex;gap:4px"><input class="fc" id="na-clubnote" type="text" placeholder="Ex: Diminuição % de massa gorda"><button type="button" class="btn btn-xs btn-gh" title="Recalcular a partir do peso/soma de pregas vs. a avaliação anterior" onclick="_naClubNoteAuto(true)">🧮</button></div></div>
     <div style="display:flex;gap:8px"><button class="btn btn-g" onclick="saveNutriAval()">💾 Guardar</button><button class="btn btn-gh" onclick="_showNaForm=false;renderNutriAval()">Cancelar</button></div>
   </div>`:'';
 
@@ -15453,7 +15455,8 @@ function renderNutriAval(){
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     ${evoSelHtml}
     <button class="btn btn-gh" onclick="printNaEvolutionPDF()">🖨️ PDF Evolução</button>
-    <button class="btn btn-gh" onclick="printNaPlantelComparativoPDF()">🖨️ PDF Plantel (2 últimas)</button>
+    <button class="btn btn-gh" onclick="printNaPlantelComparativoPDF()">🖨️ PDF Plantel (SPS)</button>
+    <button class="btn btn-gh" onclick="openNaPlantelClubePicker()">🖨️ PDF Plantel (Clube)</button>
     <button class="btn btn-g" onclick="_showNaForm=!_showNaForm;renderNutriAval()">+ Nova Avaliação</button>
   </div></div>
   ${formHtml}${tableHtml}`;
@@ -15473,6 +15476,7 @@ function _naSkinfSum(){
   const allFilled=els.every(el=>el&&el.value!=='');
   out.value=allFilled?Math.round(els.reduce((s,el)=>s+(+el.value||0),0)*10)/10:'';
   _naAutoFat();
+  _naClubNoteAuto();
 }
 // % Gordura — equação de Evans et al. (2005), a que teve melhor desempenho (R²=0,70-0,83
 // vs. DXA, sem viés significativo) num estudo de 2026 validado especificamente em
@@ -15517,6 +15521,45 @@ function _ageAtDate(dob,atDate){
   if(a.getMonth()<d.getMonth()||(a.getMonth()===d.getMonth()&&a.getDate()<d.getDate()))age--;
   return (age>=0&&age<100)?age:null;
 }
+// "Avaliação (formato Clube)" — texto curto auto-sugerido comparando esta avaliação
+// (em preenchimento) com a avaliação ANTERIOR dessa atleta (a mais recente antes da
+// data escolhida), mesmo espírito de _naAutoFat/_naAutoMuscle (auto só preenche se o
+// campo estiver vazio; force=true, pelo botão 🧮, recalcula sempre). Usada no "PDF
+// Plantel (Clube)" (printNaPlantelClubePDF) — pedido do Roger de replicar a folha de
+// referência do clube, cuja coluna "Avaliação" tem frases curtas deste tipo
+// ("Diminuição % de massa gorda", "Melhoria", etc.). Sem avaliação anterior para
+// comparar, fica vazio (nada a dizer ainda) — nunca inventa uma frase sem base.
+function _naClubNoteAuto(force){
+  const el=document.getElementById('na-clubnote');if(!el)return;
+  if(!force&&el.value!=='')return;
+  const aid=(document.getElementById('na-at')||{}).value;
+  const dt=(document.getElementById('na-date')||{}).value;
+  if(!aid||!dt)return;
+  const prev=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===aid&&a.date<dt).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  if(!prev){el.value='';return;}
+  const num=v=>(v===''||v==null||v===undefined||isNaN(+v))?null:+v;
+  const wt=num((document.getElementById('na-wt')||{}).value);
+  const soma=num((document.getElementById('na-sumpregas')||{}).value);
+  el.value=_naClubNoteText(wt,num(prev.weight),soma,num(prev.sumSkinfolds));
+}
+// Regras: "massa gorda" segue a Soma de Pregas (proxy já usado no resto da app — ver
+// NA_GUIDE_DEFAULTS, sem limiar absoluto neste campo, só faz sentido por tendência);
+// "peso corporal" segue o Peso, com uma margem de 0.1kg para não reagir a ruído de
+// balança. Sem nenhum dos dois dados nas duas avaliações, devolve ''.
+function _naClubNoteText(wt,pWt,soma,pSoma){
+  const dSoma=(soma!=null&&pSoma!=null)?soma-pSoma:null;
+  const dWt=(wt!=null&&pWt!=null)?wt-pWt:null;
+  const fatDown=dSoma!=null&&dSoma<0, fatUp=dSoma!=null&&dSoma>0;
+  const wtDown=dWt!=null&&dWt<-0.1, wtUp=dWt!=null&&dWt>0.1;
+  if(fatDown&&wtDown)return 'Diminuição % de massa gorda e peso corporal';
+  if(fatUp&&wtUp)return 'Aumento % de massa gorda e peso corporal';
+  if(fatDown)return 'Diminuição % de massa gorda';
+  if(fatUp)return 'Aumento % de massa gorda';
+  if(wtDown)return 'Diminuição de peso corporal';
+  if(wtUp)return 'Aumento de peso corporal';
+  if(dSoma!=null||dWt!=null)return 'Estável';
+  return '';
+}
 function _naWHR(){
   const w=+((document.getElementById('na-cint')||{}).value||'');
   const h=+((document.getElementById('na-anc')||{}).value||'');
@@ -15540,7 +15583,7 @@ function saveNutriAval(){
     abdominal:g('na-abd'),supraespinal:g('na-spe'),crural:g('na-cru'),geminal:g('na-gem'),
     sumSkinfolds:g('na-sumpregas'),
     armCirc:g('na-braco'),thighCirc:g('na-coxa'),calfCirc:g('na-pgem'),waistCirc:g('na-cint'),hipCirc:g('na-anc'),whr:g('na-whr'),
-    notes:g('na-notes'),athleteNote:g('na-athnote'),registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
+    notes:g('na-notes'),athleteNote:g('na-athnote'),clubNote:g('na-clubnote'),registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
   APP.nutritionAssessments.push(a);
   if(_sync)cloudUpsert('nutrition_records',a);
   saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
@@ -15831,6 +15874,171 @@ function printNaPlantelComparativoPDF(){
   </div>`;
   _printWin(title,body,null,null,'A3');
 }
+
+// ── PDF Plantel (Clube) — formato da folha de referência do clube (sps-v233) ──────
+// Pedido do Roger: na secção Nutrição → Avaliações, manter o export já existente
+// (renomeado "PDF Plantel (SPS)" acima) e criar um 2º formato, fiel à folha de
+// referência do próprio clube ("AVALIAÇÃO ANTROPOMÉTRICA SENIORES FEMININO"):
+// Atleta/Idade/Altura, depois um grupo de colunas por mês (Peso + Soma de Pregas) e
+// uma coluna final "Avaliação" (texto curto). 3 pontos confirmados com o Roger antes
+// de codificar (mockup enviado primeiro, ver histórico): (1) cor da Soma de Pregas
+// RELATIVA ao plantel (quartis desse mês, recalculados sempre) — nunca um limiar
+// absoluto, mesma cautela já documentada em NA_GUIDE_DEFAULTS para este campo;
+// (2) "Avaliação" auto-sugerida ao registar a avaliação (_naClubNoteAuto/clubNote,
+// acima) e sempre editável pela nutricionista; (3) intervalo de meses escolhido antes
+// de gerar (uma época inteira teria demasiadas colunas para caber legível).
+function _naMonthsAvailable(){
+  return [...new Set((APP.nutritionAssessments||[]).map(a=>a.date.slice(0,7)))].sort();
+}
+let _naClubePickerMonths=null;
+function openNaPlantelClubePicker(){
+  const months=_naMonthsAvailable();
+  if(!months.length)return toast('Sem avaliações registadas.','err');
+  const defFrom=months[Math.max(0,months.length-4)], defTo=months[months.length-1];
+  _naClubePickerMonths=months;
+  const opts=sel=>months.map(m=>`<option value="${m}" ${m===sel?'selected':''}>${_presMonthLabel(m)}</option>`).join('');
+  const body=`
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Escolhe o intervalo de meses a incluir (um grupo de colunas por mês, como na folha do clube).</div>
+    <div class="fr">
+      <div class="form-g"><label class="fl">De</label><select class="fc" id="na-clube-from">${opts(defFrom)}</select></div>
+      <div class="form-g"><label class="fl">Até</label><select class="fc" id="na-clube-to">${opts(defTo)}</select></div>
+    </div>
+    <button class="btn btn-g" style="width:100%;margin-top:12px" onclick="_confirmNaPlantelClubePicker()">🖨️ Gerar PDF</button>
+  `;
+  openMod('🖨️ PDF Plantel (Clube) — Intervalo de Meses',body);
+}
+function _confirmNaPlantelClubePicker(){
+  const from=document.getElementById('na-clube-from').value;
+  const to=document.getElementById('na-clube-to').value;
+  if(from>to)return toast('O mês "De" tem de ser anterior/igual ao "Até".','err');
+  closeMod();
+  printNaPlantelClubePDF(from,to);
+}
+// Coloração relativa ao plantel (quartis) para a Soma de Pregas — nunca um limiar
+// absoluto (ver nota em NA_GUIDE_DEFAULTS/printNaSinglePDF). Precisa de pelo menos 2
+// valores nesse mês para a comparação fazer sentido; com 0/1 valores devolve sempre
+// null (sem cor) — não há "plantel" para comparar com um valor só.
+function _naQuartileColorer(vals){
+  const sorted=vals.filter(v=>v!=null).slice().sort((a,b)=>a-b);
+  if(sorted.length<2)return ()=>null;
+  const q=p=>{const idx=(sorted.length-1)*p,lo=Math.floor(idx),hi=Math.ceil(idx);return sorted[lo]+(sorted[hi]-sorted[lo])*(idx-lo);};
+  const p25=q(.25),p50=q(.5),p75=q(.75);
+  return v=>{
+    if(v==null)return null;
+    if(v<=p25)return 'g';
+    if(v<=p50)return 'y';
+    if(v<=p75)return 'o';
+    return 'r';
+  };
+}
+function printNaPlantelClubePDF(fromMonth,toMonth){
+  const months=_naMonthsAvailable().filter(m=>m>=fromMonth&&m<=toMonth);
+  if(!months.length)return toast('Sem avaliações nesse intervalo.','err');
+  const num=v=>(v===''||v==null||v===undefined||isNaN(+v))?null:+v;
+
+  // Altura: última medição conhecida da atleta, independentemente do intervalo
+  // escolhido — é um dado estável (mesma lógica da folha de referência, que também só
+  // tem 1 coluna de Altura, não uma por mês).
+  const lastHeight=at=>{
+    const avals=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===at.id&&a.height!==''&&a.height!=null).sort((a,b)=>b.date.localeCompare(a.date));
+    return avals.length?num(avals[0].height):null;
+  };
+
+  // Por mês do intervalo: mapa athleteId→avaliação mais recente NESSE mês (mais de 1
+  // avaliação no mesmo mês usa a mais recente) + o "colorer" de quartis calculado só
+  // com as atletas avaliadas nesse mês específico.
+  const monthData=months.map(m=>{
+    const byAth={};
+    (APP.nutritionAssessments||[]).filter(a=>a.date.slice(0,7)===m).forEach(a=>{
+      if(!byAth[a.athleteId]||a.date>byAth[a.athleteId].date)byAth[a.athleteId]=a;
+    });
+    const somaVals=Object.values(byAth).map(a=>num(a.sumSkinfolds));
+    return {month:m,byAth,colorer:_naQuartileColorer(somaVals)};
+  });
+
+  const athRows=APP.athletes.map(at=>{
+    const hasAny=monthData.some(md=>md.byAth[at.id]);
+    if(!hasAny)return null;
+    const age=_ageAtDate(at.dob,today());
+    const height=lastHeight(at);
+    // "Avaliação" = nota (clubNote) da avaliação mais recente DENTRO do intervalo
+    // escolhido — a mesma lógica da folha do clube, que tem uma única frase por
+    // atleta, não uma por mês.
+    const avalsInRange=(APP.nutritionAssessments||[]).filter(a=>a.athleteId===at.id&&months.includes(a.date.slice(0,7))).sort((a,b)=>b.date.localeCompare(a.date));
+    const clubNote=avalsInRange.length?(avalsInRange[0].clubNote||''):'';
+    return {at,age,height,clubNote};
+  }).filter(Boolean).sort((a,b)=>_displayName(a.at).localeCompare(_displayName(b.at)));
+  const semDados=APP.athletes.length-athRows.length;
+
+  const clsMap={g:'bg-g',y:'bg-y',o:'bg-o',r:'bg-r'};
+  const bodyRowsHtml=athRows.map(row=>`<tr>
+    <td class="nm">${escHtml(_displayName(row.at))}</td>
+    <td>${row.age!=null?row.age:'—'}</td>
+    <td>${row.height!=null?row.height+'cm':'—'}</td>
+    ${monthData.map(md=>{
+      const a=md.byAth[row.at.id];
+      if(!a)return '<td class="dash">—</td><td class="dash">—</td>';
+      const wt=num(a.weight), soma=num(a.sumSkinfolds);
+      const cls=soma!=null?md.colorer(soma):null;
+      const somaHtml=soma==null?'<span class="dash">—</span>':(cls?`<span class="badge ${clsMap[cls]}">${soma}mm</span>`:soma+'mm');
+      return `<td>${wt!=null?wt+'kg':'<span class="dash">—</span>'}</td><td>${somaHtml}</td>`;
+    }).join('')}
+    <td class="av">${row.clubNote?escHtml(row.clubNote):'<span class="dash">—</span>'}</td>
+  </tr>`).join('');
+
+  const colgroupHtml=`<col class="nmcol"><col class="agecol"><col class="hcol">${months.map(()=>'<col class="dcol"><col class="dcol">').join('')}<col class="avcol">`;
+  const grpHeaderHtml=months.map(m=>`<th colspan="2">${_presMonthLabel(m)}</th>`).join('');
+  const subHeaderHtml=months.map(()=>'<th class="g0">Peso</th><th>Soma Pregas</th>').join('');
+
+  const title=`Avaliação Antropométrica — Plantel (Clube) — ${_presMonthLabel(fromMonth)} a ${_presMonthLabel(toMonth)}`;
+  const body=`
+  <style>
+    .na-plantel-club table{table-layout:fixed}
+    .na-plantel-club col.nmcol{width:34mm}
+    .na-plantel-club col.agecol{width:11mm}
+    .na-plantel-club col.hcol{width:12mm}
+    .na-plantel-club col.dcol{width:15mm}
+    .na-plantel-club col.avcol{width:46mm}
+    .na-plantel-club thead tr.grp th{background:#1d6f3b;color:#fff;padding:5px 2px;text-align:center;font-size:7.3pt;font-weight:700;border-left:3px solid #e9f3ee}
+    .na-plantel-club thead tr.grp th.nmcol,.na-plantel-club thead tr.grp th.agecol,.na-plantel-club thead tr.grp th.hcol,.na-plantel-club thead tr.grp th.avcol{background:#15532c;border-left:none}
+    .na-plantel-club thead tr.sub th{background:#e9f3ee;color:#1d6f3b;padding:3px 2px;text-align:center;font-size:6.6pt;font-weight:700;text-transform:uppercase;letter-spacing:.2px}
+    .na-plantel-club thead tr.sub th.g0{border-left:3px solid #fff}
+    .na-plantel-club td{padding:4px 2px;font-size:7.4pt;text-align:center}
+    .na-plantel-club td.nm{text-align:left;font-weight:700;font-size:7.6pt;padding-left:6px;white-space:nowrap}
+    .na-plantel-club td.av{text-align:left;padding-left:6px;font-size:7pt;color:#333}
+    .na-plantel-club .dash{color:#ccc}
+    .na-plantel-club .badge{font-size:6.2pt;padding:0 3px}
+    .na-plantel-club .bg-o{background:#ffe4c4;color:#9a5b00}
+    .na-plantel-club .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:7.3pt;color:#555;margin:8px 0 2px;align-items:center}
+    .na-plantel-club .legend .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:-1px}
+  </style>
+  <div class="na-plantel-club">
+    <div class="pr-title">${title}</div>
+    <p style="font-size:8pt;color:#666;margin-bottom:8px">
+      Cor da Soma de Pregas relativa ao plantel nesse mês (quartis, recalculados sempre — nunca um limiar absoluto,
+      por variar muito por atleta/desporto). "Avaliação" é a nota da avaliação mais recente no intervalo escolhido
+      (auto-sugerida ao registar, editável pela nutricionista).
+    </p>
+    <table>
+      <colgroup>${colgroupHtml}</colgroup>
+      <thead>
+        <tr class="grp"><th class="nmcol" rowspan="2">Atleta</th><th class="agecol" rowspan="2">Idade</th><th class="hcol" rowspan="2">Altura</th>${grpHeaderHtml}<th class="avcol" rowspan="2">Avaliação</th></tr>
+        <tr class="sub">${subHeaderHtml}</tr>
+      </thead>
+      <tbody>${bodyRowsHtml||`<tr><td colspan="${4+months.length*2}" style="text-align:center;color:#999">Sem avaliações neste intervalo</td></tr>`}</tbody>
+    </table>
+    <div class="legend">
+      <span><span class="sw" style="background:#d4edda;border:1px solid #155724"></span>melhor quartil do plantel</span>
+      <span><span class="sw" style="background:#fff3cd;border:1px solid #856404"></span>2º quartil</span>
+      <span><span class="sw" style="background:#ffe4c4;border:1px solid #9a5b00"></span>3º quartil</span>
+      <span><span class="sw" style="background:#f8d7da;border:1px solid #721c24"></span>pior quartil</span>
+      <span style="color:#ccc">— sem avaliação nesse mês</span>
+    </div>
+    ${semDados?`<p style="font-size:8pt;color:#666;margin-top:6px">${semDados} atleta${semDados>1?'s':''} sem avaliação no intervalo escolhido.</p>`:''}
+  </div>`;
+  _printWin(title,body,null,null,'A3');
+}
+
 // PDF de Avaliação Individual (sps-v168) — uma só avaliação, ao contrário do PDF de
 // Evolução acima (várias). Cores por guideline absoluta (banda científica) em %Gordura e
 // WHR via _naBodyFatColor/_naWhrColor; IMC mantém a classificação universal já existente;
@@ -22410,7 +22618,7 @@ async function pullCloud(){
       ['injuries','injuries',(d)=>APP.injuries=d.map(r=>({...r,athleteId:r.athlete_id,returnDate:r.return_date,bodyPart:r.body_part,phaseDesc:r.phase_desc,registeredAt:r.registered_at,registeredById:r.registered_by_id,phaseHistory:r.phase_history||[],responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['treatments','treatments',(d)=>APP.treatments=d.map(r=>({...r,athleteId:r.athlete_id,injuryId:r.injury_id,professional:r.professional_name,professionalId:r.professional_id,registeredAt:r.registered_at}))],
       ['nutrition_records','nutritionAssessments',(d)=>APP.nutritionAssessments=d.map(r=>({...r,athleteId:r.athlete_id,bmi:r.imc,bodyFat:r.body_fat,registeredAt:r.registered_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,
-        sumSkinfolds:r.sum_skinfolds,armCirc:r.arm_circ,thighCirc:r.thigh_circ,calfCirc:r.calf_circ,waistCirc:r.waist_circ,hipCirc:r.hip_circ,muscleKg:r.muscle_kg,athleteNote:r.athlete_note}))],
+        sumSkinfolds:r.sum_skinfolds,armCirc:r.arm_circ,thighCirc:r.thigh_circ,calfCirc:r.calf_circ,waistCirc:r.waist_circ,hipCirc:r.hip_circ,muscleKg:r.muscle_kg,athleteNote:r.athlete_note,clubNote:r.club_note}))],
       ['nutrition_plans','nutritionPlans',(d)=>APP.nutritionPlans=d.map(r=>({...r,athleteId:r.athlete_id,weekMeals:r.week_meals||null,startDate:r.start_date,createdAt:r.created_at,registeredBy:r.registered_by,registeredById:r.registered_by_id,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name}))],
       ['nutrition_appointments','nutritionAppointments',(d)=>APP.nutritionAppointments=d.map(r=>({...r,athleteId:r.athlete_id,registeredBy:r.registered_by,registeredById:r.registered_by_id,registeredAt:r.registered_at,responsavelId:r.responsavel_id,responsavelName:r.responsavel_name,rsvpStatus:r.rsvp_status,rsvpReason:r.rsvp_reason,rsvpRespondedAt:r.rsvp_responded_at}))],
       ['nutrition_gameday_plan','nutritionGameDayPlan',(d)=>{const r=d[0];APP.nutritionGameDayPlan=r?{id:r.id,wake:r.wake,preGameMeal:r.pre_game_meal,hydration:r.hydration,snack:r.snack,postGame:r.post_game,updatedAt:r.updated_at,updatedBy:r.updated_by,updatedById:r.updated_by_id}:null;}],
@@ -22795,11 +23003,14 @@ const _CLOUD_TABLE_SCHEMA={
   // sps-v165: protocolo de 8 pregas (ISAK) + 5 perímetros + massa muscular em kg (campo
   // novo `muscle_kg`, distinto do antigo `muscle` em % — nunca reinterpretado, ver
   // saveNutriAval). `muscle` fica na tabela só para não perder o histórico já gravado.
+  // club_note (sps-v233): "Avaliação" curta no formato da folha de referência do clube
+  // (ex. "Diminuição % de massa gorda") — auto-sugerida ao registar (_naClubNoteAuto),
+  // sempre editável; usada só pelo PDF Plantel (Clube), printNaPlantelClubePDF.
   nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle','registered_by','registered_by_id',
       'bicipital','subescapular','abdominal','supraespinal','crural','geminal','sum_skinfolds',
-      'arm_circ','thigh_circ','calf_circ','waist_circ','hip_circ','whr','muscle_kg','athlete_note'],
+      'arm_circ','thigh_circ','calf_circ','waist_circ','hip_circ','whr','muscle_kg','athlete_note','club_note'],
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id',
-      sumSkinfolds:'sum_skinfolds',armCirc:'arm_circ',thighCirc:'thigh_circ',calfCirc:'calf_circ',waistCirc:'waist_circ',hipCirc:'hip_circ',muscleKg:'muscle_kg',athleteNote:'athlete_note'}},
+      sumSkinfolds:'sum_skinfolds',armCirc:'arm_circ',thighCirc:'thigh_circ',calfCirc:'calf_circ',waistCirc:'waist_circ',hipCirc:'hip_circ',muscleKg:'muscle_kg',athleteNote:'athlete_note',clubNote:'club_note'}},
   // week_meals (sps-v195): grelha semanal (7 dias x 6 refeições) do Diário Alimentar
   // evoluído, opcional — plano sem week_meals continua a usar só 'meals' (genérico,
   // compatibilidade com planos antigos). Ver _npWeekMealsFor/renderNutriAnamneseDiario.
