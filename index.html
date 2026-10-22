@@ -14763,8 +14763,13 @@ function _hidratacaoCore(containerId){
   const curGame=_hydraGameForCur();
   const durDefault=rec&&rec.durationH!=null?rec.durationH:(curGame&&curGame.djDurJogo?+(curGame.djDurJogo/60).toFixed(2):'');
   el.innerHTML=`
-  <div style="font-size:17px;font-weight:900;margin-bottom:2px">💧 Matchday Hydration</div>
-  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Protocolo de hidratação em dia de jogo — valores de referência, nunca conselho médico. O protocolo individual definido para cada atleta prevalece sempre sobre os valores gerais.</div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:17px;font-weight:900;margin-bottom:2px">💧 Matchday Hydration</div>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Protocolo de hidratação em dia de jogo — valores de referência, nunca conselho médico. O protocolo individual definido para cada atleta prevalece sempre sobre os valores gerais.</div>
+    </div>
+    <button class="btn btn-gh btn-sm" onclick="printHydraPlantelPDF()">🖨️ PDF Plantel (Jogo)</button>
+  </div>
   ${_hydraDefaultsEditorHtml()}
   <div class="card" style="margin-bottom:14px;padding:14px">
     <div style="font-weight:800;font-size:13px;margin-bottom:10px">Registo de peso e líquidos</div>
@@ -14793,7 +14798,7 @@ function _hidratacaoCore(containerId){
       <div>Objetivo de reposição pós-jogo: <strong id="hy-target">—</strong></div>
     </div>
     <textarea class="fc" id="hy-notes" rows="2" placeholder="Notas (opcional)">${rec?escHtml(rec.notes||''):''}</textarea>
-    <div style="margin-top:10px"><button class="btn" onclick="saveHydraRecordFromForm()">Guardar registo</button></div>
+    <div style="margin-top:10px"><button class="btn" onclick="saveHydraRecordFromForm()">Guardar registo</button>${rec?` <button class="btn btn-gh" onclick="printHydraIndividualPDF('${_hydraSelAthlete}','${_hydraSelGame}')">🖨️ PDF</button>`:''}</div>
     `}
   </div>
   ${_hydraAthleteOverrideHtml()}`;
@@ -14801,6 +14806,78 @@ function _hidratacaoCore(containerId){
 }
 function renderNutriHidratacao(){_hydraRenderContainer='pg-nutri-hidratacao';_hidratacaoCore('pg-nutri-hidratacao');}
 function renderFisioHidratacao(){_hydraRenderContainer='pg-fisio-hidratacao';_hidratacaoCore('pg-fisio-hidratacao');}
+// sps-v234: espaço de impressão para Matchday Hydration — pedido do Roger. Individual (ficha
+// do registo de uma atleta num jogo específico, só quando já há registo guardado) + Plantel
+// (checklist de todas as atletas num jogo escolhido, mesmo espírito do checklist de plantel
+// já existente em Suplementação). Partilhado por Nutri e Fisio (_hidratacaoCore é o mesmo
+// core das duas páginas), mesma paridade de acesso já decidida para esta funcionalidade
+// (sps-v188, "AS DUAS").
+function printHydraIndividualPDF(athleteId,gameId){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  const g=(APP.games||[]).find(x=>x.id===gameId);
+  const rec=_hydraRecordFor(athleteId,gameId);
+  if(!rec)return toast('Sem registo guardado para esta combinação.','err');
+  const bands=_hydraBands(athleteId);
+  const age=at.dob?ageYears(at.dob):null;
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const lossPct=rec.weightLossPct!=null?rec.weightLossPct:_hydraWeightLossPct(rec.preWeight,rec.postWeight);
+  const colorInfo=_hydraWeightColor(lossPct,bands);
+  const target=_hydraReplacementTarget(rec.preWeight,rec.postWeight,bands);
+  const kpis=[
+    ['Peso Pré-Jogo',rec.preWeight!=null?rec.preWeight+' kg':'—'],
+    ['Peso Pós-Jogo',rec.postWeight!=null?rec.postWeight+' kg':'—'],
+    ['Taxa de Sudorese',rec.sweatRate!=null?(+rec.sweatRate).toFixed(2)+' L/h':'—'],
+    ['Objetivo de Reposição',target!=null?target.toFixed(2)+' L':'—']
+  ];
+  const body=`
+  <div class="pr-title">Matchday Hydration — Ficha Individual</div>
+  <div class="profile-header">
+    ${photoHtml}
+    <div style="flex:1">
+      <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}</div>
+      <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'}${at.num?' · Nº '+at.num:''}${age?' · '+age+' anos':''}</div>
+      <div style="font-size:8.5pt;color:#1d6f3b;font-weight:700;margin-top:3px">${g?escHtml(g.opp||'?')+' — '+fmtDate(g.date):'Jogo não identificado'}</div>
+    </div>
+  </div>
+  <div class="kpi-row">${kpis.map(k=>`<div class="kpi"><div class="kpi-v" style="font-size:12pt">${k[1]}</div><div class="kpi-l">${k[0]}</div></div>`).join('')}</div>
+  <div style="margin:8px 0 14px">
+    <span class="badge ${colorInfo.cls}" style="font-size:9pt">${lossPct!=null&&!isNaN(lossPct)?'Perda de peso: '+lossPct.toFixed(1)+'%':'Sem dados de perda de peso'}</span>
+    ${colorInfo.label?`<span style="font-size:8.5pt;color:#666;margin-left:8px">${escHtml(colorInfo.label)}</span>`:''}
+  </div>
+  <h3>Líquidos</h3>
+  <div style="font-size:9.5pt;color:#333">Líquidos ingeridos: ${rec.fluidsL!=null?rec.fluidsL+' L':'—'} · Urina: ${rec.urineL!=null?rec.urineL+' L':'—'} · Duração: ${rec.durationH!=null?rec.durationH+' h':'—'}</div>
+  ${rec.notes?`<h3>Notas</h3><div style="font-size:9.5pt;color:#333">${escHtml(rec.notes)}</div>`:''}`;
+  _printWin(`Matchday Hydration — ${at.name}`,body);
+}
+function printHydraPlantelPDF(){
+  const gameId=_hydraSelGame;
+  if(!gameId)return toast('Escolhe primeiro o jogo no seletor acima.','err');
+  const g=(APP.games||[]).find(x=>x.id===gameId);
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>(a.num||999)-(b.num||999)||_displayName(a).localeCompare(_displayName(b)));
+  let withRecord=0;
+  const rows=athletes.map(at=>{
+    const rec=_hydraRecordFor(at.id,gameId);
+    if(!rec)return `<tr><td>${at.num||''}</td><td>${escHtml(_displayName(at))}</td><td colspan="5" style="color:#999;text-align:center">Sem registo</td></tr>`;
+    withRecord++;
+    const bands=_hydraBands(at.id);
+    const lossPct=rec.weightLossPct!=null?rec.weightLossPct:_hydraWeightLossPct(rec.preWeight,rec.postWeight);
+    const colorInfo=_hydraWeightColor(lossPct,bands);
+    const target=_hydraReplacementTarget(rec.preWeight,rec.postWeight,bands);
+    return `<tr><td>${at.num||''}</td><td>${escHtml(_displayName(at))}</td>
+      <td style="text-align:center">${rec.preWeight!=null?rec.preWeight+' kg':'—'}</td>
+      <td style="text-align:center">${rec.postWeight!=null?rec.postWeight+' kg':'—'}</td>
+      <td style="text-align:center"><span class="badge ${colorInfo.cls}">${lossPct!=null&&!isNaN(lossPct)?lossPct.toFixed(1)+'%':'—'}</span></td>
+      <td style="text-align:center">${rec.sweatRate!=null?(+rec.sweatRate).toFixed(2)+' L/h':'—'}</td>
+      <td style="text-align:center">${target!=null?target.toFixed(2)+' L':'—'}</td></tr>`;
+  }).join('');
+  const body=`
+  <div class="pr-title">Matchday Hydration — Checklist de Plantel</div>
+  <div style="font-size:9pt;color:#666;margin-bottom:10px">${g?escHtml(g.opp||'?')+' — '+fmtDate(g.date):'Jogo não identificado'}</div>
+  <table><thead><tr><th style="width:5%">Nº</th><th style="width:20%">Atleta</th><th style="width:13%">Peso Pré</th><th style="width:13%">Peso Pós</th><th style="width:13%">Perda %</th><th style="width:18%">Sudorese</th><th style="width:18%">Reposição</th></tr></thead>
+  <tbody>${rows||`<tr><td colspan="7" style="text-align:center;color:#999">Sem atletas no plantel</td></tr>`}</tbody></table>
+  <div style="font-size:7.5pt;color:#999;margin-top:10px">${withRecord} de ${athletes.length} atletas com registo neste jogo.</div>`;
+  _printWin('Matchday Hydration — Plantel',body,null,null,'A3');
+}
 
 // ─── SUPLEMENTAÇÃO (sps-v193, Bloco 1) ──────────────────────────
 // Pedido do Roger (01/10/2026): catálogo reutilizável de suplementos + prescrição
@@ -16161,6 +16238,7 @@ function renderNutriPlanos(){
     <div class="ch"><span class="ct">${at?.name||'?'} — ${p.name}</span>
       <div style="display:flex;gap:6px;align-items:center">
         ${p.active?'<span class="bdg bg-g">Ativo</span>':'<span class="bdg bg-gr">Inativo</span>'}
+        <button class="btn btn-xs btn-gh" onclick="printNutriPlanoPDF('${p.id}')" title="Imprimir este plano">🖨️</button>
         <button class="btn btn-xs btn-gh" onclick="editNutriPlano('${p.id}')">✏️</button>
         <button class="btn btn-xs btn-gh" onclick="toggleNpActive('${p.id}')">${p.active?'Desativar':'Ativar'}</button>
         <button class="btn btn-xs btn-r" onclick="deleteNutriPlano('${p.id}')">🗑️</button>
@@ -16176,7 +16254,10 @@ function renderNutriPlanos(){
 
   document.getElementById('pg-nutri-planos').innerHTML=`
   <div class="sh"><div class="sh-t">🥗 Planos Nutricionais</div>
-  <button class="btn btn-g" onclick="novoNutriPlano()">+ Novo Plano</button></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-gh" onclick="printNutriPlanosPlantelPDF()">🖨️ PDF Plantel</button>
+    <button class="btn btn-g" onclick="novoNutriPlano()">+ Novo Plano</button>
+  </div></div>
   ${formHtml}${plansHtml}`;
 }
 // sps-v203: clicar "+ Novo Plano" cria o registo de imediato (defaults: atleta nº1 do
@@ -16228,6 +16309,55 @@ function editNutriPlano(id){
 }
 function toggleNpActive(id){const p=APP.nutritionPlans.find(x=>x.id===id);if(p){p.active=!p.active;if(_sync)cloudUpsert('nutrition_plans',p);saveData();toast(p.active?'Plano ativado':'Plano desativado');renderNutriPlanos();}}
 function deleteNutriPlano(id){if(!confirm('Apagar?'))return;APP.nutritionPlans=APP.nutritionPlans.filter(p=>p.id!==id);saveData();toast('Apagado');renderNutriPlanos();}
+// sps-v234: espaço de impressão para Planos Nutricionais — pedido do Roger (ver print da aba
+// Nutrição) de ter exportação PDF, por atleta e geral, em todas as abas da secção. PDF
+// individual (por plano/atleta, botão 🖨️ no próprio cartão) + PDF Plantel (resumo de macros
+// do plano ativo mais recente de cada atleta) — mesmo espírito/mecânica dos PDFs já existentes
+// noutras abas (Suplementação, Avaliações).
+function printNutriPlanoPDF(planId){
+  const p=(APP.nutritionPlans||[]).find(x=>x.id===planId);if(!p)return;
+  const at=APP.athletes.find(a=>a.id===p.athleteId);if(!at)return;
+  const age=at.dob?ageYears(at.dob):null;
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const macros=[p.kcal?`${p.kcal} kcal`:'',p.protein?`${p.protein}g proteína`:'',p.carbs?`${p.carbs}g HC`:'',p.fat?`${p.fat}g gordura`:''].filter(Boolean).join(' · ');
+  const mealsHtml=(p.meals||[]).filter(m=>m.foods).map(m=>`
+    <div style="padding:7px 0;border-bottom:1px dotted #eee">
+      <div style="font-weight:700;font-size:11pt;color:#111">${MEAL_ICONS[m.name]||'🍴'} ${escHtml(m.name)} ${m.time?`<span style="font-size:8.5pt;color:#888;font-weight:400">${m.time}</span>`:''}${m.kcal?`<span style="font-size:8.5pt;color:#888;font-weight:400;margin-left:6px">${m.kcal} kcal</span>`:''}</div>
+      <div style="font-size:9.5pt;color:#555;margin-top:2px">${escHtml(m.foods)}</div>
+    </div>`).join('')||'<div style="font-size:9.5pt;color:#999;font-style:italic">Sem refeições detalhadas.</div>';
+  const body=`
+  <div class="pr-title">Plano Nutricional — ${escHtml(p.name||'Plano')}</div>
+  <div class="profile-header">
+    ${photoHtml}
+    <div style="flex:1">
+      <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}</div>
+      <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'}${at.num?' · Nº '+at.num:''}${age?' · '+age+' anos':''}</div>
+      <div style="font-size:8.5pt;color:#1d6f3b;font-weight:700;margin-top:3px">${p.active?'Plano ativo':'Plano inativo'}${p.startDate?' · desde '+fmtDateShort(p.startDate):''}</div>
+    </div>
+  </div>
+  ${p.objective?`<div style="font-size:10pt;color:#333;margin-bottom:6px">🎯 ${escHtml(p.objective)}</div>`:''}
+  ${macros?`<div class="kpi-row">${[['kcal',p.kcal],['Proteína',p.protein],['Hidratos',p.carbs],['Gordura',p.fat]].filter(x=>x[1]).map(x=>`<div class="kpi"><div class="kpi-v" style="font-size:14pt">${x[1]}</div><div class="kpi-l">${x[0]}</div></div>`).join('')}</div>`:''}
+  <h3>Refeições</h3>
+  ${mealsHtml}
+  ${p.responsavelName?`<div style="font-size:8.5pt;color:#888;margin-top:14px">👤 Responsável: ${escHtml(p.responsavelName)}</div>`:''}`;
+  _printWin(`Plano Nutricional — ${at.name}`,body);
+}
+function printNutriPlanosPlantelPDF(){
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>(a.num||999)-(b.num||999)||_displayName(a).localeCompare(_displayName(b)));
+  let withPlan=0;
+  const rows=athletes.map(at=>{
+    const p=(APP.nutritionPlans||[]).filter(x=>x.athleteId===at.id&&x.active).sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||''))[0];
+    if(!p)return `<tr><td>${at.num||''}</td><td>${escHtml(_displayName(at))}</td><td colspan="6" style="color:#999;text-align:center">Sem plano ativo</td></tr>`;
+    withPlan++;
+    return `<tr><td>${at.num||''}</td><td>${escHtml(_displayName(at))}</td><td>${escHtml(p.name||'—')}</td><td>${escHtml(p.objective||'—')}</td><td style="text-align:center">${p.kcal||'—'}</td><td style="text-align:center">${p.protein||'—'}</td><td style="text-align:center">${p.carbs||'—'}</td><td style="text-align:center">${p.fat||'—'}</td></tr>`;
+  }).join('');
+  const body=`
+  <div class="pr-title">Planos Nutricionais — Resumo de Plantel</div>
+  <table><thead><tr><th style="width:5%">Nº</th><th style="width:18%">Atleta</th><th style="width:16%">Plano</th><th style="width:18%">Objetivo</th><th style="width:10%">kcal</th><th style="width:11%">Proteína (g)</th><th style="width:11%">Hidratos (g)</th><th style="width:11%">Gordura (g)</th></tr></thead>
+  <tbody>${rows||`<tr><td colspan="8" style="text-align:center;color:#999">Sem atletas no plantel</td></tr>`}</tbody></table>
+  <div style="font-size:7.5pt;color:#999;margin-top:10px">Plano ativo mais recente de cada atleta. ${withPlan} de ${athletes.length} atletas com plano ativo.</div>`;
+  _printWin('Planos Nutricionais — Plantel',body,null,null,true);
+}
 
 // ─── ANAMNESE ALIMENTAR + DIÁRIO ALIMENTAR SEMANAL (sps-v195) ──────────────────
 // Pedido do Roger: "criar um espaço onde as atletas façam uma anamnese da sua alimentação
@@ -16245,8 +16375,13 @@ function renderNutriAnamneseDiario(){
   if(!_nadSelAthlete&&athletes.length)_nadSelAthlete=athletes[0].id;
   if(!_nadSelDay)_nadSelDay=WEEK_DAYS[(new Date().getDay()+6)%7];
   document.getElementById('pg-nutri-anamnese-diario').innerHTML=`
-  <div style="font-size:17px;font-weight:900;margin-bottom:2px">🍽️ Anamnese &amp; Diário Alimentar</div>
-  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Anamnese preenchida pela atleta (leitura) + diário alimentar aconselhado, prescrito pela Nutri, por dia da semana.</div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:17px;font-weight:900;margin-bottom:2px">🍽️ Anamnese &amp; Diário Alimentar</div>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.4">Anamnese preenchida pela atleta (leitura) + diário alimentar aconselhado, prescrito pela Nutri, por dia da semana.</div>
+    </div>
+    <button class="btn btn-gh btn-sm" onclick="printNutriAnamneseDiarioPlantelPDF()">🖨️ PDF Plantel</button>
+  </div>
   ${athletes.length?`<select class="fc" style="min-width:240px;margin-bottom:16px" onchange="_nadSelAthlete=this.value;renderNutriAnamneseDiario()">
     ${athletes.map(a=>`<option value="${a.id}" ${a.id===_nadSelAthlete?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}
   </select>
@@ -16373,6 +16508,32 @@ function nadCopyDay(athleteId,toDay){
   toast('Copiado de '+WEEK_DAY_FULL[fromDay]+' ✓');
   _nadSelDay=toDay;
   renderNutriAnamneseDiario();
+}
+// sps-v234: PDF Plantel (checklist de estado) — pedido do Roger de ter exportação PDF em
+// todas as abas de Nutrição, individual + geral onde fizer sentido. O individual já existia
+// (printNutriAnamneseDiarioPDF, abaixo); este é só um checklist de estado por atleta (sem
+// expor o conteúdo sensível da própria anamnese — decisão confirmada com o Roger), não o
+// conteúdo da anamnese em si.
+function printNutriAnamneseDiarioPlantelPDF(){
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>(a.num||999)-(b.num||999)||_displayName(a).localeCompare(_displayName(b)));
+  let anamCount=0,diarioCount=0;
+  const rows=athletes.map(at=>{
+    const an=_getDietAnamnesis(at.id);
+    const filled=!!an.selfReportUpdatedAt;
+    if(filled)anamCount++;
+    const plan=(APP.nutritionPlans||[]).filter(p=>p.athleteId===at.id&&p.active).sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||''))[0];
+    const hasDiario=!!(plan&&plan.weekMeals&&Object.values(plan.weekMeals).some(d=>Array.isArray(d)&&d.some(m=>m&&(m.foods||m.kcal||m.time))));
+    if(hasDiario)diarioCount++;
+    return `<tr><td>${at.num||''}</td><td>${escHtml(_displayName(at))}</td>
+      <td style="text-align:center">${filled?`<span class="badge bg-g">✅ ${fmtDateShort(an.selfReportUpdatedAt.slice(0,10))}</span>`:'<span class="badge bg-r">— Por preencher</span>'}</td>
+      <td style="text-align:center">${hasDiario?'<span class="badge bg-g">✅ Definido</span>':'<span class="badge bg-y">— Não definido</span>'}</td></tr>`;
+  }).join('');
+  const body=`
+  <div class="pr-title">Anamnese &amp; Diário Alimentar — Plantel</div>
+  <table><thead><tr><th style="width:8%">Nº</th><th style="width:32%">Atleta</th><th style="width:30%">Anamnese Alimentar</th><th style="width:30%">Diário Semanal</th></tr></thead>
+  <tbody>${rows||`<tr><td colspan="4" style="text-align:center;color:#999">Sem atletas no plantel</td></tr>`}</tbody></table>
+  <div style="font-size:7.5pt;color:#999;margin-top:10px">${anamCount} de ${athletes.length} atletas com anamnese preenchida · ${diarioCount} de ${athletes.length} com diário alimentar semanal já definido pela Nutri.</div>`;
+  _printWin('Anamnese & Diário — Plantel',body);
 }
 // PDF combinado Anamnese + Diário (2 "páginas" = 2 janelas de impressão em sequência,
 // chamadas sincronamente a partir do mesmo clique — _printWin só suporta uma orientação
@@ -16528,6 +16689,26 @@ function _djNutriText(key){
   const v=p&&p[key];
   return (v&&v.trim())?v:_DJ_NUTRI_DEFAULTS[key];
 }
+// sps-v234: espaço de impressão para o Plano Dia de Jogo — pedido do Roger. Este plano é
+// único e comum a toda a equipa (não por atleta, ver nota acima), por isso só faz sentido um
+// PDF geral, nunca "por atleta". Mostra sempre o texto efetivo (_djNutriText — personalizado
+// ou genérico), com um selo a indicar qual dos dois é, para nunca ficar ambíguo no papel.
+function printNutriGamedayPDF(){
+  const p=APP.nutritionGameDayPlan;
+  const rows=_DJ_NUTRI_FIELDS.map(f=>{
+    const custom=!!(p&&p[f.key]&&p[f.key].trim());
+    return `<div style="padding:9px 0;border-bottom:1px dotted #eee">
+      <div style="font-weight:700;font-size:10.5pt;color:#1d6f3b">${escHtml(f.label)} ${custom?'<span class="badge bg-g" style="font-size:7.5pt">Personalizado</span>':'<span class="badge" style="font-size:7.5pt;background:#eee;color:#888">Texto genérico</span>'}</div>
+      <div style="font-size:9.5pt;color:#333;margin-top:3px">${escHtml(_djNutriText(f.key))}</div>
+    </div>`;
+  }).join('');
+  const metaLine=p&&p.updatedAt?`Última atualização: ${fmtDate(p.updatedAt.slice(0,10))}${p.updatedBy?' por '+escHtml(p.updatedBy):''}`:'Ainda sem nenhum campo personalizado — a mostrar sempre o texto genérico.';
+  const body=`
+  <div class="pr-title">Plano Nutricional — Dia de Jogo</div>
+  <div style="font-size:9pt;color:#666;margin-bottom:12px">Plano único e comum a toda a equipa. ${metaLine}</div>
+  ${rows}`;
+  _printWin('Plano Dia de Jogo — Nutrição',body);
+}
 function renderNutriGameday(){
   const p=APP.nutritionGameDayPlan;
   const fieldsHtml=_DJ_NUTRI_FIELDS.map(f=>`
@@ -16538,7 +16719,7 @@ function renderNutriGameday(){
   const metaHtml=p&&p.updatedAt?`<div style="font-size:10.5px;color:var(--t2);margin-bottom:10px">Última atualização: ${fmtDate(p.updatedAt.slice(0,10))}${p.updatedBy?' por '+escHtml(p.updatedBy):''}</div>`:'';
   document.getElementById('pg-nutri-gameday').innerHTML=`
   <div class="card">
-    <div class="ch"><span class="ct">🏆 Plano Dia de Jogo</span></div>
+    <div class="ch"><span class="ct">🏆 Plano Dia de Jogo</span><button class="btn btn-xs btn-gh" onclick="printNutriGamedayPDF()">🖨️ Imprimir</button></div>
     <div class="cb">
       <div style="font-size:11.5px;color:var(--t2);margin-bottom:12px;line-height:1.5">
         Este plano é <strong>único e comum a toda a equipa</strong> (não é por atleta). Assim que guardares, passa a substituir

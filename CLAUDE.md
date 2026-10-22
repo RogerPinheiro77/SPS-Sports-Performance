@@ -5671,3 +5671,99 @@ bem o formato da folha de referência que ele enviou — a auto-sugestão da "Av
 só tem efeito a partir de agora (avaliações já registadas antes desta versão ficam com
 `clubNote` vazio, "—" no PDF, até serem re-registadas ou até ele escrever algo
 manualmente numa avaliação nova dessa atleta).
+
+## sps-v234 (23/10/2026): Nutrição — espaço de impressão PDF em todas as abas da secção
+
+Pedido do Roger, com screenshot da sidebar de Nutrição (5 separadores: Planos
+Nutricionais, Anamnese & Diário Alimentar, Plano Dia de Jogo, Matchday Hydration,
+Suplementação): "preciso para todas as abas que ves no print o seu espaço para
+exportaçao de pdf, por atleta e geral para aqueles que te fizer sentido".
+
+**Investigação antes de codificar:** Suplementação já tinha os dois PDFs (individual
+`printSuplIndividualPDF` + plantel `printSuplPlantelPDF`, sps-v195) — nada a fazer aí.
+Anamnese & Diário já tinha o individual (`printNutriAnamneseDiarioPDF`, sps-v195), mas
+nenhum plantel. Planos Nutricionais e Matchday Hydration não tinham nenhum PDF dedicado
+(só o resumo "Métricas & Evolução" da Nutri, que é outra coisa). Plano Dia de Jogo
+também não tinha nenhum — e, por ser um plano único e comum a toda a equipa (não por
+atleta, sps-v162), só faz sentido um PDF geral, nunca "por atleta".
+
+Como o pedido seguia de perto padrões já bem estabelecidos no código (PDF individual via
+`_printWin`+`profile-header`, PDF plantel em tabela A3/A4 paisagem com rodapé de
+contagem — mesmo espírito de `printSuplIndividualPDF`/`printSuplPlantelPDF` e dos PDFs
+de Avaliações antropométricas), o âmbito e 3 decisões de desenho foram confirmados por
+`AskUserQuestion` em vez de um mockup HTML completo (mesma prática já seguida noutros
+pedidos simples/bem-precedentes, ex. sps-v203/v208) — todas as 4 perguntas responderam
+com a opção recomendada:
+- **Âmbito geral:** avança com tudo — Planos Nutricionais ganha individual+plantel;
+  Anamnese & Diário ganha só o plantel (o individual já existia); Plano Dia de Jogo
+  ganha só um PDF geral; Matchday Hydration ganha individual+plantel.
+- **Matchday Hydration (individual):** ficha de **um jogo específico** — peso pré/pós,
+  taxa de sudorese, % perda de peso, objetivo de reposição pós-jogo — atleta+jogo
+  escolhidos nos mesmos seletores já usados para registar o valor (`_hydraSelAthlete`/
+  `_hydraSelGame`).
+- **Anamnese & Diário (plantel):** **checklist de estado** por atleta (anamnese
+  preenchida+data; diário semanal definido ou não) — sem expor o conteúdo sensível da
+  própria anamnese.
+- **Planos Nutricionais (plantel):** **resumo de macros** do plano ativo mais recente de
+  cada atleta (objetivo, kcal, proteína, hidratos, gordura).
+
+**O que foi construído — 6 funções novas de PDF + os botões de UI correspondentes em 4
+páginas, todas reaproveitando `_printWin()` e os padrões já existentes, sem nenhuma
+tabela nova no Supabase:**
+
+1. **`printNutriPlanoPDF(planId)`** — individual, por plano/atleta: cabeçalho
+   `profile-header` (foto/nome/posição/idade), estado do plano (ativo/inativo + desde
+   quando), macros em `kpi-row`, lista de refeições com conteúdo (`m.foods`, as
+   refeições vazias nunca aparecem) e o Responsável, se definido. Botão 🖨️ novo em cada
+   cartão da lista de Planos Nutricionais (`renderNutriPlanos`).
+2. **`printNutriPlanosPlantelPDF()`** — plantel: uma linha por atleta com o plano ativo
+   mais recente (`Sem plano ativo` quando não há nenhum), paisagem A4. Botão "🖨️ PDF
+   Plantel" novo no cabeçalho de `renderNutriPlanos`, ao lado de "+ Novo Plano".
+3. **`printNutriAnamneseDiarioPlantelPDF()`** — checklist de plantel: coluna "Anamnese
+   Alimentar" (✅+data, ou "— Por preencher") e "Diário Semanal" (✅ Definido, ou "— Não
+   definido" — só conta como definido quando pelo menos uma refeição de alguma semana
+   tem `foods`/`kcal`/`time`). Botão "🖨️ PDF Plantel" novo no cabeçalho de
+   `renderNutriAnamneseDiario`.
+4. **`printNutriGamedayPDF()`** — geral, nunca por atleta: um bloco por momento
+   (`_DJ_NUTRI_FIELDS`), mostrando sempre o texto efetivo (`_djNutriText` — personalizado
+   ou genérico) com um selo a indicar qual dos dois é, para nunca ficar ambíguo no papel.
+   Botão "🖨️ Imprimir" novo no cartão de `renderNutriGameday`.
+5. **`printHydraIndividualPDF(athleteId,gameId)`** — ficha de um jogo específico:
+   `profile-header` + adversário/data do jogo, KPIs (peso pré/pós, taxa de sudorese,
+   objetivo de reposição), semáforo de perda de peso (`_hydraWeightColor` — incl. o aviso
+   próprio de ganho de peso, nunca tratado como "dentro do objetivo"), líquidos/urina/
+   duração e notas. Sem registo guardado para essa combinação, avisa por `toast` em vez
+   de gerar uma ficha vazia. Botão "🖨️ PDF" novo, condicional — só aparece depois de já
+   existir um registo guardado para a combinação atleta+jogo escolhida (`_hidratacaoCore`).
+6. **`printHydraPlantelPDF()`** — checklist de plantel num jogo escolhido (lido de
+   `_hydraSelGame`, o mesmo seletor já usado para registar): peso pré/pós, perda %
+   (com badge de cor), sudorese e objetivo de reposição por atleta; sem registo mostra
+   "Sem registo", nunca uma linha em falta. A3 paisagem. Botão "🖨️ PDF Plantel (Jogo)"
+   novo no cabeçalho de `_hidratacaoCore` — partilhado por Nutri e Fisio
+   (`renderNutriHidratacao`/`renderFisioHidratacao`), mesma paridade de acesso já
+   decidida para esta funcionalidade (sps-v188, "AS DUAS"). Sem jogo escolhido, avisa por
+   `toast` em vez de gerar um PDF sem contexto.
+
+SW bump para `sps-v234`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_nutri_pdf_tabs_v234.js`, harness `vm` com o código REAL extraído, 25
+asserções): as 6 funções de PDF (planId/athleteId/gameId inexistentes nunca chamam
+`_printWin`; landscape correto em cada uma — portrait para os individuais, paisagem A4
+para os 2 plantéis "simples", A3 para o plantel de Hidratação; refeições/registos vazios
+nunca aparecem; atleta/jogo sem correspondência não rebenta; ganho de peso mostra o
+aviso próprio; checklist de Anamnese & Diário só conta "diário definido" com conteúdo
+real numa refeição; plano ativo mais recente escolhido corretamente entre vários);
+os 4 cabeçalhos/cartões com os botões novos (`renderNutriPlanos`,
+`renderNutriAnamneseDiario`, `renderNutriGameday`, `_hidratacaoCore` via
+`renderNutriHidratacao`/`renderFisioHidratacao`); o botão individual de Hidratação só
+aparece depois de um registo já guardado, nunca antes. Regressão completa re-corrida
+(todos os `test_*.js` desta pasta): sem falhas novas; `test_marker_evolution_v204.js`
+continua com as mesmas 4 falhas pré-existentes já documentadas desde o sps-v210
+(espelhamento de adversárias), sem relação com este pedido.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
+visualmente, depois da atualização chegar aos dispositivos, os 6 PDFs novos — em
+particular o checklist de Anamnese & Diário (nunca deve expor conteúdo da própria
+anamnese) e a ficha individual de Hidratação (depende de já existir um registo
+guardado para a combinação atleta+jogo escolhida).
