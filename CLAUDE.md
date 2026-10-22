@@ -5588,3 +5588,86 @@ mente para o futuro — qualquer tabela nova deste género (série temporal por 
 venha a crescer precisa de continuar a passar por `_fetchAllClubRows`/`pulls` (já
 acontece automaticamente, não precisa de código extra por tabela), mas se algum dia se
 criar um pull fora deste loop central, convém lembrar este incidente.
+
+## sps-v233 (23/10/2026): Nutrição — PDF Plantel (SPS) + novo PDF Plantel (Clube), formato da folha de referência do clube
+
+Pedido do Roger, com 2 screenshots anexados (print 1: ecrã real da app, Nutrição →
+Avaliações, botões "PDF Evolução"/"PDF Plantel (2 últimas)"/"+ Nova Avaliação"; print
+2: folha de referência do clube "AVALIAÇÃO ANTROPOMÉTRICA SENIORES FEMININO" —
+Atleta/Idade/Altura + grupos de colunas por mês (Peso + Soma de Pregas, com cor) +
+coluna "Avaliação" com frases curtas): "temos um espaço de impressao que quero manter,
+pode ser com a sigla sps e quero criar outro para o formato do clube com os dados que
+te apresento no print 2. analiza da feedback e mostra mockup" — seguido do fluxo já
+estabelecido no projeto (mockup antes de código): mockup enviado
+(`mockup_nutri_pdf_formato_clube_v1.html`) com 3 pontos em aberto, confirmados por
+`AskUserQuestion` (todas as 3 opções recomendadas foram as escolhidas): (1) cor da Soma
+de Pregas **relativa ao plantel** (quartis, recalculados sempre) — nunca um limiar
+absoluto, mesma cautela já documentada em `NA_GUIDE_DEFAULTS` para este campo
+específico; (2) texto da coluna "Avaliação" **auto-gerado e editável**; (3) intervalo
+de meses **selecionável antes de gerar** (uma época inteira teria colunas demasiadas).
+
+**O que foi construído:**
+
+1. **Botão existente renomeado** "🖨️ PDF Plantel (2 últimas)" → **"🖨️ PDF Plantel
+   (SPS)"** (mesma função `printNaPlantelComparativoPDF`, sem alterações de lógica) —
+   e novo botão ao lado, **"🖨️ PDF Plantel (Clube)"**.
+2. **Novo campo `clubNote`** em `nutritionAssessments` (coluna `club_note` em
+   `nutrition_records`, migração `nutrition_records_add_club_note` aplicada) — a
+   "Avaliação" curta da folha do clube (ex. "Diminuição % de massa gorda"). Auto-
+   sugerida ao preencher Peso/Soma de Pregas na Nova Avaliação (`_naClubNoteAuto`,
+   mesmo padrão exato de `_naAutoFat`/`_naAutoMuscle` — só preenche se vazio, botão 🧮
+   força recálculo), comparando com a avaliação ANTERIOR dessa atleta
+   (`_naClubNoteText`: compara delta de peso e de soma de pregas, devolve frases como
+   "Diminuição % de massa gorda e peso corporal"/"Aumento % de massa gorda"/"Estável";
+   sem avaliação anterior, fica vazio — nunca inventa uma frase sem base). Sempre
+   editável antes de guardar (não há edição de avaliações já guardadas nesta app — a
+   mesma limitação de sempre, não introduzida por este pedido).
+3. **`_naQuartileColorer(vals)`**: calcula p25/p50/p75 dos valores de Soma de Pregas
+   do plantel NESSE MÊS específico (recalculado sempre, nunca fixo) e devolve uma
+   função que classifica cada valor em verde/amarelo/laranja/vermelho; com menos de 2
+   valores no mês, devolve sempre "sem cor" (não há "plantel" para comparar com um
+   valor só).
+4. **`openNaPlantelClubePicker()`**: modal (reaproveita `openMod`/`closeMod`) com 2
+   `<select>` (De/Até), populados com os meses que têm pelo menos 1 avaliação
+   (`_naMonthsAvailable()`), pré-selecionando os últimos 4 meses disponíveis (mesmo
+   tamanho da folha de referência); sem nenhuma avaliação registada, avisa por `toast`
+   em vez de abrir um modal vazio.
+5. **`printNaPlantelClubePDF(fromMonth,toMonth)`**: Atleta/Idade (hoje, via
+   `_ageAtDate` já existente)/Altura (última medição conhecida, não por mês — como na
+   folha de referência) + um grupo de colunas por mês no intervalo (Peso + Soma de
+   Pregas, com o badge de cor do quartil desse mês) + "Avaliação" (nota `clubNote` da
+   avaliação mais recente dentro do intervalo escolhido — 1 coluna só, como na folha
+   do clube, não uma por mês). Atletas sem nenhuma avaliação no intervalo ficam fora da
+   tabela, contadas no rodapé. A3 horizontal (`_printWin(...,'A3')`, mesma decisão já
+   tomada para o PDF Plantel (SPS), tabela larga de propósito).
+6. `_CLOUD_TABLE_SCHEMA.nutrition_records` (push) e o mapeador `nutrition_records` em
+   `pullCloud()` (pull) atualizados em conjunto para `club_note`/`clubNote` — mesma
+   disciplina sempre repetida nesta base de código (ver Incidentes #1-4).
+
+SW bump para `sps-v233`.
+
+**Testado:** `node --check` ao `index.html` (script extraído) e a `sw.js`. Suite nova
+dedicada (`test_nutri_pdf_clube_v233.js`, harness `vm` com o código REAL extraído, 18
+asserções): `_naClubNoteText` nas 6 combinações de tendência (massa gorda↓+peso↓,
+massa gorda↓ só, massa gorda↑+peso↑, peso↓ só, estável, sem dados/sem avaliação
+anterior → vazio); `_naQuartileColorer` (sem dados nunca dá cor, 4 valores com o menor
+verde/maior vermelho, valor `null` nunca rebenta); `_naMonthsAvailable` (meses únicos
+ordenados); os 2 botões na página (renomeado "SPS" + novo "Clube", rótulo antigo
+ausente); o picker sem avaliações avisa sem abrir modal, com avaliações abre com os
+meses certos pré-selecionados; geração real da tabela (2 meses como grupos de coluna,
+colunas fixas Idade/Altura/Avaliação, cor de quartil correta nas pontas da distribuição,
+texto de Avaliação da avaliação mais recente no intervalo, atleta sem dados nesse mês
+mostra "—"); atleta sem NENHUMA avaliação no intervalo fica fora da tabela, contada no
+rodapé; `saveNutriAval` persiste `clubNote`; `_CLOUD_TABLE_SCHEMA.nutrition_records`
+com a coluna/rename `club_note`. Regressão completa re-corrida (todos os `test_*.js`
+desta pasta): sem falhas novas; `test_marker_evolution_v204.js` continua com as mesmas
+4 falhas pré-existentes já documentadas desde o sps-v210 (espelhamento de
+adversárias), sem relação com este pedido.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
+visualmente, depois da atualização chegar aos dispositivos: que o "PDF Plantel (SPS)"
+continua igual a antes (só o rótulo mudou), e que o novo "PDF Plantel (Clube)" reflete
+bem o formato da folha de referência que ele enviou — a auto-sugestão da "Avaliação"
+só tem efeito a partir de agora (avaliações já registadas antes desta versão ficam com
+`clubNote` vazio, "—" no PDF, até serem re-registadas ou até ele escrever algo
+manualmente numa avaliação nova dessa atleta).
