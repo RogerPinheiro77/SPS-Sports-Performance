@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — PSE &amp; Wellness (página completa)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --c1:#1d6f3b;--c1d:#155c2f;--c1l:#27a34a;
+    --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+    --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+    --warn:#e0a92b;--warn-bg:#e0a92b22;
+    --danger:#e2504a;--danger-bg:#e2504a22;
+    --ok:#27a34a;--ok-bg:#27a34a22;
+    --info:#5cd0e8;--info-bg:#0c7b9333;
+    --rs:9px;
+    --pse-treino:#27a34a;
+    --pse-ginasio:#e0a92b;
+    --pse-outros:#5cd0e8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--bg0);color:var(--t1);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+  }
+  #topbar{
+    height:56px;background:var(--bg1);border-bottom:1px solid var(--brd);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 16px;position:sticky;top:0;z-index:10;
+  }
+  .tb-left{display:flex;align-items:center;gap:10px;}
+  .tb-logo{
+    width:32px;height:32px;border-radius:8px;background:var(--c1);
+    display:flex;align-items:center;justify-content:center;font-size:17px;
+  }
+  .tb-title{font-weight:700;font-size:15px;color:var(--t1);}
+  .tb-sub{font-size:11px;color:var(--t2);}
+  .mock-badge{background:#e0a92b22;color:#e0a92b;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;}
+  #main{max-width:1180px;margin:0 auto;padding:18px 16px 90px;}
+  .note{
+    background:var(--bg2);border:1px solid var(--brd);border-left:4px solid var(--warn);
+    border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:12.5px;color:var(--t2);
+  }
+  .note b{color:var(--t1);}
+
+  .tabs{display:flex;gap:2px;background:var(--bg3);border-radius:var(--rs);padding:3px;margin-bottom:16px;flex-wrap:wrap;}
+  .tab-btn{padding:8px 14px;border-radius:4px;font-size:12px;font-weight:700;color:var(--t2);cursor:pointer;transition:all .15s;white-space:nowrap;background:transparent;border:none;}
+  .tab-btn.on{background:var(--bg2);color:var(--t1);}
+
+  .legend-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+  .leg-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);font-weight:600;}
+  .leg-dot{width:11px;height:11px;border-radius:3px;display:inline-block;}
+  .dot-treino{background:var(--pse-treino);}
+  .dot-ginasio{background:var(--pse-ginasio);}
+  .dot-outros{background:var(--pse-outros);}
+
+  .card{background:var(--bg1);border:1px solid var(--brd);border-radius:14px;padding:16px;margin-bottom:16px;}
+  .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+  .ch .lbl,.ct{font-size:13px;font-weight:700;color:var(--t1);display:flex;align-items:center;gap:7px;}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:760px){.charts-row{grid-template-columns:1fr;}}
+  .chart-box{position:relative;height:200px;}
+
+  .cb{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;padding:8px 10px;color:var(--t2);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.02em;border-bottom:1px solid var(--brd);white-space:nowrap;}
+  td{padding:9px 10px;border-bottom:1px solid var(--bg3);white-space:nowrap;}
+  tr:last-child td{border-bottom:none;}
+  .ath-name{font-weight:700;color:var(--t1);}
+  .ath-pos{color:var(--t2);font-size:11.5px;}
+  .pse-cell{display:flex;align-items:center;gap:7px;}
+  .pse-pill{min-width:40px;text-align:center;font-weight:700;font-size:12px;padding:3px 7px;border-radius:7px;}
+  .pse-pill.treino{background:var(--pse-treino)22;color:var(--pse-treino);}
+  .pse-pill.ginasio{background:var(--pse-ginasio)22;color:var(--pse-ginasio);}
+  .pse-pill.outros{background:var(--pse-outros)22;color:var(--pse-outros);}
+  .pse-cell .meta{font-size:10.5px;color:var(--t3);}
+  .pse-cell.empty{color:var(--t3);font-size:11.5px;}
+  .bdg{font-size:11px;font-weight:700;padding:3px 8px;border-radius:7px;display:inline-block;}
+  .bg-g{background:var(--ok-bg);color:var(--ok);}
+  .bg-y{background:var(--warn-bg);color:var(--warn);}
+  .bg-r{background:var(--danger-bg);color:var(--danger);}
+  .bg-gr{background:var(--bg3);color:var(--t2);}
+  th.col-treino{color:var(--pse-treino);}
+  th.col-ginasio{color:var(--pse-ginasio);}
+  th.col-outros{color:var(--pse-outros);}
+
+  .btn-xs{font-size:10px;padding:1px 5px;border-radius:5px;background:transparent;border:1px solid var(--brd);color:var(--t2);cursor:pointer;}
+  .fc-view{font-size:10px;color:var(--t2);}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">💪</div>
+    <div>
+      <div class="tb-title">PSE &amp; Wellness</div>
+      <div class="tb-sub">Moreirense FC Feminino</div>
+    </div>
+  </div>
+  <div class="mock-badge">🧪 MOCKUP — não é a app real</div>
+</div>
+
+<div id="main">
+  <div class="note">
+    <b>Página completa, com os 3 separadores reais.</b> "💊 Wellness" mantém-se exatamente como está hoje (heatmap). Só o separador "📊 PSE/Carga" ganha as cores/colunas por tipo. Clica nos separadores abaixo para ver cada um.
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn on" id="tabbtn-pse" onclick="showTab('pse')">📊 PSE / Carga</button>
+    <button class="tab-btn" id="tabbtn-wellness" onclick="showTab('wellness')">💊 Wellness</button>
+    <button class="tab-btn" id="tabbtn-imprimir" onclick="showTab('imprimir')">🖨️ Imprimir</button>
+  </div>
+
+  <div id="tab-content"></div>
+</div>
+
+<script>
+const ATHLETES=[
+  {name:'Chica',pos:'AV'},{name:'Ana Rita',pos:'MC'},{name:'Luna',pos:'DC'},
+  {name:'Romeu',pos:'DL'},{name:'Lisa',pos:'MC'},{name:'Carol',pos:'GR'},
+];
+
+/* ======================= TAB: PSE/CARGA (proposta nova, com cores) ======================= */
+const MOCK_PSE_ROWS=[
+  {name:'Chica',pos:'AV', treino:{pse:7,dur:75,ua:525,d:'Hoje'}, ginasio:{pse:5,dur:45,ua:225,d:'Hoje'}, outros:null, acute:68.4,chronic:52.1,acwr:1.31},
+  {name:'Ana Rita',pos:'MC', treino:{pse:8,dur:80,ua:640,d:'Ontem'}, ginasio:null, outros:{pse:9,dur:90,ua:810,d:'3 dias'}, acute:74.0,chronic:58.3,acwr:1.27},
+  {name:'Luna',pos:'DC', treino:{pse:6,dur:70,ua:420,d:'Hoje'}, ginasio:{pse:6,dur:40,ua:240,d:'Ontem'}, outros:null, acute:55.2,chronic:61.0,acwr:0.90},
+  {name:'Romeu',pos:'DL', treino:null, ginasio:{pse:4,dur:35,ua:140,d:'Hoje'}, outros:null, acute:28.5,chronic:45.2,acwr:0.63},
+  {name:'Lisa',pos:'MC', treino:{pse:9,dur:85,ua:765,d:'Hoje'}, ginasio:{pse:7,dur:50,ua:350,d:'Hoje'}, outros:{pse:8,dur:95,ua:760,d:'5 dias'}, acute:91.3,chronic:59.8,acwr:1.53},
+  {name:'Carol',pos:'GR', treino:{pse:5,dur:70,ua:350,d:'Hoje'}, ginasio:null, outros:null, acute:40.1,chronic:42.6,acwr:0.94},
+];
+function pseCell(obj,cls){
+  if(!obj)return `<div class="pse-cell empty">—</div>`;
+  return `<div class="pse-cell"><span class="pse-pill ${cls}">${obj.pse}/10</span><span class="meta">${obj.dur}min · UA ${obj.ua}<br>${obj.d}</span></div>`;
+}
+function acwrBadge(v){
+  const cls=(v>1.5||v<0.8)?'bg-r':(v>=1.0?'bg-g':'bg-y');
+  return `<span class="bdg ${cls}">${v.toFixed(2)}</span>`;
+}
+function renderPseTab(){
+  return `
+  <div class="legend-row">
+    <span class="leg-item"><span class="leg-dot dot-treino"></span> PSE Treino</span>
+    <span class="leg-item"><span class="leg-dot dot-ginasio"></span> PSE Ginásio</span>
+    <span class="leg-item"><span class="leg-dot dot-outros"></span> PSE Outros (Jogo · Reabilitação · Ativação)</span>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="lbl">📊 Coletivo — últimos 7 dias</div></div>
+    <div class="charts-row">
+      <div><div style="font-size:11.5px;color:var(--t2);margin-bottom:6px;font-weight:600;">PSE Médio por tipo</div><div class="chart-box"><canvas id="chart-pse-col"></canvas></div></div>
+      <div><div style="font-size:11.5px;color:var(--t2);margin-bottom:6px;font-weight:600;">UA Total por tipo</div><div class="chart-box"><canvas id="chart-ua-col"></canvas></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="lbl">👤 Individual — PSE &amp; ACWR</div></div>
+    <div class="cb"><table>
+      <thead><tr><th>Atleta</th><th>Pos</th><th class="col-treino">PSE Treino</th><th class="col-ginasio">PSE Ginásio</th><th class="col-outros">PSE Outros</th><th>Carga Aguda</th><th>Carga Crónica</th><th>ACWR</th></tr></thead>
+      <tbody>${MOCK_PSE_ROWS.map(r=>`
+        <tr>
+          <td class="ath-name">${r.name}</td><td class="ath-pos">${r.pos}</td>
+          <td>${pseCell(r.treino,'treino')}</td><td>${pseCell(r.ginasio,'ginasio')}</td><td>${pseCell(r.outros,'outros')}</td>
+          <td>${r.acute}</td><td>${r.chronic}</td><td>${acwrBadge(r.acwr)}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+function buildPseCharts(){
+  const LABELS=['Qui','Sex','Sáb','Dom','Seg','Ter','Hoje'];
+  const PSE_TREINO=[6.2,null,7.1,null,6.8,null,7.4];
+  const PSE_GINASIO=[null,5.5,null,6.0,null,5.8,6.2];
+  const PSE_OUTROS=[null,null,8.5,null,null,null,8.0];
+  const UA_TREINO=[410,null,480,null,455,null,520];
+  const UA_GINASIO=[null,220,null,260,null,240,280];
+  const UA_OUTROS=[null,null,620,null,null,null,580];
+  function build(id,labels,series,yMax){
+    new Chart(document.getElementById(id),{type:'line',data:{labels,datasets:series.map(s=>({label:s.label,data:s.data,borderColor:s.color,backgroundColor:s.color+'26',fill:false,tension:.3,spanGaps:true,pointRadius:4,pointBackgroundColor:s.color}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:yMax||undefined,grid:{color:'#2e355055'},ticks:{color:'#94a3b8',font:{size:10}}},x:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:10}}}}}});
+  }
+  build('chart-pse-col',LABELS,[{label:'Treino',data:PSE_TREINO,color:'#27a34a'},{label:'Ginásio',data:PSE_GINASIO,color:'#e0a92b'},{label:'Outros',data:PSE_OUTROS,color:'#5cd0e8'}],10);
+  build('chart-ua-col',LABELS,[{label:'Treino',data:UA_TREINO,color:'#27a34a'},{label:'Ginásio',data:UA_GINASIO,color:'#e0a92b'},{label:'Outros',data:UA_OUTROS,color:'#5cd0e8'}],null);
+}
+
+/* ======================= TAB: WELLNESS (fica exatamente como está hoje) ======================= */
+const MOCK_WELLNESS={
+  days:['09/10','10/10','12/10','13/10','14/10','15/10','Hoje'],
+  rows:[
+    {name:'Chica',scores:[72,null,68,75,70,null,74],score:74,cycle:'Folicular'},
+    {name:'Ana Rita',scores:[58,60,null,55,62,65,60],score:60,cycle:'N/A'},
+    {name:'Luna',scores:[80,78,82,null,79,81,83],score:83,cycle:'Lútea'},
+    {name:'Romeu',scores:[45,40,null,38,42,null,41],score:41,cycle:'N/A'},
+    {name:'Lisa',scores:[66,70,72,null,68,71,69],score:69,cycle:'Ovulação'},
+    {name:'Carol',scores:[75,77,null,76,78,80,79],score:79,cycle:'N/A'},
+  ]
+};
+function scColor(sc){return sc>=70?'rgba(34,197,94,.25)':sc>=45?'rgba(234,179,8,.2)':'rgba(239,68,68,.2)';}
+function scBadge(sc){return sc>=70?'bg-g':sc>=45?'bg-y':'bg-r';}
+function renderWellnessTab(){
+  const days=MOCK_WELLNESS.days;
+  let hm=`<div class="cb"><table style="font-size:10px">
+    <thead><tr><th>Atleta</th>${days.map(d=>`<th style="text-align:center">${d}</th>`).join('')}<th style="text-align:center">Score</th><th style="text-align:center">Ciclo</th></tr></thead><tbody>`;
+  MOCK_WELLNESS.rows.forEach(r=>{
+    hm+=`<tr><td style="font-weight:600;font-size:11px">${r.name}</td>`;
+    r.scores.forEach(sc=>{
+      hm+= sc!=null ? `<td style="text-align:center;background:${scColor(sc)}"><span style="font-weight:700;font-size:11px">${sc}</span></td>` : `<td style="text-align:center;color:var(--t3);font-size:10px">—</td>`;
+    });
+    hm+=`<td style="text-align:center"><span class="bdg ${scBadge(r.score)}">${r.score}</span></td>`;
+    hm+=`<td style="text-align:center;font-size:10px;color:var(--t2)">${r.cycle}</td></tr>`;
+  });
+  hm+=`</tbody></table></div>`;
+  return `
+  <div class="card">
+    <div class="ch"><span class="ct">Score Wellness — Heatmap (últimos 7 dias)</span>
+      <div style="display:flex;gap:6px;font-size:10px;color:var(--t2)">
+        <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(34,197,94,.3);display:inline-block"></span>≥70</span>
+        <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(234,179,8,.3);display:inline-block"></span>45-69</span>
+        <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(239,68,68,.3);display:inline-block"></span>&lt;45</span>
+      </div>
+    </div>
+    ${hm}
+  </div>
+  <div class="note" style="border-left-color:var(--info)">Sem alterações aqui — mesmo heatmap, mesmas cores de score, mesmo histórico expansível por atleta (▾) de hoje. Mostrado só para veres a página completa.</div>`;
+}
+
+/* ======================= TAB: IMPRIMIR (placeholder, sem alterações) ======================= */
+function renderImprimirTab(){
+  return `<div class="card"><div class="ch"><div class="lbl">🖨️ Imprimir</div></div>
+    <div style="color:var(--t2);font-size:12.5px">Separador de exportação/impressão — sem alterações previstas neste pedido.</div></div>`;
+}
+
+function showTab(tab){
+  ['pse','wellness','imprimir'].forEach(t=>document.getElementById('tabbtn-'+t).classList.toggle('on',t===tab));
+  const el=document.getElementById('tab-content');
+  if(tab==='pse'){el.innerHTML=renderPseTab();buildPseCharts();}
+  else if(tab==='wellness'){el.innerHTML=renderWellnessTab();}
+  else{el.innerHTML=renderImprimirTab();}
+}
+showTab('pse');
+</script>
+</body>
+</html>
