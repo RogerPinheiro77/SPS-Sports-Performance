@@ -1862,9 +1862,21 @@ function _handleAthletePhoto(input){
   reader.readAsDataURL(file);
 }
 // ─── DASHBOARD ────────────────────────────────────────────
+// Logo SPS embutido dentro de um anel de progresso circular (SVG
+// <clipPath>+<image>), a preencher por completo o buraco interior do anel
+// (raio = raio do anel − metade da espessura do traço), sem margem. Cada
+// chamada usa um id de clipPath único (_ringLogoSeq), porque vários anéis
+// deste tipo podem renderizar em simultâneo na mesma página (ex: 5 no
+// painel "Wellness Médio", 1 por atleta em "Estado do Plantel").
+let _ringLogoSeq=0;
+function _ringLogoSvg(cx,cy,r,strokeW){
+  const id='rlg'+(_ringLogoSeq++);
+  const ir=r-strokeW/2;
+  return`<clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${ir}"/></clipPath><image href="assets/logo_sps_ring.png" x="${cx-ir}" y="${cy-ir}" width="${ir*2}" height="${ir*2}" clip-path="url(#${id})" preserveAspectRatio="xMidYMid slice"/>`;
+}
 function svgRing(pct,color,sz){
-  const r=sz*.38,c=sz/2,ci=2*Math.PI*r,d=ci*(Math.min(pct,100)/100);
-  return`<svg viewBox="0 0 ${sz} ${sz}" style="width:${sz}px;height:${sz}px;display:block"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="${sz*.1}"/><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${sz*.1}" stroke-dasharray="${d} ${ci}" stroke-linecap="round" transform="rotate(-90 ${c} ${c})"/></svg>`;
+  const r=sz*.38,c=sz/2,ci=2*Math.PI*r,d=ci*(Math.min(pct,100)/100),sw=sz*.1;
+  return`<svg viewBox="0 0 ${sz} ${sz}" style="width:${sz}px;height:${sz}px;display:block"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="${sw}"/><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${d} ${ci}" stroke-linecap="round" transform="rotate(-90 ${c} ${c})"/>${_ringLogoSvg(c,c,r,sw)}</svg>`;
 }
 function renderDashboard(){
   const td=today();
@@ -1938,15 +1950,15 @@ function renderDashboard(){
 
   // SVG gauge helper (inside function)
   function gauge(val,max,color,lbl,sz=68){
-    const r=sz*.37,c=sz/2,ci=2*Math.PI*r,d=ci*(Math.min(+val/max,1));
+    const r=sz*.37,c=sz/2,ci=2*Math.PI*r,d=ci*(Math.min(+val/max,1)),sw=sz*.09;
     return`<div style="text-align:center;flex:1">
       <svg viewBox="0 0 ${sz} ${sz}" style="width:${sz}px;height:${sz}px">
-        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="${sz*.09}"/>
-        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${sz*.09}" stroke-dasharray="${d} ${ci}" stroke-linecap="round" transform="rotate(-90 ${c} ${c})"/>
-        <text x="${c}" y="${c+2}" text-anchor="middle" fill="white" font-size="${sz*.22}" font-weight="800">${val}</text>
-        <text x="${c}" y="${c+sz*.19}" text-anchor="middle" fill="rgba(255,255,255,.45)" font-size="${sz*.14}">/10</text>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="${sw}"/>
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${d} ${ci}" stroke-linecap="round" transform="rotate(-90 ${c} ${c})"/>
+        ${_ringLogoSvg(c,c,r,sw)}
       </svg>
-      <div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px">${lbl}</div>
+      <div style="font-size:11px;font-weight:800;color:white;margin-top:3px">${val}<span style="font-size:9px;font-weight:600;color:rgba(255,255,255,.45)">/10</span></div>
+      <div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:1px">${lbl}</div>
     </div>`;
   }
 
@@ -1962,8 +1974,8 @@ function renderDashboard(){
     else if((lw&&lw.score<70)||(acd&&(acd.r>1.3||acd.r<0.8))){stLbl='AMARELO';stC='#fbbf24';}
     // Wellness circle
     let wCirc='<span style="color:var(--t3);font-size:11px">—</span>';
-    if(lw){const s=lw.score;const cc=s>=70?'#4ade80':s>=50?'#fbbf24':'#f87171';const r=18;const ci2=2*Math.PI*r;const d2=ci2*(s/100);
-      wCirc=`<svg viewBox="0 0 44 44" style="width:40px;height:40px"><circle cx="22" cy="22" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="22" cy="22" r="${r}" fill="none" stroke="${cc}" stroke-width="4" stroke-dasharray="${d2} ${ci2}" stroke-linecap="round" transform="rotate(-90 22 22)"/><text x="22" y="26" text-anchor="middle" fill="white" font-size="10" font-weight="800">${s}%</text></svg>`;}
+    if(lw){const s=lw.score;const cc=s>=70?'#4ade80':s>=50?'#fbbf24':'#f87171';const r=18;const sw=4;const ci2=2*Math.PI*r;const d2=ci2*(s/100);
+      wCirc=`<div style="display:flex;flex-direction:column;align-items:center;gap:1px"><svg viewBox="0 0 44 44" style="width:40px;height:40px"><circle cx="22" cy="22" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="${sw}"/><circle cx="22" cy="22" r="${r}" fill="none" stroke="${cc}" stroke-width="${sw}" stroke-dasharray="${d2} ${ci2}" stroke-linecap="round" transform="rotate(-90 22 22)"/>${_ringLogoSvg(22,22,r,sw)}</svg><span style="font-size:10px;font-weight:800;color:white">${s}%</span></div>`;}
     // Carga bar
     const maxU=Math.max(...acwrList.map(x=>x.wkU),1);
     const u=acd?acd.wkU:0;const bw=Math.round(u/maxU*100);
@@ -20743,8 +20755,8 @@ function renderVisaoGeral(){
     cocCardHtml=`<div class="card">
       <div class="ch"><span class="ct">📜 CÓDIGO DE CONDUTA</span></div>
       <div class="cb" style="padding:12px 14px;display:flex;align-items:center;gap:12px">
-        <div style="position:relative;width:52px;height:52px;flex-shrink:0">${svgRing(pct,color,52)}<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">${pct}%</div></div>
-        <div style="font-size:11px;color:var(--t2)">${st.ack} de ${st.total} atleta${st.total===1?'':'s'} já confirmaram "Li e aceito".</div>
+        <div style="width:52px;height:52px;flex-shrink:0">${svgRing(pct,color,52)}</div>
+        <div style="font-size:11px;color:var(--t2)"><strong style="color:white;font-size:13px">${pct}%</strong> — ${st.ack} de ${st.total} atleta${st.total===1?'':'s'} já confirmaram "Li e aceito".</div>
       </div>
     </div>`;
   }

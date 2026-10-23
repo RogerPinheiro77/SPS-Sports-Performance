@@ -5945,3 +5945,93 @@ atualização chegar aos dispositivos. Só depois disso a mensagem de WhatsApp �
 equipa técnica deve ser finalizada/enviada a descrever esta funcionalidade como
 disponível — os rascunhos anteriores (focados no sps-v172) estão agora
 desatualizados/incompletos e não devem ser enviados tal como estavam.
+
+## sps-v237 (23/10/2026): logo SPS embutido nos anéis de progresso (Dashboard,
+## Estado do Plantel, Wellness Médio, Código de Conduta)
+
+Pedido do Roger: incorporar a marca SPS dentro dos anéis/gauges circulares de
+progresso já usados em vários sítios da app. Processo de mockup extenso (ver
+`mockup_dashboard_v3.html` até `v12_rings.html`, nenhum commitado — ficheiros de
+trabalho descartáveis, convenção já documentada neste ficheiro) com vários
+pivots: 1ª tentativa foi logo como fundo fixo da Dashboard inteira (descartada
+pelo próprio Roger); 2ª e definitiva foi logo DENTRO dos anéis existentes, com o
+valor/percentagem deslocado para uma legenda por baixo do anel em vez de escrito
+por cima. Duas correções de leitura minhas durante as iterações (documentadas no
+histórico da conversa, não repetidas aqui): "ver o mais possível" significava ver
+o logo completo (allowing `object-fit:contain`), não mais zoom; e o anel verde
+visível nas imagens de referência do Roger é o PRÓPRIO anel de dados dinâmico da
+app (semáforo verde/amarelo/vermelho), não parte do logo — por isso o asset final
+foi recortado para excluir esse anel por completo (só fica o anel decorativo
+escuro interior + figura do atleta + "SPS"), preenchendo o buraco do anel de
+dados da app edge-to-edge, sem margem. Design aprovado tal como ficou no
+`mockup_dashboard_v12_rings.html` ("ESTA BEM ASSIM, AVANÇA PARA CODIGO").
+
+**Asset:** `assets/logo_sps_ring.png` (210×210, recorte calibrado por análise de
+pixel em Python/PIL+numpy a partir da imagem de referência do Roger — raio de
+corte calculado no centro exato onde o anel verde da referência começa, filtrado
+por raio para não confundir com os acentos verdes internos da própria figura/
+letras "SPS" — garante zero pixels do anel verde no asset final, confirmado
+visualmente com zoom em vários tons de status).
+
+**Implementação — um único helper partilhado, reaproveitado nos 3 sítios reais
+em vez de 3 implementações separadas:**
+- `_ringLogoSvg(cx,cy,r,strokeW)` (nova, antes de `svgRing`): devolve um
+  `<clipPath>`+`<image>` a preencher o buraco interior do anel (raio = raio do
+  anel − metade da espessura do traço) com `assets/logo_sps_ring.png`,
+  `preserveAspectRatio="xMidYMid slice"` (equivalente SVG de `object-fit:cover`).
+  Cada chamada usa um id de clipPath sequencial único (`_ringLogoSeq`, contador
+  global) — necessário porque vários anéis deste tipo renderizam em simultâneo
+  na mesma página (5× no painel Wellness Médio, 1× por atleta em Estado do
+  Plantel) e um id repetido faria o browser confundir os clipPaths entre si.
+- `svgRing(pct,color,sz)` (genérico, usado na Dashboard e no Código de
+  Conduta): ganhou a chamada a `_ringLogoSvg` entre as duas `<circle>` e o fecho
+  do `<svg>` — nunca tinha texto interno, por isso nenhuma relocalização de
+  valor foi necessária nestas 2 chamadas.
+- `gauge(val,max,color,lbl,sz=68)` (local, dentro de `renderDashboard()`, usado
+  nos 5 gauges "WELLNESS MÉDIO (7 DIAS)"): removidos os dois `<text>` internos
+  (valor + "/10"), substituídos por `_ringLogoSvg`; valor+"/10" passou a um
+  `<div>` HTML entre o `</svg>` e o rótulo já existente — mantido de propósito o
+  "/10" literal para todos os 5 gauges, incluindo Sono (max=5), o mesmo
+  comportamento pré-existente, fora do âmbito deste pedido.
+- `wCirc` (construção inline dentro de `plantelRow(at,i)`, usada na tabela
+  "Estado do Plantel"): removido o `<text>` interno (`${s}%`), substituído por
+  `_ringLogoSvg`; reestruturado num `<div style="display:flex;flex-direction:
+  column">` com o SVG em cima e a percentagem como `<span>` HTML por baixo —
+  mesmo padrão dos outros 2 sítios. Semáforo de cor (verde/amarelo/vermelho por
+  score) mantido inalterado.
+- Código de Conduta (`renderTeamManagerVisaoGeral`, card "📜 CÓDIGO DE
+  CONDUTA"): removida a `<div>` absolutamente posicionada que escrevia `${pct}%`
+  por cima do `svgRing` (esse espaço passa a ser ocupado pelo logo); a
+  percentagem foi relocalizada para dentro do texto descritivo ao lado ("**82%**
+  — N de M atletas já confirmaram...").
+- `sw.js`: `assets/logo_sps_ring.png` adicionado ao array `ASSETS`; `CACHE`
+  de `sps-v236` para `sps-v237`.
+
+SW bump para `sps-v237`. Testado: `node --check` ao `index.html` (script
+extraído) e a `sw.js`. Suite nova dedicada (`test_ring_logo_v237.js`, harness
+`vm` com as funções REAIS extraídas do ficheiro, 14 asserções): `_ringLogoSvg`
+calcula corretamente o raio interior (r−sw/2) e gera ids de clipPath únicos e
+sequenciais em chamadas consecutivas; `svgRing` embute o logo mantendo o arco de
+progresso, sem `<text>` residual, sem colisão de id em 5 chamadas sequenciais
+(simula uma página real com vários anéis); `gauge()` confirmado sem `<text>`
+interno, valor+"/10" na legenda HTML fora do SVG, quirk do "/10" em Sono
+preservado tal como estava, 5 instâncias simultâneas (linha real do Wellness
+Médio) com ids únicos; `wCirc` confirmado sem `<text>` interno, legenda "%" fora
+do SVG, semáforo de cor inalterado, sem estado wellness mostra só o placeholder
+"—" sem SVG, várias linhas de atleta simultâneas sem colisão de id. Verificação
+visual adicional com Playwright/Chromium (`test_ring_logo_v237_visual.js`,
+ficheiros `_visual_test*` gerados e apagados depois, não fazem parte do commit):
+renderização real das 3 funções numa página de teste com os 3 tons de status
+(verde/amarelo/vermelho) e os 2 tamanhos reais (44px Dashboard, 52px Código de
+Conduta), a linha completa de 5 gauges do Wellness Médio e 3 variações de
+wCirc — confirmado visualmente (screenshot) que o logo preenche cada anel
+edge-to-edge sem vazar para fora do círculo em nenhum tamanho/cor, e
+confirmado programaticamente que as 14 instâncias de anel na mesma página geram
+14 ids de clipPath únicos (zero colisões mesmo com todos os sítios renderizados
+ao mesmo tempo).
+
+**Ainda por fazer:** nada pendente para este pedido — mockup aprovado tal como
+ficou (v12), sem ajustes pedidos depois da aprovação. Pedir ao Roger para
+confirmar visualmente na app real (os 4 sítios: Dashboard — KPI Disponibilidade
+% e Wellness Médio —, Estado do Plantel, e Código de Conduta no Visão Geral do
+Team Manager) depois de `sps-v237` chegar aos dispositivos.
