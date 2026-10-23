@@ -6035,3 +6035,92 @@ ficou (v12), sem ajustes pedidos depois da aprovação. Pedir ao Roger para
 confirmar visualmente na app real (os 4 sítios: Dashboard — KPI Disponibilidade
 % e Wellness Médio —, Estado do Plantel, e Código de Conduta no Visão Geral do
 Team Manager) depois de `sps-v237` chegar aos dispositivos.
+
+## sps-v238 (23/09/2026): Dashboard — reorganização visual aprovada no mockup v2 (KPI em destaque, cartões separados, nova paleta, "Estatísticas da Época")
+
+O Roger reportou que `mockup_dashboard_v2_2.html` (Downloads do PC) "ainda nao
+esta a aparecer tudo o que definimos, por exemplo as estatisticas" e colou o
+trecho original da conversa onde este redesenho da Dashboard tinha sido
+discutido e aprovado "em princípio", ANTES até do trabalho do logo nos anéis
+(sps-v237) — um ciclo de mockup v1→v2 que nunca chegou a ser implementado em
+código real.
+
+**Investigação:** confirmado por MD5 que `mockup_dashboard_v2.html`/`_v2_1.html`/
+`_v2_2.html` são byte-idênticos, e por inspeção direta (grep + render real em
+Chromium via Playwright, ligado ao PC do Roger) que o mockup está completo e
+renderiza corretamente todos os elementos acordados na conversa original — o
+"em falta" reportado pelo Roger não era um defeito do mockup, era o facto de
+este redesenho nunca ter sido passado para o `index.html` real. Reportado ao
+Roger, que respondeu **"avança com isso"**.
+
+**Os 4 pontos aprovados na conversa original + o cartão novo, implementados em
+`renderDashboard()`:**
+
+1. **1 KPI em destaque** em vez dos 6 com peso visual igual — classe nova
+   `.db-kpi-hero` (borda vermelha, valor maior, sub-texto clicável). Como o
+   mockup usava rótulos de KPI fictícios ("Risco de Lesão"/"ACWR Médio"/etc. —
+   o próprio mockup avisa "Dados fictícios"), mapeei o destaque para o KPI
+   real já existente mais próximo do espírito do pedido: **"Proteção"** (já
+   vermelho/temático de lesão) — decisão tomada sem reconfirmar com o Roger,
+   por já ter aprovação do padrão em si ("1 KPI em destaque") e por o mockup
+   ser explicitamente ilustrativo nos valores/rótulos.
+2. **Paleta própria para "tipo de sessão"**, separada das cores de
+   estado/risco (que continuam verde/amarelo/vermelho/azul): `--cat1:#3987e5`
+   (azul, Treino), `--cat2:#d95926` (laranja, Jogo), `--cat3:#199e70`
+   (verde-água, Força/Ginásio), `--cat4:#9085e9` (violeta, Outros) — usada só
+   na barra de Distribuição de Carga.
+3. **Split do cartão "Risco de Lesão"** em 2 cartões: "RISCO DE LESÃO" (só
+   contagem + top-3 lista, mantido no mesmo lugar na fiada de 4 colunas) e
+   um novo cartão "DISTRIBUIÇÃO DE CARGA (28D)" de largura inteira, logo a
+   seguir, com legenda + barra empilhada na paleta nova.
+4. **"🏆 Classificação" mantida exatamente onde já estava** — confirmado por
+   teste que continua na mesma fiada de 4 colunas, na mesma posição relativa.
+5. **Tooltips CSS** (`[data-tip]` + `::after`/`::before`, sem JS) nos 6 KPIs e
+   nos segmentos da barra de Distribuição de Carga, mostrando o valor exato
+   ao passar o rato.
+6. **Novo cartão "⭐ Estatísticas da Época — Top 5"**: 3 mini-rankings lado a
+   lado (⚽ Golos / 🅰️ Assistências / ⏱️ Minutos Jogados), top-5 cada,
+   **reaproveitando diretamente `_seasonStatsAll()`/`_seasonGames()`** — as
+   mesmas funções já usadas pelo Ranking do Plantel (aba Jogos) — sem
+   duplicar nenhum dado, exatamente como pedido ("não precisa de duplicação
+   aqui"). Só aparece quando há jogos realizados (`_seasonGames().length`).
+   Botão "Ver Ranking completo →" novo (`_dashVerRankingCompleto()`) define
+   `_jogoTab='ranking'` ANTES do `navTo('jogos')` — mesmo padrão já usado em
+   `_abrirJogoDeCompeticao` (sps-v160), necessário porque `navTo()` chama
+   `renders[id]()` sozinho.
+7. Resto do Dashboard (Estado do Plantel, Wellness Médio, Próxima Sessão)
+   mantido sem alterações, conforme pedido.
+
+SW bump para `sps-v238`. Testado em duas camadas: (1) Node (`test_dashboard_reorg_v238.js`,
+harness `vm` com o código REAL extraído do `index.html`, mesmo padrão de
+`test_pse_wellness_cores_v236.js`) — 11 asserções: 6 KPIs com exatamente 1
+`.db-kpi-hero`; paleta nova na Distribuição de Carga (nunca a antiga
+verde/amarelo/vermelho/azul reaproveitada de estado/risco); "RISCO DE LESÃO"
+sem a Distribuição de Carga embutida (2 cartões separados); `data-tip`
+presente no KPI em destaque e nos segmentos da barra; CSS do tooltip
+presente no `<style>` injetado; cartão de Estatísticas ausente sem jogos
+realizados; com jogos realizados, os 3 mini-rankings corretos e ordenados
+(golos/assistências/minutos, com `data-tip` de nº de jogos), reaproveitando
+`_seasonStatsAll()` real (confirmado por pré-condição no próprio teste);
+atleta sem jogos no período não polui o Top 5; `_dashVerRankingCompleto`
+define `_jogoTab` antes do `navTo`; Classificação na mesma posição relativa;
+resto do Dashboard continua a renderizar. (2) Playwright/Chromium
+(`test_dashboard_reorg_v238_visual.js`, mesmo padrão de
+`test_ring_logo_v237_visual.js` — `renderDashboard()` real chamada numa
+página com o `<style>` global real da app e dados realistas, nunca uma
+réplica) — confirmado visualmente (screenshot) o KPI "Proteção" com borda
+vermelha e valor maior, os 2 cartões separados, a barra de Distribuição de
+Carga com as 4 cores novas visíveis em segmentos distintos, e o cartão
+"Estatísticas da Época" com os 3 mini-rankings corretamente ordenados
+(Diana Silva 1ª em Golos com 3, Ana Ribeiro 1ª em Assistências e Minutos) —
+ficheiros gerados (`_dash_visual_*`) apagados depois, não fazem parte do
+commit, mesmo padrão do sps-v237.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
+confirmar visualmente na app real (Dashboard: KPI "Proteção" em destaque,
+cartões "Risco de Lesão"/"Distribuição de Carga" separados com a nova
+paleta, cartão novo "Estatísticas da Época — Top 5" com o atalho "Ver
+Ranking completo", tooltips ao passar o rato) depois de `sps-v238` chegar
+aos dispositivos — e confirmar em particular se o KPI "Proteção" é mesmo o
+destaque certo (decisão minha, ver ponto 1 acima), já que o mockup original
+usava um rótulo fictício diferente.

@@ -2067,40 +2067,59 @@ function renderDashboard(){
     .db-kpi-lbl{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--t2)}
     .db-kpi-val{font-size:26px;font-weight:900;line-height:1}
     .db-kpi-sub{font-size:11px;color:var(--t3);margin-top:2px}
+    /* sps-v238: 1 KPI em destaque (Proteção/Risco), mesmo padrão aprovado no mockup v2 —
+       maior, com borda própria, os outros 5 mantêm o tamanho normal */
+    .db-kpi-hero{border-color:#f87171;background:linear-gradient(180deg,rgba(248,113,113,.08),var(--bg2) 60%)}
+    .db-kpi-hero .db-kpi-val{font-size:32px}
+    .db-kpi-hero .db-kpi-sub{cursor:pointer}
+    .db-kpi-hero .db-kpi-sub:hover{text-decoration:underline}
+    /* sps-v238: tooltip simples por CSS (hover com valor exato), mesmo padrão aprovado
+       no mockup v2 — usado nas barras onde o valor exato ainda não está visível como texto */
+    [data-tip]{position:relative;cursor:help}
+    [data-tip]:hover::after{
+      content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+      background:var(--bg4,#232942);border:1px solid var(--brd);color:var(--t1);font-size:10.5px;font-weight:500;
+      padding:6px 9px;border-radius:7px;white-space:nowrap;z-index:50;box-shadow:0 8px 20px rgba(0,0,0,.4)
+    }
+    [data-tip]:hover::before{
+      content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);
+      border:4px solid transparent;border-top-color:var(--bg4,#232942)
+    }
   </style>
-  <!-- KPI Row -->
+  <!-- KPI Row — sps-v238: "Proteção" (risco/lesão) passa a KPI em destaque, os
+       outros 5 mantêm o tamanho normal (antes os 6 tinham o mesmo peso visual) -->
   <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px">
-    <div class="db-kpi">
+    <div class="db-kpi" data-tip="${disp} de ${mainAts.length} atletas disponíveis (sem lesão ativa)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div><div class="db-kpi-lbl">Disponíveis</div><div class="db-kpi-val" style="color:#4ade80">${disp}</div><div class="db-kpi-sub">${dispPct}% aptas a 100%</div></div>
         <span style="font-size:22px">🏃‍♀️</span>
       </div>
     </div>
-    <div class="db-kpi">
+    <div class="db-kpi" data-tip="${highAcwr} atletas com ACWR>1.5 (28 dias)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div><div class="db-kpi-lbl" style="color:#fbbf24">Gestão de Carga</div><div class="db-kpi-val" style="color:#fbbf24">${highAcwr}</div><div class="db-kpi-sub">${mainAts.length?Math.round(monitored/mainAts.length*100):0}% monitorização ativa</div></div>
         <span style="font-size:22px">📊</span>
       </div>
     </div>
-    <div class="db-kpi">
+    <div class="db-kpi db-kpi-hero" data-tip="${injCount} atletas com lesão ativa neste momento">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div><div class="db-kpi-lbl" style="color:#f87171">Proteção</div><div class="db-kpi-val" style="color:#f87171">${injCount}</div><div class="db-kpi-sub">${mainAts.length?Math.round(injCount/mainAts.length*100):0}% risco elevado/lesão</div></div>
+        <div><div class="db-kpi-lbl" style="color:#f87171">Proteção</div><div class="db-kpi-val" style="color:#f87171">${injCount}</div><div class="db-kpi-sub" onclick="navTo('pse-wellness')">${mainAts.length?Math.round(injCount/mainAts.length*100):0}% risco elevado/lesão · ver destaques →</div></div>
         <span style="font-size:22px">🛡️</span>
       </div>
     </div>
-    <div class="db-kpi">
+    <div class="db-kpi" data-tip="${wkUA} u.a. acumuladas esta semana (${mainAts.length} atletas)">
       <div><div class="db-kpi-lbl">Carga Média Semanal</div>
         <div style="display:flex;align-items:baseline;gap:4px"><div class="db-kpi-val">${wkUA}</div><span style="font-size:12px;color:var(--t2)">u.a.</span></div>
         <div class="db-kpi-sub"><span style="color:${uaDelta>=0?'#4ade80':'#f87171'}">${uaDelta>=0?'+':''}${uaDelta}%</span> vs semana ant.</div>
       </div>
     </div>
-    <div class="db-kpi">
+    <div class="db-kpi" data-tip="${disp} de ${mainAts.length} atletas disponíveis">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div><div class="db-kpi-lbl">Disponibilidade %</div><div class="db-kpi-val">${dispPct}%</div><div class="db-kpi-sub">Plantel disponível</div></div>
         ${svgRing(dispPct,'#4ade80',44)}
       </div>
     </div>
-    <div class="db-kpi">
+    <div class="db-kpi" data-tip="${wkMins} u.a. acumuladas esta semana">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div><div class="db-kpi-lbl" style="color:#60a5fa">Acumulação UA</div><div class="db-kpi-val" style="color:#60a5fa">${wkMins}</div><div class="db-kpi-sub">Esta semana</div></div>
         <span style="font-size:22px">⏱️</span>
@@ -2191,8 +2210,11 @@ function renderDashboard(){
 
   <!-- Bottom row (Carga Semanal/Top5 ACWR/Risco de Lesão + Classificação, sps-v147:
        4 colunas em vez de 3, pedido do Roger — grelha ajustada p/ o gráfico de Carga
-       Semanal continuar legível apesar do card novo) -->
-  <div style="display:grid;grid-template-columns:1.6fr 0.85fr 0.85fr 1fr;gap:12px;margin-bottom:58px">
+       Semanal continuar legível apesar do card novo). sps-v238: "Risco de Lesão"
+       deixou de misturar a lista de risco com a Distribuição de Carga — a
+       Distribuição passou a cartão próprio, de largura total, logo a seguir a este
+       bloco (mesmo mockup v2 aprovado pelo Roger). -->
+  <div style="display:grid;grid-template-columns:1.6fr 0.85fr 0.85fr 1fr;gap:12px;margin-bottom:12px">
     <!-- Carga Semanal chart -->
     <div class="card">
       <div class="ch"><span class="ct">CARGA SEMANAL</span>
@@ -2224,11 +2246,12 @@ function renderDashboard(){
       </div>
     </div>
 
-    <!-- Risco de Lesão + Distribuição -->
+    <!-- Risco de Lesão (sps-v238: só número+lista — a Distribuição de Carga saiu
+         para o cartão próprio logo abaixo) -->
     <div class="card">
       <div class="ch"><span class="ct">RISCO DE LESÃO</span></div>
-      <div class="cb" style="padding:12px 14px">
-        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px">
+      <div class="cb" style="padding:12px 14px" data-tip="${injRisk.length} atletas em risco elevado · ACWR>1.3 ou lesão ativa">
+        <div style="display:flex;gap:10px;align-items:flex-start">
           <div style="text-align:center;flex-shrink:0">
             <div style="font-size:30px;font-weight:900;line-height:1;color:${injRisk.length>2?'#f87171':injRisk.length?'#fbbf24':'#4ade80'}">${injRisk.length}</div>
             <div style="font-size:9px;color:var(--t2);font-weight:700">${injRisk.length>2?'ALTO RISCO':injRisk.length?'ATENÇÃO':'CONTROLADO'}</div>
@@ -2243,23 +2266,6 @@ function renderDashboard(){
             }).join('')||`<div style="color:#4ade80;font-size:11px">✅ Sem atletas em risco</div>`}
           </div>
         </div>
-        <div style="margin-top:4px">
-          <div style="font-size:9px;color:var(--t2);font-weight:700;margin-bottom:4px;text-transform:uppercase">Distribuição de Carga (28d)</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <div style="flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden;display:flex">
-              <div style="width:${distPct(typeUA.Treino)}%;background:#4ade80;transition:width .5s"></div>
-              <div style="width:${distPct(typeUA.Jogo)}%;background:#f87171;transition:width .5s"></div>
-              <div style="width:${distPct(typeUA.Força)}%;background:#60a5fa;transition:width .5s"></div>
-              <div style="width:${distPct(typeUA.Outros)}%;background:#fbbf24;transition:width .5s"></div>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:5px;font-size:9px;color:var(--t2);flex-wrap:wrap">
-            <span><span style="color:#4ade80">■</span> Treino ${distPct(typeUA.Treino)}%</span>
-            <span><span style="color:#f87171">■</span> Jogo ${distPct(typeUA.Jogo)}%</span>
-            <span><span style="color:#60a5fa">■</span> Força ${distPct(typeUA.Força)}%</span>
-            <span><span style="color:#fbbf24">■</span> Outros ${distPct(typeUA.Outros)}%</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -2269,6 +2275,66 @@ function renderDashboard(){
     <div class="card">
       <div class="ch"><span class="ct">🏆 CLASSIFICAÇÃO</span></div>
       <div class="cb" style="padding:10px 12px">${_dashClassifCardHtml(nextGame)}</div>
+    </div>
+  </div>
+
+  <!-- Estatísticas da Época — Top 5 (sps-v238, pedido do Roger: mini-rankings de
+       Golos/Assistências/Minutos ao lado da Classificação, sem sair da Dashboard.
+       Reaproveita exatamente os mesmos dados do Ranking do Plantel (_seasonStatsAll,
+       aba Jogos) — nenhuma estrutura nova, só um resumo top-5 lado a lado. -->
+  ${(()=>{
+    if(!_seasonGames().length)return '';
+    const rows=_seasonStatsAll().filter(r=>r.jogos>0);
+    if(!rows.length)return '';
+    const statCol=(title,icon,color,sortKey,fmt)=>{
+      const top=rows.slice().sort((a,b)=>b[sortKey]-a[sortKey]||b.goals-a.goals||b.mins-a.mins).slice(0,5).filter(r=>r[sortKey]>0);
+      const max=top.length?top[0][sortKey]:1;
+      return`<div>
+        <div style="font-size:10px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">${icon} ${title}</div>
+        ${top.length?top.map((r,i)=>{
+          const bw=Math.max(6,Math.round(r[sortKey]/max*100));
+          return`<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+            <span style="font-size:10px;color:var(--t3);width:12px;flex-shrink:0;font-weight:${i===0?800:400}">${i+1}</span>
+            <span style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;max-width:92px" title="${escHtml(r.at.name)}">${escHtml(_shortName(r.at))}</span>
+            <div style="flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden" data-tip="${r.jogos} jogo${r.jogos===1?'':'s'}"><div style="width:${bw}%;height:100%;background:${color};border-radius:3px"></div></div>
+            <span style="font-size:11px;font-weight:800;color:var(--t1);flex-shrink:0;min-width:28px;text-align:right">${fmt(r[sortKey])}</span>
+          </div>`;
+        }).join(''):`<div style="color:var(--t3);font-size:11px;padding:6px 0">Sem registos</div>`}
+      </div>`;
+    };
+    return`<div class="card" style="margin-bottom:12px">
+      <div class="ch"><span class="ct">⭐ Estatísticas da Época — Top 5</span><button class="btn btn-gh btn-sm" onclick="_dashVerRankingCompleto()">Ver Ranking completo →</button></div>
+      <div class="cb">
+        <div style="font-size:10px;color:var(--t2);margin-bottom:10px">Dados já existentes no Ranking da aba Jogos (⚽ Golos/🅰️ Assistências/⏱️ Minutos) — aqui só os top 5, lado a lado, para ver sem sair do Dashboard.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px">
+          ${statCol('Golos','⚽','#d95926','goals',v=>v)}
+          ${statCol('Assistências','🅰️','#9085e9','assists',v=>v)}
+          ${statCol('Minutos Jogados','⏱️','#3987e5','mins',v=>v+"'")}
+        </div>
+      </div>
+    </div>`;
+  })()}
+
+  <!-- Distribuição de Carga (28d) — sps-v238: saiu do cartão "Risco de Lesão" para
+       aqui, com paleta própria de "tipo de sessão" (azul/laranja/verde-água/violeta,
+       --cat1 a --cat4 do mockup v2), deixando de partilhar verde/amarelo/vermelho/
+       azul com as cores de estado/risco usadas no resto da fiada (confusão apontada
+       pelo Roger: "Jogo" em vermelho não é um alerta). -->
+  <div class="card" style="margin-bottom:58px">
+    <div class="ch"><span class="ct">DISTRIBUIÇÃO DE CARGA (28D)</span><span style="font-size:9.5px;font-weight:700;color:var(--t2);background:var(--bg3);border:1px solid var(--brd);padding:3px 8px;border-radius:12px">cor própria, já não é verde/amarelo/vermelho</span></div>
+    <div class="cb">
+      <div style="display:flex;gap:14px;margin-bottom:8px;font-size:10.5px;color:var(--t2);flex-wrap:wrap">
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#3987e5;display:inline-block"></span>Treino</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#d95926;display:inline-block"></span>Jogo</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#199e70;display:inline-block"></span>Força/Ginásio</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#9085e9;display:inline-block"></span>Outros</span>
+      </div>
+      <div style="display:flex;height:10px;background:rgba(255,255,255,.1);border-radius:5px;overflow:hidden">
+        <div style="width:${distPct(typeUA.Treino)}%;background:#3987e5;transition:width .5s" data-tip="Treino · ${Math.round(typeUA.Treino)} u.a. (${distPct(typeUA.Treino)}%)"></div>
+        <div style="width:${distPct(typeUA.Jogo)}%;background:#d95926;transition:width .5s" data-tip="Jogo · ${Math.round(typeUA.Jogo)} u.a. (${distPct(typeUA.Jogo)}%)"></div>
+        <div style="width:${distPct(typeUA.Força)}%;background:#199e70;transition:width .5s" data-tip="Força/Ginásio · ${Math.round(typeUA.Força)} u.a. (${distPct(typeUA.Força)}%)"></div>
+        <div style="width:${distPct(typeUA.Outros)}%;background:#9085e9;transition:width .5s" data-tip="Outros · ${Math.round(typeUA.Outros)} u.a. (${distPct(typeUA.Outros)}%)"></div>
+      </div>
     </div>
   </div>
 
@@ -5400,6 +5466,10 @@ function _scopedStats(r,scope){
 }
 let _rankingScope='total';
 function setRankingScope(key){_rankingScope=key;renderJogos();}
+// sps-v238: atalho "Ver Ranking completo →" do cartão "Estatísticas da Época" na
+// Dashboard — garante o separador certo ANTES do navTo('jogos') chamar renderJogos()
+// sozinho (mesmo padrão já usado em _abrirJogoDeCompeticao, sps-v160).
+function _dashVerRankingCompleto(){_jogoTab='ranking';navTo('jogos');}
 // Mapa de golos acumulado na época — todos os jogos já realizados (mesmo critério
 // de _seasonGames), independente da competição escolhida no Ranking (dados ainda
 // escassos, não vale a pena complicar com separadores por agora).
