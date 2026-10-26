@@ -6284,3 +6284,51 @@ commit, mesmo padrão dos testes visuais anteriores).
 **Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
 confirmar visualmente na app real depois de `sps-v240` chegar aos
 dispositivos.
+
+## sps-v241 (27/10/2026): novo tipo de evento "Palestra" no Planeamento
+
+Pedido do Roger, a partir de um screenshot do formulário "Novo Evento" (página
+Planeamento): a lista predefinida de tipos de evento (`EV_TYPES`, dropdown
+"Tipo") não tinha "Palestra" e ele queria poder criar eventos desse tipo.
+Pedido mecânico/incremental (acrescentar uma opção a uma lista já existente,
+mesmo padrão de todos os tipos já lá estavam), sem necessidade de proposta
+prévia.
+
+**Contexto encontrado:** `EV_TYPES`/`EV_COLORS` (linha ~3461) já alimentam,
+sem mais nenhuma alteração necessária, tanto o `<select id="ef-type">` do
+formulário do Planeamento como a sua legenda de cores — bastava acrescentar
+"Palestra" aos dois. `_toggleEfTreinoFields()` só dá tratamento especial a
+"Treino" (esconde os campos genéricos) e a "Ginásio" (ficha de ginásio); para
+qualquer outro tipo — incluindo agora "Palestra" — mostra sempre os campos
+genéricos (Local, Hora/Local de Concentração, Notas), exatamente o que já
+aparecia no formulário do Roger. `_isTrainingType`, `MC_TRAINING_EV_TYPES` e
+`CARGA_PLAN_EV_TYPES` (que decidem o que conta como treino/tem carga física
+planeada) só listam Treino/Ativação/Recuperação/Ginásio(+Jogo) — "Palestra"
+fica de fora por omissão, mesmo tratamento já dado a Reunião/Consulta
+Nutri/Fisio, sem precisar de nenhuma alteração nessas constantes.
+
+Nota: isto é um tipo de evento genérico no calendário do Planeamento,
+distinto dos campos dedicados `palestraPreJogoHora`/`palestraPreAquecimentoHora`
+(sps-v179/180), que continuam a existir só dentro da Logística de cada Jogo
+em concreto — "Palestra" no Planeamento serve para agendar palestras fora do
+contexto de um jogo específico (ex: formação, palestra temática), sem
+qualquer ligação a essas duas.
+
+**Implementado:**
+- `EV_TYPES`: acrescentado `'Palestra'` à lista.
+- `EV_COLORS`: acrescentado `Palestra:'#d63384'` (rosa/magenta) — cor nova,
+  escolhida por ser visualmente distinta das 9 já usadas (nenhuma delas é
+  rosa/magenta).
+
+SW bump para `sps-v241`. Testado: `node --check` ao bloco `<script>` inteiro;
+novo `test_palestra_evtype_v241.js` (Node, `EV_TYPES`/`EV_COLORS`/
+`_isTrainingType`/`MC_TRAINING_EV_TYPES`/`CARGA_PLAN_EV_TYPES` extraídas REAIS
+do `index.html`) — Palestra está na lista e tem cor própria, a cor não colide
+com nenhuma das 9 já existentes, e Palestra fica corretamente fora de
+treino/microciclo/carga planeada. Verificação visual ao vivo não foi feita
+nesta sessão — alteração mínima (2 constantes), reaproveita 100% da UI já
+existente do formulário "Novo Evento" sem tocar em marcação/lógica própria.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
+confirmar visualmente no dropdown "Tipo" do Planeamento depois de `sps-v241`
+chegar aos dispositivos.

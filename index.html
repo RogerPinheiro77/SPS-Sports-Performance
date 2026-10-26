@@ -3458,8 +3458,14 @@ function saveAttendance(eventId){
   if(ROLE!=='atleta'&&_curPg)navTo(_curPg);
 }
 let _showEvForm=false, _editEvId=null, _selDate=null;
-const EV_TYPES=['Treino','Ginásio','Jogo','Reunião','Consulta Nutri','Fisio','Ativação','Recuperação','Folga'];
-const EV_COLORS={Treino:'#27a34a',Ginásio:'#7d3c98',Jogo:'#c0392b',Reunião:'#935116','Consulta Nutri':'#0e6251',Fisio:'#1a237e',Ativação:'#b7770d',Recuperação:'#2e86c1',Folga:'#5a6582'};
+const EV_TYPES=['Treino','Ginásio','Jogo','Palestra','Reunião','Consulta Nutri','Fisio','Ativação','Recuperação','Folga'];
+// Palestra: evento genérico do Planeamento (igual a Reunião/Fisio/Consulta Nutri — sem
+// campos de treino/convocatória/ficha de ginásio, ver _toggleEfTreinoFields/_isTrainingType),
+// pedido do Roger 27/10/2026 para poder agendar palestras (ex: Palestra Pré-Jogo informal,
+// formação, etc.) fora do contexto de um Jogo específico — os campos dedicados
+// palestraPreJogoHora/palestraPreAquecimentoHora (sps-v179/180) continuam a existir só
+// dentro de cada Jogo, isto é um tipo de evento à parte no calendário geral.
+const EV_COLORS={Treino:'#27a34a',Ginásio:'#7d3c98',Jogo:'#c0392b',Palestra:'#d63384',Reunião:'#935116','Consulta Nutri':'#0e6251',Fisio:'#1a237e',Ativação:'#b7770d',Recuperação:'#2e86c1',Folga:'#5a6582'};
 const _isTrainingType=t=>t==='Treino'||t==='Ativação'||t==='Recuperação'||t==='Ginásio';
 // Convocatória avulsa (hoje ou futura) mais próxima de uma atleta a um Treino/Jogo de
 // outra equipa — usado para o badge "📅 Convocada" no Plantel. Não altera a.teamId,
