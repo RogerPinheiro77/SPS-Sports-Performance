@@ -11063,22 +11063,31 @@ function printSessaoPSEWellness(){
   `;
   _printWin(title,body);
 }
-// Cores por tipo de PSE (Treino/Ginásio/Outros), confirmadas com o Roger via mockup
-// (v1→v2→v3 "final") antes de ir a código, sps-v236: Ginásio em roxo — a mesma cor já
-// usada para Ginásio em EV_COLORS (calendário do Planeamento), em _TE_ORIGEM_COLOR
-// (Treinos Extra) e no ícone da app SPS-Ginásio — nunca âmbar, para não haver 2 cores
-// diferentes para a mesma categoria em sítios diferentes da app. Fica só nesta página
-// (PSE & Wellness) — Análise da Sessão/Relatório de Atleta/Condição do Plantel já
-// ligam a uma sessão/tipo só, sem ganho real com esta cor extra (decisão confirmada).
-const PSE_GROUP_COLORS={treino:'#27a34a',ginasio:'#7d3c98',outros:'#5cd0e8'};
-const PSE_GROUP_LABELS={treino:'PSE Treino',ginasio:'PSE Ginásio',outros:'PSE Outros'};
-// _pseGroup: agrupa o sessionType em 3 categorias para a página PSE & Wellness —
-// 'Ginásio' isolado (gating/fluxo próprio, sps-v182/v217/v235), 'Treino' (ou em
-// branco, PSE antigos sem sessionType gravado — mesmo fallback já usado em _pweT/
-// _pwAddPse) e 'Outros' a juntar Jogo/Reabilitação/Ativação (separar os 3 sobrecarregava
-// a tabela sem ganho prático, decisão confirmada com o Roger no mockup).
+// Cores por tipo de PSE (Treino/Ginásio/Jogo/Outros), confirmadas com o Roger via
+// mockup (v1→v2→v3 "final") antes de ir a código, sps-v236: Ginásio em roxo — a mesma
+// cor já usada para Ginásio em EV_COLORS (calendário do Planeamento), em
+// _TE_ORIGEM_COLOR (Treinos Extra) e no ícone da app SPS-Ginásio — nunca âmbar, para
+// não haver 2 cores diferentes para a mesma categoria em sítios diferentes da app.
+// sps-v240: Jogo passou a categoria própria (antes vinha dentro de "Outros", junto
+// com Reabilitação/Ativação) — pedido do Roger, carga de jogo tem um perfil de
+// intensidade muito diferente de uma sessão de reabilitação/ativação (baixa
+// intensidade) e misturá-las no mesmo traço do gráfico escondia o padrão de cada
+// uma. Cor reaproveitada de EV_COLORS.Jogo (vermelho), mesmo princípio do Ginásio
+// acima — nunca 2 cores diferentes para a mesma categoria em sítios diferentes da
+// app. Fica só nesta página (PSE & Wellness) — Análise da Sessão/Relatório de
+// Atleta/Condição do Plantel já ligam a uma sessão/tipo só, sem ganho real com esta
+// cor extra (decisão confirmada).
+const PSE_GROUP_COLORS={treino:'#27a34a',ginasio:'#7d3c98',jogo:'#c0392b',outros:'#5cd0e8'};
+const PSE_GROUP_LABELS={treino:'PSE Treino',ginasio:'PSE Ginásio',jogo:'PSE Jogo',outros:'PSE Outros'};
+// _pseGroup: agrupa o sessionType em 4 categorias para a página PSE & Wellness —
+// 'Ginásio' isolado (gating/fluxo próprio, sps-v182/v217/v235), 'Jogo' isolado
+// (sps-v240, carga de pico/referência própria, ver comentário acima), 'Treino' (ou
+// em branco, PSE antigos sem sessionType gravado — mesmo fallback já usado em
+// _pweT/_pwAddPse) e 'Outros' a juntar só Reabilitação/Ativação (as duas de baixa
+// intensidade — separá-las mais sobrecarregava a tabela sem ganho prático).
 function _pseGroup(sessionType){
   if(sessionType==='Ginásio')return'ginasio';
+  if(sessionType==='Jogo')return'jogo';
   if(!sessionType||sessionType==='Treino')return'treino';
   return'outros';
 }
@@ -11107,10 +11116,10 @@ function renderPSEWellness(){
 
   let html='';
   if(_pwTab==='pse'){
-    // Collective PSE charts — 3 séries (Treino/Ginásio/Outros), sps-v236
+    // Collective PSE charts — 4 séries (Treino/Ginásio/Jogo/Outros), sps-v236/v240
     const labels=days.map(d=>fmtDateShort(d));
     const avgPSEByType={}, totalUAByType={};
-    ['treino','ginasio','outros'].forEach(grp=>{
+    ['treino','ginasio','jogo','outros'].forEach(grp=>{
       avgPSEByType[grp]=days.map(d=>{const ps=APP.pse.filter(p=>p.date===d&&_pseGroup(p.sessionType)===grp&&athletes.find(a=>a.id===p.athleteId));return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.pse||0),0)/ps.length*10)/10:null;});
       totalUAByType[grp]=days.map(d=>{const ps=APP.pse.filter(p=>p.date===d&&_pseGroup(p.sessionType)===grp&&athletes.find(a=>a.id===p.athleteId));return ps.length?Math.round(ps.reduce((s,p)=>s+(+p.ua||0),0)):null;});
     });
@@ -11124,12 +11133,12 @@ function renderPSEWellness(){
       const chronic=last28.length?Math.round(last28.reduce((s,p)=>s+(+p.ua||0),0)/28*10)/10:0;
       const acwr=chronic?Math.round(acute/chronic*100)/100:0;
       const acwrClass=acwr>1.5||acwr<0.8?'bg-r':acwr>=1.0?'bg-g':'bg-y';
-      const lastByType={treino:null,ginasio:null,outros:null};
+      const lastByType={treino:null,ginasio:null,jogo:null,outros:null};
       atPSE.forEach(p=>{const grp=_pseGroup(p.sessionType);if(days.includes(p.date)&&!lastByType[grp])lastByType[grp]=p;});
       const expKey='pse_'+at.id;
       const isExp=_pwExpand.has(expKey);
       const hist=atPSE.slice(0,10);
-      const histRow=isExp?`<tr><td colspan="8" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)} — edita para corrigir um erro</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th><th>Ações</th></tr></thead><tbody>${hist.length?hist.map(p=>`<tr>
+      const histRow=isExp?`<tr><td colspan="9" style="padding:0;background:var(--bg1)"><div style="padding:8px 16px 12px 42px"><div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Últimos ${hist.length} registos de ${escHtml(at.name)} — edita para corrigir um erro</div><table style="width:100%;font-size:11px"><thead><tr><th>Data</th><th>PSE</th><th>Duração</th><th>UA</th><th>Tipo</th><th>Ações</th></tr></thead><tbody>${hist.length?hist.map(p=>`<tr>
         <td>${fmtDate(p.date)}</td>
         <td><select id="pweS-${p.id}" class="fc" style="padding:2px 4px;font-size:11px;width:52px">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${p.pse==n?'selected':''}>${n}</option>`).join('')}</select></td>
         <td><input id="pweD-${p.id}" class="fc" type="number" min="1" max="300" value="${p.duration}" style="width:58px;padding:2px 4px;font-size:11px"></td>
@@ -11140,6 +11149,7 @@ function renderPSEWellness(){
       return`<tr><td><div style="display:flex;align-items:center;gap:7px" title="${escHtml(at.name)}"><button class="btn btn-xs btn-gh" onclick="_pwToggle('${expKey}')" title="Ver últimos registos" style="padding:2px 6px">${isExp?'▴':'▾'}</button>${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_shortName(at))}</strong></div></td><td>${at.pos||'—'}</td>
       <td>${_pseTypeCellHtml(lastByType.treino,'treino')}</td>
       <td>${_pseTypeCellHtml(lastByType.ginasio,'ginasio')}</td>
+      <td>${_pseTypeCellHtml(lastByType.jogo,'jogo')}</td>
       <td>${_pseTypeCellHtml(lastByType.outros,'outros')}</td>
       <td style="text-align:center">${acute}</td>
       <td style="text-align:center">${chronic}</td>
@@ -11169,7 +11179,7 @@ function renderPSEWellness(){
         </div>
       </div>
     </div>`:'';
-    const pseLegendHtml=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--t2);font-weight:600">${['treino','ginasio','outros'].map(grp=>`<span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:${PSE_GROUP_COLORS[grp]};display:inline-block"></span>${grp==='outros'?'PSE Outros (Jogo · Reabilitação · Ativação)':PSE_GROUP_LABELS[grp]}</span>`).join('')}</div>`;
+    const pseLegendHtml=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--t2);font-weight:600">${['treino','ginasio','jogo','outros'].map(grp=>`<span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:${PSE_GROUP_COLORS[grp]};display:inline-block"></span>${grp==='outros'?'PSE Outros (Reabilitação · Ativação)':PSE_GROUP_LABELS[grp]}</span>`).join('')}</div>`;
     html=`
     ${addFormHtml}
     ${pseLegendHtml}
@@ -11190,12 +11200,12 @@ function renderPSEWellness(){
           </select>
         </div>
       </div>
-      <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th style="color:${PSE_GROUP_COLORS.treino}">PSE Treino</th><th style="color:${PSE_GROUP_COLORS.ginasio}">PSE Ginásio</th><th style="color:${PSE_GROUP_COLORS.outros}">PSE Outros</th><th>Carga Aguda</th><th>Carga Crónica</th><th>ACWR</th></tr></thead>
-      <tbody>${atRows||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Sem dados PSE</td></tr>'}</tbody></table></div></div>
+      <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th style="color:${PSE_GROUP_COLORS.treino}">PSE Treino</th><th style="color:${PSE_GROUP_COLORS.ginasio}">PSE Ginásio</th><th style="color:${PSE_GROUP_COLORS.jogo}">PSE Jogo</th><th style="color:${PSE_GROUP_COLORS.outros}">PSE Outros</th><th>Carga Aguda</th><th>Carga Crónica</th><th>ACWR</th></tr></thead>
+      <tbody>${atRows||'<tr><td colspan="9" style="text-align:center;color:var(--t2);padding:20px">Sem dados PSE</td></tr>'}</tbody></table></div></div>
     </div>`;
     setTimeout(()=>{
-      buildMultiLineChart('chart-pse-col',labels,['treino','ginasio','outros'].map(grp=>({label:PSE_GROUP_LABELS[grp],data:avgPSEByType[grp],color:PSE_GROUP_COLORS[grp]})),10);
-      buildMultiLineChart('chart-ua-col',labels,['treino','ginasio','outros'].map(grp=>({label:PSE_GROUP_LABELS[grp],data:totalUAByType[grp],color:PSE_GROUP_COLORS[grp]})),null);
+      buildMultiLineChart('chart-pse-col',labels,['treino','ginasio','jogo','outros'].map(grp=>({label:PSE_GROUP_LABELS[grp],data:avgPSEByType[grp],color:PSE_GROUP_COLORS[grp]})),10);
+      buildMultiLineChart('chart-ua-col',labels,['treino','ginasio','jogo','outros'].map(grp=>({label:PSE_GROUP_LABELS[grp],data:totalUAByType[grp],color:PSE_GROUP_COLORS[grp]})),null);
     },50);
   } else if(_pwTab==='wellness'){
     // WELLNESS heatmap

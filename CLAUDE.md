@@ -6234,3 +6234,53 @@ só o jogo reportado foi corrigido; se aparecer PSE que não desbloqueia
 sozinho noutro jogo antigo (criado/editado antes desta correção), o mais
 provável é ser o mesmo caso, resolúvel preenchendo a hora uma vez no
 separador Info (agora já sincroniza) ou por SQL direto como aqui.
+
+## sps-v240 (26/10/2026): PSE & Wellness ganha categoria própria "PSE Jogo"
+
+Pedido do Roger (com screenshot da página PSE & Wellness): até aqui a página
+tinha 3 categorias — PSE Treino, PSE Ginásio, PSE Outros (esta última a
+juntar Jogo/Reabilitação/Ativação) — e perguntou se fazia sentido separar o
+Jogo numa categoria própria.
+
+**Parecer dado antes de codar (Roger pediu explicitamente a opinião):** sim,
+faz sentido — carga de jogo tem um perfil de intensidade estruturalmente
+diferente de Reabilitação/Ativação (sessões deliberadamente de baixa
+intensidade), e misturar as duas no mesmo traço do gráfico escondia o
+padrão de cada uma (ex: uma semana com jogo + ativação a dar uma média que
+não representa bem nenhuma das duas). Separar o Jogo também dá visibilidade
+direta a algo que os treinadores costumam querer ver isolado: quanto da
+carga da semana veio do jogo em si (referência de pico) vs. do treino.
+
+**Implementado:**
+- `PSE_GROUP_COLORS`/`PSE_GROUP_LABELS` ganharam a entrada `jogo` — cor
+  reaproveitada de `EV_COLORS.Jogo` (vermelho `#c0392b`, já usada em todo o
+  lado da app para Jogo — Planeamento, badges, etc.), mesmo princípio já
+  aplicado ao Ginásio em sps-v236 (nunca 2 cores diferentes para a mesma
+  categoria em sítios diferentes).
+- `_pseGroup(sessionType)`: `'Jogo'` passa a devolver `'jogo'` em vez de
+  cair no fallback `'outros'`; `'Outros'` passa a juntar só Reabilitação/
+  Ativação.
+- Gráficos coletivos (PSE Médio/UA Total por Tipo), legenda, cabeçalho e
+  linhas da tabela "Individual — PSE & ACWR" atualizados para os 4 grupos
+  (Treino/Ginásio/Jogo/Outros) — tabela passou de 8 para 9 colunas
+  (colspans dos estados vazio/expandido ajustados).
+- Separador "Imprimir" (PSE do dia + Wellness do seguinte) não foi tocado —
+  já mostra o `sessionType` em texto simples, sem passar por `_pseGroup`.
+
+SW bump para `sps-v240`. Testado: `node --check` ao bloco `<script>`
+inteiro; novo `test_pse_jogo_categoria_v240.js` (Node, `_pseGroup`/
+`PSE_GROUP_COLORS`/`PSE_GROUP_LABELS` extraídas REAIS do `index.html`) —
+Jogo separado corretamente, Reabilitação/Ativação continuam em Outros, cor
+do Jogo confirmada igual à de `EV_COLORS.Jogo`, os 4 grupos com cor/rótulo
+definidos, cabeçalho da tabela com as 9 colunas esperadas. Verificação
+visual (Playwright/Chromium, `test_pse_jogo_categoria_v240_visual.js`,
+mesmo padrão dos testes visuais anteriores — `renderPSEWellness()` real
+com dados realistas incluindo Jogo/Reabilitação/Ativação em dias
+distintos) — confirmada a legenda com as 4 categorias, a cor vermelha do
+PSE Jogo a condizer com o resto da app, e a tabela com a coluna "PSE Jogo"
+a mostrar os valores certos — screenshot apagado depois (não faz parte do
+commit, mesmo padrão dos testes visuais anteriores).
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
+confirmar visualmente na app real depois de `sps-v240` chegar aos
+dispositivos.
