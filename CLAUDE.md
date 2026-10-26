@@ -6124,3 +6124,113 @@ Ranking completo", tooltips ao passar o rato) depois de `sps-v238` chegar
 aos dispositivos — e confirmar em particular se o KPI "Proteção" é mesmo o
 destaque certo (decisão minha, ver ponto 1 acima), já que o mockup original
 usava um rótulo fictício diferente.
+
+## sps-v239 (26/10/2026): correção do jogo vs Boavista FC (Taça, 25/10) + causa raiz do PSE que não apareceu
+
+Pedido do Roger: jogo registado ao vivo no SPS-Gameday (5-0 fora, Taça de
+Portugal Feminina, 2ª eliminatória) tinha erros na indicação de golos (o
+adjunto marcava uma atleta e aparecia outra) e o PSE não apareceu
+automaticamente às atletas no fim — teve de introduzir manualmente. Pedido
+explícito: extrair a ficha oficial de `resultados.fpf.pt/Match/
+GetMatchInformation?matchId=2700495` e corrigir a app usando-a como
+referência, mesmo princípio do incidente sps-v184 (28/09/2026).
+
+**Cruzamento com a ficha oficial (Claude in Chrome, árvore de acessibilidade
+— extração estruturada, não só texto, para apanhar corretamente os pares
+entrou/saiu de cada substituição):**
+
+Golos — mais grave do que a descrição inicial fazia parecer: não foi "uma
+atleta a aparecer por outra" isolado, foram **4 dos 5 golos** atribuídos à
+mesma atleta (Ana Faria), como se a seleção de marcadora tivesse ficado
+"presa" nela no ecrã de marcar golo, a partir do 2º golo:
+- 1' app=Ana Monteiro / oficial=Ana Monteiro ✓ (único correto)
+- 32' app=Ana Faria / oficial=**Ana Monteiro**
+- 62' app=Ana Faria / oficial=**Inês Lopes**
+- 64' app=Ana Faria / oficial=**Ana Monteiro**
+- 68' app=Ana Faria / oficial=**Bárbara Martins**
+
+Substituições — 2 dos 3 pares de entrada/saída trocados (confirmado pela
+estrutura da própria página da FPF, cada par citado junto):
+- 45' oficial: Joana Cunha↔Helena Brás e Madalena Lopes↔Ivone Oliveira;
+  app tinha trocado (Joana Cunha↔Ivone Oliveira, Madalena Lopes↔Helena Brás).
+- 72' oficial: Mariana (Raquel) Silva↔Jéssica Fernandes e Mariana Trigo↔Ana
+  Faria; app tinha trocado (Mariana Silva↔Ana Faria, Mariana Trigo↔Jéssica
+  Fernandes).
+- 78'/80' Lara Reguengo↔Ana Monteiro: correto, só a diferença de 2min no
+  minuto (app vs ficha oficial) não é relevante.
+
+Duas identidades confirmadas com o Roger antes de qualquer alteração (ambas
+confirmadas como a mesma pessoa, mesmo princípio do caso "Mariana Couto/
+Mariana Moreira" do sps-v184): "Ana Ribeiro" (ficha oficial) = Ana Romeu
+(nº28, app); "Maria Freitas" (ficha oficial, GR) = Carol Freitas (app) —
+nenhum nome foi alterado na base de dados, só confirmada a correspondência
+para fins de reconciliação.
+
+**Correções aplicadas (jogo `g_ta_a_2_eliminat_ria`), diretamente na
+Supabase de produção, replicando em Node a lógica real de `_gdBuildPlayerStats`/
+`_gdBuildTimeline` extraída do próprio `index.html` antes de escrever o SQL
+(para garantir que os números recalculados batem exatamente certo com o que
+a app teria calculado):**
+- `live_session.events`: `scorer` corrigido nos 4 golos (32'→Ana Monteiro,
+  62'→Inês Lopes, 64'→Ana Monteiro, 68'→Bárbara Martins); `playerOut`
+  corrigido nos 4 eventos de substituição dos 2 pares trocados.
+- `player_stats`: golos redistribuídos (Ana Faria 4→0; Ana Monteiro 1→3;
+  Inês Lopes 0→1; Bárbara Martins 0→1 — assistência de Inês Lopes no 1º
+  golo mantida, já estava correta). Minutos: como os dois pares de
+  substituição trocados caem no mesmo minuto exato (45'→50'/51' no relógio
+  interno, ambos arredondam para 51 dos dois lados — sem alteração), só o
+  par de 72'/73' muda números reais: Ana Faria 72→73min, Jéssica Fernandes
+  73→72min (trocam entre si).
+- `fpf_timeline` (cache usado no Pós-Jogo/relatórios): reconstruído de
+  propósito a partir dos eventos já corrigidos, para não ficar com nomes
+  antigos desatualizados num ecrã que não se recalcula sozinho.
+- `pse_records`: duração/UA das 2 atletas cujos minutos mudaram trocadas
+  entre si (Ana Faria 72min/576→73min/584; Jéssica Fernandes 73min/584→
+  72min/576) — as restantes 12 atletas com PSE já registado não precisaram
+  de correção (minutos não mudaram).
+
+**Causa raiz do PSE não ter aparecido — encontrada e corrigida no código,
+não só nos dados deste jogo:** o jogo está ligado a um evento no
+Planeamento (`schedule_events`, via `g.eventId`) mas esse evento tinha
+`time` vazio, apesar de `g.time` (o Jogo em si) ter 15:00 certo.
+`renderAtPSE()` (ecrã de PSE da atleta) só oferece uma sessão do dia como
+pendente se o evento tiver `time` **e** `dur` preenchidos
+(`if(e.date!==td||!e.time||!e.dur)return false;`) — sem hora, a app nunca
+ofereceu o PSE deste jogo a nenhuma atleta, daí o Roger ter de inserir tudo
+manualmente.
+
+Investigado como é que a hora ficou vazia apesar de `g.time` estar certo:
+encontradas **duas** funções que editam a informação de um Jogo e só uma
+delas sincronizava com `schedule_events` — `saveJogo()` (formulário rápido
+"Novo Jogo"/edição a partir da lista de Jogos) já chamava `_syncJogoSchedule(g,...)`
+(sps-v179), mas `saveJogoInfo()` (separador "Info" dentro do detalhe do
+Jogo — o sítio mais natural para atualizar a hora de um jogo de Taça depois
+do sorteio, que é exatamente o que aconteceu aqui) escrevia só em `g.*` e
+nunca chamava essa sincronização. Mesma classe de bug já documentada várias
+vezes neste ficheiro (dois registos da mesma informação, só um caminho de
+escrita atualizado).
+
+**Fix:** `saveJogoInfo()` passou a `async` e a chamar `await
+_syncJogoSchedule(g,prevDate,prevTeamId)` (mesmo padrão exato de
+`saveJogo()`) antes de `saveData()`/`cloudUpsert('games',g)` — qualquer
+edição de data/hora/local/equipa feita a partir do separador Info passa a
+propagar-se sempre ao evento ligado em Planeamento, nos dois sentidos de
+onde um jogo pode ser editado.
+
+SW bump para `sps-v239`. Testado: `node --check` ao bloco `<script>`
+inteiro; novo `test_saveJogoInfo_sync_v194.js` — harness `vm` com
+`_syncJogoSchedule`/`saveJogoInfo` extraídas REAIS do `index.html`,
+reproduzindo o cenário exato do incidente (jogo de Taça criado sem hora,
+evento ligado também sem hora, hora definida depois pelo separador Info) —
+confirma que `schedule_events.time`/`location` passam a sincronizar
+corretamente, e que o `eventId` do jogo não muda. As correções de dados do
+jogo em si foram validadas com `RETURNING`/leitura pós-escrita nas próprias
+instruções SQL, confirmando que os valores gravados coincidem exatamente
+com os recalculados em Node a partir da lógica real da app.
+
+**Ainda por fazer:** nenhum outro jogo foi auditado à procura do mesmo
+padrão (evento do Planeamento com hora em falta apesar do Jogo ter hora) —
+só o jogo reportado foi corrigido; se aparecer PSE que não desbloqueia
+sozinho noutro jogo antigo (criado/editado antes desta correção), o mais
+provável é ser o mesmo caso, resolúvel preenchendo a hora uma vez no
+separador Info (agora já sincroniza) ou por SQL direto como aqui.

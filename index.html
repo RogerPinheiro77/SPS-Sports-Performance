@@ -6030,11 +6030,12 @@ function _jogoInfoHtml(g){
   </div>`;
 }
 
-function saveJogoInfo(){
+async function saveJogoInfo(){
   const g=APP.games.find(x=>x.id===_jogoDetailId);if(!g)return;
   const opp=document.getElementById('ji-opp').value.trim();
   const date=document.getElementById('ji-date').value;
   if(!opp||!date)return toast('Adversário e data obrigatórios','err');
+  const prevDate=g.date,prevTeamId=g.teamId;
   g.opp=opp;g.date=date;g.time=document.getElementById('ji-time').value;
   g.ha=document.getElementById('ji-ha').value;g.loc=document.getElementById('ji-loc').value;
   g.tipo=document.getElementById('ji-tipo').value||'oficial';
@@ -6045,7 +6046,20 @@ function saveJogoInfo(){
   const g1v=document.getElementById('ji-g1').value,g2v=document.getElementById('ji-g2').value;
   g.g1=g1v!==''?+g1v:null;g.g2=g2v!==''?+g2v:null;
   g.oppLogo=document.getElementById('ji-logo').value||'';
-  saveData();toast('Informações guardadas ✓');
+  // sps-v194: este separador (Info, dentro do detalhe do Jogo) editava data/hora/local
+  // diretamente em g.* mas nunca chamava _syncJogoSchedule — só o formulário rápido
+  // saveJogo() (lista de Jogos) é que sincronizava com o evento ligado em
+  // schedule_events. Resultado: editar a hora aqui (o caminho mais comum para
+  // jogos de Taça marcados sem hora e atualizados depois do sorteio) deixava o
+  // evento do Planeamento com a hora antiga/vazia — e sem hora, o ecrã de PSE da
+  // atleta nunca oferece essa sessão como pendente (renderAtPSE exige e.time
+  // preenchido), por isso as atletas nunca viram o PSE para preencher sozinhas.
+  // Ver incidente do jogo vs Boavista FC (25/10/2026, Taça 2ª elim.) na memória/
+  // changelog. Mesmo padrão de "dois registos da mesma informação, só um lado
+  // sincronizado" já documentado várias vezes neste ficheiro.
+  await _syncJogoSchedule(g,prevDate,prevTeamId);
+  saveData();if(_sync&&_supa&&_cid)await cloudUpsert('games',g);
+  toast('Informações guardadas ✓');
 }
 
 // ─── PESQUISA DE EMBLEMA DE CLUBE (Wikipédia PT, ao vivo) ─────────────────
