@@ -3591,6 +3591,42 @@ function _physicalTestRankFor(testId,teamId,athleteId){
   const pct=total>1?Math.round(((total-1-idx)/(total-1))*100):100;
   return {pos:idx+1,total,pct};
 }
+// ── Ranking Geral (sps-v243) — combina a posição de cada atleta em TODOS os testes que já
+// fez, pedido do Roger para quando há mais do que 1 exercício no catálogo (já é o caso, com
+// IR1+IR2). Baseado no método "Total Score of Athleticism" (Turner et al., 2019, Strength &
+// Conditioning Journal): testes diferentes medem coisas diferentes em unidades diferentes
+// (metros, segundos...) — não dá para somar/comparar valores brutos entre eles. A solução
+// estabelecida é converter cada teste numa medida comum antes de combinar; o artigo original
+// usa z-score, mas recomenda explicitamente, para plantéis pequenos (<30 atletas — sempre o
+// nosso caso), usar percentil de posição em vez de z-score bruto (que precisa de amostras
+// maiores para ser fiável). Por isso aqui usa-se sempre o percentil já calculado por
+// _physicalTestRankFor — a mesma fonte do ranking individual de cada teste, nunca um cálculo
+// em duplicado — e faz-se a média simples dos percentis de cada atleta.
+// Precisa de pelo menos 2 testes diferentes para entrar no Ranking Geral: com só 1 teste
+// feito, a posição já aparece no cartão desse teste — a média de 1 valor não acrescenta nada.
+function _physicalOverallScores(teamId){
+  const testIds=Object.keys(PHYSICAL_TESTS);
+  const athIds=new Set();
+  testIds.forEach(id=>_physicalTestLatestByAthlete(id,teamId).forEach(r=>athIds.add(r.athleteId)));
+  const rows=[];
+  athIds.forEach(aid=>{
+    const pcts={};
+    testIds.forEach(id=>{ const r=_physicalTestRankFor(id,teamId,aid); if(r)pcts[id]=r.pct; });
+    const vals=Object.values(pcts);
+    if(vals.length)rows.push({athleteId:aid,nTests:vals.length,avgPct:vals.reduce((a,b)=>a+b,0)/vals.length,pcts});
+  });
+  return rows.sort((a,b)=>b.avgPct-a.avgPct);
+}
+// Posição da atleta no Ranking Geral — null se ainda não tem ≥2 testes diferentes feitos.
+// Mesmo formato {pos,total,pct} do ranking por teste, nunca nomes/valores de colegas.
+function _physicalOverallRankFor(teamId,athleteId){
+  const rows=_physicalOverallScores(teamId).filter(r=>r.nTests>=2);
+  const idx=rows.findIndex(r=>r.athleteId===athleteId);
+  if(idx<0)return null;
+  const total=rows.length;
+  const pct=total>1?Math.round(((total-1-idx)/(total-1))*100):100;
+  return {pos:idx+1,total,pct,avgPct:Math.round(rows[idx].avgPct),nTests:rows[idx].nTests};
+}
 // Convocatória avulsa (hoje ou futura) mais próxima de uma atleta a um Treino/Jogo de
 // outra equipa — usado para o badge "📅 Convocada" no Plantel. Não altera a.teamId,
 // só olha para ev.guestIds (Treinos) e g.convocatoria de jogos de outra equipa (Jogos).
@@ -12508,6 +12544,7 @@ function renderTestesFisicos(){
   else body=_tfBandsHtml(test);
   document.getElementById('pg-testes-fisicos').innerHTML=`
     ${_tfCatalogHtml()}
+    ${_tfOverallCardHtml(_tfTeamId())}
     <div class="card" style="padding:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <div style="display:flex;gap:4px;flex-wrap:wrap">${tabsHtml}</div>
@@ -12515,6 +12552,24 @@ function renderTestesFisicos(){
       </div>
       ${body}
     </div>`;
+}
+// Cartão "Ranking Geral" do staff — pedido do Roger (sps-v243), equipa-wide (não depende do
+// teste selecionado nos separadores abaixo), por isso fica fora do bloco de abas. Mesma fonte
+// (_physicalOverallScores) do ranking que a atleta vê — nunca um cálculo em duplicado. Fica
+// sem nada visível quando ainda ninguém tem ≥2 testes diferentes (plantel a começar a usar o
+// catálogo), para não mostrar uma tabela vazia/confusa.
+function _tfOverallCardHtml(teamId){
+  const rows=_physicalOverallScores(teamId).filter(r=>r.nTests>=2);
+  if(!rows.length)return '';
+  const trs=rows.map((r,i)=>{
+    const at=APP.athletes.find(a=>a.id===r.athleteId);
+    return `<tr><td style="font-weight:800;color:var(--t2);width:26px">${i+1}</td><td style="display:flex;align-items:center;gap:9px"><span style="width:28px;height:28px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--t2)">${at?initials(at.name):'?'}</span>${at?escHtml(_displayName(at)):'—'}</td><td>${r.nTests}</td><td style="font-weight:800">${Math.round(r.avgPct)}%</td></tr>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:20px;padding:16px">
+    <h2 style="margin-bottom:4px;font-size:15px">🏆 Ranking Geral</h2>
+    <div style="font-size:11.5px;color:var(--t2);margin-bottom:12px">Média do percentil de cada atleta nos testes já feitos (mín. 2 testes diferentes para entrar).</div>
+    <div class="tw"><table><thead><tr><th>#</th><th>Atleta</th><th>Testes</th><th>Média</th></tr></thead><tbody>${trs}</tbody></table></div>
+  </div>`;
 }
 function _tfResultsHtml(test){
   const teamId=_tfTeamId();
@@ -12559,7 +12614,10 @@ function _tfRegisterHtml(test){
   <div class="grid-row hd" style="display:grid;grid-template-columns:28px 1fr 110px 90px 90px 24px;gap:10px;color:var(--t2);font-size:10px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--brd);padding:7px 4px"><div></div><div>Atleta</div><div>${escHtml(test.inputLabel)}</div><div>Distância</div><div>VO2max</div><div>Cor</div></div>
   ${rows||'<div style="padding:20px;text-align:center;color:var(--t2);font-size:12px">Sem atletas nesta equipa.</div>'}
   <div style="font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin:10px 0">Introduz-se o ${escHtml(test.inputLabel).toLowerCase()} lido no protocolo (${test.inputHint}) — a distância e o VO2max calculam-se automaticamente pela tabela oficial do teste, em direto, linha a linha.</div>
-  ${athletes.length?`<button class="btn btn-g" onclick="_tfSaveAll('${test.id}')">💾 Guardar resultados (${athletes.length})</button>`:''}`;
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+  ${athletes.length?`<button class="btn btn-g" onclick="_tfSaveAll('${test.id}')">💾 Guardar resultados (${athletes.length})</button>`:''}
+  ${athletes.length?`<button class="btn btn-gh" onclick="printTestFichaPDF('${test.id}')">🖨️ Ficha de Campo</button>`:''}
+  </div>`;
 }
 function _tfLiveCalc(testId,athleteId){
   const test=PHYSICAL_TESTS[testId];
@@ -12603,6 +12661,36 @@ function _tfSaveAll(testId){
   toast(n?`${n} resultado${n!==1?'s':''} guardado${n!==1?'s':''} ✓`:'Nenhum nível preenchido');
   renderTestesFisicos();
 }
+// Ficha de Campo em PDF (sps-v243) — pedido do Roger: uma folha em branco, A4, para recolher
+// os resultados no campo durante o teste (sem acesso prático à app a meio do protocolo), para
+// depois transcrever no separador Registar. Genérica para qualquer teste do catálogo — só o
+// nome/ícone/rótulo do campo mudam, a estrutura é sempre a mesma (plantel + nível/patamar em
+// branco + observações). Decidido com o Roger: sem a tabela oficial de conversão
+// nível→distância como apêndice (91 linhas para o IR1) — mantém a ficha simples para uso no
+// campo; a conversão já é automática na app ao introduzir os valores em Registar.
+function printTestFichaPDF(testId){
+  const test=PHYSICAL_TESTS[testId];if(!test)return;
+  const teamId=_tfTeamId();
+  const team=APP.teams.find(t=>t.id===teamId);
+  const athletes=APP.athletes.filter(a=>a.teamId===teamId).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!athletes.length)return toast('Sem atletas nesta equipa','err');
+  const rows=athletes.map((a,i)=>`<tr><td>${i+1}</td><td>${escHtml(_displayName(a))}</td><td></td><td></td></tr>`).join('');
+  const metaField=lbl=>`<div style="border-bottom:1px solid #ccc;padding-bottom:10px"><label style="display:block;font-size:7.5pt;text-transform:uppercase;color:#888;margin-bottom:9px;letter-spacing:.3px">${lbl}</label>&nbsp;</div>`;
+  const body=`
+    <h2 style="border-bottom:2px solid #1d6f3b;color:#1d6f3b;padding-bottom:8px">${test.icon} Ficha de Campo — ${escHtml(test.name)}</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin:14px 0;font-size:9pt">
+      <div style="border-bottom:1px solid #ccc;padding-bottom:10px"><label style="display:block;font-size:7.5pt;text-transform:uppercase;color:#888;margin-bottom:9px;letter-spacing:.3px">Equipa</label>${escHtml(team?team.name:'—')}</div>
+      ${metaField('Data')}${metaField('Local')}${metaField('Responsável')}
+    </div>
+    <table border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <thead style="background:#eee"><tr><th style="width:28px">#</th><th>Atleta</th><th style="width:100px">${escHtml(test.inputLabel)}</th><th>Observações</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="margin-top:14px;font-size:8.5pt;color:#666;border-top:1px solid #eee;padding-top:8px;line-height:1.5">
+      <b>Como preencher:</b> regista o ${escHtml(test.inputLabel).toLowerCase()} (${test.inputHint}) em que cada atleta terminou. Distância, VO2max estimado e classificação calculam-se automaticamente ao introduzires estes valores na app, no separador "Registar" deste teste. Usa "Observações" para lesão/desistência/condição atípica no dia.
+    </div>`;
+  _printWin(`Ficha de Campo — ${test.short}`,body);
+}
 function _tfBandsHtml(test){
   const cfg=(APP.config.physicalTestBands||{})[test.id]||{};
   const mode=cfg.mode||(test.defaultBands?'auto':'manual');
@@ -12645,6 +12733,33 @@ function _tfResetBands(testId){
 // Mostra só o resultado da própria atleta + cor + posição no ranking (lugar e
 // percentil) — nunca nomes/valores de colegas, mesmo padrão já seguido no resto da
 // app (ex: "A tua Evolução" na Nutrição, sps-v167).
+// Cartão "Ranking Geral" (sps-v243) — média do percentil da atleta em todos os testes que já
+// fez (ver _physicalOverallRankFor). Só aparece com ≥2 testes diferentes — com 1 só, a
+// posição já está no cartão desse teste, mais abaixo. Lista os testes incluídos (nome +
+// percentil de cada um), nunca nomes/valores de colegas, mesmo princípio do resto da página.
+function _atOverallCardHtml(teamId){
+  const overall=_physicalOverallRankFor(teamId,AID);
+  if(!overall)return '';
+  const rows=_physicalOverallScores(teamId).find(r=>r.athleteId===AID);
+  const miniRows=Object.entries(rows.pcts).map(([tid,pct])=>{
+    const t=PHYSICAL_TESTS[tid];if(!t)return'';
+    const col=pct>=75?'var(--grn)':pct>=25?'var(--yel)':'var(--red)';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 2px;border-bottom:1px solid var(--bg3);font-size:12px"><span><span style="width:8px;height:8px;border-radius:50%;background:${col};display:inline-block;margin-right:7px"></span>${escHtml(t.short)}</span><span style="color:var(--t2)">melhor que ${pct}%</span></div>`;
+  }).join('');
+  return `<div class="card" style="max-width:420px;margin:0 auto 16px;padding:18px;background:linear-gradient(135deg,var(--bg3),var(--bg2))">
+    <div style="text-align:center;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--t2);margin-bottom:8px">🏆 Ranking Geral</div>
+    <div style="text-align:center">
+      <div style="font-size:32px;font-weight:900">${overall.pos}º lugar</div>
+      <div style="font-size:11.5px;color:var(--t2);margin-top:2px">de ${overall.total} atleta${overall.total!==1?'s':''} da equipa · melhor que ${overall.pct}%</div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;margin:16px 0">
+      <div style="background:var(--bg1);border:1px solid var(--brd);border-radius:10px;padding:10px 14px;min-width:84px;text-align:center"><div style="font-size:9.5px;color:var(--t2);text-transform:uppercase">Testes</div><div style="font-size:16px;font-weight:800;margin-top:2px">${overall.nTests}</div></div>
+      <div style="background:var(--bg1);border:1px solid var(--brd);border-radius:10px;padding:10px 14px;min-width:84px;text-align:center"><div style="font-size:9.5px;color:var(--t2);text-transform:uppercase">Média</div><div style="font-size:16px;font-weight:800;margin-top:2px">${overall.avgPct}%</div></div>
+    </div>
+    ${miniRows}
+    <div style="font-size:10.5px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin-top:14px">Média da tua posição percentil em cada teste que já fizeste — testes que ainda não fizeste não entram nem prejudicam. Nunca vês os nomes ou resultados das tuas colegas.</div>
+  </div>`;
+}
 function renderAtTestes(){
   const at=APP.athletes.find(a=>a.id===AID);
   const teamId=at?at.teamId:null;
@@ -12683,6 +12798,7 @@ function renderAtTestes(){
   }).filter(Boolean).join('');
   document.getElementById('atp-testes').innerHTML=`
     <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:14px"><i class="ti ti-stopwatch" style="margin-right:6px;vertical-align:-3px;color:#4ade80" aria-hidden="true"></i>Testes Físicos</div>
+    ${_atOverallCardHtml(teamId)}
     ${cards||`<div class="card" style="text-align:center;padding:32px 20px"><i class="ti ti-stopwatch" style="font-size:40px;color:var(--t2);display:block;margin-bottom:12px" aria-hidden="true"></i><div style="font-size:14px;font-weight:800;margin-bottom:8px">Ainda sem testes registados</div><div style="font-size:12px;color:var(--t2)">Quando fizeres o teu primeiro teste físico, aparece aqui.</div></div>`}`;
 }
 

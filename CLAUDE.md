@@ -6422,3 +6422,69 @@ na app, depois de `sps-v242` chegar aos dispositivos, que o registo/consulta fun
 esperado e que a atleta vê a sua posição no ranking sem ver as colegas. Se mais tarde quiser
 mais protocolos (Sprint 30m, CMJ, etc.), o catálogo já está desenhado para crescer sem
 refatoração.
+
+## sps-v243 (28/10/2026): Ficha de Campo em PDF + Ranking Geral (Testes Físicos)
+
+Pedido do Roger logo a seguir ao sps-v242: "em cada teste que criarmos quero uma ficha em pdf
+tamanho a4 relativo ao teste para recolher os dados / resultados no campo quando fazemos o
+teste, quero tambem na app atleta alem do ranking por exercicio como definimos um ranking
+geral quando tivermos mais que 1 exercicio, analiza, da opiniao e faz mockup antes de
+vançarmos para codigo" — outra vez análise+mockup antes de código. Apresentado mockup
+(`mockup_testes_fisicos_v2_ranking_ficha.html`, nunca commitado) com 3 vistas (Ficha de Campo
+em PDF, Ranking Geral na app da atleta, Ranking Geral no staff) e 2 perguntas fechadas,
+confirmadas pelo Roger com as opções recomendadas: (1) ficha simples, só com a tabela em
+branco para preencher — sem a tabela oficial de conversão nível→distância como apêndice
+(ficaria com 91 linhas para o IR1, difícil de usar no campo); (2) Ranking Geral visível
+também do lado do staff, não só na app da atleta.
+
+**Grounding de ciência do desporto usado antes de desenhar o Ranking Geral:** testes
+diferentes medem coisas diferentes em unidades diferentes (metros, segundos...) — não dá para
+comparar/somar valores brutos entre eles. "Total Score of Athleticism" (Turner et al., 2019,
+*Strength & Conditioning Journal*) resolve isto convertendo cada teste numa medida comum antes
+de combinar; o método original usa z-score (valor−média)/desvio-padrão, mas o próprio artigo
+recomenda, para plantéis pequenos (<30 atletas — sempre o caso aqui), usar percentil de posição
+em vez de z-score bruto, que precisa de amostras maiores para ser fiável. Por isso o Ranking
+Geral usa sempre o percentil já calculado por `_physicalTestRankFor` (mesma fonte do ranking
+por teste, nunca um cálculo em duplicado) e faz a média simples dos percentis de cada atleta —
+só entra quem já fez **pelo menos 2 testes diferentes** (com 1 só, a posição já está no
+cartão desse teste, a média de 1 valor não acrescenta nada); testes que a atleta ainda não fez
+não entram nem prejudicam a média.
+
+**O que foi construído:**
+- `_physicalOverallScores(teamId)`: 1 linha por atleta com ≥1 resultado em qualquer teste —
+  `{athleteId, nTests, avgPct, pcts}` (percentil de cada teste feito + a média), ordenado desc
+  por `avgPct`.
+- `_physicalOverallRankFor(teamId,athleteId)`: posição/percentil da atleta no Ranking Geral —
+  `null` se tiver menos de 2 testes diferentes feitos; mesmo formato `{pos,total,pct}` do
+  ranking por teste, mais `avgPct`/`nTests`. Nunca nomes/valores de colegas.
+- **App da atleta** — novo cartão "🏆 Ranking Geral" no topo da página (antes dos cartões por
+  teste): posição + percentil geral, nº de testes incluídos, média, e uma lista curta do
+  percentil em cada teste que entrou na média. Só aparece com ≥2 testes feitos (testado:
+  atleta com só 1 teste não vê este cartão, continua a ver só o cartão desse teste).
+- **Página do staff** — novo cartão "🏆 Ranking Geral" (equipa-wide, antes dos separadores
+  Resultados/Registar/Bandas, já que não depende do teste selecionado): tabela com posição,
+  atleta, nº de testes e média — só lista quem já tem ≥2 testes diferentes.
+- **Ficha de Campo em PDF** — `printTestFichaPDF(testId)`, genérica para qualquer teste do
+  catálogo (reaproveita `_printWin`, mesmo motor de todos os outros PDFs da app): cabeçalho
+  com nome/ícone do teste, campos em branco (Data/Local/Responsável), tabela com o plantel
+  completo da equipa selecionada (nome pré-preenchido, nível.patamar e observações em branco
+  para preencher à mão no campo) e nota de rodapé a explicar que a distância/VO2max/cor se
+  calculam automaticamente ao transcrever os valores no separador Registar. Botão "🖨️ Ficha
+  de Campo" ao lado de "💾 Guardar resultados", no separador Registar de cada teste.
+
+SW bump para `sps-v243`. Testado: `node --check` ao ficheiro inteiro; 14 testes isolados em
+Node (`test_ranking_geral_v243.js`) das funções reais extraídas do ficheiro — atleta com só 1
+teste fica de fora do Ranking Geral, média de percentis correta (incl. os casos extremos de
+melhor/pior em ambos os testes), ordenação desc, posição/percentil corretos entre só as
+atletas elegíveis (≥2 testes), atleta/equipa inexistente devolve `null`, e caso de uma única
+atleta elegível sem divisão por zero; teste visual Playwright
+(`test_ranking_geral_v243_visual.js`) confirmando os cartões reais no staff e na atleta com
+dados realistas (incl. a ordenação certa e nenhum nome de colega exposto), e a geração real da
+Ficha de Campo em PDF (roster completo, sem a tabela de conversão, conforme decidido).
+Regressão completa (29 ficheiros de teste) re-corrida sem novas falhas — as 2 falhas
+pré-existentes (marcadores do Playbook, sps-v204; verificação de versão desatualizada no
+sps-v236) são anteriores a este trabalho e não relacionadas.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
+visualmente, depois de `sps-v243` chegar aos dispositivos, a Ficha de Campo impressa a sério
+e o Ranking Geral nos dois lados (staff e atleta).
