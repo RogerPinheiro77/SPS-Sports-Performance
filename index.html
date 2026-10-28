@@ -552,6 +552,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-treinos-extra"></div>
       <div class="pg" id="pg-scouting"></div>
       <div class="pg" id="pg-avaliacoes"></div>
+      <div class="pg" id="pg-testes-fisicos"></div>
       <div class="pg" id="pg-convocatorias"></div>
       <div class="pg" id="pg-biblioteca"></div>
       <div class="pg" id="pg-fichas-ginasio"></div>
@@ -609,6 +610,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-page" id="atp-treino"></div>
     <div class="at-page" id="atp-convoc"></div>
     <div class="at-page" id="atp-aval"></div>
+    <div class="at-page" id="atp-testes"></div>
   </div>
   <nav class="at-bnav">
     <div class="at-ni on" onclick="atNav('home',this)"><span class="ic"><i class="ti ti-home" aria-hidden="true"></i></span>Casa</div>
@@ -621,6 +623,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
     <div class="at-ni" onclick="atNav('treino',this)"><span class="ic"><i class="ti ti-run" aria-hidden="true"></i></span>Individual</div>
     <div class="at-ni" onclick="atNav('aval',this)"><span class="ic"><i class="ti ti-star" aria-hidden="true"></i></span>Aval.</div>
     <div class="at-ni" onclick="atNav('convoc',this)"><span class="ic"><i class="ti ti-clipboard-list" aria-hidden="true"></i></span>Convoc.</div>
+    <div class="at-ni" onclick="atNav('testes',this)"><span class="ic"><i class="ti ti-stopwatch" aria-hidden="true"></i></span>Testes</div>
   </nav>
 </div>
 
@@ -694,7 +697,7 @@ const _gdForceLocalGameIds=new Set();
 // ─── DEFAULT DATA ─────────────────────────────────────────
 function defApp(){
   return{
-    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null,hydrationGuidelines:null,playbookSubmomentos:null,playbookMomentos:null},
+    config:{clubName:'Sport Performance',season:'2025/26',color:'#1d6f3b',logo:'⚽',clubLogo:'',homeGround:'',pinTec:'',pinFis:'',pinNut:'',wellnessStart:'07:00',wellnessEnd:'11:00',pseDelay:0,fisioResponsavelId:null,nutriResponsavelId:null,naGuidelines:null,hydrationGuidelines:null,playbookSubmomentos:null,playbookMomentos:null,physicalTestBands:null},
     teams:[{id:'T1',name:'Equipa Principal',type:'principal',cat:'Sénior Feminino'}],
     athletes:[],schedule:[],microcycles:[],sessions:[],macrocycles:[],attendance:[],
     exercises:defEx(),games:[],trainings:[],scouting:[],evalPeriods:[],evalResponses:[],evaluations:[],
@@ -702,6 +705,7 @@ function defApp(){
     injuries:[],treatments:[],nutritionAssessments:[],nutritionPlans:[],nutritionAppointments:[],fisioAppointments:[],
     nutritionGameDayPlan:null,hydrationRecords:[],
     supplementCatalog:[],supplementPrescriptions:[],
+    physicalTestResults:[],
     anamnesis:[],nutritionDietAnamnesis:[],extraTrainings:[],gymSheets:[],gymRecords:[],
     mcTemplates:[],
     codeOfConduct:null,
@@ -1077,6 +1081,7 @@ const ALL_PAGES=[
   {id:'pse-wellness',icon:'📊',label:'PSE & Wellness'},
   {id:'treinos-extra',icon:'🏃',label:'Treinos Extra'},
   {id:'avaliacoes',icon:'⭐',label:'Avaliações'},
+  {id:'testes-fisicos',icon:'🏃',label:'Testes Físicos'},
   {id:'convocatorias',icon:'📋',label:'Convocatórias'},
   {sec:'Ginásio'},
   {id:'fichas-ginasio',icon:'🏋️‍♀️',label:'Fichas de Ginásio'},
@@ -1122,7 +1127,7 @@ const _ALL_PAGE_IDS=ALL_PAGES.filter(p=>!p.sec).map(p=>p.id);
 const ROLE_DEFS={
   treinador:{label:'Treinador',icon:'🧑‍💼',cls:'urb-tec',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:true},
   treinador_adj:{label:'Treinador Adjunto',icon:'🧑‍🏫',cls:'urb-tecadj',pages:_ALL_PAGE_IDS,readOnly:false,manageUsers:false},
-  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','relatorios','guiao-jogo-fora','estagios','playbook'],readOnly:false,manageUsers:false},
+  prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','testes-fisicos','relatorios','guiao-jogo-fora','estagios','playbook'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas','guiao-jogo-fora','estagios','playbook'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
   nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
@@ -1258,7 +1263,7 @@ function _maybeEnterTeamManagerMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',playbook:'Playbook','visao-geral':'Visão Geral',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações','testes-fisicos':'Testes Físicos',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',playbook:'Playbook','visao-geral':'Visão Geral',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1342,7 +1347,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,playbook:renderPlaybook,'visao-geral':renderVisaoGeral,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,'testes-fisicos':renderTestesFisicos,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,playbook:renderPlaybook,'visao-geral':renderVisaoGeral,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly){
     // sps-v227 (Team Manager Bloco 1): writeExceptions permite a um cargo readOnly (hoje
@@ -3467,6 +3472,125 @@ const EV_TYPES=['Treino','Ginásio','Jogo','Palestra','Reunião','Consulta Nutri
 // dentro de cada Jogo, isto é um tipo de evento à parte no calendário geral.
 const EV_COLORS={Treino:'#27a34a',Ginásio:'#7d3c98',Jogo:'#c0392b',Palestra:'#d63384',Reunião:'#935116','Consulta Nutri':'#0e6251',Fisio:'#1a237e',Ativação:'#b7770d',Recuperação:'#2e86c1',Folga:'#5a6582'};
 const _isTrainingType=t=>t==='Treino'||t==='Ativação'||t==='Recuperação'||t==='Ginásio';
+
+// ─── TESTES FÍSICOS (sps-v242) ───────────────────────────────────────────────
+// Catálogo de testes físicos do plantel — pedido do Roger, começando pelas 2 versões
+// do Yo-Yo Intermittent Recovery Test. Desenhado para crescer: cada entrada de
+// PHYSICAL_TESTS define a sua própria conversão input→distância→VO2max e, quando
+// existir, a fonte das bandas de referência por defeito — um teste novo no futuro
+// (ex: Sprint 30m, CMJ) só precisa de uma entrada nova aqui, sem tocar no resto
+// (grelha de registo, tabela de resultados/ranking, ecrã da atleta).
+//
+// Nº de patamares (shuttles de 40m) dentro de cada nível REAL do Yo-Yo IR — igual nas
+// duas versões (IR1/IR2); confirmado cruzando a ficha oficial de registo
+// (theyoyotest.com/documents/yoyo-ir1-recording-sheet.pdf, que lista os níveis reais
+// 5, 9, 11, 12, 13, 14...23, cada um com o seu nº de patamares) com a tabela de
+// distâncias acumuladas (theyoyotest.com/table-YYIR1.htm e table-YYIR2.htm, que
+// confirmam +40m por patamar, sempre). O que muda entre IR1/IR2 é só a velocidade
+// real corrida em cada nível (não precisa de ser guardada aqui — só interessa a
+// distância) e a fórmula de VO2max. Níveis 24/25 não fazem parte de nenhuma tabela
+// oficial publicada encontrada — extrapolados com o mesmo padrão (8 patamares/nível)
+// só como margem de segurança para um resultado fora do normal, nunca esperado.
+const YOYO_LEVEL_SHUTTLES={5:1,9:1,11:2,12:3,13:4,14:8,15:8,16:8,17:8,18:8,19:8,20:8,21:8,22:8,23:8,24:8,25:8};
+const YOYO_LEVELS_ORDER=Object.keys(YOYO_LEVEL_SHUTTLES).map(Number).sort((a,b)=>a-b);
+function _yoyoLevelLabel(levelStr){
+  const m=String(levelStr||'').trim().match(/^(\d+)[.,](\d+)$/);
+  return m?m[1]+'.'+m[2]:null;
+}
+function _yoyoDistance(levelStr){
+  const m=String(levelStr||'').trim().match(/^(\d+)[.,](\d+)$/);
+  if(!m)return null;
+  const lvl=+m[1],shuttle=+m[2];
+  const maxSh=YOYO_LEVEL_SHUTTLES[lvl];
+  if(!maxSh||shuttle<1||shuttle>maxSh)return null;
+  let total=0;
+  for(const l of YOYO_LEVELS_ORDER){
+    if(l===lvl){total+=shuttle;break;}
+    total+=YOYO_LEVEL_SHUTTLES[l];
+  }
+  return total*40;
+}
+// Valores de referência por idade para o Yo-Yo IR1 — única literatura encontrada com
+// dados normativos específicos para futebolistas femininas (Emmonds et al., "Reference
+// values for performance test outcomes relevant to English female soccer players",
+// Science and Medicine in Football, 2022, N=436 jogadoras de elite inglesas — tabela de
+// percentis por idade). Guardam-se aqui só os percentis 25/75 (corte por defeito das
+// bandas vermelho/amarelo/verde), interpolados linearmente entre as idades da tabela.
+// Sem dados publicados equivalentes para o IR2 em futebol feminino — as bandas do IR2
+// ficam por definir manualmente pelo staff (ver PHYSICAL_TESTS.yoyo_ir2.defaultBands).
+const YOYO_IR1_AGE_BANDS=[
+  {age:13,p25:754,p75:1249},{age:15,p25:890,p75:1444},{age:17,p25:1012,p75:1595},
+  {age:19,p25:1085,p75:1659},{age:21,p25:1201,p75:1786},{age:23,p25:1386,p75:2004},
+  {age:25,p25:1480,p75:2080},{age:27,p25:1470,p75:2003},{age:29,p25:1447,p75:1906},
+];
+function _yoyoIr1BandsForAge(age){
+  const tbl=YOYO_IR1_AGE_BANDS;
+  if(age==null)age=tbl[Math.floor(tbl.length/2)].age; // idade desconhecida — assume ponto médio da tabela
+  if(age<=tbl[0].age)return {p25:tbl[0].p25,p75:tbl[0].p75};
+  if(age>=tbl[tbl.length-1].age)return {p25:tbl[tbl.length-1].p25,p75:tbl[tbl.length-1].p75};
+  for(let i=0;i<tbl.length-1;i++){
+    const a=tbl[i],b=tbl[i+1];
+    if(age>=a.age&&age<=b.age){
+      const t=(age-a.age)/(b.age-a.age);
+      return {p25:Math.round(a.p25+(b.p25-a.p25)*t),p75:Math.round(a.p75+(b.p75-a.p75)*t)};
+    }
+  }
+  return {p25:tbl[tbl.length-1].p25,p75:tbl[tbl.length-1].p75};
+}
+const PHYSICAL_TESTS={
+  yoyo_ir1:{id:'yoyo_ir1',name:'Yo-Yo Intermittent Recovery Test — Nível 1',short:'Yo-Yo IR1',icon:'🏃',
+    inputLabel:'Nível.Patamar',inputHint:'Ex: 19.4',
+    distance:_yoyoDistance,
+    vo2max:d=>d==null?null:+(d*0.0084+36.4).toFixed(1), // Bangsbo, Iaia & Krustrup, 2008
+    defaultBands:'yoyo_ir1_age'},
+  yoyo_ir2:{id:'yoyo_ir2',name:'Yo-Yo Intermittent Recovery Test — Nível 2',short:'Yo-Yo IR2',icon:'🏃‍♀️',
+    inputLabel:'Nível.Patamar',inputHint:'Ex: 15.3',
+    distance:_yoyoDistance,
+    vo2max:d=>d==null?null:+(d*0.0136+45.3).toFixed(1), // Bangsbo, Iaia & Krustrup, 2008
+    defaultBands:null}, // sem referência científica para futebol feminino — staff define
+};
+// Bandas efetivas de um teste para uma idade — fundem o que o staff configurou
+// (APP.config.physicalTestBands[testId], modo 'manual' com p25/p75 fixos para toda a
+// equipa) com o valor por defeito do teste (científico, ajustado à idade, só para quem
+// o tiver — ver PHYSICAL_TESTS). Devolve null quando não há bandas de nenhuma fonte
+// (ex: Yo-Yo IR2 antes do staff as definir) — nesse caso a cor fica neutra, nunca
+// inventada.
+function _physicalTestBandsFor(testId,athleteAge){
+  const cfg=(APP.config.physicalTestBands||{})[testId];
+  if(cfg&&cfg.mode==='manual'&&cfg.p25!=null&&cfg.p75!=null)return {p25:cfg.p25,p75:cfg.p75};
+  const def=PHYSICAL_TESTS[testId];
+  if(def&&def.defaultBands==='yoyo_ir1_age')return _yoyoIr1BandsForAge(athleteAge);
+  return null;
+}
+function _physicalTestColor(testId,dist,athleteAge){
+  if(dist==null)return null;
+  const b=_physicalTestBandsFor(testId,athleteAge);
+  if(!b)return null;
+  if(dist<b.p25)return 'r';
+  if(dist>=b.p75)return 'g';
+  return 'y';
+}
+const PHYSICAL_TEST_COLOR_HEX={r:'var(--red)',y:'var(--yel)',g:'var(--grn)'};
+const PHYSICAL_TEST_COLOR_LABEL={r:'🔴 Abaixo do esperado',y:'🟡 Dentro do esperado',g:'🟢 Acima do esperado'};
+// Resultados de todas as atletas da equipa para um teste, na data mais recente de cada
+// atleta (1 linha por atleta — o seu resultado mais recente), ordenados por distância
+// desc. Fonte única tanto para a tabela do staff como para o ranking que a atleta vê.
+function _physicalTestLatestByAthlete(testId,teamId){
+  const rows=(APP.physicalTestResults||[]).filter(r=>r.testId===testId&&(!teamId||r.teamId===teamId));
+  const byAth={};
+  rows.forEach(r=>{ if(!byAth[r.athleteId]||r.date>byAth[r.athleteId].date)byAth[r.athleteId]=r; });
+  return Object.values(byAth).sort((a,b)=>(b.distance||0)-(a.distance||0));
+}
+// Posição da atleta no ranking do teste (1 = melhor) + percentil ("melhor que X% da
+// equipa") — nunca devolve nomes/valores de outras atletas, só a posição desta.
+function _physicalTestRankFor(testId,teamId,athleteId){
+  const list=_physicalTestLatestByAthlete(testId,teamId);
+  const idx=list.findIndex(r=>r.athleteId===athleteId);
+  if(idx<0)return null;
+  const total=list.length;
+  const pct=total>1?Math.round(((total-1-idx)/(total-1))*100):100;
+  return {pos:idx+1,total,pct};
+}
 // Convocatória avulsa (hoje ou futura) mais próxima de uma atleta a um Treino/Jogo de
 // outra equipa — usado para o badge "📅 Convocada" no Plantel. Não altera a.teamId,
 // só olha para ev.guestIds (Treinos) e g.convocatoria de jogos de outra equipa (Jogos).
@@ -12342,6 +12466,226 @@ function _convDateChanged(){
   const el=document.getElementById('conv-athletes');
   if(el)el.innerHTML=_convAthletesHtml(document.getElementById('cf-date').value);
 }
+// ─── TESTES FÍSICOS — Staff (sps-v242) ───────────────────────────────────────
+let _tfTest='yoyo_ir1', _tfTab='res', _tfTeam=null, _tfResDate=null, _tfRegDate=null;
+function _tfTeamId(){ return _tfTeam||(APP.teams[0]&&APP.teams[0].id)||'T1'; }
+function _tfCountFor(testId){ return (APP.physicalTestResults||[]).filter(r=>r.testId===testId).length; }
+function _tfLastDateFor(testId){
+  const rows=(APP.physicalTestResults||[]).filter(r=>r.testId===testId);
+  return rows.length?rows.reduce((m,r)=>r.date>m?r.date:m,rows[0].date):null;
+}
+function _tfSelectTest(id){ _tfTest=id; _tfTab='res'; _tfResDate=null; _tfRegDate=null; renderTestesFisicos(); }
+function _tfSetTab(tab){ _tfTab=tab; renderTestesFisicos(); }
+function _tfCatalogHtml(){
+  const cards=Object.values(PHYSICAL_TESTS).map(t=>{
+    const n=_tfCountFor(t.id), last=_tfLastDateFor(t.id);
+    const on=t.id===_tfTest;
+    return `<div class="test-card" style="display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:10px;cursor:pointer;background:${on?'var(--bg3)':'var(--bg2)'};border:1px solid ${on?'var(--c1)':'var(--brd)'};border-radius:12px" onclick="_tfSelectTest('${t.id}')">
+      <div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--c1),var(--c1l));display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0">${t.icon}</div>
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:14px">${escHtml(t.name)}</div>
+        <div style="color:var(--t2);font-size:11.5px;margin-top:2px">${t.id==='yoyo_ir1'?'Capacidade de repetir esforços intermitentes de alta intensidade — Bangsbo et al. 2008':'Versão mais exigente do IR1, para atletas já em bom nível de forma — Bangsbo et al. 2008'}</div>
+      </div>
+      <div style="font-size:11px;color:var(--t2);background:var(--bg3);padding:3px 9px;border-radius:12px;white-space:nowrap">${n} resultado${n!==1?'s':''}${last?' · última: '+fmtDateShort(last):''}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:20px"><h2 style="margin-bottom:12px;font-size:15px">Catálogo</h2>${cards}
+    <div style="font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin-top:4px">Mais protocolos (ex: Sprint 30m, CMJ) podem ser acrescentados no futuro — fala comigo quando quiseres o próximo.</div>
+  </div>`;
+}
+function _tfBandsNote(test){
+  if(test.defaultBands==='yoyo_ir1_age')return 'Bandas por defeito calculadas por percentil científico ajustado à idade de cada atleta (Emmonds et al., futebolistas femininas de elite inglesas, 2022).';
+  return 'Sem referência científica publicada para este teste em futebol feminino — define aqui os valores que fazem sentido para o teu plantel.';
+}
+function renderTestesFisicos(){
+  const test=PHYSICAL_TESTS[_tfTest];
+  const teamSel=`<select class="fc" style="width:auto;font-size:11px" onchange="_tfTeam=this.value;renderTestesFisicos()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_tfTeamId()?'selected':''}>${t.name}</option>`).join('')}</select>`;
+  const tabs=[{id:'res',label:'Resultados'},{id:'reg',label:'Registar'},{id:'band',label:'Bandas de Referência'}];
+  const tabsHtml=tabs.map(t=>`<button class="btn btn-sm" onclick="_tfSetTab('${t.id}')" style="border-color:${_tfTab===t.id?'var(--c1)':'var(--brd)'};background:${_tfTab===t.id?'var(--c1)':'transparent'};color:${_tfTab===t.id?'#fff':'var(--t1)'}">${t.label}</button>`).join('');
+  let body='';
+  if(_tfTab==='res')body=_tfResultsHtml(test);
+  else if(_tfTab==='reg')body=_tfRegisterHtml(test);
+  else body=_tfBandsHtml(test);
+  document.getElementById('pg-testes-fisicos').innerHTML=`
+    ${_tfCatalogHtml()}
+    <div class="card" style="padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${tabsHtml}</div>
+        ${teamSel}
+      </div>
+      ${body}
+    </div>`;
+}
+function _tfResultsHtml(test){
+  const teamId=_tfTeamId();
+  const dates=[...new Set((APP.physicalTestResults||[]).filter(r=>r.testId===test.id&&r.teamId===teamId).map(r=>r.date))].sort().reverse();
+  if(!_tfResDate||!dates.includes(_tfResDate))_tfResDate=dates[0]||null;
+  if(!dates.length)return `<div class="empty" style="padding:30px 10px;text-align:center"><div class="ei" style="font-size:30px">🏃</div><p style="color:var(--t2);font-size:12.5px">Ainda sem resultados de ${escHtml(test.short)} para esta equipa.</p></div>`;
+  const dateSel=`<select class="fc" style="width:auto;font-size:11px" onchange="_tfResDate=this.value;renderTestesFisicos()">${dates.map(d=>`<option value="${d}" ${d===_tfResDate?'selected':''}>${fmtDate(d)}</option>`).join('')}</select>`;
+  const rows=(APP.physicalTestResults||[]).filter(r=>r.testId===test.id&&r.teamId===teamId&&r.date===_tfResDate).sort((a,b)=>(b.distance||0)-(a.distance||0));
+  const trs=rows.map((r,i)=>{
+    const at=APP.athletes.find(a=>a.id===r.athleteId);
+    const age=at?_ageAtDate(at.dob,r.date):null;
+    const col=_physicalTestColor(test.id,r.distance,age);
+    const sfHtml=col?`<span class="semaforo" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${PHYSICAL_TEST_COLOR_HEX[col]}22;color:${PHYSICAL_TEST_COLOR_HEX[col]}">${PHYSICAL_TEST_COLOR_LABEL[col]}</span>`:'<span style="font-size:11px;color:var(--t3)">— sem bandas definidas</span>';
+    return `<tr><td style="font-weight:800;color:var(--t2);width:26px">${i+1}</td><td>${at?escHtml(_displayName(at)):'—'}</td><td>${escHtml(r.levelRaw||'—')}</td><td>${r.distance!=null?r.distance+' m':'—'}</td><td style="color:var(--t2);font-size:11px">${r.vo2max!=null?r.vo2max:'—'}</td><td>${sfHtml}</td></tr>`;
+  }).join('');
+  return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:11.5px;color:var(--t2)">${fmtDate(_tfResDate)} · ordenado por distância (= ranking da equipa)</div>${dateSel}</div>
+  <div class="tw"><table><thead><tr><th>#</th><th>Atleta</th><th>${escHtml(test.inputLabel)}</th><th>Distância</th><th>VO2max est.</th><th>Classificação</th></tr></thead><tbody>${trs}</tbody></table></div>
+  <div style="font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin-top:10px">💡 Esta tabela é a mesma fonte usada para a posição no ranking que cada atleta vê na sua app — nunca um cálculo em duplicado.</div>`;
+}
+function _tfRegisterHtml(test){
+  const teamId=_tfTeamId();
+  if(!_tfRegDate)_tfRegDate=today();
+  const athletes=APP.athletes.filter(a=>a.teamId===teamId).sort((a,b)=>a.name.localeCompare(b.name));
+  const existing={};
+  (APP.physicalTestResults||[]).filter(r=>r.testId===test.id&&r.teamId===teamId&&r.date===_tfRegDate).forEach(r=>existing[r.athleteId]=r);
+  const rows=athletes.map(at=>{
+    const ex=existing[at.id];
+    return `<div class="grid-row" style="display:grid;grid-template-columns:28px 1fr 110px 90px 90px 24px;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--bg3);font-size:12px" id="tfr-${at.id}">
+      <div style="width:30px;height:30px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:var(--t2)">${initials(at.name)}</div>
+      <div>${escHtml(_displayName(at))}</div>
+      <input class="fc" style="font-size:12px;padding:6px 9px" data-aid="${at.id}" placeholder="${test.inputHint}" value="${ex?ex.levelRaw:''}" oninput="_tfLiveCalc('${test.id}','${at.id}')">
+      <div id="tfr-dist-${at.id}" style="color:var(--t2)">${ex&&ex.distance!=null?ex.distance+' m':'—'}</div>
+      <div id="tfr-vo2-${at.id}" style="color:var(--t2);font-size:11px">${ex&&ex.vo2max!=null?ex.vo2max:'—'}</div>
+      <div id="tfr-dot-${at.id}" style="width:9px;height:9px;border-radius:50%;background:${(()=>{if(!ex||ex.distance==null)return 'var(--bg4)';const age=_ageAtDate(at.dob,_tfRegDate);const c=_physicalTestColor(test.id,ex.distance,age);return c?PHYSICAL_TEST_COLOR_HEX[c]:'var(--bg4)';})()}"></div>
+    </div>`;
+  }).join('');
+  return `<div class="fr3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+    <div class="form-g"><label class="fl">Data</label><input class="fc" type="date" value="${_tfRegDate}" onchange="_tfRegDate=this.value;renderTestesFisicos()"></div>
+    <div class="form-g"><label class="fl">Equipa</label><div style="padding:9px 0;color:var(--t2);font-size:12.5px">${(APP.teams.find(t=>t.id===teamId)||{}).name||'—'}</div></div>
+    <div class="form-g"><label class="fl">Protocolo</label><div style="padding:9px 0;color:var(--t2);font-size:12.5px">${escHtml(test.short)}</div></div>
+  </div>
+  <div class="grid-row hd" style="display:grid;grid-template-columns:28px 1fr 110px 90px 90px 24px;gap:10px;color:var(--t2);font-size:10px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--brd);padding:7px 4px"><div></div><div>Atleta</div><div>${escHtml(test.inputLabel)}</div><div>Distância</div><div>VO2max</div><div>Cor</div></div>
+  ${rows||'<div style="padding:20px;text-align:center;color:var(--t2);font-size:12px">Sem atletas nesta equipa.</div>'}
+  <div style="font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin:10px 0">Introduz-se o ${escHtml(test.inputLabel).toLowerCase()} lido no protocolo (${test.inputHint}) — a distância e o VO2max calculam-se automaticamente pela tabela oficial do teste, em direto, linha a linha.</div>
+  ${athletes.length?`<button class="btn btn-g" onclick="_tfSaveAll('${test.id}')">💾 Guardar resultados (${athletes.length})</button>`:''}`;
+}
+function _tfLiveCalc(testId,athleteId){
+  const test=PHYSICAL_TESTS[testId];
+  const input=document.querySelector(`#tfr-${athleteId} input[data-aid="${athleteId}"]`);
+  const raw=input?input.value:'';
+  const dist=test.distance(raw);
+  const vo2=test.vo2max(dist);
+  const distEl=document.getElementById('tfr-dist-'+athleteId);
+  const vo2El=document.getElementById('tfr-vo2-'+athleteId);
+  const dotEl=document.getElementById('tfr-dot-'+athleteId);
+  if(distEl)distEl.textContent=dist!=null?dist+' m':(raw?'nível inválido':'—');
+  if(vo2El)vo2El.textContent=vo2!=null?vo2:'—';
+  if(dotEl){
+    const at=APP.athletes.find(a=>a.id===athleteId);
+    const age=at?_ageAtDate(at.dob,_tfRegDate):null;
+    const col=dist!=null?_physicalTestColor(testId,dist,age):null;
+    dotEl.style.background=col?PHYSICAL_TEST_COLOR_HEX[col]:'var(--bg4)';
+  }
+}
+function _tfSaveAll(testId){
+  const test=PHYSICAL_TESTS[testId];
+  const teamId=_tfTeamId();
+  const sess=getSession();
+  const inputs=document.querySelectorAll('#pg-testes-fisicos input[data-aid]');
+  let n=0;
+  inputs.forEach(inp=>{
+    const raw=(inp.value||'').trim();
+    if(!raw)return;
+    const athleteId=inp.getAttribute('data-aid');
+    const levelRaw=_yoyoLevelLabel(raw);
+    const distance=test.distance(raw);
+    if(distance==null)return; // nível inválido — não grava lixo
+    const vo2max=test.vo2max(distance);
+    let r=(APP.physicalTestResults||[]).find(x=>x.testId===testId&&x.athleteId===athleteId&&x.date===_tfRegDate);
+    if(!r){r={id:'tf'+Date.now()+Math.floor(Math.random()*1000),testId,athleteId,teamId,date:_tfRegDate,createdAt:new Date().toISOString()};APP.physicalTestResults.push(r);}
+    Object.assign(r,{teamId,levelRaw,distance,vo2max,createdBy:sess?sess.name:(r.createdBy||''),createdById:sess?sess.userId:(r.createdById||null)});
+    if(_sync)cloudUpsert('physical_test_results',{...r,club_id:_cid});
+    n++;
+  });
+  saveData();
+  toast(n?`${n} resultado${n!==1?'s':''} guardado${n!==1?'s':''} ✓`:'Nenhum nível preenchido');
+  renderTestesFisicos();
+}
+function _tfBandsHtml(test){
+  const cfg=(APP.config.physicalTestBands||{})[test.id]||{};
+  const mode=cfg.mode||(test.defaultBands?'auto':'manual');
+  const autoAvail=!!test.defaultBands;
+  const modeBtns=autoAvail?`<div class="tabs" style="width:fit-content;margin-bottom:12px">
+    <button class="btn btn-xs" style="border-color:${mode==='auto'?'var(--c1)':'var(--brd)'};background:${mode==='auto'?'var(--c1)':'transparent'};color:${mode==='auto'?'#fff':'var(--t1)'}" onclick="_tfSetBandsMode('${test.id}','auto')">Automático (por idade)</button>
+    <button class="btn btn-xs" style="border-color:${mode==='manual'?'var(--c1)':'var(--brd)'};background:${mode==='manual'?'var(--c1)':'transparent'};color:${mode==='manual'?'#fff':'var(--t1)'}" onclick="_tfSetBandsMode('${test.id}','manual')">Manual</button>
+  </div>`:'';
+  const manualFields=(mode==='manual'||!autoAvail)?`
+    <div class="band-row" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bg3)"><span style="width:9px;height:9px;border-radius:50%;background:var(--red);display:inline-block"></span><div style="width:160px;font-size:12px;font-weight:700">🔴 Abaixo do esperado</div>até <input class="fc" style="width:100px" type="number" id="tf-band-p25" value="${cfg.p25!=null?cfg.p25:''}" placeholder="metros"> m</div>
+    <div class="band-row" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bg3)"><span style="width:9px;height:9px;border-radius:50%;background:var(--yel);display:inline-block"></span><div style="width:160px;font-size:12px;font-weight:700">🟡 Dentro do esperado</div>entre <input class="fc" style="width:100px" type="number" id="tf-band-p25b" disabled value="${cfg.p25!=null?cfg.p25:''}"> e <input class="fc" style="width:100px" type="number" id="tf-band-p75" value="${cfg.p75!=null?cfg.p75:''}" placeholder="metros"> m</div>
+    <div class="band-row" style="display:flex;align-items:center;gap:10px;padding:9px 0"><span style="width:9px;height:9px;border-radius:50%;background:var(--grn);display:inline-block"></span><div style="width:160px;font-size:12px;font-weight:700">🟢 Acima do esperado</div>a partir de <input class="fc" style="width:100px" type="number" id="tf-band-p75b" disabled value="${cfg.p75!=null?cfg.p75:''}"> m</div>
+    <div style="margin-top:14px;display:flex;gap:8px"><button class="btn btn-g" onclick="_tfSaveManualBands('${test.id}')">💾 Guardar</button>${cfg.p25!=null||cfg.p75!=null?`<button class="btn btn-gh" onclick="_tfResetBands('${test.id}')">↺ Limpar</button>`:''}</div>`:'';
+  const autoNote=(mode==='auto'&&autoAvail)?`<div style="font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px">A idade de cada atleta (já na ficha) ajusta automaticamente o corte usado — uma U15 e uma sénior não são avaliadas pela mesma régua. Percentil 25 = fronteira vermelho/amarelo, percentil 75 = fronteira amarelo/verde.</div>`:'';
+  return `<div style="font-size:12px;color:var(--t2);margin-bottom:10px">${_tfBandsNote(test)}</div>${modeBtns}${autoNote}${manualFields}`;
+}
+function _tfSetBandsMode(testId,mode){
+  if(!APP.config.physicalTestBands)APP.config.physicalTestBands={};
+  if(!APP.config.physicalTestBands[testId])APP.config.physicalTestBands[testId]={};
+  APP.config.physicalTestBands[testId].mode=mode;
+  saveData();if(_sync)pushAppMeta();
+  renderTestesFisicos();
+}
+function _tfSaveManualBands(testId){
+  const p25=document.getElementById('tf-band-p25').value, p75=document.getElementById('tf-band-p75').value;
+  if(!APP.config.physicalTestBands)APP.config.physicalTestBands={};
+  APP.config.physicalTestBands[testId]={mode:'manual',p25:p25!==''?+p25:null,p75:p75!==''?+p75:null};
+  saveData();if(_sync)pushAppMeta();
+  toast('Bandas guardadas ✓');
+  renderTestesFisicos();
+}
+function _tfResetBands(testId){
+  if(!APP.config.physicalTestBands)APP.config.physicalTestBands={};
+  APP.config.physicalTestBands[testId]=PHYSICAL_TESTS[testId].defaultBands?{mode:'auto'}:{mode:'manual',p25:null,p75:null};
+  saveData();if(_sync)pushAppMeta();
+  renderTestesFisicos();
+}
+
+// ─── TESTES FÍSICOS — Atleta (sps-v242) ──────────────────────────────────────
+// Mostra só o resultado da própria atleta + cor + posição no ranking (lugar e
+// percentil) — nunca nomes/valores de colegas, mesmo padrão já seguido no resto da
+// app (ex: "A tua Evolução" na Nutrição, sps-v167).
+function renderAtTestes(){
+  const at=APP.athletes.find(a=>a.id===AID);
+  const teamId=at?at.teamId:null;
+  const cards=Object.values(PHYSICAL_TESTS).map(test=>{
+    const mine=(APP.physicalTestResults||[]).filter(r=>r.testId===test.id&&r.athleteId===AID).sort((a,b)=>a.date.localeCompare(b.date));
+    if(!mine.length)return '';
+    const last=mine[mine.length-1];
+    const prev=mine.length>1?mine[mine.length-2]:null;
+    const age=at?_ageAtDate(at.dob,last.date):null;
+    const col=_physicalTestColor(test.id,last.distance,age);
+    const sfHtml=col?`<div style="display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:7px 16px;border-radius:20px;font-size:13px;font-weight:800;background:${PHYSICAL_TEST_COLOR_HEX[col]}22;color:${PHYSICAL_TEST_COLOR_HEX[col]}">${PHYSICAL_TEST_COLOR_LABEL[col]}</div>`:`<div style="margin-top:12px;font-size:11px;color:var(--t2)">Bandas de referência por definir pelo staff</div>`;
+    const rank=_physicalTestRankFor(test.id,teamId,AID);
+    const rankHtml=rank?`<div style="background:linear-gradient(135deg,var(--bg3),var(--bg4));border-radius:14px;padding:16px;text-align:center;margin:14px 0">
+      <div style="font-size:26px;font-weight:900">${rank.pos}º lugar</div>
+      <div style="font-size:11.5px;color:var(--t2);margin-top:2px">de ${rank.total} atleta${rank.total!==1?'s':''} da equipa · melhor que ${rank.pct}%</div>
+    </div>`:'';
+    const bestDist=Math.max(...mine.map(r=>r.distance||0));
+    const diffHtml=prev?`<div class="at-row" style="display:flex;justify-content:space-between;padding:11px 2px;border-bottom:1px solid var(--bg3);font-size:12.5px"><span style="color:var(--t2)">Teste anterior</span><span style="font-weight:700">${prev.distance} m (${last.distance-prev.distance>=0?'+':''}${last.distance-prev.distance} m)</span></div>`:'';
+    const maxDist=Math.max(1,...mine.map(r=>r.distance||0));
+    const bars=mine.slice(-6).map(r=>`<div style="flex:1;background:${r===last?'var(--c1l)':'var(--c1)'};border-radius:3px 3px 0 0;position:relative;height:${Math.max(8,Math.round((r.distance/maxDist)*100))}%"><span style="position:absolute;bottom:-16px;left:0;right:0;text-align:center;font-size:8.5px;color:var(--t3)">${fmtDateShort(r.date)}</span></div>`).join('');
+    const evolHtml=mine.length>1?`<div style="font-size:13px;font-weight:800;margin:18px 0 6px">A tua evolução</div><div style="height:90px;display:flex;align-items:flex-end;gap:6px;padding:10px 2px 18px">${bars}</div>`:'';
+    return `<div class="card" style="max-width:420px;margin:0 auto 16px;padding:18px">
+      <div style="text-align:center;font-size:15px;font-weight:800;margin-bottom:6px">${test.icon} ${escHtml(test.short)}</div>
+      <div style="text-align:center;padding:10px 10px 0">
+        <div style="font-size:38px;font-weight:900;letter-spacing:-1px">${last.distance} m</div>
+        <div style="font-size:12px;color:var(--t2);margin-top:-2px">Nível ${escHtml(last.levelRaw||'—')} · ${fmtDate(last.date)}</div>
+        ${sfHtml}
+      </div>
+      ${rankHtml}
+      <div class="at-row" style="display:flex;justify-content:space-between;padding:11px 2px;border-bottom:1px solid var(--bg3);font-size:12.5px"><span style="color:var(--t2)">VO2max estimado</span><span style="font-weight:700">${last.vo2max!=null?last.vo2max+' ml/kg/min':'—'}</span></div>
+      ${diffHtml}
+      <div class="at-row" style="display:flex;justify-content:space-between;padding:11px 2px;font-size:12.5px"><span style="color:var(--t2)">Melhor resultado</span><span style="font-weight:700">${bestDist} m</span></div>
+      ${evolHtml}
+      <div style="font-size:10.5px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin-top:14px">Nunca vês os nomes ou resultados das tuas colegas — só a tua posição relativa.</div>
+    </div>`;
+  }).filter(Boolean).join('');
+  document.getElementById('atp-testes').innerHTML=`
+    <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:14px"><i class="ti ti-stopwatch" style="margin-right:6px;vertical-align:-3px;color:#4ade80" aria-hidden="true"></i>Testes Físicos</div>
+    ${cards||`<div class="card" style="text-align:center;padding:32px 20px"><i class="ti ti-stopwatch" style="font-size:40px;color:var(--t2);display:block;margin-bottom:12px" aria-hidden="true"></i><div style="font-size:14px;font-weight:800;margin-bottom:8px">Ainda sem testes registados</div><div style="font-size:12px;color:var(--t2)">Quando fizeres o teu primeiro teste físico, aparece aqui.</div></div>`}`;
+}
+
 function renderConvocatorias(){
   const formHtml=_showConvForm?`
   <div class="ipanel">
@@ -21152,7 +21496,7 @@ function _extraEditable(entry){
   if(!entry||!entry.submittedAt)return false;
   return (Date.now()-new Date(entry.submittedAt).getTime())<_EXTRA_EDIT_WINDOW_H*3600*1000;
 }
-const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),ginasio:()=>renderAtGinasio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval()};
+const _AT_RENDERS={home:()=>renderAtHome(),wellness:()=>renderAtWellness(),pse:()=>renderAtPSE(),agenda:()=>renderAtAgenda(),nutri:()=>renderAtNutri(),fisio:()=>renderAtFisio(),ginasio:()=>renderAtGinasio(),treino:()=>renderAtTreino(),convoc:()=>renderAtConvoc(),aval:()=>renderAtAval(),testes:()=>renderAtTestes()};
 function atNav(page,el){
   _atPage=page;
   document.querySelectorAll('.at-page').forEach(p=>p.classList.remove('on'));
@@ -22983,6 +23327,7 @@ async function pullCloud(){
       // mesmo padrão ||[]/||{} já usado nos restantes campos jsonb desta tabela.
       ['playbook','playbook',(d)=>APP.playbook=d.map(r=>({id:r.id,teamId:r.team_id,title:r.title,category:r.category,submomento:r.submomento,formation:r.formation,description:r.description,videoUrl:r.video_url,positions:r.positions||{},opponents:r.opponents||[],ball:r.ball||null,fullView:!!r.full_view,facingUp:!!r.facing_up,snapshots:r.snapshots||[],athleteAssign:r.athlete_assign||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id,updatedAt:r.updated_at,arrows:r.arrows||[],hiddenOwn:r.hidden_own||[],markerColors:r.marker_colors||{}}))],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
+      ['physical_test_results','physicalTestResults',(d)=>APP.physicalTestResults=d.map(r=>({...r,athleteId:r.athlete_id,teamId:r.team_id,testId:r.test_id,levelRaw:r.level_raw,createdBy:r.created_by,createdById:r.created_by_id,createdAt:r.created_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
       // Análise e Proposta". Só a Nutri gere (decisão do Roger) — sem equivalente no Fisio.
@@ -23413,6 +23758,10 @@ const _CLOUD_TABLE_SCHEMA={
   // usada em todas as outras tabelas.
   hydration_records:{cols:['id','athlete_id','game_id','pre_weight','post_weight','fluids_l','urine_l','duration_h','sweat_rate','weight_loss_pct','notes','registered_by','registered_by_id','updated_at'],
     rename:{athleteId:'athlete_id',gameId:'game_id',preWeight:'pre_weight',postWeight:'post_weight',fluidsL:'fluids_l',urineL:'urine_l',durationH:'duration_h',sweatRate:'sweat_rate',weightLossPct:'weight_loss_pct',registeredBy:'registered_by',registeredById:'registered_by_id',updatedAt:'updated_at'}},
+  // Testes Físicos (sps-v242): um registo por atleta por teste por data — mesmo padrão de
+  // tabela dedicada que hydration_records (série temporal, nunca no meta blob).
+  physical_test_results:{cols:['id','athlete_id','team_id','test_id','date','level_raw','distance','vo2max','notes','created_by','created_by_id','created_at'],
+    rename:{athleteId:'athlete_id',teamId:'team_id',testId:'test_id',levelRaw:'level_raw',createdBy:'created_by',createdById:'created_by_id',createdAt:'created_at'}},
   // Suplementação (sps-v193, Bloco 1): catálogo reutilizável gerido pela Nutri + prescrição
   // individual por atleta, agrupada por momento (diário/pré-treino/pós-treino/matchday). Duas
   // tabelas dedicadas próprias (migração create_supplement_tables), mesmo padrão/RLS anon_all

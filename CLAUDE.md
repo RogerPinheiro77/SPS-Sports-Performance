@@ -6332,3 +6332,93 @@ existente do formulário "Novo Evento" sem tocar em marcação/lógica própria.
 **Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para
 confirmar visualmente no dropdown "Tipo" do Planeamento depois de `sps-v241`
 chegar aos dispositivos.
+
+## sps-v242 (28/10/2026): aba "Testes Físicos" — Yo-Yo Intermittent Recovery Test (IR1 + IR2)
+
+Pedido do Roger: "VAMOS CRIAR UMA ABA TESTES FISICOS, QUERO DEFINIR TESTES CONTIGO, E DEPOIS
+QUERO QUE NA APP ATLETA TAMBEM EXISTA ESSA ABA ONDE ELA TEM ACESSO AO SEU RESULTADO E TAMBEM
+SEJA CODIFICADO POR CORES VERMELHO AMARELO VERDE DE ACORDO COM O QUE VAMOS DEFINIR COMO
+VALORES BALIZA EM CADA TESTE, ALEM DISSO QUERO QUE A ATLETA SAIBA EM QUE POSIÇAO ESTA NO
+RANKING DO TESTE EM RELAÇAO AS COLEGAS, SEM MENCIONAR AS OUTRAS... COMEÇAMOS PELO YO YO
+INTERMITENTE RECOVERY TEST. DA A TUA VISAO E APRESENTA MOCKUP ANTES DE AVANÇARMOS PARA
+CODIGO" — pedido explicitamente aberto, análise+mockup antes de código (mesma prática já
+seguida no projeto para pedidos deste tipo). Apresentada visão (investigação de ciência do
+desporto) + mockup HTML interativo (`mockup_testes_fisicos_v1.html`, nunca commitado — ver
+regra de ficheiros fora do git), com as duas vistas (Staff e Atleta). Roger aprovou e pediu
+explicitamente para construir as duas versões do teste já de início: "sim parece_me muito
+bem, faz para os 2 niveis, ja ficamos assim com as 2 opçoes".
+
+**Grounding de ciência do desporto usado antes de desenhar:**
+- Estrutura real de nível.patamar do Yo-Yo IR (igual nas duas versões, IR1/IR2) — confirmada
+  cruzando a ficha oficial de registo (`theyoyotest.com/documents/yoyo-ir1-recording-sheet.pdf`,
+  que lista os níveis reais 5, 9, 11, 12, 13, 14...23, cada um com o seu nº de patamares de
+  40m) com a tabela de distâncias acumuladas (`theyoyotest.com/table-YYIR1.htm`/`table-YYIR2.htm`).
+  Near-miss apanhado e corrigido durante a própria investigação, antes de qualquer código: a
+  1ª leitura da tabela de distâncias confundiu a coluna "Level" (que é só um índice de linha
+  1-91) com o nível REAL anunciado no protocolo — cruzar com a ficha oficial confirmou a
+  estrutura certa (nºs de patamares por nível: 5→1, 9→1, 11→2, 12→3, 13→4, 14 a 23→8 cada).
+- VO2max — Bangsbo, Iaia & Krustrup (2008), *Sports Medicine* 38(1):37-51: fórmulas
+  distintas para IR1 (`dist×0.0084+36.4`) e IR2 (`dist×0.0136+45.3`).
+- Bandas de referência por idade, específicas de futebolistas femininas — Emmonds et al.,
+  "Reference values for performance test outcomes relevant to English female soccer
+  players", *Science and Medicine in Football* (2022), N=436 jogadoras de elite inglesas,
+  percentis 25/75 por idade, interpolados linearmente. **Só existe para o IR1** — não foi
+  encontrada literatura equivalente para o IR2 em futebol feminino; as bandas do IR2 ficam
+  por definir manualmente pelo staff (sinalizado explicitamente no código e na UI, nunca
+  bandas inventadas).
+
+**O que foi construído — catálogo extensível (um teste novo no futuro só precisa de uma
+entrada em `PHYSICAL_TESTS`, sem tocar no resto):**
+- `YOYO_LEVEL_SHUTTLES`/`YOYO_LEVELS_ORDER`/`_yoyoLevelLabel`/`_yoyoDistance`: conversão
+  nível.patamar → distância acumulada (40m por patamar), aceita `,` ou `.` como separador.
+- `YOYO_IR1_AGE_BANDS`/`_yoyoIr1BandsForAge`: bandas p25/p75 por idade (Emmonds et al.),
+  com clamp nos extremos da tabela e interpolação linear entre pontos.
+- `PHYSICAL_TESTS` (catálogo): `yoyo_ir1`/`yoyo_ir2`, cada um com a sua função de distância,
+  fórmula de VO2max própria, e `defaultBands` (`'yoyo_ir1_age'` para IR1, `null` para IR2).
+- `_physicalTestBandsFor`/`_physicalTestColor`: bandas efetivas de um teste para uma idade —
+  override manual do staff (`APP.config.physicalTestBands[testId]`) sempre tem prioridade
+  sobre o valor científico por defeito; sem nenhuma das duas fontes, cor fica neutra (`null`),
+  nunca inventada (caso do IR2 antes do staff configurar).
+- `_physicalTestLatestByAthlete`/`_physicalTestRankFor`: fonte única tanto para a tabela de
+  resultados do staff como para o ranking que a atleta vê — 1 resultado por atleta (o mais
+  recente), ordenado por distância; a posição/percentil da atleta nunca inclui nomes/valores
+  de colegas (`{pos,total,pct}` apenas).
+- **Página "Testes Físicos" (staff)** — `renderTestesFisicos()`: catálogo (cards por teste,
+  nº de resultados + data da última), 3 separadores (Resultados — tabela ranqueada com
+  semáforo; Registar — grid por atleta com cálculo em direto de distância/VO2max/cor ao
+  escrever o nível; Bandas de Referência — toggle automático/manual para quem tem default
+  científico, só manual para quem não tem, sempre editável por campo). Registada em
+  `ALL_PAGES`/`ROLE_DEFS.prep_fisico`/`_NAV_TITLES`/`navTo()` (🏃, entre Avaliações e
+  Convocatórias) — os cargos com acesso total ganham-na automaticamente.
+- **Página "Testes" (atleta)** — `renderAtTestes()`: um cartão por teste com resultado,
+  resultado+nível+data, semáforo de cor (ou nota neutra "Bandas de referência por definir
+  pelo staff" quando não há bandas), cartão de ranking ("Xº lugar de N atletas da equipa ·
+  melhor que Y%" — nunca nomes/valores de colegas), VO2max estimado, diferença vs. teste
+  anterior, melhor resultado, e uma mini evolução (até 6 últimos resultados, barras CSS —
+  **não** Chart.js canvas, de propósito, para não repetir o bug de altura sem limite já
+  documentado no sps-v171). Nova tab "Testes" na barra inferior da app da atleta
+  (`ti-stopwatch`, distinto do `ti-run` já usado em "Individual").
+- **Cloud**: tabela dedicada `physical_test_results` (nunca no blob `clubs.meta`, mesmo
+  padrão já estabelecido para `trainings`/`games`/outras tabelas desde os Incidentes #1-#3) —
+  12 colunas, RLS `anon_all` igual às restantes. `_CLOUD_TABLE_SCHEMA` (push) e `pullCloud()`
+  (pull) atualizados em conjunto, como sempre exigido nesta base de código.
+
+SW bump para `sps-v242`. Testado: `node --check` ao ficheiro inteiro; 41 testes isolados em
+Node (`test_testes_fisicos_v242.js`) das funções reais extraídas do ficheiro — conversão
+nível.patamar→distância em vários pontos da estrutura real (incl. fronteiras de patamares por
+nível e separador decimal `,`/`.`), VO2max das duas fórmulas distintas, interpolação/clamp das
+bandas por idade em pontos exatos e intermédios da tabela, precedência bandas manuais > default
+científico > nenhuma, cores nas fronteiras exatas p25/p75, ranking/percentil correto incl. o
+caso de 1 única atleta (sem divisão por zero) e o formato devolvido (nunca nomes/valores de
+colegas); teste visual Playwright (`test_testes_fisicos_v242_visual.js`) renderizando as duas
+páginas reais (staff e atleta) com dados realistas — catálogo, separadores, cálculo em direto
+no registo, aviso de bandas por definir no IR2, e confirmação explícita de que nenhum nome de
+colega aparece na página da atleta. Tabela `physical_test_results` criada no Supabase
+(migração `create_physical_test_results`), colunas confirmadas a bater certo com
+`_CLOUD_TABLE_SCHEMA`.
+
+**Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar visualmente
+na app, depois de `sps-v242` chegar aos dispositivos, que o registo/consulta funcionam como
+esperado e que a atleta vê a sua posição no ranking sem ver as colegas. Se mais tarde quiser
+mais protocolos (Sprint 30m, CMJ, etc.), o catálogo já está desenhado para crescer sem
+refatoração.
