@@ -21859,6 +21859,8 @@ function renderAtHome(){
   const estAtivo=_atEstagioAtivo();
   const estRsvp=estAtivo?((estAtivo.rsvp&&estAtivo.rsvp[AID])||null):null;
   const gymStreak=_gymConsistencyStreak(AID);
+  const lastTest=(APP.physicalTestResults||[]).filter(r=>r.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const lastTestDef=lastTest?PHYSICAL_TESTS[lastTest.testId]:null;
 
   const _bdg=(n,color)=>n?`<div style="position:absolute;top:7px;right:7px;background:${color};color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${n}</div>`:'';
   // Grelha passou de 2 para 3 colunas no sps-v223 (pedido do Roger: card
@@ -21910,6 +21912,16 @@ function renderAtHome(){
       gymStreak>=2?`${gymStreak} sessões seguidas 🔥`:'Treinos da equipa técnica',
       gymStreak>=2?'#fbbf24':'var(--t2)',
       '','217,119,6'),
+    // sps-v245 (pedido do Roger: "na app atleta cria o card testes físicos") — 10º card
+    // nesta grelha de 3 colunas, por isso fica como órfão numa 4ª linha (a grelha foi
+    // dimensionada no sps-v223 só para 9 — aceite como ajuste cosmético menor, sem pedir
+    // para reduzir os outros cards outra vez). Aponta para a página 'testes'
+    // (renderAtTestes, já existente desde sps-v242/v243 — resultados por teste + Ranking
+    // Geral), que até agora só era acessível sem nenhum link a partir do Home.
+    _card('testes','report-medical','#22c55e','Testes Físicos',
+      lastTest?`${lastTestDef?.short||'Último teste'}: ${fmtDate(lastTest.date)}`:'Sem testes ainda',
+      lastTest?'#22c55e':'var(--t2)',
+      '','34,197,94'),
   ];
 
   document.getElementById('atp-home').innerHTML=`

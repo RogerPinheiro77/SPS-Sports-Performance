@@ -6550,3 +6550,35 @@ de antes desta alteração) reabre com a etapa reconstruída automaticamente (55
 atleta) continuam a mostrar o nível.patamar (ex: "19.4"), não a etapa, porque é essa a
 informação com significado físico real (nível/VO2max); a etapa é só uma conveniência de
 introdução de dados, não substitui a leitura em nível para quem analisa os resultados depois.
+
+## sps-v245 (29/10/2026): card "Testes Físicos" no Home da App Atleta
+
+Pedido do Roger: "NA APP ATLETA CRIA O CARD TESTES FISICOS". A página em si
+(`renderAtTestes` — resultados por teste da própria atleta + Ranking Geral,
+ver sps-v242/v243) e a rota (`_AT_RENDERS.testes`) já existiam e funcionavam;
+faltava só o ponto de entrada a partir da grelha do Home (`renderAtHome`) —
+até aqui só era possível chegar lá sem nenhum link visível.
+
+**Implementado:**
+- Novo 10º card na grelha de 3 colunas (`_card('testes','report-medical',
+  '#22c55e','Testes Físicos',...)`), a seguir ao Ginásio — mesmo padrão
+  `_bdg`/`onclick="_atNavTo('testes')"` dos outros 9. Sub-texto mostra o
+  teste e a data do registo mais recente da atleta (`Yo-Yo IR1: 29/10/2026`)
+  ou "Sem testes ainda" sem nenhum registo — mesma lógica de
+  `(APP.physicalTestResults||[]).filter(r=>r.athleteId===AID).sort(...)[0]`
+  já usada no resto da app, nenhuma tabela/campo novo.
+- **Grelha com órfão na 4ª linha:** o comentário do sps-v223 documenta que a
+  grelha de 3 colunas foi dimensionada só para 9 cards, sem ficar um órfão
+  numa grelha 2x. Com o 10º card, uma 4ª linha fica só com 1 tile — aceite
+  como ajuste cosmético menor (não foi pedido para reduzir/reorganizar os
+  outros cards outra vez), seguindo a prática deste projeto de não bloquear
+  em decisões de UI de baixo risco.
+
+SW bump para `sps-v245`. Testado: `node --check` ao bloco `<script>`
+extraído; novo ficheiro Playwright (`test_testes_card_v245.js`) — card
+aparece no Home com "Sem testes ainda" quando a atleta não tem nenhum
+registo, clicar no card chama `_atNavTo('testes')`, e com 2 registos de
+Yo-Yo IR1 (20/10 e 29/10) o card mostra o nome do teste e a data do **mais
+recente** (29/10), nunca a mais antiga.
+
+**Ainda por fazer:** nada pendente para este pedido.
