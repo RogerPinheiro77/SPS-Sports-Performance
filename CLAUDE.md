@@ -6488,3 +6488,65 @@ sps-v236) são anteriores a este trabalho e não relacionadas.
 **Ainda por fazer:** nada pendente para este pedido. Pedir ao Roger para confirmar
 visualmente, depois de `sps-v243` chegar aos dispositivos, a Ficha de Campo impressa a sério
 e o Ranking Geral nos dois lados (staff e atleta).
+
+## sps-v244 (29/10/2026): registo do Yo-Yo IR1/IR2 por "Etapa" (contagem sequencial da faixa
+## áudio) em vez de "Nível.Patamar"
+
+Pedido do Roger: "aqui onde diz nível patamar, eu no registo quero só registar a etapa em que
+está a atleta, e a partir daí calculas tudo, por exemplo o audio diz Stage 1 (Etapa 1), eu só
+quero colocar isso e tu calculas o resto". Contexto: no mesmo dia, ao investigar o ficheiro de
+áudio do Yo-Yo que o Roger enviou (ver entrada anterior sobre a faixa oficial IR1), tinha-se
+medido 91 ciclos de patamar (beep+recuperação) desde o início até ao nível 23, com duração de
+cada ciclo a bater exatamente com a tabela oficial de velocidade/nível — o Roger confirma agora
+que a própria faixa anuncia essa contagem sequencial em voz ("Stage N"), não "Nível X, Patamar
+Y" como a app pedia até aqui.
+
+**O que mudou:**
+- `_yoyoEtapaToLevelPatamar(etapa)` (nova, junto de `_yoyoDistance`): converte a etapa
+  sequencial (1, 2, 3...) para o formato nível.patamar usado internamente, percorrendo
+  `YOYO_LEVEL_SHUTTLES` por ordem (`YOYO_LEVELS_ORDER`) e subtraindo os patamares de cada nível
+  até sobrar o patamar certo dentro do nível certo. Ex: etapa 12 → "14.1" (1º patamar do nível
+  14, depois de 1+1+2+3+4=11 patamares dos níveis 5/9/11/12/13). Válido de 1 a 107 (o máximo da
+  tabela, até ao nível 25 extrapolado); fora disso devolve `null`.
+- `_yoyoLevelPatamarToEtapa(levelStr)` (nova, inversa): usada só para reconstruir a etapa a
+  mostrar no campo de edição quando um registo é de antes desta alteração (só tem `levelRaw`
+  guardado, sem `etapaRaw`) — nunca fica em branco ao reabrir um registo antigo.
+- `PHYSICAL_TESTS.yoyo_ir1`/`yoyo_ir2`: `inputLabel` passou de "Nível.Patamar" para "Etapa",
+  novo campo `etapaInput:true` (mecanismo genérico — um teste futuro sem este conceito
+  simplesmente não define a flag e continua a funcionar como antes, campo livre).
+- `_tfRegisterHtml`/`_tfLiveCalc`/`_tfSaveAll`: quando `test.etapaInput`, o valor escrito no
+  campo é convertido para nível.patamar com `_yoyoEtapaToLevelPatamar` ANTES de calcular
+  distância/VO2max/cor — tudo o resto da app (bandas de referência, Ranking Geral, PDFs,
+  `physical_test_results.level_raw`) continua a usar nível.patamar exatamente como sempre, sem
+  qualquer alteração a jusante. A etapa escrita pelo treinador é guardada à parte em
+  `etapaRaw`, só para o campo voltar a mostrar o que foi digitado ao reabrir o registo (em vez
+  de obrigar a reler o nível.patamar). Mensagem de erro ajustada para "etapa inválida" quando
+  `test.etapaInput`. A distância calculada passou a mostrar também o nível.patamar resolvido ao
+  lado (ex: "480 m (Nível 14.1)"), para o treinador confirmar que a conversão bate certo com o
+  que vê no ecrã oficial do teste, se tiver.
+- Ficha de Campo em PDF (`printTestFichaPDF`) não precisou de nenhuma alteração — já lê
+  `test.inputLabel` dinamicamente, por isso passou a mostrar "Etapa" sozinha.
+- Supabase: nova coluna `etapa_raw` (text) em `physical_test_results` (migração
+  `add_etapa_raw_to_physical_test_results`); `_CLOUD_TABLE_SCHEMA.physical_test_results` e o
+  mapeamento de `pullCloud()` atualizados os dois em conjunto (mesma disciplina sempre exigida
+  nesta base de código — ver Incidentes #1-#4).
+
+SW bump para `sps-v244`. Testado com o código REAL extraído do `index.html`:
+`test_yoyo_etapa_v244.js` (Node/vm, 39 verificações) — conversão etapa→nível.patamar em casos
+de fronteira de cada nível real da tabela (5,9,11,12,13,14,15,25), etapa 0/negativa/vazia/não
+numérica → `null`, etapa como string vs. número dá o mesmo resultado, distância = etapa×40m
+para uma amostra de etapas, inverso nível.patamar→etapa incluindo o caso real do sps-v242
+("19.4" → etapa 55), e um roundtrip etapa→nível.patamar→etapa para as 107 etapas válidas da
+tabela (nenhuma perde informação). `test_yoyo_etapa_v244_visual.js` (Playwright, código real
+servido num browser real) — cabeçalho da coluna muda para "Etapa", escrever "12" no campo
+calcula em direto 480m/Nível 14.1/VO2max correto, etapa inválida (500) mostra aviso sem
+rebentar, guardar persiste `levelRaw`/`etapaRaw`/`distance` corretamente, reabrir um registo já
+guardado mostra a etapa (não o nível.patamar) no campo, e um registo ANTIGO (só com `levelRaw`,
+de antes desta alteração) reabre com a etapa reconstruída automaticamente (55, a partir de
+"19.4") em vez de ficar em branco. Regressão completa re-corrida
+(`test_testes_fisicos_v242.js`, `test_ranking_geral_v243.js`) sem falhas.
+
+**Ainda por tocar:** só o ecrã de Registar mudou — o separador Resultados e o Ranking (staff e
+atleta) continuam a mostrar o nível.patamar (ex: "19.4"), não a etapa, porque é essa a
+informação com significado físico real (nível/VO2max); a etapa é só uma conveniência de
+introdução de dados, não substitui a leitura em nível para quem analisa os resultados depois.

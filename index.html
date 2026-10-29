@@ -3510,6 +3510,40 @@ function _yoyoDistance(levelStr){
   }
   return total*40;
 }
+// Pedido do Roger (29/10/2026): no registo, só quer escrever a "etapa" que ouve
+// anunciada na faixa áudio oficial (ex: "Stage 12") — uma contagem sequencial de
+// patamares de 40m, 1,2,3..., sem reiniciar a cada nível — em vez de ter de saber de
+// cor a tabela nível.patamar (ex: "14.1"). Converte etapa→nível.patamar percorrendo
+// YOYO_LEVEL_SHUTTLES por ordem (mesma tabela, igual para IR1/IR2 — ver nota acima);
+// a etapa N é sempre o N-ésimo patamar de 40m desde o início do protocolo. Máximo
+// coberto: 107 (soma de todos os patamares até ao nível 25, o limite extrapolado).
+function _yoyoEtapaToLevelPatamar(etapaRaw){
+  const n=parseInt(String(etapaRaw||'').trim(),10);
+  if(!n||n<1)return null;
+  let rem=n;
+  for(const lvl of YOYO_LEVELS_ORDER){
+    const sh=YOYO_LEVEL_SHUTTLES[lvl];
+    if(rem<=sh)return lvl+'.'+rem;
+    rem-=sh;
+  }
+  return null; // além do máximo da tabela — etapa inválida
+}
+// Inverso — usado só para reconstruir a etapa a mostrar no campo de edição quando um
+// registo antigo (anterior a esta alteração) só tem levelRaw (nível.patamar) guardado,
+// sem o etapaRaw correspondente.
+function _yoyoLevelPatamarToEtapa(levelStr){
+  const m=String(levelStr||'').trim().match(/^(\d+)[.,](\d+)$/);
+  if(!m)return null;
+  const lvl=+m[1],shuttle=+m[2];
+  const maxSh=YOYO_LEVEL_SHUTTLES[lvl];
+  if(!maxSh||shuttle<1||shuttle>maxSh)return null;
+  let total=0;
+  for(const l of YOYO_LEVELS_ORDER){
+    if(l===lvl){total+=shuttle;break;}
+    total+=YOYO_LEVEL_SHUTTLES[l];
+  }
+  return total;
+}
 // Valores de referência por idade para o Yo-Yo IR1 — única literatura encontrada com
 // dados normativos específicos para futebolistas femininas (Emmonds et al., "Reference
 // values for performance test outcomes relevant to English female soccer players",
@@ -3539,12 +3573,12 @@ function _yoyoIr1BandsForAge(age){
 }
 const PHYSICAL_TESTS={
   yoyo_ir1:{id:'yoyo_ir1',name:'Yo-Yo Intermittent Recovery Test — Nível 1',short:'Yo-Yo IR1',icon:'🏃',
-    inputLabel:'Nível.Patamar',inputHint:'Ex: 19.4',
+    inputLabel:'Etapa',inputHint:'Ex: 12 (a que ouves no áudio)',etapaInput:true,
     distance:_yoyoDistance,
     vo2max:d=>d==null?null:+(d*0.0084+36.4).toFixed(1), // Bangsbo, Iaia & Krustrup, 2008
     defaultBands:'yoyo_ir1_age'},
   yoyo_ir2:{id:'yoyo_ir2',name:'Yo-Yo Intermittent Recovery Test — Nível 2',short:'Yo-Yo IR2',icon:'🏃‍♀️',
-    inputLabel:'Nível.Patamar',inputHint:'Ex: 15.3',
+    inputLabel:'Etapa',inputHint:'Ex: 12 (a que ouves no áudio)',etapaInput:true,
     distance:_yoyoDistance,
     vo2max:d=>d==null?null:+(d*0.0136+45.3).toFixed(1), // Bangsbo, Iaia & Krustrup, 2008
     defaultBands:null}, // sem referência científica para futebol feminino — staff define
@@ -12597,11 +12631,15 @@ function _tfRegisterHtml(test){
   (APP.physicalTestResults||[]).filter(r=>r.testId===test.id&&r.teamId===teamId&&r.date===_tfRegDate).forEach(r=>existing[r.athleteId]=r);
   const rows=athletes.map(at=>{
     const ex=existing[at.id];
+    // valor a mostrar no campo: se o teste é por etapa, mostra a etapa (guardada, ou
+    // reconstruída a partir do nível.patamar para registos antigos de antes desta
+    // alteração, que só têm levelRaw — ver _yoyoLevelPatamarToEtapa).
+    const inputVal=ex?(test.etapaInput?(ex.etapaRaw!=null?ex.etapaRaw:(_yoyoLevelPatamarToEtapa(ex.levelRaw)||'')):ex.levelRaw):'';
     return `<div class="grid-row" style="display:grid;grid-template-columns:28px 1fr 110px 90px 90px 24px;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--bg3);font-size:12px" id="tfr-${at.id}">
       <div style="width:30px;height:30px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:var(--t2)">${initials(at.name)}</div>
       <div>${escHtml(_displayName(at))}</div>
-      <input class="fc" style="font-size:12px;padding:6px 9px" data-aid="${at.id}" placeholder="${test.inputHint}" value="${ex?ex.levelRaw:''}" oninput="_tfLiveCalc('${test.id}','${at.id}')">
-      <div id="tfr-dist-${at.id}" style="color:var(--t2)">${ex&&ex.distance!=null?ex.distance+' m':'—'}</div>
+      <input class="fc" style="font-size:12px;padding:6px 9px" data-aid="${at.id}" placeholder="${test.inputHint}" value="${inputVal}" oninput="_tfLiveCalc('${test.id}','${at.id}')">
+      <div id="tfr-dist-${at.id}" style="color:var(--t2)">${ex&&ex.distance!=null?ex.distance+' m':'—'}${ex&&test.etapaInput&&ex.levelRaw?` <span style="color:var(--t3);font-size:10px">(Nível ${escHtml(ex.levelRaw)})</span>`:''}</div>
       <div id="tfr-vo2-${at.id}" style="color:var(--t2);font-size:11px">${ex&&ex.vo2max!=null?ex.vo2max:'—'}</div>
       <div id="tfr-dot-${at.id}" style="width:9px;height:9px;border-radius:50%;background:${(()=>{if(!ex||ex.distance==null)return 'var(--bg4)';const age=_ageAtDate(at.dob,_tfRegDate);const c=_physicalTestColor(test.id,ex.distance,age);return c?PHYSICAL_TEST_COLOR_HEX[c]:'var(--bg4)';})()}"></div>
     </div>`;
@@ -12613,7 +12651,7 @@ function _tfRegisterHtml(test){
   </div>
   <div class="grid-row hd" style="display:grid;grid-template-columns:28px 1fr 110px 90px 90px 24px;gap:10px;color:var(--t2);font-size:10px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--brd);padding:7px 4px"><div></div><div>Atleta</div><div>${escHtml(test.inputLabel)}</div><div>Distância</div><div>VO2max</div><div>Cor</div></div>
   ${rows||'<div style="padding:20px;text-align:center;color:var(--t2);font-size:12px">Sem atletas nesta equipa.</div>'}
-  <div style="font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin:10px 0">Introduz-se o ${escHtml(test.inputLabel).toLowerCase()} lido no protocolo (${test.inputHint}) — a distância e o VO2max calculam-se automaticamente pela tabela oficial do teste, em direto, linha a linha.</div>
+  <div style="font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin:10px 0">${test.etapaInput?'Introduz-se só a etapa anunciada na faixa áudio (contagem sequencial desde o início, ex: "Stage 12") — a app converte sozinha para nível.patamar, distância e VO2max, em direto, linha a linha.':`Introduz-se o ${escHtml(test.inputLabel).toLowerCase()} lido no protocolo (${test.inputHint}) — a distância e o VO2max calculam-se automaticamente pela tabela oficial do teste, em direto, linha a linha.`}</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
   ${athletes.length?`<button class="btn btn-g" onclick="_tfSaveAll('${test.id}')">💾 Guardar resultados (${athletes.length})</button>`:''}
   ${athletes.length?`<button class="btn btn-gh" onclick="printTestFichaPDF('${test.id}')">🖨️ Ficha de Campo</button>`:''}
@@ -12623,12 +12661,19 @@ function _tfLiveCalc(testId,athleteId){
   const test=PHYSICAL_TESTS[testId];
   const input=document.querySelector(`#tfr-${athleteId} input[data-aid="${athleteId}"]`);
   const raw=input?input.value:'';
-  const dist=test.distance(raw);
+  // teste por etapa (Yo-Yo IR1/IR2): converte a etapa ouvida no áudio para nível.patamar
+  // antes de calcular — ver _yoyoEtapaToLevelPatamar.
+  const levelPatamar=test.etapaInput?_yoyoEtapaToLevelPatamar(raw):raw;
+  const dist=test.distance(levelPatamar);
   const vo2=test.vo2max(dist);
   const distEl=document.getElementById('tfr-dist-'+athleteId);
   const vo2El=document.getElementById('tfr-vo2-'+athleteId);
   const dotEl=document.getElementById('tfr-dot-'+athleteId);
-  if(distEl)distEl.textContent=dist!=null?dist+' m':(raw?'nível inválido':'—');
+  if(distEl){
+    const invalidMsg=test.etapaInput?'etapa inválida':'nível inválido';
+    const lvlHint=dist!=null&&test.etapaInput?` <span style="color:var(--t3);font-size:10px">(Nível ${escHtml(levelPatamar)})</span>`:'';
+    distEl.innerHTML=dist!=null?(dist+' m'+lvlHint):(raw?invalidMsg:'—');
+  }
   if(vo2El)vo2El.textContent=vo2!=null?vo2:'—';
   if(dotEl){
     const at=APP.athletes.find(a=>a.id===athleteId);
@@ -12647,13 +12692,18 @@ function _tfSaveAll(testId){
     const raw=(inp.value||'').trim();
     if(!raw)return;
     const athleteId=inp.getAttribute('data-aid');
-    const levelRaw=_yoyoLevelLabel(raw);
-    const distance=test.distance(raw);
-    if(distance==null)return; // nível inválido — não grava lixo
+    // teste por etapa: converte para nível.patamar antes de gravar — tudo o resto da
+    // app (distância, VO2max, bandas de cor, ranking, PDFs) continua a usar levelRaw
+    // no formato nível.patamar como sempre; etapaRaw guarda-se à parte só para o campo
+    // de registo voltar a mostrar o que o treinador escreveu originalmente.
+    const levelPatamarStr=test.etapaInput?_yoyoEtapaToLevelPatamar(raw):raw;
+    const levelRaw=_yoyoLevelLabel(levelPatamarStr);
+    const distance=test.distance(levelPatamarStr);
+    if(distance==null)return; // etapa/nível inválido — não grava lixo
     const vo2max=test.vo2max(distance);
     let r=(APP.physicalTestResults||[]).find(x=>x.testId===testId&&x.athleteId===athleteId&&x.date===_tfRegDate);
     if(!r){r={id:'tf'+Date.now()+Math.floor(Math.random()*1000),testId,athleteId,teamId,date:_tfRegDate,createdAt:new Date().toISOString()};APP.physicalTestResults.push(r);}
-    Object.assign(r,{teamId,levelRaw,distance,vo2max,createdBy:sess?sess.name:(r.createdBy||''),createdById:sess?sess.userId:(r.createdById||null)});
+    Object.assign(r,{teamId,levelRaw,etapaRaw:test.etapaInput?raw:(r.etapaRaw||null),distance,vo2max,createdBy:sess?sess.name:(r.createdBy||''),createdById:sess?sess.userId:(r.createdById||null)});
     if(_sync)cloudUpsert('physical_test_results',{...r,club_id:_cid});
     n++;
   });
@@ -23443,7 +23493,7 @@ async function pullCloud(){
       // mesmo padrão ||[]/||{} já usado nos restantes campos jsonb desta tabela.
       ['playbook','playbook',(d)=>APP.playbook=d.map(r=>({id:r.id,teamId:r.team_id,title:r.title,category:r.category,submomento:r.submomento,formation:r.formation,description:r.description,videoUrl:r.video_url,positions:r.positions||{},opponents:r.opponents||[],ball:r.ball||null,fullView:!!r.full_view,facingUp:!!r.facing_up,snapshots:r.snapshots||[],athleteAssign:r.athlete_assign||{},createdAt:r.created_at,createdBy:r.created_by,createdById:r.created_by_id,updatedAt:r.updated_at,arrows:r.arrows||[],hiddenOwn:r.hidden_own||[],markerColors:r.marker_colors||{}}))],
       ['hydration_records','hydrationRecords',(d)=>APP.hydrationRecords=d.map(r=>({...r,athleteId:r.athlete_id,gameId:r.game_id,preWeight:r.pre_weight,postWeight:r.post_weight,fluidsL:r.fluids_l,urineL:r.urine_l,durationH:r.duration_h,sweatRate:r.sweat_rate,weightLossPct:r.weight_loss_pct,registeredBy:r.registered_by,registeredById:r.registered_by_id,updatedAt:r.updated_at}))],
-      ['physical_test_results','physicalTestResults',(d)=>APP.physicalTestResults=d.map(r=>({...r,athleteId:r.athlete_id,teamId:r.team_id,testId:r.test_id,levelRaw:r.level_raw,createdBy:r.created_by,createdById:r.created_by_id,createdAt:r.created_at}))],
+      ['physical_test_results','physicalTestResults',(d)=>APP.physicalTestResults=d.map(r=>({...r,athleteId:r.athlete_id,teamId:r.team_id,testId:r.test_id,levelRaw:r.level_raw,etapaRaw:r.etapa_raw||undefined,createdBy:r.created_by,createdById:r.created_by_id,createdAt:r.created_at}))],
       // Suplementação (sps-v193): catálogo reutilizável + prescrição individual por atleta,
       // mesmo padrão de tabela dedicada que hydration_records. Ver doc "SPS — Suplementação:
       // Análise e Proposta". Só a Nutri gere (decisão do Roger) — sem equivalente no Fisio.
@@ -23876,8 +23926,8 @@ const _CLOUD_TABLE_SCHEMA={
     rename:{athleteId:'athlete_id',gameId:'game_id',preWeight:'pre_weight',postWeight:'post_weight',fluidsL:'fluids_l',urineL:'urine_l',durationH:'duration_h',sweatRate:'sweat_rate',weightLossPct:'weight_loss_pct',registeredBy:'registered_by',registeredById:'registered_by_id',updatedAt:'updated_at'}},
   // Testes Físicos (sps-v242): um registo por atleta por teste por data — mesmo padrão de
   // tabela dedicada que hydration_records (série temporal, nunca no meta blob).
-  physical_test_results:{cols:['id','athlete_id','team_id','test_id','date','level_raw','distance','vo2max','notes','created_by','created_by_id','created_at'],
-    rename:{athleteId:'athlete_id',teamId:'team_id',testId:'test_id',levelRaw:'level_raw',createdBy:'created_by',createdById:'created_by_id',createdAt:'created_at'}},
+  physical_test_results:{cols:['id','athlete_id','team_id','test_id','date','level_raw','etapa_raw','distance','vo2max','notes','created_by','created_by_id','created_at'],
+    rename:{athleteId:'athlete_id',teamId:'team_id',testId:'test_id',levelRaw:'level_raw',etapaRaw:'etapa_raw',createdBy:'created_by',createdById:'created_by_id',createdAt:'created_at'}},
   // Suplementação (sps-v193, Bloco 1): catálogo reutilizável gerido pela Nutri + prescrição
   // individual por atleta, agrupada por momento (diário/pré-treino/pós-treino/matchday). Duas
   // tabelas dedicadas próprias (migração create_supplement_tables), mesmo padrão/RLS anon_all
