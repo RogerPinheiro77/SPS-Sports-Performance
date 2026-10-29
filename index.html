@@ -3636,8 +3636,12 @@ function _physicalTestRankFor(testId,teamId,athleteId){
 // maiores para ser fiável). Por isso aqui usa-se sempre o percentil já calculado por
 // _physicalTestRankFor — a mesma fonte do ranking individual de cada teste, nunca um cálculo
 // em duplicado — e faz-se a média simples dos percentis de cada atleta.
-// Precisa de pelo menos 2 testes diferentes para entrar no Ranking Geral: com só 1 teste
-// feito, a posição já aparece no cartão desse teste — a média de 1 valor não acrescenta nada.
+// Atualização (sps-v246, pedido do Roger): passou a entrar com só 1 teste feito — "quero que
+// já exista Ranking Geral, claro que com mais que um teste a Geral se ajusta". Antes exigia-se
+// ≥2 testes diferentes (a média de 1 valor sozinho não "ajustava" nada); com 1 só teste, a
+// média é simplesmente o percentil desse teste — o mesmo valor que já aparecia no cartão desse
+// teste, agora também disponível como "Geral" desde o 1º registo, e que passa a combinar-se de
+// verdade assim que a atleta tiver mais do que 1 teste diferente.
 function _physicalOverallScores(teamId){
   const testIds=Object.keys(PHYSICAL_TESTS);
   const athIds=new Set();
@@ -3651,10 +3655,11 @@ function _physicalOverallScores(teamId){
   });
   return rows.sort((a,b)=>b.avgPct-a.avgPct);
 }
-// Posição da atleta no Ranking Geral — null se ainda não tem ≥2 testes diferentes feitos.
-// Mesmo formato {pos,total,pct} do ranking por teste, nunca nomes/valores de colegas.
+// Posição da atleta no Ranking Geral — null se ainda não tem nenhum teste feito (sps-v246:
+// antes exigia ≥2 testes diferentes, ver nota em _physicalOverallScores). Mesmo formato
+// {pos,total,pct} do ranking por teste, nunca nomes/valores de colegas.
 function _physicalOverallRankFor(teamId,athleteId){
-  const rows=_physicalOverallScores(teamId).filter(r=>r.nTests>=2);
+  const rows=_physicalOverallScores(teamId).filter(r=>r.nTests>=1);
   const idx=rows.findIndex(r=>r.athleteId===athleteId);
   if(idx<0)return null;
   const total=rows.length;
@@ -12590,10 +12595,11 @@ function renderTestesFisicos(){
 // Cartão "Ranking Geral" do staff — pedido do Roger (sps-v243), equipa-wide (não depende do
 // teste selecionado nos separadores abaixo), por isso fica fora do bloco de abas. Mesma fonte
 // (_physicalOverallScores) do ranking que a atleta vê — nunca um cálculo em duplicado. Fica
-// sem nada visível quando ainda ninguém tem ≥2 testes diferentes (plantel a começar a usar o
-// catálogo), para não mostrar uma tabela vazia/confusa.
+// sem nada visível quando ainda ninguém tem nenhum teste feito (plantel a começar a usar o
+// catálogo), para não mostrar uma tabela vazia. Desde sps-v246, entra com só 1 teste feito
+// (ver nota em _physicalOverallScores) — passa a aparecer logo no 1º registo.
 function _tfOverallCardHtml(teamId){
-  const rows=_physicalOverallScores(teamId).filter(r=>r.nTests>=2);
+  const rows=_physicalOverallScores(teamId).filter(r=>r.nTests>=1);
   if(!rows.length)return '';
   const trs=rows.map((r,i)=>{
     const at=APP.athletes.find(a=>a.id===r.athleteId);
@@ -12601,7 +12607,7 @@ function _tfOverallCardHtml(teamId){
   }).join('');
   return `<div class="card" style="margin-bottom:20px;padding:16px">
     <h2 style="margin-bottom:4px;font-size:15px">🏆 Ranking Geral</h2>
-    <div style="font-size:11.5px;color:var(--t2);margin-bottom:12px">Média do percentil de cada atleta nos testes já feitos (mín. 2 testes diferentes para entrar).</div>
+    <div style="font-size:11.5px;color:var(--t2);margin-bottom:12px">Média do percentil de cada atleta nos testes já feitos — ajusta-se à medida que cada atleta faz mais testes diferentes.</div>
     <div class="tw"><table><thead><tr><th>#</th><th>Atleta</th><th>Testes</th><th>Média</th></tr></thead><tbody>${trs}</tbody></table></div>
   </div>`;
 }
@@ -12784,9 +12790,11 @@ function _tfResetBands(testId){
 // percentil) — nunca nomes/valores de colegas, mesmo padrão já seguido no resto da
 // app (ex: "A tua Evolução" na Nutrição, sps-v167).
 // Cartão "Ranking Geral" (sps-v243) — média do percentil da atleta em todos os testes que já
-// fez (ver _physicalOverallRankFor). Só aparece com ≥2 testes diferentes — com 1 só, a
-// posição já está no cartão desse teste, mais abaixo. Lista os testes incluídos (nome +
-// percentil de cada um), nunca nomes/valores de colegas, mesmo princípio do resto da página.
+// fez (ver _physicalOverallRankFor). Desde sps-v246 aparece já com 1 só teste feito (pedido do
+// Roger — ver nota em _physicalOverallScores), mesmo repetindo o que já está no cartão desse
+// teste mais abaixo; passa a combinar de verdade quando a atleta tiver mais do que 1 teste.
+// Lista os testes incluídos (nome + percentil de cada um), nunca nomes/valores de colegas,
+// mesmo princípio do resto da página.
 function _atOverallCardHtml(teamId){
   const overall=_physicalOverallRankFor(teamId,AID);
   if(!overall)return '';
@@ -21861,6 +21869,11 @@ function renderAtHome(){
   const gymStreak=_gymConsistencyStreak(AID);
   const lastTest=(APP.physicalTestResults||[]).filter(r=>r.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date))[0];
   const lastTestDef=lastTest?PHYSICAL_TESTS[lastTest.testId]:null;
+  // sps-v246 (pedido do Roger: "quero que já exista Ranking Geral, mesmo que só haja um
+  // teste — com mais que um teste a Geral ajusta-se"): _physicalOverallRankFor passou a
+  // entrar com 1 só teste feito (antes exigia ≥2 — ver nota em _physicalOverallScores), por
+  // isso já dá para mostrar a posição no card do Home desde o 1º registo.
+  const testesRank=lastTest?_physicalOverallRankFor(at.teamId,AID):null;
 
   const _bdg=(n,color)=>n?`<div style="position:absolute;top:7px;right:7px;background:${color};color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${n}</div>`:'';
   // Grelha passou de 2 para 3 colunas no sps-v223 (pedido do Roger: card
@@ -21919,8 +21932,8 @@ function renderAtHome(){
     // (renderAtTestes, já existente desde sps-v242/v243 — resultados por teste + Ranking
     // Geral), que até agora só era acessível sem nenhum link a partir do Home.
     _card('testes','report-medical','#22c55e','Testes Físicos',
-      lastTest?`${lastTestDef?.short||'Último teste'}: ${fmtDate(lastTest.date)}`:'Sem testes ainda',
-      lastTest?'#22c55e':'var(--t2)',
+      testesRank?`🏆 ${testesRank.pos}º de ${testesRank.total} · Geral`:lastTest?`${lastTestDef?.short||'Último teste'}: ${fmtDate(lastTest.date)}`:'Sem testes ainda',
+      testesRank?(testesRank.pct>=75?'#4ade80':testesRank.pct>=25?'#fbbf24':'#f87171'):lastTest?'#22c55e':'var(--t2)',
       '','34,197,94'),
   ];
 

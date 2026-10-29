@@ -6582,3 +6582,42 @@ Yo-Yo IR1 (20/10 e 29/10) o card mostra o nome do teste e a data do **mais
 recente** (29/10), nunca a mais antiga.
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v246 (29/10/2026): Ranking Geral já entra com 1 só teste + posição no card do Home
+
+Pedido do Roger: "NO CARD CONSEGUES COLOCAR O RANKING QUE ATLETA ESTA, MESMO QUE NO MOMENTO
+SO HAJA UM TESTE, QUERO QUE JA EXISTA RANKING GERAL, CLARO QUE COM MAIS QUE UM TESTE A GERAL
+SE AJUSTA" — sobre o card "Testes Físicos" criado no sps-v245.
+
+**O que mudou de regra de negócio:** até aqui, o "Ranking Geral" (média do percentil da
+atleta entre todos os testes diferentes que já fez — `_physicalOverallScores`/
+`_physicalOverallRankFor`, sps-v243) só entrava em jogo com ≥2 testes diferentes feitos; com
+só 1, considerava-se que a posição já estava coberta pelo cartão desse teste, e mostrar a
+"média" de 1 valor sozinho não acrescentava nada. O Roger decidiu o contrário: quer que o
+conceito de "Ranking Geral" já exista desde o 1º registo — nesse caso, a média é simplesmente
+o percentil desse único teste, e passa a combinar-se de verdade (vários testes a entrar na
+média) só quando a atleta tiver mais do que 1 tipo de teste feito.
+
+- `_physicalOverallRankFor`: filtro mudou de `nTests>=2` para `nTests>=1` — deixa de devolver
+  `null` para quem só fez 1 teste.
+- `_tfOverallCardHtml` (cartão "Ranking Geral" do staff, em Testes Físicos) e
+  `_atOverallCardHtml` (mesmo cartão do lado da atleta): mesma mudança de limiar — já
+  aparecem com 1 só teste feito no plantel/pela atleta. Nota: isto agora repete, no caso de
+  só 1 teste, o que já aparecia no cartão desse teste mais abaixo na página — aceite como
+  intencional (é exatamente o pedido do Roger), não um bug de duplicação.
+- **Card "Testes Físicos" no Home (sps-v245)**: passou a mostrar a posição no Ranking Geral
+  (`🏆 Xº de Y · Geral`) em vez do nome do teste + data, sempre que já há pelo menos 1 teste
+  feito. Cor do texto segue o percentil (verde ≥75%, amarelo 25-75%, vermelho <25% — mesmos
+  limiares já usados nos mini-cartões por teste da própria página de Testes Físicos). Fica o
+  fallback antigo (nome do teste + data) só para o caso defensivo em que, por alguma razão,
+  `_physicalOverallRankFor` não encontra a atleta na lista da sua equipa.
+
+SW bump para `sps-v246`. Testado: `node --check` ao bloco `<script>` extraído;
+`test_ranking_geral_v243.js` atualizado para o novo limiar (recalculados à mão + confirmados
+por harness Node todos os valores de posição/percentil do cenário de 4 atletas já existente,
+mais um novo caso central — atleta sozinha na equipa, só 1 teste feito, antes dava `null`,
+agora dá "1º de 1"); `test_testes_card_v245.js` estendido com 2 equipas de teste (sozinha →
+"1º de 1 · Geral"; com colegas → posição real "2º de 3 · Geral", nunca mostrando nomes/valores
+de colegas no card). Suite completa do sps-v244/v245 re-corrida, sem regressões.
+
+**Ainda por fazer:** nada pendente para este pedido.

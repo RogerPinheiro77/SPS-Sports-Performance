@@ -65,7 +65,7 @@ function ok(cond, msg) {
 }
 
 // ── Cenário: 4 atletas, T1 ──
-// a1: só fez IR1 (não entra no geral — precisa de ≥2 testes)
+// a1: só fez IR1 (desde sps-v246 já entra no geral, com nTests=1 — ver nota no índex)
 // a2: fez IR1 e IR2, melhor nos dois
 // a3: fez IR1 e IR2, intermédia
 // a4: fez IR1 e IR2, pior nos dois
@@ -84,6 +84,7 @@ let scores = S._physicalOverallScores('T1');
 ok(scores.length === 4, '_physicalOverallScores inclui as 4 atletas com pelo menos 1 resultado (incl. a1, que só fez 1 teste)');
 let a1row = scores.find(r => r.athleteId === 'a1');
 ok(a1row.nTests === 1, 'a1 (só IR1) tem nTests=1');
+ok(a1row.avgPct === 33, 'a1 (nTests=1) tem avgPct = o próprio percentil desse 1 teste (33), sem distorção');
 let a2row = scores.find(r => r.athleteId === 'a2');
 ok(a2row.nTests === 2, 'a2 (IR1+IR2) tem nTests=2');
 // a2 é a melhor nos 2 testes → pct=100 em ambos → média 100
@@ -93,14 +94,17 @@ let a4row = scores.find(r => r.athleteId === 'a4');
 ok(a4row.avgPct === 0, 'a4 (pior nos 2 testes) tem avgPct=0');
 ok(scores[0].athleteId === 'a2', 'scores ordenado desc por avgPct — a2 em 1º');
 
-// ── 2) _physicalOverallRankFor — só entram atletas com ≥2 testes; a1 fica de fora ──
-ok(S._physicalOverallRankFor('T1', 'a1') === null, 'a1 (só 1 teste) não entra no Ranking Geral (null)');
+// ── 2) _physicalOverallRankFor — sps-v246 (pedido do Roger: "quero que já exista Ranking
+// Geral, mesmo que só haja um teste") — entra com ≥1 teste; a1 (só IR1) já conta ──
+let r1 = S._physicalOverallRankFor('T1', 'a1');
+ok(r1 !== null, 'a1 (1 só teste) já entra no Ranking Geral — não é mais null');
+ok(r1.pos === 3 && r1.total === 4 && r1.pct === 33 && r1.nTests === 1, 'a1 → 3º lugar de 4 (agora com todas as atletas), percentil 33, nTests=1');
 let r2 = S._physicalOverallRankFor('T1', 'a2');
-ok(r2.pos === 1 && r2.total === 3 && r2.pct === 100, 'a2 → 1º lugar de 3 (só quem tem ≥2 testes), percentil 100');
+ok(r2.pos === 1 && r2.total === 4 && r2.pct === 100, 'a2 → 1º lugar de 4, percentil 100');
 let r3 = S._physicalOverallRankFor('T1', 'a3');
-ok(r3.pos === 2 && r3.total === 3 && r3.pct === 50, 'a3 (intermédia) → 2º de 3, percentil 50');
+ok(r3.pos === 2 && r3.total === 4 && r3.pct === 67, 'a3 (intermédia) → 2º de 4, percentil 67');
 let r4 = S._physicalOverallRankFor('T1', 'a4');
-ok(r4.pos === 3 && r4.total === 3 && r4.pct === 0, 'a4 → 3º de 3, percentil 0');
+ok(r4.pos === 4 && r4.total === 4 && r4.pct === 0, 'a4 → 4º de 4 (última, incluindo a1), percentil 0');
 ok(r2.nTests === 2 && r2.avgPct === 100, 'rank devolve também nTests/avgPct para o cartão da atleta');
 ok(S._physicalOverallRankFor('T1', 'nao-existe') === null, 'atleta inexistente → null');
 ok(S._physicalOverallRankFor('T9', 'a2') === null, 'equipa sem nenhum resultado → null');
@@ -111,6 +115,14 @@ S.APP.physicalTestResults = [
   { id: 'x2', athleteId: 'solo', teamId: 'T9', testId: 'yoyo_ir2', date: '2026-10-01', distance: 500 },
 ];
 let solo = S._physicalOverallRankFor('T9', 'solo');
-ok(solo.pos === 1 && solo.total === 1 && solo.pct === 100, 'única atleta elegível (≥2 testes) → 1º de 1, percentil 100 (sem NaN)');
+ok(solo.pos === 1 && solo.total === 1 && solo.pct === 100, 'única atleta elegível → 1º de 1, percentil 100 (sem NaN)');
+
+// ── 4) Caso central do sps-v246 — atleta sozinha, 1 SÓ teste feito, já entra ──
+S.APP.physicalTestResults = [
+  { id: 'y1', athleteId: 'novata', teamId: 'T8', testId: 'yoyo_ir1', date: '2026-10-29', distance: 1200 },
+];
+let novata = S._physicalOverallRankFor('T8', 'novata');
+ok(novata !== null, 'atleta com 1 só teste feito, sozinha na equipa, já entra no Ranking Geral (null seria o comportamento antigo)');
+ok(novata.pos === 1 && novata.total === 1 && novata.nTests === 1, 'novata → 1º de 1, nTests=1 (card do Home pode já mostrar "1º de 1 · Geral")');
 
 console.log(`\nTODOS OS ${n} TESTES PASSARAM`);
