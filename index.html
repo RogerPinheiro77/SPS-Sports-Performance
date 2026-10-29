@@ -12542,7 +12542,7 @@ function _convDateChanged(){
   if(el)el.innerHTML=_convAthletesHtml(document.getElementById('cf-date').value);
 }
 // ─── TESTES FÍSICOS — Staff (sps-v242) ───────────────────────────────────────
-let _tfTest='yoyo_ir1', _tfTab='res', _tfTeam=null, _tfResDate=null, _tfRegDate=null;
+let _tfTest='yoyo_ir1', _tfTab='res', _tfTeam=null, _tfResDate=null, _tfRegDate=null, _tfHistAthlete=null;
 function _tfTeamId(){ return _tfTeam||(APP.teams[0]&&APP.teams[0].id)||'T1'; }
 function _tfCountFor(testId){ return (APP.physicalTestResults||[]).filter(r=>r.testId===testId).length; }
 function _tfLastDateFor(testId){
@@ -12575,10 +12575,11 @@ function _tfBandsNote(test){
 function renderTestesFisicos(){
   const test=PHYSICAL_TESTS[_tfTest];
   const teamSel=`<select class="fc" style="width:auto;font-size:11px" onchange="_tfTeam=this.value;renderTestesFisicos()">${APP.teams.map(t=>`<option value="${t.id}" ${t.id===_tfTeamId()?'selected':''}>${t.name}</option>`).join('')}</select>`;
-  const tabs=[{id:'res',label:'Resultados'},{id:'reg',label:'Registar'},{id:'band',label:'Bandas de Referência'}];
+  const tabs=[{id:'res',label:'Resultados'},{id:'hist',label:'Histórico'},{id:'reg',label:'Registar'},{id:'band',label:'Bandas de Referência'}];
   const tabsHtml=tabs.map(t=>`<button class="btn btn-sm" onclick="_tfSetTab('${t.id}')" style="border-color:${_tfTab===t.id?'var(--c1)':'var(--brd)'};background:${_tfTab===t.id?'var(--c1)':'transparent'};color:${_tfTab===t.id?'#fff':'var(--t1)'}">${t.label}</button>`).join('');
   let body='';
   if(_tfTab==='res')body=_tfResultsHtml(test);
+  else if(_tfTab==='hist')body=_tfHistoricoHtml(test);
   else if(_tfTab==='reg')body=_tfRegisterHtml(test);
   else body=_tfBandsHtml(test);
   document.getElementById('pg-testes-fisicos').innerHTML=`
@@ -12628,6 +12629,39 @@ function _tfResultsHtml(test){
   return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:11.5px;color:var(--t2)">${fmtDate(_tfResDate)} · ordenado por distância (= ranking da equipa)</div>${dateSel}</div>
   <div class="tw"><table><thead><tr><th>#</th><th>Atleta</th><th>${escHtml(test.inputLabel)}</th><th>Distância</th><th>VO2max est.</th><th>Classificação</th></tr></thead><tbody>${trs}</tbody></table></div>
   <div style="font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin-top:10px">💡 Esta tabela é a mesma fonte usada para a posição no ranking que cada atleta vê na sua app — nunca um cálculo em duplicado.</div>`;
+}
+// Separador "Histórico" (sps-v247) — pedido do Roger: "preciso de ter um registo de histórico
+// dos testes e possibilidade de impressão com comparativo dos últimos 3 de forma a ver se há
+// evolução". "Resultados" (acima) é um corte por DATA (ranking da equipa toda nesse dia);
+// este separador é o complemento — um corte por ATLETA, todas as datas que já fez do teste
+// selecionado, para ver a evolução ao longo do tempo. Reaproveita _naTrendBadge/_trendBadgeHtml
+// (criadas para a Nutrição, sps-v189, mas já genéricas — distância/VO2max têm "maior é melhor",
+// por isso favDir=1) em vez de inventar um cálculo de tendência novo.
+function _tfHistoricoHtml(test){
+  const teamId=_tfTeamId();
+  const athletes=APP.athletes.filter(a=>a.teamId===teamId).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!athletes.length)return `<div class="empty" style="padding:30px 10px;text-align:center"><p style="color:var(--t2);font-size:12.5px">Sem atletas nesta equipa.</p></div>`;
+  if(!_tfHistAthlete||!athletes.find(a=>a.id===_tfHistAthlete))_tfHistAthlete=athletes[0].id;
+  const at=athletes.find(a=>a.id===_tfHistAthlete);
+  const athSel=`<select class="fc" style="width:auto;font-size:11px" onchange="_tfHistAthlete=this.value;renderTestesFisicos()">${athletes.map(a=>`<option value="${a.id}" ${a.id===_tfHistAthlete?'selected':''}>${escHtml(_displayName(a))}</option>`).join('')}</select>`;
+  const header=`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px"><div style="font-size:11.5px;color:var(--t2)">Histórico completo de <strong style="color:var(--t1)">${escHtml(_displayName(at))}</strong> em ${escHtml(test.short)}</div>${athSel}</div>`;
+  const mine=(APP.physicalTestResults||[]).filter(r=>r.testId===test.id&&r.athleteId===_tfHistAthlete).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!mine.length)return header+`<div class="empty" style="padding:30px 10px;text-align:center"><div class="ei" style="font-size:30px">📋</div><p style="color:var(--t2);font-size:12.5px">${escHtml(_displayName(at))} ainda não tem nenhum resultado de ${escHtml(test.short)}.</p></div>`;
+  const trs=mine.map((r,i)=>{
+    const prev=i>0?mine[i-1]:null;
+    const age=_ageAtDate(at.dob,r.date);
+    const col=_physicalTestColor(test.id,r.distance,age);
+    const sfHtml=col?`<span class="semaforo" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${PHYSICAL_TEST_COLOR_HEX[col]}22;color:${PHYSICAL_TEST_COLOR_HEX[col]}">${PHYSICAL_TEST_COLOR_LABEL[col]}</span>`:'<span style="font-size:11px;color:var(--t3)">— sem bandas definidas</span>';
+    const distBdg=prev&&r.distance!=null&&prev.distance!=null?_trendBadgeHtml(_naTrendBadge(r.distance,prev.distance,1,0),' m'):'';
+    const vo2Bdg=prev&&r.vo2max!=null&&prev.vo2max!=null?_trendBadgeHtml(_naTrendBadge(r.vo2max,prev.vo2max,1,1),''):'';
+    return `<tr><td>${fmtDate(r.date)}</td><td>${escHtml(r.levelRaw||'—')}</td><td>${r.distance!=null?r.distance+' m':'—'}${distBdg}</td><td style="color:var(--t2);font-size:11px">${r.vo2max!=null?r.vo2max:'—'}${vo2Bdg}</td><td>${sfHtml}</td></tr>`;
+  }).join('');
+  const canPrint=mine.length>=2;
+  return header+`<div class="tw"><table><thead><tr><th>Data</th><th>Nível</th><th>Distância</th><th>VO2max est.</th><th>Classificação</th></tr></thead><tbody>${trs}</tbody></table></div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+    <button class="btn btn-gh" ${canPrint?'':'disabled'} onclick="printTestHistoryPDF('${test.id}','${_tfHistAthlete}')">🖨️ PDF Comparativo (últimos 3)</button>
+    ${!canPrint?`<span style="font-size:11px;color:var(--t2)">Precisa de pelo menos 2 resultados para comparar evolução.</span>`:''}
+  </div>`;
 }
 function _tfRegisterHtml(test){
   const teamId=_tfTeamId();
@@ -12716,6 +12750,82 @@ function _tfSaveAll(testId){
   saveData();
   toast(n?`${n} resultado${n!==1?'s':''} guardado${n!==1?'s':''} ✓`:'Nenhum nível preenchido');
   renderTestesFisicos();
+}
+// PDF "Comparativo (últimos 3)" (sps-v247) — pedido do Roger: "possibilidade de impressão com
+// comparativo dos últimos 3 de forma a ver se há evolução". Mesmo padrão de printNaEvolutionPDF
+// (Nutrição, sps-v166) — cabeçalho com foto/nome/idade da atleta, tabela com 1 coluna por data
+// e seta/cor de tendência em cada métrica — mas limitado de propósito às 3 datas mais recentes
+// (nunca o histórico completo, que já está na aba Histórico), porque foi isso que o Roger pediu.
+function printTestHistoryPDF(testId,athleteId){
+  const test=PHYSICAL_TESTS[testId];if(!test)return;
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  const all=(APP.physicalTestResults||[]).filter(r=>r.testId===testId&&r.athleteId===athleteId).sort((a,b)=>a.date.localeCompare(b.date));
+  if(all.length<2)return toast(`${_displayName(at)} tem apenas ${all.length} resultado${all.length===1?'':'s'} de ${test.short} — não há evolução para comparar ainda`,'err');
+  const last3=all.slice(-3);
+
+  const photoHtml=at.photo?`<img class="profile-photo" src="${at.photo}" onerror="this.style.display='none'">`:`<div class="profile-photo-ph">${at.name.slice(0,1)}</div>`;
+  const age=at.dob?ageYears(at.dob):null;
+
+  const metricRows=[
+    {label:'Distância',unit:' m',get:r=>r.distance,decimals:0},
+    {label:'VO2max estimado',unit:' ml/kg/min',get:r=>r.vo2max,decimals:1},
+  ];
+  const levelRowHtml=`<tr><td><strong>Nível</strong></td>${last3.map(r=>`<td>${escHtml(r.levelRaw||'—')}</td>`).join('')}</tr>`;
+  const metricRowsHtml=metricRows.map(row=>{
+    const cells=last3.map((r,i)=>{
+      const v=row.get(r);
+      if(v==null)return '<td>—</td>';
+      if(i>0){
+        const prevV=row.get(last3[i-1]);
+        const b=prevV!=null?_naTrendBadge(v,prevV,1,row.decimals):{cls:'',arrow:'',diff:null};
+        return `<td>${v}${row.unit}${_trendBadgeHtml(b,row.unit)}</td>`;
+      }
+      return `<td>${v}${row.unit}</td>`;
+    }).join('');
+    return `<tr><td><strong>${row.label}</strong></td>${cells}</tr>`;
+  }).join('');
+  const classRow=`<tr><td><strong>Classificação</strong></td>${last3.map(r=>{
+    const rAge=_ageAtDate(at.dob,r.date);
+    const col=_physicalTestColor(testId,r.distance,rAge);
+    return `<td>${col?`<span class="badge ${col==='g'?'bg-g':col==='y'?'bg-y':'bg-r'}" style="font-size:7.5pt">${PHYSICAL_TEST_COLOR_LABEL[col]}</span>`:'—'}</td>`;
+  }).join('')}</tr>`;
+  const tableHtml=`<table><thead><tr><th>Data</th>${last3.map(r=>`<th>${fmtDate(r.date)}</th>`).join('')}</tr></thead><tbody>${levelRowHtml}${metricRowsHtml}${classRow}</tbody></table>`;
+
+  const labels=last3.map(r=>fmtDateShort(r.date));
+  const distData=last3.map(r=>r.distance);
+  const distChart=distData.filter(v=>v!=null).length>=2?_naTrendB64(labels,distData,`Distância (m) — ${test.short}`,'#1d6f3b'):'';
+
+  const first=last3[0],lastR=last3[last3.length-1];
+  const diff=(lastR.distance||0)-(first.distance||0);
+  const evolTxt=diff>0?`📈 Evolução positiva: +${diff} m entre ${fmtDate(first.date)} e ${fmtDate(lastR.date)}.`
+    :diff<0?`📉 Evolução negativa: ${diff} m entre ${fmtDate(first.date)} e ${fmtDate(lastR.date)}.`
+    :`➡️ Sem alteração na distância entre ${fmtDate(first.date)} e ${fmtDate(lastR.date)}.`;
+
+  const body=`
+  <style>
+    .tf-hist{font-size:8.5pt}
+    .tf-hist .profile-header{margin-bottom:6px;padding-bottom:6px}
+    .tf-hist table{margin-bottom:10px}
+    .tf-hist th{padding:4px 6px;font-size:7.5pt}
+    .tf-hist td{padding:3px 6px;font-size:7.5pt;text-align:center}
+    .tf-hist td:first-child{text-align:left}
+  </style>
+  <div class="tf-hist">
+    <div class="pr-title">Comparativo de Evolução — ${escHtml(test.short)}</div>
+    <div class="profile-header">
+      ${photoHtml}
+      <div style="flex:1">
+        <div style="font-size:15pt;font-weight:900;color:#111">${escHtml(at.name)}${at.alcunha?` <span style="font-size:10pt;font-weight:600;color:#888">("${escHtml(at.alcunha)}")</span>`:''}</div>
+        <div style="font-size:9pt;color:#555;margin-top:3px">${at.pos||'—'}${age?' · '+age+' anos':''}</div>
+        <div style="font-size:9pt;color:#1d6f3b;font-weight:700;margin-top:3px">Últimos ${last3.length} de ${all.length} resultado${all.length!==1?'s':''} · ${fmtDate(first.date)} a ${fmtDate(lastR.date)}</div>
+      </div>
+    </div>
+    <h3>Evolução — últimos ${last3.length} testes</h3>
+    ${tableHtml}
+    ${distChart?`<div style="margin:10px 0"><img src="${distChart}" style="width:100%;max-width:400px"></div>`:''}
+    <div style="font-size:8.5pt;color:#333;background:#f5f5f5;border-radius:6px;padding:8px 10px;margin-top:6px">${evolTxt}</div>
+  </div>`;
+  _printWin(`Comparativo — ${test.short} — ${at.name}`,body);
 }
 // Ficha de Campo em PDF (sps-v243) — pedido do Roger: uma folha em branco, A4, para recolher
 // os resultados no campo durante o teste (sem acesso prático à app a meio do protocolo), para

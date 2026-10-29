@@ -139,7 +139,10 @@ const { chromium } = require('playwright');
     await pg.close();
   }
 
-  // ── 3) Atleta sem Ranking Geral (só 1 teste feito, ex. AID='a3') — cartão não deve aparecer ──
+  // ── 3) Atleta com só 1 teste feito (AID='a3') — sps-v246 (pedido do Roger: "quero que já
+  //      exista Ranking Geral, mesmo que só haja um teste"): o cartão agora APARECE, com a
+  //      posição calculada só a partir desse 1 teste (33.3% virou o comportamento antigo que
+  //      escondia o cartão; o novo limiar é ≥1, não ≥2) ──
   {
     const pageHtml = buildPage(
       '<div id="atp-testes" class="at-page" style="display:block"></div>',
@@ -153,8 +156,14 @@ const { chromium } = require('playwright');
     await pg.waitForTimeout(300);
     const bodyText = await pg.locator('#atp-testes').innerText();
     const hasOverall = /ranking geral/i.test(bodyText);
-    console.log('Atleta com só 1 teste (a3) NÃO tem cartão Ranking Geral:', !hasOverall);
-    if (hasOverall) { console.log('FAIL: cartão Ranking Geral não devia aparecer com só 1 teste'); failed = true; }
+    console.log('Atleta com só 1 teste (a3) JÁ tem cartão Ranking Geral (sps-v246):', hasOverall);
+    if (!hasOverall) { console.log('FAIL: cartão Ranking Geral devia aparecer desde sps-v246, mesmo com só 1 teste'); failed = true; }
+    // a3 (IR1=1440m) é a última das 4 que fizeram pelo menos 1 teste → 4º de 4, 0%, 1 teste
+    const posOk = /4º lugar/.test(bodyText) && /de 4 atleta/.test(bodyText);
+    console.log('Posição correta (4º de 4, a pior das 4 com resultados):', posOk);
+    if (!posOk) { console.log('FAIL: posição da a3 no Ranking Geral incorreta'); failed = true; }
+    const leaked = ['Mariana Teixeira', 'Beatriz Nogueira', 'Sofia Marques'].some(nome => bodyText.includes(nome));
+    if (leaked) { console.log('FAIL: nome de colega exposto no Ranking Geral de a3'); failed = true; }
     await pg.close();
   }
 

@@ -6621,3 +6621,52 @@ agora dá "1º de 1"); `test_testes_card_v245.js` estendido com 2 equipas de tes
 de colegas no card). Suite completa do sps-v244/v245 re-corrida, sem regressões.
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v247 (29/10/2026): separador "Histórico" + PDF "Comparativo (últimos 3)" em Testes Físicos
+
+Pedido do Roger: "na plataforma preciso de ter um registo de histórico dos testes e
+possibilidade de impressão com comparativo dos últimos 3 de forma a ver se há evolução".
+
+**O que já existia vs. o que faltava:** a aba "Resultados" de Testes Físicos (staff) já
+mostra um corte por DATA — o ranking da equipa toda num dia só. Não havia nenhum corte por
+ATLETA (todas as datas que já fez, ao longo do tempo) do lado do staff, nem nenhuma
+impressão/PDF a comparar testes entre si para ver evolução (a única PDF que já existia,
+"Ficha de Campo", é uma folha em branco para recolher dados no campo — não um relatório).
+
+**O que foi construído:**
+- Novo separador "Histórico" em Testes Físicos (staff), entre "Resultados" e "Registar" —
+  seletor de atleta (equipa selecionada) + tabela com TODAS as datas que essa atleta já fez
+  do teste selecionado no Catálogo (nível, distância, VO2max, classificação por cor), com
+  seta de tendência (↑/↓) em distância e VO2max face ao resultado anterior. Reaproveita
+  `_naTrendBadge`/`_trendBadgeHtml` (criadas para a Nutrição, sps-v189 — já genéricas, não
+  específicas de composição corporal) com `favDir=1` (distância/VO2max maiores = melhor),
+  em vez de inventar um cálculo de tendência novo.
+- Novo botão "🖨️ PDF Comparativo (últimos 3)" nesse separador → `printTestHistoryPDF(testId,
+  athleteId)` — PDF com cabeçalho (foto/nome/idade da atleta), tabela com 1 coluna por data
+  (as 3 mais recentes, nunca o histórico completo — foi isso que o Roger pediu, "últimos 3"),
+  linhas de Nível/Distância/VO2max/Classificação, setas de tendência na Distância/VO2max, um
+  gráfico de evolução da distância (reaproveita `_naTrendB64`, já genérica — labels/dados/
+  título/cor, não específica da Nutrição) e uma nota final em texto simples ("📈 Evolução
+  positiva: +X m entre data A e data B"). Desativado (com aviso) quando a atleta tem menos de
+  2 resultados do teste selecionado — mesma validação e mensagem do `printNaEvolutionPDF`.
+  Mesmo padrão geral do PDF de Evolução Antropométrica (sps-v166), mas deliberadamente
+  limitado aos 3 últimos, não ao histórico completo (que já fica visível, sem limite, na
+  própria aba Histórico).
+
+**Efeito colateral apanhado nos testes, não no código novo:** ao correr a suite de
+regressão do sps-v243 (`test_ranking_geral_v243_visual.js`), descobriu-se que o teste #3
+ainda assumia o comportamento ANTIGO do Ranking Geral (escondido com só 1 teste) — ficou
+esquecido quando o limiar baixou para ≥1 no sps-v246. Corrigido o teste para o comportamento
+atual (o cartão aparece, com a posição calculada só a partir desse 1 teste) — nenhuma
+alteração de código de produção, só do teste que estava a validar uma regra já substituída.
+
+SW bump para `sps-v247`. Testado: `node --check` ao bloco `<script>` extraído; novo
+`test_testes_historico_v247.js` (Playwright) — separador Histórico mostra as 3 datas e as
+setas de evolução corretas, botão de PDF ativo/desativado consoante o nº de resultados,
+`printTestHistoryPDF` gerado via popup stubado (window.open) com nome/datas/distâncias/nota
+de evolução corretos, e confirmação de que NÃO abre popup com menos de 2 resultados (só
+toast de erro). Regressão completa (sps-v243/v244/v245/v246) re-corrida após a correção do
+teste desatualizado — tudo a passar.
+
+**Ainda por fazer:** nada pendente para este pedido. Possível extensão futura, não pedida
+agora: o mesmo PDF comparativo também do lado da atleta (hoje só existe para o staff).
