@@ -6327,6 +6327,21 @@ function selectClubDetail(name,logo){
   if(prev){if(logo){const img=document.createElement('img');img.src=logo;img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:6px';img.onerror=()=>{prev.innerHTML='<span style="font-size:18px">⚽</span>';};prev.innerHTML='';prev.appendChild(img);}else prev.innerHTML='<span style="font-size:18px">⚽</span>';}
   const dd=document.getElementById('ji-club-dropdown');if(dd)dd.style.display='none';
 }
+// sps-v249: Config → Clube chamava searchMyClub() no oninput do campo de nome, mas essa
+// função nunca tinha sido escrita (só existiam searchClub/searchClubDetail, para o
+// adversário dos Jogos) — por isso o emblema do PRÓPRIO clube nunca era preenchido e o
+// card "Próximo Jogo" (Home) mostrava sempre a bola genérica do lado de casa, mesmo com o
+// emblema do adversário a aparecer bem. Mesmo padrão exato de _doClubSearch já usado
+// acima, só a apontar para os ids do Config (cfg-club-dropdown/cfg-club-logo/
+// cfg-logo-preview) em vez dos ids do formulário de Jogos.
+function searchMyClub(q){_doClubSearch(q,'cfg-club-dropdown',(name,logo)=>selectMyClub(name,logo));}
+function selectMyClub(name,logo){
+  const inp=document.getElementById('cfg-club');if(inp)inp.value=name;
+  const li=document.getElementById('cfg-club-logo');if(li)li.value=logo;
+  const prev=document.getElementById('cfg-logo-preview');
+  if(prev){if(logo){const img=document.createElement('img');img.src=logo;img.style.cssText='width:38px;height:38px;object-fit:contain';img.onerror=()=>{prev.innerHTML='<span style="font-size:22px">⚽</span>';};prev.innerHTML='';prev.appendChild(img);}else prev.innerHTML='<span style="font-size:22px">⚽</span>';}
+  const dd=document.getElementById('cfg-club-dropdown');if(dd)dd.style.display='none';
+}
 
 // Histórico de confrontos (H2H) — junta jogos anteriores contra o mesmo adversário
 // (por nome normalizado, tolera acentos/maiúsculas) com resultado já registado, mais

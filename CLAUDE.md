@@ -6726,3 +6726,36 @@ Plataforma (tabela "Registo de Peso"), modal Histórico com os dois separadores 
 conferido por screenshot antes do commit.
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v249 (17/11/2026): correção — emblema do próprio clube não aparecia (bola genérica)
+
+Reportado pelo Roger com screenshot: no card "Próxima Sessão" (Home), o lado do adversário
+("FC Ferreirense") mostrava o emblema real, mas o lado do próprio clube mostrava sempre a
+bola ⚽ genérica.
+
+**Causa:** o campo "Nome do Clube" em Configurações → Clube tem, desde sempre, um
+`oninput="searchMyClub(this.value)"` que deveria pesquisar o clube (via Wikipédia, mesmo
+mecanismo já usado para o adversário nos Jogos — `searchClub`/`searchClubDetail`, ambos em
+cima de `_doClubSearch`) e preencher automaticamente `APP.config.clubLogo`. Só que
+`searchMyClub` nunca chegou a ser escrita — chamar um nome de função indefinido não faz
+nada (sem erro visível para quem está a usar a app), por isso `clubLogo` ficava sempre
+vazio e todos os sítios que o leem (Home, PDF, sidebar, ícone PWA) caíam sempre no
+fallback ⚽.
+
+**Correção:** adicionadas `searchMyClub(q)` e `selectMyClub(name,logo)`, exatamente o
+mesmo padrão de `searchClub`/`selectClubQuick` (adversário), só a apontar para os ids do
+Config (`cfg-club-dropdown`/`cfg-club`/`cfg-club-logo`/`cfg-logo-preview`) em vez dos do
+formulário de Jogos. Nenhuma alteração ao `_doClubSearch` partilhado nem à Supabase — é só
+a ligação em falta.
+
+Para o emblema aparecer: Configurações → Clube → escrever o nome do clube (≥3 letras) →
+escolher da lista que aparece → Guardar.
+
+SW bump para `sps-v249`. Testado: `node --check` ao bloco `<script>` extraído;
+`test_club_logo_fix_v249.js` (8 verificações — as duas funções deixam de ser `undefined`,
+`selectMyClub` preenche nome/logo/preview, falha graciosa sem logo disponível).
+Verificação visual (Playwright, com imagens de teste reais): dropdown do Config a mostrar
+o resultado da pesquisa e o emblema escolhido no preview, e o card "Próximo Jogo" da Home
+a mostrar os dois emblemas lado a lado depois de configurado.
+
+**Ainda por fazer:** nada pendente para este pedido.
