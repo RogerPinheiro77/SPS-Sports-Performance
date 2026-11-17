@@ -570,6 +570,7 @@ tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
       <div class="pg" id="pg-nutri-dash"></div>
       <div class="pg" id="pg-nutri-plantel"></div>
       <div class="pg" id="pg-nutri-aval"></div>
+      <div class="pg" id="pg-nutri-pesagens"></div>
       <div class="pg" id="pg-nutri-planos"></div>
       <div class="pg" id="pg-nutri-anamnese-diario"></div>
       <div class="pg" id="pg-nutri-gameday"></div>
@@ -1108,6 +1109,7 @@ const ALL_PAGES=[
   {sec:'Nutrição'},
   {id:'nutri-home',icon:'🏠',label:'Home'},
   {id:'nutri-aval',icon:'📏',label:'Avaliações'},
+  {id:'nutri-pesagens',icon:'⚖️',label:'Registo de Peso'},
   {id:'nutri-planos',icon:'🥗',label:'Planos Nutricionais'},
   {id:'nutri-anamnese-diario',icon:'🍽️',label:'Anamnese & Diário Alimentar'},
   {id:'nutri-gameday',icon:'🏆',label:'Plano Dia de Jogo'},
@@ -1130,7 +1132,7 @@ const ROLE_DEFS={
   prep_fisico:{label:'Preparador Físico',icon:'💪',cls:'urb-prep',pages:['dashboard','planeamento','presencas','microciclos','condicao-plantel','pse-wellness','treinos-extra','treinos','treinos-ind','fichas-ginasio','biblioteca','avaliacoes','testes-fisicos','relatorios','guiao-jogo-fora','estagios','playbook'],readOnly:false,manageUsers:false},
   treinador_gr:{label:'Treinador de Guarda-Redes',icon:'🧤',cls:'urb-gr',pages:['dashboard','plantel','planeamento','treinos','formacao','presencas','guiao-jogo-fora','estagios','playbook'],readOnly:false,manageUsers:false},
   fisio:{label:'Fisioterapeuta',icon:'🏥',cls:'urb-fis',pages:['fisio-home','fisio-ep','fisio-trat','fisio-anamnese','fisio-agenda-geral','fisio-consultas','fisio-hidratacao','fisio-dash','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
-  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
+  nutri:{label:'Nutricionista',icon:'🥗',cls:'urb-nut',pages:['nutri-home','nutri-aval','nutri-pesagens','nutri-planos','nutri-anamnese-diario','nutri-gameday','nutri-hidratacao','nutri-supl','nutri-agenda-geral','nutri-consultas','nutri-dash','nutri-plantel','nutri-manual','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
   team_manager:{label:'Team Manager',icon:'🧳',cls:'urb-tm',pages:['visao-geral','jogos','competicoes','convocatorias','planeamento','biblioteca','relatorios','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:false,manageUsers:false},
   diretor:{label:'Diretor',icon:'🎩',cls:'urb-dir',pages:['dashboard','visao-geral','relatorios','avaliacoes','convocatorias','jogos','competicoes','codigo-conduta','guiao-jogo-fora','estagios'],readOnly:true,manageUsers:false,writeExceptions:['estagios']}
 };
@@ -1263,7 +1265,7 @@ function _maybeEnterTeamManagerMode(){
 // _updateNewUserRoleHint() (hint de acessos em Configurações → Novo Utilizador), para
 // as duas nunca divergirem (bug real: hint mostrava só o rótulo curto do menu, ex.
 // "Dashboard" repetido para Fisioterapia/Nutrição/etc, em vez do título qualificado).
-const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações','testes-fisicos':'Testes Físicos',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',playbook:'Playbook','visao-geral':'Visão Geral',config:'Configurações',relatorios:'Relatórios & Exportações'};
+const _NAV_TITLES={dashboard:'Dashboard',plantel:'Plantel',planeamento:'Planeamento',presencas:'Presenças',microciclos:'Microciclos',jogos:'Jogos',competicoes:'Competições',treinos:'Unidades de Treino',formacao:'Formação','condicao-plantel':'Condição do Plantel','pse-wellness':'PSE & Wellness','treinos-extra':'Treinos Extra',scouting:'Scouting',avaliacoes:'Avaliações','testes-fisicos':'Testes Físicos',convocatorias:'Convocatórias',biblioteca:'Biblioteca de Exercícios','fichas-ginasio':'Fichas de Ginásio','treinos-ind':'Treinos Individualizados','fisio-home':'Fisioterapia — Home','fisio-dash':'Fisioterapia — Dashboard Completo','fisio-ep':'Fisioterapia — Episódios','fisio-trat':'Fisioterapia — Tratamentos','fisio-anamnese':'Fisioterapia — Anamnese','fisio-agenda-geral':'Fisioterapia — Agenda Geral','fisio-consultas':'Fisioterapia — Consultas','fisio-hidratacao':'Fisioterapia — Matchday Hydration','nutri-home':'Nutrição — Home','nutri-dash':'Nutrição — Dashboard Completo','nutri-plantel':'Nutrição — Dashboard do Plantel','nutri-aval':'Nutrição — Avaliações','nutri-pesagens':'Nutrição — Registo de Peso','nutri-planos':'Planos Nutricionais','nutri-anamnese-diario':'Nutrição — Anamnese & Diário Alimentar','nutri-gameday':'Nutrição — Plano Dia de Jogo','nutri-hidratacao':'Nutrição — Matchday Hydration','nutri-supl':'Nutrição — Suplementação','nutri-agenda-geral':'Nutrição — Agenda Geral','nutri-consultas':'Nutrição — Consultas','nutri-manual':'Nutrição — Manual de Utilização','codigo-conduta':'Código de Conduta','guiao-jogo-fora':'Guião de Jogo Fora',estagios:'Estágios',playbook:'Playbook','visao-geral':'Visão Geral',config:'Configurações',relatorios:'Relatórios & Exportações'};
 function _navForRole(role){
   const def=ROLE_DEFS[role];
   if(!def)return ALL_PAGES;
@@ -1347,7 +1349,7 @@ function navTo(id){
   const nb=document.getElementById('nb-'+id);
   if(nb)nb.classList.add('on');
   document.getElementById('pg-title').textContent=_NAV_TITLES[id]||id;
-  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,'testes-fisicos':renderTestesFisicos,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,playbook:renderPlaybook,'visao-geral':renderVisaoGeral,config:renderConfig,relatorios:renderRelatorios};
+  const renders={dashboard:renderDashboard,plantel:renderPlantel,planeamento:renderPlaneamento,presencas:renderPresencas,microciclos:renderMicrociclos,jogos:renderJogos,competicoes:renderCompeticoes,treinos:renderTreinos,formacao:renderFormacao,'condicao-plantel':renderCondicaoPlantel,'pse-wellness':renderPSEWellness,'treinos-extra':renderTreinosExtra,scouting:renderScouting,avaliacoes:renderAvaliacoes,'testes-fisicos':renderTestesFisicos,convocatorias:renderConvocatorias,biblioteca:renderBiblioteca,'fichas-ginasio':renderFichasGinasio,'treinos-ind':renderTreinosInd,'fisio-home':renderFisioHome,'fisio-dash':renderFisioDash,'fisio-ep':renderFisioEp,'fisio-trat':renderFisioTrat,'fisio-anamnese':renderFisioAnamnese,'fisio-agenda-geral':renderFisioAgendaGeral,'fisio-consultas':renderFisioConsultas,'fisio-hidratacao':renderFisioHidratacao,'nutri-home':renderNutriHome,'nutri-dash':renderNutriDash,'nutri-plantel':renderNutriPlantel,'nutri-aval':renderNutriAval,'nutri-pesagens':renderNutriPesagens,'nutri-planos':renderNutriPlanos,'nutri-anamnese-diario':renderNutriAnamneseDiario,'nutri-gameday':renderNutriGameday,'nutri-hidratacao':renderNutriHidratacao,'nutri-supl':renderNutriSupl,'nutri-agenda-geral':renderNutriAgendaGeral,'nutri-consultas':renderNutriConsultas,'nutri-manual':renderNutriManual,'codigo-conduta':renderCodigoConduta,'guiao-jogo-fora':renderGuiaoJogoFora,estagios:renderEstagios,playbook:renderPlaybook,'visao-geral':renderVisaoGeral,config:renderConfig,relatorios:renderRelatorios};
   if(renders[id])renders[id]();
   if(ROLE&&ROLE_DEFS[ROLE]&&ROLE_DEFS[ROLE].readOnly){
     // sps-v227 (Team Manager Bloco 1): writeExceptions permite a um cargo readOnly (hoje
@@ -15957,6 +15959,8 @@ function renderNutriHome(){
   const cards=[
     _card('nutri-aval','ruler','#38bdf8','Avaliações',
       `${APP.nutritionAssessments.length} registadas`,'var(--t2)','','2,132,199'),
+    _card('nutri-pesagens','scale','#2563a8','Registo de Peso',
+      `${APP.nutritionAssessments.filter(a=>a.source==='atleta').length} autorregisto(s)`,'var(--t2)','','37,99,168'),
     _card('nutri-planos','salad','#4ade80','Planos',
       semPlano?`${semPlano} sem plano ativo`:'Todas com plano ✓',
       semPlano?'#f87171':'#4ade80', _bdg(semPlano||'','#dc2626'),'22,163,74'),
@@ -15990,7 +15994,7 @@ function renderNutriHome(){
 function renderNutriDash(){
   const athletes=APP.athletes.sort((a,b)=>a.name.localeCompare(b.name));
   const rows=athletes.map(at=>{
-    const avals=APP.nutritionAssessments.filter(x=>x.athleteId===at.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const avals=APP.nutritionAssessments.filter(x=>x.athleteId===at.id&&x.source!=='atleta').sort((a,b)=>b.date.localeCompare(a.date));
     const last=avals[0];
     const plan=APP.nutritionPlans.find(p=>p.athleteId===at.id&&p.active);
     const bmi=last?.bmi?+last.bmi:null;
@@ -16021,6 +16025,75 @@ function renderNutriDash(){
   <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Pos</th><th>Peso</th><th>IMC</th><th>% Gordo</th><th>Plano Ativo</th><th>Última Aval.</th><th>Ações</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>
   ${_nutriMetricasCardHtml()}`;
+}
+
+// ─── REGISTO DE PESO — vista Nutricionista/Plataforma (sps-v248) ─────────────
+// Mostra SÓ o autorregisto da atleta (source:'atleta') — nunca as avaliações
+// profissionais, que continuam exclusivamente em Avaliações (nutri-aval/nutri-dash).
+// Ver atSavePeso para o porquê desta separação ser deliberada (pedido do Roger).
+function renderNutriPesagens(){
+  const athletes=[...(APP.athletes||[])].sort((a,b)=>_displayName(a).localeCompare(_displayName(b)));
+  const td=today();
+  const rows=athletes.map(at=>{
+    const self=APP.nutritionAssessments.filter(a=>a.athleteId===at.id&&a.source==='atleta').sort((a,b)=>b.date.localeCompare(a.date));
+    const last=self[0],prev=self[1];
+    const trend=last&&prev?_pesoTrendHtml(+last.weight,+prev.weight):'<span style="color:var(--t2)">—</span>';
+    const stale=last?diffDays(last.date,td)>7:false;
+    return `<tr><td><div style="display:flex;align-items:center;gap:7px">${_avHtml(at.name,at.photo,26)}<strong>${escHtml(_displayName(at))}</strong></div></td>
+    <td style="text-align:center">${last?last.weight+' kg':'—'}</td>
+    <td style="text-align:center">${trend}</td>
+    <td style="font-size:10px;color:var(--t2)">${last?fmtDate(last.date)+(stale?' <span class="bdg bg-y" style="font-size:9px">7+ dias</span>':''):'Sem registos'}</td>
+    <td><button class="btn btn-xs btn-gh" onclick="_nutriOpenPesoHistorico('${at.id}')">Ver histórico</button></td></tr>`;
+  }).join('');
+  document.getElementById('pg-nutri-pesagens').innerHTML=`
+  <div class="sh-t" style="margin-bottom:4px"><i class="ti ti-scale" style="margin-right:6px;vertical-align:-3px;color:#2563a8" aria-hidden="true"></i>Registo de Peso</div>
+  <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Autorregisto diário feito pelas próprias atletas na App Atleta. Independente das Avaliações feitas pela nutricionista — nunca misturado com esses dias.</div>
+  <div class="card"><div class="ch"><span class="ct">Últimos registos por atleta</span></div>
+  <div class="cb"><div class="tw"><table><thead><tr><th>Atleta</th><th>Peso</th><th>Tendência</th><th>Último registo</th><th>Ações</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:var(--t2);padding:20px">Sem atletas</td></tr>'}</tbody></table></div></div></div>`;
+}
+// Modal "Ver histórico" — DUAS listas independentes por separador (mesmo padrão de
+// toggle de _atWmShowDay): autorregisto da atleta vs avaliações da nutricionista.
+// Nunca mostradas na mesma tabela, nunca com tendência calculada entre as duas.
+function _nutriOpenPesoHistorico(athleteId){
+  const at=APP.athletes.find(a=>a.id===athleteId);if(!at)return;
+  openMod('⚖️ Histórico de Pesagens — '+_displayName(at),
+    `<div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-sm btn-g" id="ph-tab-self" onclick="_pesoHistShowTab('${athleteId}','self')">Autorregisto da Atleta</button>
+      <button class="btn btn-sm btn-gh" id="ph-tab-nutri" onclick="_pesoHistShowTab('${athleteId}','nutri')">Avaliações da Nutricionista</button>
+    </div>
+    <div id="ph-body"></div>`
+  ,'lg');
+  setTimeout(()=>_pesoHistShowTab(athleteId,'self'),0);
+}
+function _pesoHistShowTab(athleteId,tab){
+  const bSelf=document.getElementById('ph-tab-self'),bNutri=document.getElementById('ph-tab-nutri');
+  if(bSelf)bSelf.className='btn btn-sm '+(tab==='self'?'btn-g':'btn-gh');
+  if(bNutri)bNutri.className='btn btn-sm '+(tab==='nutri'?'btn-g':'btn-gh');
+  const body=document.getElementById('ph-body');if(!body)return;
+  if(tab==='self'){
+    const list=APP.nutritionAssessments.filter(a=>a.athleteId===athleteId&&a.source==='atleta').sort((a,b)=>b.date.localeCompare(a.date));
+    body.innerHTML=!list.length?`<div style="font-size:12px;color:var(--t2)">Sem autorregisto ainda.</div>`:`
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Pesagens que a própria atleta submete na app — 1 por dia, uso livre.</div>
+    <div class="tw"><table><thead><tr><th>Data</th><th>Peso</th><th>Variação</th></tr></thead><tbody>
+    ${list.map((a,i)=>{
+      const prev=list[i+1];
+      const trend=prev?_pesoTrendHtml(+a.weight,+prev.weight):'<span style="color:var(--t2)">— 1º registo</span>';
+      return `<tr><td>${fmtDate(a.date)}</td><td><strong>${a.weight} kg</strong></td><td>${trend}</td></tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+  } else {
+    const list=APP.nutritionAssessments.filter(a=>a.athleteId===athleteId&&a.source!=='atleta').sort((a,b)=>b.date.localeCompare(a.date));
+    body.innerHTML=!list.length?`<div style="font-size:12px;color:var(--t2)">Sem avaliações ainda.</div>`:`
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Avaliações antropométricas completas, registadas pela nutricionista.</div>
+    <div class="tw"><table><thead><tr><th>Data</th><th>Peso</th><th>% M. Gorda</th><th>Registado por</th><th>Variação</th></tr></thead><tbody>
+    ${list.map((a,i)=>{
+      const prev=list[i+1];
+      const trend=prev?_pesoTrendHtml(+a.weight,+prev.weight):'<span style="color:var(--t2)">— 1ª avaliação</span>';
+      return `<tr><td>${fmtDate(a.date)}</td><td><strong>${a.weight||'—'} kg</strong></td><td>${a.bodyFat||'—'}%</td><td style="font-size:11px;color:var(--t2)">${escHtml(a.registeredBy||'—')}</td><td>${trend}</td></tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+  }
 }
 
 // ─── DASHBOARD DO PLANTEL (Nutrição, sps-v194) ──────────────────────────
@@ -16459,7 +16532,7 @@ function saveNutriAval(){
     abdominal:g('na-abd'),supraespinal:g('na-spe'),crural:g('na-cru'),geminal:g('na-gem'),
     sumSkinfolds:g('na-sumpregas'),
     armCirc:g('na-braco'),thighCirc:g('na-coxa'),calfCirc:g('na-pgem'),waistCirc:g('na-cint'),hipCirc:g('na-anc'),whr:g('na-whr'),
-    notes:g('na-notes'),athleteNote:g('na-athnote'),clubNote:g('na-clubnote'),registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
+    notes:g('na-notes'),athleteNote:g('na-athnote'),clubNote:g('na-clubnote'),source:'nutricionista',registeredBy:sess?sess.name:'',registeredById:sess?sess.userId:null,registeredAt:new Date().toISOString()};
   APP.nutritionAssessments.push(a);
   if(_sync)cloudUpsert('nutrition_records',a);
   saveData();_showNaForm=false;toast('Avaliação guardada ✓');renderNutriAval();
@@ -22750,8 +22823,13 @@ function renderFisioAgendaGeral(){_agRenderContainer='pg-fisio-agenda-geral';_ag
 function renderNutriAgendaGeral(){_agRenderContainer='pg-nutri-agenda-geral';_agendaGeralCore('pg-nutri-agenda-geral');}
 function renderAtNutri(){
   const plan=APP.nutritionPlans.find(p=>p.athleteId===AID&&p.active);
-  const avals=APP.nutritionAssessments.filter(a=>a.athleteId===AID).sort((a,b)=>b.date.localeCompare(a.date));
+  // sps-v248: avals (avaliações da nutricionista) e selfAvals (autorregisto de peso da
+  // própria atleta) são DUAS séries independentes dentro da mesma tabela nutrition_records,
+  // nunca misturadas — pedido explícito do Roger (ver atSavePeso). `a.source!=='atleta'`
+  // cobre também avaliações antigas, de antes deste campo existir (todas da nutricionista).
+  const avals=APP.nutritionAssessments.filter(a=>a.athleteId===AID&&a.source!=='atleta').sort((a,b)=>b.date.localeCompare(a.date));
   const lastA=avals[0];
+  const selfAvals=APP.nutritionAssessments.filter(a=>a.athleteId===AID&&a.source==='atleta').sort((a,b)=>b.date.localeCompare(a.date));
   // Próxima Consulta (project_sps_nutri_consultas) — só a agendada mais próxima a partir
   // de hoje; passadas/realizadas/faltas não aparecem aqui (pedido do Roger: só a próxima).
   const td=today();
@@ -22772,6 +22850,7 @@ function renderAtNutri(){
     <div class="kpi"><div class="kpi-lbl">IMC</div><div class="kpi-val" style="font-size:20px">${lastA.bmi||'—'}</div><div class="kpi-sub">${lastA.hydration?'Hidratação: '+lastA.hydration:''}</div></div>
   </div>`:''}
   ${_naEvolutionCardHtml(avals)}
+  ${_atPesoCardHtml(selfAvals)}
   ${plan?`<div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">${plan.name}</span></div><div class="cb" style="padding:12px">
     <div class="macros" style="margin-bottom:12px">${plan.kcal?`<span class="mac">🔥 ${plan.kcal} kcal</span>`:''}${plan.protein?`<span class="mac">🥩 ${plan.protein}g prot</span>`:''}${plan.carbs?`<span class="mac">🍞 ${plan.carbs}g HC</span>`:''}${plan.fat?`<span class="mac">🧈 ${plan.fat}g gord</span>`:''}</div>
     ${(plan.meals||[]).map(m=>`<div class="meal"><div class="meal-n">${MEAL_ICONS[m.name]||'🍴'} ${m.name} ${m.time?`<span style="font-size:10px;color:var(--t2)">${m.time}</span>`:''} ${m.kcal?`<span style="font-size:10px;color:var(--t2);margin-left:auto">${m.kcal} kcal</span>`:''}</div>${m.foods?`<div class="meal-f">${m.foods}</div>`:''}</div>`).join('')}
@@ -22786,6 +22865,77 @@ function renderAtNutri(){
     const _wmDefaultDay=_wmHasContent(_wmToday)?_wmToday:(WEEK_DAYS.find(_wmHasContent)||_wmToday);
     setTimeout(()=>_atWmShowDay(_wmDefaultDay),0);
   }
+}
+// ─── REGISTO DE PESO — autorregisto da atleta (sps-v248) ──────────────────────
+// Pedido do Roger: a partir de hoje as atletas podem registar o seu próprio peso
+// diretamente na App Atleta, 1x por dia — um novo registo no mesmo dia substitui o
+// anterior desse dia (nunca cria duplicados, mesmo onConflict:'id' do cloudUpsert).
+// IMPORTANTE (pedido explícito do Roger, confirmado por mockup antes de implementar):
+// esta série NUNCA se cruza com os dias em que a nutricionista faz a sua avaliação
+// profissional completa — por isso usa-se a mesma tabela nutrition_records mas com
+// `source:'atleta'`, e todo o código que lê/mostra isto (aqui e no lado da Nutri)
+// filtra sempre por `source` e nunca mistura as duas séries, nem para tendência nem
+// para histórico. Ver renderNutriPesagens/_nutriOpenPesoHistorico para o lado staff.
+function atSavePeso(){
+  const val=document.getElementById('at-peso-input')?.value;
+  const w=parseFloat((val||'').replace(',','.'));
+  if(!w||w<=0)return toast('Introduz um peso válido','err');
+  const td=today();
+  let rec=APP.nutritionAssessments.find(a=>a.athleteId===AID&&a.source==='atleta'&&a.date===td);
+  if(rec){rec.weight=String(w);rec.registeredAt=new Date().toISOString();}
+  else{rec={id:uid(),athleteId:AID,date:td,weight:String(w),source:'atleta',registeredAt:new Date().toISOString()};APP.nutritionAssessments.push(rec);}
+  if(_sync)cloudUpsert('nutrition_records',rec);
+  saveData();toast('Peso registado ✓');renderAtNutri();
+}
+// Seta de tendência do autorregisto de peso — cores NEUTRAS (azul/laranja/cinza),
+// propositadamente SEM juízo de valor (verde=bom/vermelho=mau, como em _naTrendBadge):
+// uma variação de peso não é em si boa ou má para uma atleta. ±0.3kg = "manutenção".
+const PESO_FLAT_THRESHOLD=0.3;
+function _pesoDirInfo(cur,prev){
+  if(cur==null||prev==null||isNaN(cur)||isNaN(prev))return null;
+  const diff=Math.round((cur-prev)*10)/10;
+  if(Math.abs(diff)<PESO_FLAT_THRESHOLD)return{dir:'flat',diff,color:'#6b7572',arrow:'→'};
+  if(diff<0)return{dir:'down',diff,color:'#2563a8',arrow:'↓'};
+  return{dir:'up',diff,color:'#b5541a',arrow:'↑'};
+}
+function _pesoTrendHtml(cur,prev){
+  const info=_pesoDirInfo(cur,prev);
+  if(!info)return '';
+  const sign=info.diff>0?'+':'';
+  return `<span style="display:inline-flex;align-items:center;gap:3px;font-weight:700;color:${info.color}">${info.arrow} ${sign}${info.diff.toFixed(1)} kg</span>`;
+}
+// Card "Registo de Peso" na aba Nutrição da App Atleta — input+botão de autorregisto
+// de hoje + "O teu histórico" (SÓ autorregisto, nunca as avaliações da nutricionista,
+// que continuam no card de Evolução acima, _naEvolutionCardHtml).
+function _atPesoCardHtml(selfAvals){
+  const td=today();
+  const todayRec=selfAvals.find(a=>a.date===td);
+  const inputVal=todayRec?escHtml(String(todayRec.weight)):'';
+  const historyRows=selfAvals.slice(0,10).map((a,i)=>{
+    const prev=selfAvals[i+1];
+    const trend=prev?_pesoTrendHtml(+a.weight,+prev.weight):'<span style="color:var(--t2);font-size:11px">— 1º registo</span>';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--bd)">
+      <div style="font-size:12px;color:var(--t2);width:62px;white-space:nowrap">${fmtDateShort(a.date)}</div>
+      <div style="font-size:13px;font-weight:700;flex:1">${a.weight} kg</div>
+      <div style="font-size:12px">${trend}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:14px;padding:14px">
+    <div style="font-size:13px;font-weight:800;margin-bottom:10px"><i class="ti ti-scale" style="margin-right:6px;vertical-align:-2px;color:#2563a8" aria-hidden="true"></i>Registo de Peso</div>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <input class="ctrl" id="at-peso-input" type="number" step="0.1" placeholder="0.0" value="${inputVal}" style="flex:1">
+      <button class="btn btn-g" onclick="atSavePeso()">Guardar peso</button>
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:${selfAvals.length?'10px':'0'}">Podes registar 1x por dia — um novo registo hoje substitui o anterior de hoje.</div>
+    ${selfAvals.length?`<div style="margin-top:4px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <div style="font-size:12px;font-weight:700">O teu histórico</div>
+        <div style="font-size:9.5px;font-weight:700;color:#2563a8;background:#2563a822;padding:2px 7px;border-radius:999px;letter-spacing:.02em">AUTORREGISTO</div>
+      </div>
+      ${historyRows}
+      <div style="font-size:10.5px;color:var(--t2);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)">Este histórico mostra só as tuas pesagens. As avaliações completas da nutricionista ficam no card de Evolução e no separador Avaliações.</div>
+    </div>`:''}
+  </div>`;
 }
 // Anamnese Alimentar — lado atleta (sps-v195, mesmo espírito do Histórico Clínico do
 // Fisio, ver _anamneseSummaryCard/atOpenAnamnese acima). Preenchida pela própria atleta,
@@ -24006,7 +24156,7 @@ const _CLOUD_TABLE_SCHEMA={
   // sempre editável; usada só pelo PDF Plantel (Clube), printNaPlantelClubePDF.
   nutrition_records:{cols:['id','athlete_id','date','weight','height','imc','body_fat','tricipital','suprailiaca','hydration','notes','registered_at','muscle','registered_by','registered_by_id',
       'bicipital','subescapular','abdominal','supraespinal','crural','geminal','sum_skinfolds',
-      'arm_circ','thigh_circ','calf_circ','waist_circ','hip_circ','whr','muscle_kg','athlete_note','club_note'],
+      'arm_circ','thigh_circ','calf_circ','waist_circ','hip_circ','whr','muscle_kg','athlete_note','club_note','source'],
     rename:{athleteId:'athlete_id',bmi:'imc',bodyFat:'body_fat',registeredAt:'registered_at',registeredBy:'registered_by',registeredById:'registered_by_id',
       sumSkinfolds:'sum_skinfolds',armCirc:'arm_circ',thighCirc:'thigh_circ',calfCirc:'calf_circ',waistCirc:'waist_circ',hipCirc:'hip_circ',muscleKg:'muscle_kg',athleteNote:'athlete_note',clubNote:'club_note'}},
   // week_meals (sps-v195): grelha semanal (7 dias x 6 refeições) do Diário Alimentar

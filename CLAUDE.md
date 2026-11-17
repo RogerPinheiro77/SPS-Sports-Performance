@@ -6670,3 +6670,59 @@ teste desatualizado — tudo a passar.
 
 **Ainda por fazer:** nada pendente para este pedido. Possível extensão futura, não pedida
 agora: o mesmo PDF comparativo também do lado da atleta (hoje só existe para o staff).
+
+## sps-v248 (17/11/2026): Registo de Peso — autorregisto da atleta (independente da Nutricionista)
+
+Pedido do Roger: "quero que a partir de hoje que na APP atleta na aba nutrição as atletas
+tenham um espaço para registar a sua pesagem e que depois está apareça na aba nutrição da
+sps e na APP nutrição com indicação de um registo por seta se houve diminuição manutenção
+ou aumento de peso". Analisado e proposto antes de implementar (reaproveitar
+`nutrition_records`, 1x/dia, limiar ±0.3kg — confirmado pelo Roger), e depois de uma
+exigência explícita adicional dele — **"IMPORTANTE QUE A ABA PESO SUBMETIDO PELA ATLETA
+NAO ESTEJA LIGADA AOS DIAS EM QUE ESSA AVALIAÇAO É FEITA PELA NUTRICIONISTA"** — foi
+construído e aprovado um mockup interativo (App Atleta / Plataforma / App Nutrição +
+Histórico) antes de tocar em código, mostrando as duas séries sempre separadas. "AVANÇA"
+deu luz verde à implementação real abaixo.
+
+**O que foi construído:**
+- Nova coluna `source` em `nutrition_records` (migração Supabase: `ALTER TABLE
+  nutrition_records ADD COLUMN IF NOT EXISTS source text`, backfill de todas as 42
+  avaliações existentes para `source='nutricionista'`) — mesma tabela, duas séries NUNCA
+  cruzadas: `'nutricionista'` (avaliação profissional completa, `saveNutriAval`) vs
+  `'atleta'` (autorregisto, `atSavePeso`). Todo o código que lê `nutrition_records` filtra
+  sempre por `source` (`renderAtNutri`, `renderNutriDash`, `renderNutriPesagens`,
+  `_nutriOpenPesoHistorico`) — nunca um `lastA`/tendência calculado misturando as duas.
+- `atSavePeso()` (lado atleta, `renderAtNutri`): grava o peso de hoje, 1x/dia — um 2º
+  registo no mesmo dia SUBSTITUI o primeiro (mesmo `id`, nunca duplica), mesmo que a
+  nutricionista tenha feito uma avaliação completa nesse mesmo dia (testado explicitamente
+  — os dois registos coexistem sem se tocarem). Mesmo padrão de escrita direta
+  (`cloudUpsert`) já usado em `pse_records`/PSE — sem alterações de RLS (este Supabase não
+  tem RLS por role, toda a permissão é feita no cliente).
+- `_pesoDirInfo`/`_pesoTrendHtml`: seta de tendência ±0.3kg com cores propositadamente
+  NEUTRAS (azul `#2563a8` descida, laranja `#b5541a` subida, cinza `#6b7572` manutenção) —
+  nunca verde/vermelho como em `_naTrendBadge`, porque uma variação de peso não é em si boa
+  ou má para uma atleta.
+- App Atleta (`renderAtNutri`): novo card "Registo de Peso" (input + "Guardar peso") + "O
+  teu histórico" — só autorregisto, claramente rotulado "AUTORREGISTO", com nota a
+  distinguir das avaliações da nutricionista. O KPI/card de Evolução existentes continuam
+  a mostrar só os dados da nutricionista (filtro `source!=='atleta'`, incluindo avaliações
+  antigas sem o campo).
+- Novo separador staff "Registo de Peso" (`nutri-pesagens`) — Plataforma e App Nutrição
+  (mesma shell reduzida, herdado automaticamente): tabela com último autorregisto +
+  tendência por atleta, nunca a avaliação da nutricionista. Wired em `ALL_PAGES`,
+  `ROLE_DEFS.nutri`, `_NAV_TITLES`, `renders`, container `pg-nutri-pesagens` e card em
+  `renderNutriHome`.
+- Modal "Ver Histórico" (`_nutriOpenPesoHistorico`/`_pesoHistShowTab`) com DOIS separadores
+  — Autorregisto da Atleta vs Avaliações da Nutricionista — duas tabelas/listas totalmente
+  independentes, nunca uma tendência calculada entre as duas.
+
+SW bump para `sps-v248`. Testado: `node --check` ao bloco `<script>` extraído;
+`test_pesagem_atleta_v248.js` — 22 verificações (limiar ±0.3kg nas fronteiras exatas,
+formatação da seta, criação/substituição 1x por dia sem duplicar, rejeição de valores
+inválidos e, sobretudo, o cenário crítico pedido pelo Roger: autorregisto e avaliação da
+nutricionista no MESMO dia nunca se sobrepõem nem se misturam nos filtros usados em
+produção). Verificação visual (Playwright): App Atleta (card + histórico com setas),
+Plataforma (tabela "Registo de Peso"), modal Histórico com os dois separadores — tudo
+conferido por screenshot antes do commit.
+
+**Ainda por fazer:** nada pendente para este pedido.
