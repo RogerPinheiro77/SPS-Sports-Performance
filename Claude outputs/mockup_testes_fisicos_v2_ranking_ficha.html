@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — Ficha de Campo + Ranking Geral</title>
+<style>
+:root{
+  --c1:#1d6f3b;--c1l:#27a34a;--acc:#f59e0b;
+  --red:#dc2626;--yel:#d97706;--grn:#16a34a;--blu:#0284c7;
+  --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+  --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+}
+*{box-sizing:border-box}
+body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg0);color:var(--t1);margin:0;padding:24px}
+.wrap{max-width:1040px;margin:0 auto}
+.mock-switch{display:flex;gap:8px;margin-bottom:22px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:5px;width:fit-content;flex-wrap:wrap}
+.mock-switch button{border:none;background:none;color:var(--t2);font:inherit;font-weight:700;font-size:13px;padding:9px 18px;border-radius:7px;cursor:pointer}
+.mock-switch button.on{background:var(--c1);color:#fff}
+.view{display:none}.view.on{display:block}
+.card{background:var(--bg2);border:1px solid var(--brd);border-radius:12px;padding:16px}
+h1{font-size:19px;margin:0 0 3px}
+h2{font-size:15px;margin:0 0 10px}
+.sub{color:var(--t2);font-size:12px;margin-bottom:18px}
+.note{font-size:11.5px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:10px 12px;margin-top:14px;line-height:1.5}
+.note b{color:var(--t1)}
+
+/* ── PDF preview ── */
+.pdf-page{background:#fff;color:#111;width:210mm;min-height:297mm;margin:0 auto;padding:16mm 14mm;font-family:Arial,sans-serif;box-shadow:0 4px 30px rgba(0,0,0,.5);border-radius:3px}
+.pdf-header{display:flex;align-items:center;gap:14px;border-bottom:2px solid #1d6f3b;padding-bottom:10px;margin-bottom:16px}
+.pdf-logo{width:46px;height:46px;border-radius:8px;background:#1d6f3b22;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#1d6f3b;flex-shrink:0}
+.pdf-club{font-size:13pt;font-weight:700;color:#1d6f3b}
+.pdf-sub{font-size:8.5pt;color:#666;margin-top:1px}
+.pdf-title{margin-left:auto;text-align:right}
+.pdf-title b{font-size:13pt;color:#1d6f3b;display:block}
+.pdf-title span{font-size:9pt;color:#666}
+.pdf-meta{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px;font-size:9pt}
+.pdf-meta div{border-bottom:1px solid #ccc;padding-bottom:10px}
+.pdf-meta label{display:block;font-size:7.5pt;text-transform:uppercase;color:#888;margin-bottom:9px;letter-spacing:.3px}
+.pdf-table{width:100%;border-collapse:collapse;font-size:8.8pt;margin-top:4px}
+.pdf-table th{background:#1d6f3b;color:#fff;padding:5px 7px;text-align:left;font-weight:700}
+.pdf-table td{padding:6px 7px;border-bottom:1px solid #eee}
+.pdf-table tr:nth-child(even) td{background:#f9f9f9}
+.pdf-blank{color:#ccc;border-bottom:1px solid #999;display:inline-block;min-width:60px}
+.pdf-foot-note{margin-top:14px;font-size:7.8pt;color:#888;border-top:1px solid #eee;padding-top:8px;line-height:1.5}
+.pdf-footer{margin-top:16px;border-top:1px solid #ccc;padding-top:8px;display:flex;justify-content:space-between;font-size:7pt;color:#999}
+
+/* ── Athlete ranking geral ── */
+.at-wrap{max-width:420px;margin:0 auto}
+.rg-card{background:linear-gradient(135deg,#f59e0b22,#1d6f3b22);border:1px solid var(--brd);border-radius:14px;padding:18px;margin-bottom:16px;text-align:center}
+.rg-title{font-size:13px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+.rg-pos{font-size:32px;font-weight:900}
+.rg-sub{font-size:11.5px;color:var(--t2);margin-top:2px}
+.rg-bars{display:flex;gap:10px;justify-content:center;margin-top:16px}
+.rg-bar{background:var(--bg1);border:1px solid var(--brd);border-radius:10px;padding:10px 14px;min-width:84px}
+.rg-bar .k{font-size:9.5px;color:var(--t2);text-transform:uppercase}
+.rg-bar .v{font-size:16px;font-weight:800;margin-top:2px}
+.test-mini-card{background:var(--bg2);border:1px solid var(--brd);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.test-mini-row{display:flex;justify-content:space-between;align-items:center}
+.test-mini-name{font-weight:700;font-size:12.5px}
+.test-mini-pct{font-size:11.5px;color:var(--t2)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0;margin-right:6px}
+
+/* ── Staff ranking geral ── */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--t2);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--brd)}
+td{padding:9px 10px;border-bottom:1px solid var(--bg3)}
+.pos{font-weight:800;color:var(--t2);width:26px}
+.mini{width:28px;height:28px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--t2)}
+.nametd{display:flex;align-items:center;gap:9px}
+.pillbar{display:flex;gap:3px;align-items:center}
+.pill{width:7px;height:16px;border-radius:2px;background:var(--bg4)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏃 Testes Físicos — Ficha de Campo + Ranking Geral</h1>
+  <div class="sub">Mockup de 2 pedidos: (1) ficha em PDF A4 para recolher dados no campo durante o teste; (2) ranking geral na app da atleta quando há mais do que 1 teste.</div>
+  <div class="mock-switch">
+    <button class="on" onclick="sw('pdf',this)">📄 Ficha de Campo (PDF)</button>
+    <button onclick="sw('at',this)">📱 App Atleta — Ranking Geral</button>
+    <button onclick="sw('staff',this)">🖥️ Staff — Ranking Geral</button>
+  </div>
+
+  <!-- ═══════════ 1) FICHA DE CAMPO (PDF) ═══════════ -->
+  <div class="view on" id="v-pdf">
+    <div class="pdf-page">
+      <div class="pdf-header">
+        <div class="pdf-logo">⚽</div>
+        <div>
+          <div class="pdf-club">Moreirense FC</div>
+          <div class="pdf-sub">2026/27 · Ficha gerada em 28 de outubro de 2026</div>
+        </div>
+        <div class="pdf-title">
+          <b>Ficha de Campo — Teste Físico</b>
+          <span>🏃 Yo-Yo Intermittent Recovery Test — Nível 1</span>
+        </div>
+      </div>
+      <div class="pdf-meta">
+        <div><label>Equipa</label>Seniores Fem.</div>
+        <div><label>Data</label><span class="pdf-blank">&nbsp;</span></div>
+        <div><label>Local</label><span class="pdf-blank">&nbsp;</span></div>
+        <div><label>Responsável</label><span class="pdf-blank">&nbsp;</span></div>
+      </div>
+      <table class="pdf-table">
+        <thead><tr><th style="width:24px">#</th><th>Atleta</th><th style="width:90px">Nível.Patamar</th><th>Observações</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Mariana Teixeira</td><td></td><td></td></tr>
+          <tr><td>2</td><td>Beatriz Nogueira</td><td></td><td></td></tr>
+          <tr><td>3</td><td>Inês Cardoso</td><td></td><td></td></tr>
+          <tr><td>4</td><td>Sofia Marques</td><td></td><td></td></tr>
+          <tr><td>5</td><td>Catarina Oliveira</td><td></td><td></td></tr>
+          <tr><td>6</td><td>Rita Fonseca</td><td></td><td></td></tr>
+          <tr><td>7</td><td>Diana Silva</td><td></td><td></td></tr>
+          <tr><td>8</td><td>Ana Ribeiro</td><td></td><td></td></tr>
+          <tr><td>…</td><td style="color:#bbb">(resto do plantel da equipa selecionada)</td><td></td><td></td></tr>
+        </tbody>
+      </table>
+      <div class="pdf-foot-note">
+        <b>Como preencher:</b> regista o nível.patamar em que cada atleta terminou (ex: 19.4) — basta ouvir o beep/paragem do protocolo oficial e anotar o último patamar completado. Distância, VO2max estimado e classificação calculam-se automaticamente ao introduzires estes valores na app, no separador "Registar" deste teste. Usa "Observações" para lesão/desistência/condição atípica no dia.
+      </div>
+      <div class="pdf-footer"><span>SPS Sports Performance System</span><span>Página 1 de 1</span></div>
+    </div>
+    <div class="note">
+      <b>Ideia:</b> botão "🖨️ Ficha de Campo" no separador <b>Registar</b> de cada teste (ao lado de "Guardar resultados") — gera sempre para a equipa/data já selecionadas, com o plantel completo pré-preenchido por nome. Genérico: funciona para qualquer teste do catálogo (hoje Yo-Yo IR1/IR2, no futuro Sprint 30m, CMJ, etc.) sem precisar de desenho próprio por teste.<br><br>
+      <b>Proposta:</b> manter a ficha simples (só recolha de dados em branco) — sem a tabela oficial de conversão nível→distância, que teria 91 linhas e tornaria a ficha difícil de usar no campo. Confirmas esta abordagem, ou preferes incluir essa tabela como apêndice/2ª página?
+    </div>
+  </div>
+
+  <!-- ═══════════ 2) APP ATLETA — RANKING GERAL ═══════════ -->
+  <div class="view" id="v-at">
+    <div class="at-wrap">
+      <h2 style="text-align:center">Testes Físicos</h2>
+
+      <div class="rg-card">
+        <div class="rg-title">🏆 Ranking Geral</div>
+        <div class="rg-pos">4º lugar</div>
+        <div class="rg-sub">de 6 atletas da equipa · melhor que 70%</div>
+        <div class="rg-bars">
+          <div class="rg-bar"><div class="k">Testes</div><div class="v">2</div></div>
+          <div class="rg-bar"><div class="k">Média</div><div class="v">61%</div></div>
+        </div>
+      </div>
+
+      <div class="test-mini-card">
+        <div class="test-mini-row">
+          <div><span class="dot" style="background:var(--yel)"></span><span class="test-mini-name">Yo-Yo IR1</span></div>
+          <div class="test-mini-pct">3º lugar · melhor que 60%</div>
+        </div>
+      </div>
+      <div class="test-mini-card">
+        <div class="test-mini-row">
+          <div><span class="dot" style="background:var(--t3)"></span><span class="test-mini-name">Yo-Yo IR2</span></div>
+          <div class="test-mini-pct">1º lugar · melhor que 100%</div>
+        </div>
+      </div>
+
+      <div class="note">
+        O Ranking Geral é a <b>média da tua posição percentil em cada teste que já fizeste</b> (precisa de pelo menos 2 testes diferentes para aparecer) — método "Total Score of Athleticism" (Turner et al., 2019), adaptado para plantéis pequenos como o nosso: em vez de médias de valores brutos (metros, segundos…, que não dá para comparar entre testes diferentes), usa-se sempre a tua posição relativa em cada um. Testes que ainda não fizeste não entram nem prejudicam a média. Continua sem mostrar nomes/valores das colegas — só a tua posição.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 3) STAFF — RANKING GERAL ═══════════ -->
+  <div class="view" id="v-staff">
+    <div class="card" style="max-width:640px;margin:0 auto">
+      <h2>🏆 Ranking Geral — Seniores Fem.</h2>
+      <div class="sub" style="margin-bottom:14px">Média do percentil de cada atleta nos testes já feitos (mín. 2 testes diferentes para entrar no geral).</div>
+      <table>
+        <thead><tr><th>#</th><th>Atleta</th><th>Testes</th><th>Média</th></tr></thead>
+        <tbody>
+          <tr><td class="pos">1</td><td class="nametd"><span class="mini">MT</span>Mariana Teixeira</td><td>2</td><td><b>88%</b></td></tr>
+          <tr><td class="pos">2</td><td class="nametd"><span class="mini">BN</span>Beatriz Nogueira</td><td>2</td><td><b>76%</b></td></tr>
+          <tr><td class="pos">3</td><td class="nametd"><span class="mini">IC</span>Inês Cardoso</td><td>2</td><td><b>65%</b></td></tr>
+          <tr><td class="pos">4</td><td class="nametd"><span class="mini">SM</span>Sofia Marques</td><td>2</td><td><b>61%</b></td></tr>
+          <tr><td class="pos">5</td><td class="nametd"><span class="mini">CO</span>Catarina Oliveira</td><td>2</td><td><b>38%</b></td></tr>
+          <tr><td class="pos">6</td><td class="nametd"><span class="mini">RF</span>Rita Fonseca</td><td>2</td><td><b>20%</b></td></tr>
+        </tbody>
+      </table>
+      <div class="note">
+        Não pedido explicitamente por ti (só falaste da app da atleta), mas acho que faz sentido o staff também ver este ranking geral — ex: para perfilar o plantel de relance sem abrir teste a teste. Fica só a aguardar confirmação: incluo este cartão na página "Testes Físicos" do staff, ou ficamos só com o pedido original (app da atleta)?
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function sw(id,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-'+id).classList.add('on');
+  document.querySelectorAll('.mock-switch button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,955 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Mockup — Card Gameday / Convocatória (vs Boavista, 25/10/2026)</title>
+<style>
+:root{
+  --c1:#1d6f3b;--c1d:#155c2f;--c1l:#27a34a;
+  --acc:#f59e0b;--red:#dc2626;--yel:#d97706;--grn:#16a34a;--blu:#0284c7;--prp:#7c3aed;--tea:#0e6251;
+  --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+  --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+  --sw:242px;--th:54px;--r:10px;--rs:6px;--rx:16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg0);color:var(--t1);min-height:100vh;overflow-x:hidden}
+button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
+input,select,textarea{font:inherit;color:inherit;background:none;border:none;outline:none}
+a{text-decoration:none;color:inherit}
+ul{list-style:none}
+*{scrollbar-width:thin;scrollbar-color:var(--bg4) transparent}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+
+/* LOGIN */
+#screen-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,rgba(29,111,59,.3) 0%,var(--bg0) 65%);padding:20px}
+.login-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rx);padding:36px 28px;width:100%;max-width:420px;text-align:center;box-shadow:0 30px 60px rgba(0,0,0,.5)}
+.login-brand{width:76px;height:76px;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,var(--c1),var(--c1l));display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:34px;box-shadow:0 0 30px rgba(29,111,59,.4)}
+.login-brand img{width:100%;height:100%;object-fit:cover}
+.login-title{font-size:20px;font-weight:800;letter-spacing:-.3px;margin-bottom:4px}
+.login-sub{font-size:12px;color:var(--t2);margin-bottom:26px}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.role-card{padding:15px 10px;border-radius:var(--r);background:var(--bg3);border:2px solid var(--brd);color:var(--t2);font-size:12px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;transition:all .2s}
+.role-card:hover{border-color:var(--c1);color:var(--t1)}
+.role-card.sel{border-color:var(--c1);background:rgba(29,111,59,.15);color:var(--c1l)}
+.role-card .ri{font-size:25px}
+#athlete-picker{display:none;text-align:left}
+#athlete-picker.show{display:block}
+.fg{margin-bottom:12px}
+.lbl{display:block;font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.ctrl{width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);color:var(--t1);font-size:13px;transition:border-color .2s}
+.ctrl:focus{border-color:var(--c1)}
+.btn-login{width:100%;padding:12px;background:linear-gradient(135deg,var(--c1),var(--c1l));color:#fff;border-radius:var(--rs);font-size:14px;font-weight:700;cursor:pointer;border:none;margin-top:10px;transition:opacity .2s;box-shadow:0 4px 15px rgba(29,111,59,.3)}
+.btn-login:hover{opacity:.9}
+.btn-login:disabled{opacity:.45;cursor:not-allowed}
+.login-err{color:#f87171;font-size:11px;min-height:16px;margin:6px 0 2px;text-align:left}
+.login-divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--t3);font-size:11px}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--brd)}
+.link-btn{background:none;border:none;color:var(--t2);font-size:11px;cursor:pointer;padding:4px;text-decoration:underline;text-underline-offset:2px}
+.link-btn:hover{color:var(--t1)}
+.user-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd);font-size:12px}
+.user-role-badge{padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
+.urb-tec{background:#1d6f3b33;color:#4caf76}
+.urb-tecadj{background:#0e625133;color:#3ecfae}
+.urb-prep{background:#b8860b33;color:#e0c040}
+.urb-gr{background:#2d4f9c33;color:#7a9ce8}
+.urb-fis{background:#e07b3922;color:#f0a060}
+.urb-nut{background:#9c5ae022;color:#c080f0}
+.urb-tm{background:#0c7b9333;color:#5cd0e8}
+.urb-dir{background:#5b5f6633;color:#a7acb3}
+.urb-atl{background:#0284c722;color:#60b0f0}
+.cred-box{background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:14px;margin:10px 0;font-size:12px;font-family:monospace;word-break:break-all}
+.btn-login:disabled{opacity:.35;cursor:not-allowed}
+
+/* STAFF SHELL */
+#staff-app{display:none;min-height:100vh}
+#staff-app.on{display:flex}
+#sidebar{width:var(--sw);background:var(--bg1);border-right:1px solid var(--brd);height:100vh;position:fixed;left:0;top:0;overflow-y:auto;z-index:200;display:flex;flex-direction:column;transition:transform .3s}
+.sb-brand{padding:15px 13px 13px;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sb-logo{width:33px;height:33px;border-radius:8px;background:linear-gradient(135deg,var(--c1),var(--c1l));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.sb-club{font-size:12px;font-weight:800;line-height:1.3}
+.sb-season{font-size:10px;color:var(--t2)}
+.sb-nav{flex:1;padding:9px 7px;overflow-y:auto}
+.sb-sec{margin-bottom:4px}
+.sb-sl{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px;padding:7px 9px 3px}
+.nb{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:var(--rs);font-size:12px;font-weight:500;color:var(--t2);cursor:pointer;transition:all .15s;margin-bottom:1px;width:100%}
+.nb:hover{background:var(--bg3);color:var(--t1)}
+.nb.on{background:rgba(29,111,59,.18);color:var(--c1l);font-weight:700}
+.nb .ic{font-size:14px;width:17px;text-align:center;flex-shrink:0}
+.nb-bdg{margin-left:auto;background:var(--red);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px}
+.sb-foot{padding:9px 7px;border-top:1px solid var(--brd);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:8px;padding:7px;border-radius:var(--rs);cursor:pointer}
+.sb-user:hover{background:var(--bg3)}
+.sb-av{width:29px;height:29px;border-radius:50%;background:var(--c1);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.sb-un{font-size:11px;font-weight:700}
+.sb-ur{font-size:9px;color:var(--t2)}
+.sb-cloud{margin-left:auto;font-size:10px}
+#main{margin-left:var(--sw);flex:1;min-width:0;overflow-x:hidden;display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:var(--th);background:var(--bg1);border-bottom:1px solid var(--brd);padding:0 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;flex-shrink:0}
+.topbar-title{font-size:14px;font-weight:800;flex:1}
+.tb-btn{width:31px;height:31px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--t2);cursor:pointer;transition:all .2s}
+.tb-btn:hover{color:var(--t1);border-color:var(--c1)}
+.pg-content{padding:20px;flex:1;min-width:0}
+.pg{display:none}.pg.on{display:block}
+/* SPS-Gameday standalone (?gameday=1, sps-v78) — entra direto na lista de Jogos, sem
+   o resto da plataforma à volta; sidebar escondida, topbar reduzida a título+Sair. */
+.gd-mode #sidebar{display:none}
+.gd-mode #main{margin-left:0}
+.gd-mode #tb-cfg-btn,.gd-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.gd-only{display:none}
+.gd-mode .gd-only{display:flex}
+/* SPS-Ginásio standalone (?ginasio=1) — mesmo padrão do gd-mode acima: sidebar
+   escondida, topbar reduzida a título + atalhos Registo/Biblioteca/Sair. */
+.gy-mode #sidebar{display:none}
+.gy-mode #main{margin-left:0}
+.gy-mode #tb-cfg-btn,.gy-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.gy-only{display:none}
+.gy-mode .gy-only{display:flex}
+/* SPS-Fisio standalone (?fisio=1) — mesmo padrão do gd-mode/gy-mode acima: sidebar
+   escondida, topbar reduzida a título + atalhos Dashboard/Episódios/Tratamentos/Anamnese/Sair. */
+.fs-mode #sidebar{display:none}
+.fs-mode #main{margin-left:0}
+.fs-mode #tb-cfg-btn,.fs-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.fs-only{display:none}
+.fs-mode .fs-only{display:flex}
+/* SPS-Nutri standalone (?nutri=1) — mesmo padrão do fs-mode acima: sidebar escondida,
+   topbar reduzida a título + atalhos Dashboard/Avaliações/Planos/Sair. */
+.nu-mode #sidebar{display:none}
+.nu-mode #main{margin-left:0}
+.nu-mode #tb-cfg-btn,.nu-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.nu-only{display:none}
+.nu-mode .nu-only{display:flex}
+/* SPS-Tático standalone (?tatico=1, sps-v185) — mesmo padrão exato do gd-mode acima:
+   sidebar escondida, topbar reduzida a título + atalho Jogos/Sair. */
+.tt-mode #sidebar{display:none}
+.tt-mode #main{margin-left:0}
+.tt-mode #tb-cfg-btn,.tt-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.tt-only{display:none}
+.tt-mode .tt-only{display:flex}
+/* SPS-Team Manager standalone (?teammanager=1, sps-v227) — mesmo padrão exato do
+   tt-mode acima: sidebar escondida, topbar reduzida a título + atalho Visão Geral/Sair. */
+.tm-mode #sidebar{display:none}
+.tm-mode #main{margin-left:0}
+.tm-mode #tb-cfg-btn,.tm-mode .tb-btn[onclick="toggleSb()"]{display:none}
+.tm-only{display:none}
+.tm-mode .tm-only{display:flex}
+/* Home+Agenda Geral (sps-v130) acrescentaram atalhos à topbar do fs-mode/nu-mode —
+   flex-wrap evita cortar botões em telemóveis mais estreitos. */
+.fs-mode .topbar,.nu-mode .topbar{flex-wrap:wrap;height:auto;min-height:var(--th);padding:8px 12px;row-gap:6px}
+#sb-backdrop{display:none}
+/* Campo tocável do Ao Vivo — maior em tablet/desktop (mais espaço, toque mais preciso),
+   compacto em telemóvel. A escala é feita pelo viewBox do SVG, não pelas coordenadas. */
+/* Campo tocável do Ao Vivo (27/08/2026) — em vez de um limite fixo em px,
+   a largura acompanha o ecrã: o menor entre 94% da largura visível, a altura
+   disponível convertida pelo rácio do campo (300:420), ou 480px como teto de
+   conforto. Cresce sozinho com o ecrã em qualquer orientação, sem saltos entre
+   tamanhos fixos. */
+.gd-pitch-wrap{width:min(94vw,62vh*0.7143,480px);transition:transform .2s ease}
+.gd-pitch-wrap.rotated{transform:rotate(180deg)}
+/* Botão "Lançar" bem visível — pedido do Roger, 07/09/2026, depois de 2 jogos ficarem
+   por lançar dias seguidos (o botão era do mesmo tamanho/cor dos outros, fácil de
+   ignorar mesmo mesmo ao fim do jogo). Pulsar com sombra verde a crescer/desvanecer,
+   reaproveitado tanto no botão do cronómetro (fimReg/fim) como no aviso da lista de
+   Jogos — ver _gdGameRichness/_gdUnlaunchedGames e feedback_sps_gameday_pullcloud_overwrite. */
+@keyframes gdLaunchPulse{0%{box-shadow:0 0 0 0 rgba(46,204,113,.55)}70%{box-shadow:0 0 0 14px rgba(46,204,113,0)}100%{box-shadow:0 0 0 0 rgba(46,204,113,0)}}
+.gd-launch-pulse{animation:gdLaunchPulse 1.7s infinite}
+/* Campo Tático Interativo (separador "Campo" do Jogo — Tático/Cantos/Livre, mesmo
+   separador na plataforma e dentro do Gameday) — pedido do Roger, 07/09/2026: estava
+   preso a max-width:280px (viewBox 300x200, meio-campo), muito pequeno para arrastar
+   atletas com precisão no telemóvel. Primeiro subiu para 480px (mesmo teto do campo Ao
+   Vivo); Roger pediu ainda maior, subiu para 640px — deixou de estar amarrado a esse
+   teto porque este campo vive no meio de outros conteúdos da página (abas, lista de
+   tarefas), não num ecrã dedicado, por isso não depende de vh como o Ao Vivo. */
+.jc-pitch-wrap{width:min(96vw,640px)}
+.gd-live-wrap{display:flex;flex-direction:column;gap:4px}
+.gd-pitch-col{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.gd-pitch-col>.gd-pitch-rot-row{text-align:center}
+.gd-info-col{min-width:0}
+/* Em paisagem (ecrã mais largo que alto, com largura suficiente para 2 colunas),
+   o campo passa para uma coluna à esquerda a aproveitar quase toda a altura
+   disponível, e a informação (relógio/controlos/contagens/cronologia) passa
+   para uma coluna à direita com scroll próprio — em vez de tudo empilhado por
+   baixo como em retrato. Só telemóveis pequenos em paisagem (<680px) continuam
+   empilhados, para não espremer as duas colunas a um tamanho inútil. */
+@media(orientation:landscape) and (min-width:680px){
+  .gd-pitch-wrap{width:min(48vw,84vh*0.7143,480px)}
+  .gd-live-wrap{flex-direction:row;align-items:flex-start;gap:16px}
+  .gd-pitch-col{flex:0 0 auto}
+  .gd-info-col{flex:1;min-width:0;max-height:92vh;overflow-y:auto;padding-right:2px}
+  /* Quadro Tático (sps-v187, 29/09/2026, pedido do Roger — "aproveitamento do ecrã"): em
+     paisagem num tablet o campo ficava preso ao teto de 640px mesmo havendo ecrã de sobra
+     ao lado (a coluna de Tarefas fica à direita, ver _jogoCampoHtml) — ganha até 820px. A
+     página desta aba tem scroll normal (não é um ecrã fixo tipo Ao Vivo), por isso o limite
+     de altura (90vh) é só uma rede de segurança para não ficar exagerado num ecrã baixo,
+     não uma garantia rígida de caber tudo sem scroll. */
+  .jc-pitch-wrap{width:min(72vw,90vh,820px)}
+}
+/* Em modo Gameday, botão de saída maior — usado de pé, no banco, muitas vezes com pressa. */
+.gd-mode .tb-btn{width:38px;height:38px}
+/* Em modo Ginásio, mesmo motivo — usado de pé, no ginásio, com o telemóvel na mão. */
+.gy-mode .tb-btn{width:38px;height:38px}
+/* Em modo Fisio, mesmo motivo — usado de pé, junto à maca/ginásio, com o telemóvel na mão. */
+.fs-mode .tb-btn{width:38px;height:38px}
+/* Em modo Nutri, mesmo motivo. */
+.nu-mode .tb-btn{width:38px;height:38px}
+/* Em modo Tático, mesmo motivo — usado de pé, no banco, muitas vezes com pressa. */
+.tt-mode .tb-btn{width:38px;height:38px}
+/* Em modo Team Manager, mesmo motivo. */
+.tm-mode .tb-btn{width:38px;height:38px}
+
+/* CARDS */
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:14px 15px;transition:border-color .2s}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.kpi-val{font-size:28px;font-weight:900;line-height:1}
+.kpi-sub{font-size:10px;color:var(--t2);margin-top:4px}
+.kpi.red{border-color:rgba(220,38,38,.4)}.kpi.yel{border-color:rgba(217,119,6,.4)}.kpi.grn{border-color:rgba(22,163,74,.4)}.kpi.blu{border-color:rgba(2,132,199,.4)}
+.card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r)}
+.ch{padding:13px 17px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ct{font-size:13px;font-weight:800}
+.cb{padding:16px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;border:none}
+.btn-sm{padding:5px 9px;font-size:11px}
+.btn-xs{padding:3px 7px;font-size:10px}
+.btn-g{background:var(--c1);color:#fff}.btn-g:hover{background:var(--c1l)}
+.btn-gh{background:var(--bg3);color:var(--t1);border:1px solid var(--brd)}.btn-gh:hover{border-color:var(--c1);color:var(--c1l)}
+.btn-r{background:rgba(220,38,38,.15);color:#f87171;border:1px solid rgba(220,38,38,.25)}.btn-r:hover{background:rgba(220,38,38,.25)}
+.btn-y{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
+.btn-icon{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--rs)}
+
+/* FORMS */
+.form-g{margin-bottom:11px}
+.fl{display:block;font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.fc{width:100%;padding:8px 11px;background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);color:var(--t1);font-size:12px;transition:border-color .2s}
+.fc:focus{border-color:var(--c1)}
+textarea.fc{resize:vertical;min-height:68px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+.fr4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:9px}
+.ipanel{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--r);padding:16px;margin-bottom:16px}
+
+/* TABLE */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--brd);white-space:nowrap}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background .1s}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+tbody td{padding:8px 10px;color:var(--t1);vertical-align:middle}
+
+/* BADGES */
+.bdg{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.bg-g{background:rgba(22,163,74,.2);color:#4ade80}.bg-r{background:rgba(220,38,38,.2);color:#f87171}
+.bg-y{background:rgba(245,158,11,.2);color:#fbbf24}.bg-b{background:rgba(2,132,199,.2);color:#38bdf8}
+.bg-p{background:rgba(124,58,237,.2);color:#a78bfa}.bg-gr{background:rgba(100,116,139,.2);color:#94a3b8}
+.bg-o{background:rgba(234,88,12,.2);color:#fb923c}.bg-t{background:rgba(14,98,81,.3);color:#2dd4bf}
+
+/* TABS */
+.tabs{display:flex;gap:2px;background:var(--bg3);border-radius:var(--rs);padding:3px;margin-bottom:16px;flex-wrap:wrap}
+.tab-btn{padding:6px 12px;border-radius:4px;font-size:11px;font-weight:700;color:var(--t2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.tab-btn.on{background:var(--bg2);color:var(--t1)}
+.tp{display:none}.tp.on{display:block}
+
+/* SUPLEMENTAÇÃO (sps-v193) — colunas por momento na Prescrição por Atleta */
+.mom-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:900px){.mom-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.mom-grid{grid-template-columns:1fr}}
+.mom-col{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:9px;min-height:120px}
+.mom-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--t2)}
+.supl-item{background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:9px 10px}
+.supl-item.overdue{border-color:rgba(220,38,38,.5);background:rgba(220,38,38,.08)}
+.supl-nm{font-size:12px;font-weight:800;margin-bottom:2px}
+.supl-dose{font-size:11px;color:var(--t2);margin-bottom:4px}
+.supl-ins{font-size:10.5px;color:var(--t3);line-height:1.35;margin-bottom:6px}
+.supl-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.add-mini{border:1px dashed var(--brd);border-radius:8px;padding:9px;text-align:center;font-size:11px;color:var(--t2);cursor:pointer}
+.add-mini:hover{border-color:var(--c1);color:var(--c1l)}
+
+/* ALERTS */
+.al{padding:10px 13px;border-radius:var(--rs);font-size:12px;margin-bottom:9px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}
+.al-r{background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);color:#f87171}
+.al-y{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#fbbf24}
+.al-g{background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);color:#4ade80}
+.al-b{background:rgba(2,132,199,.1);border:1px solid rgba(2,132,199,.3);color:#38bdf8}
+
+/* MODAL */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;padding:16px}
+.ov.on{display:flex}
+.mbox{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:20px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 70px rgba(0,0,0,.6)}
+.mbox.lg{max-width:680px}.mbox.xl{max-width:860px}
+.mh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.mt{font-size:14px;font-weight:800}
+.mx{width:25px;height:25px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--t2);cursor:pointer}
+.mx:hover{color:var(--t1)}
+
+/* MODO APRESENTAÇÃO (sps-v202) — ecrã cheio, só o diagrama, para Playbook/Set Pieces */
+.pres-ov{position:fixed;inset:0;background:#05070c;z-index:5500;display:none;flex-direction:column;align-items:center;justify-content:center;padding:0}
+.pres-ov.on{display:flex}
+.pres-stage{width:92vw;height:85vh;display:flex;align-items:center;justify-content:center}
+.pres-stage svg{width:100%;height:100%}
+.pres-close{position:absolute;top:14px;right:14px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:18px;cursor:pointer;z-index:2}
+.pres-close:hover{background:rgba(255,255,255,.18)}
+.pres-counter{position:absolute;top:16px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.85);font-size:13px;font-weight:700;background:rgba(255,255,255,.08);padding:4px 14px;border-radius:14px;z-index:2}
+.pres-arrow{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:22px;cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center}
+.pres-arrow:hover{background:rgba(255,255,255,.18)}
+.pres-arrow.prev{left:14px}
+.pres-arrow.next{right:14px}
+
+/* PLANTEL GRID */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:11px}
+.at-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:13px;text-align:center;cursor:pointer;transition:all .2s}
+.at-card:hover{border-color:var(--c1);transform:translateY(-2px)}
+.at-card.inj{border-color:rgba(220,38,38,.4)}
+.at-av{width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--c1),var(--c1l));margin:0 auto 9px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;overflow:hidden}
+.at-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.at-name{font-size:11px;font-weight:700;margin-bottom:2px;line-height:1.3}
+.at-pos{font-size:10px;color:var(--t2)}
+.at-num{font-size:10px;color:var(--c1l);font-weight:800;margin-top:1px}
+.wdots{display:flex;gap:3px;justify-content:center;margin-top:4px}
+.wd{width:8px;height:8px;border-radius:50%}
+.wdg{background:#4ade80}.wdy{background:#fbbf24}.wdr{background:#f87171}.wd0{background:var(--bg4)}
+
+/* CALENDAR */
+.cal-wrap{overflow-x:auto}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;min-width:560px}
+.cal-hdr{text-align:center;font-size:10px;font-weight:700;color:var(--t2);padding:5px 0}
+.cal-day{min-height:82px;padding:5px;border-radius:5px;background:var(--bg3);border:1px solid var(--brd);cursor:pointer}
+.cal-day:hover{border-color:var(--bg4)}
+.cal-day.today{border-color:var(--c1)}
+.cal-day.dim{opacity:.3}
+.cal-day.tall{min-height:260px}
+.cal-dn{font-size:10px;color:var(--t2);font-weight:700;margin-bottom:3px}
+.cal-dn-wk{font-size:9px;color:var(--t2);font-weight:600;text-transform:uppercase;margin-bottom:2px}
+.cal-ev{border-radius:3px;padding:1px 4px;margin-bottom:2px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.cal-day.tall .cal-ev{white-space:normal;font-size:10px;padding:3px 5px}
+
+/* MICROCICLOS */
+.mc-wrap{overflow-x:auto}
+.mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;min-width:700px}
+.mc-day{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);padding:7px;min-height:105px}
+.mc-dn{font-size:9px;font-weight:800;color:var(--t2);margin-bottom:5px;text-transform:uppercase}
+.mc-sess{border-radius:3px;padding:3px 5px;margin-bottom:3px;font-size:10px;line-height:1.4;cursor:pointer}
+.mc-sess:hover{opacity:.85}
+.mc-add{color:var(--t3);font-size:10px;cursor:pointer;margin-top:3px;display:flex;align-items:center;gap:2px}
+.mc-add:hover{color:var(--c1l)}
+
+/* SESSION COLORS */
+.s-tac{background:rgba(26,82,118,.6);color:#7fb3d6}.s-fis{background:rgba(125,60,152,.6);color:#c39bd3}
+.s-tec{background:rgba(26,92,53,.6);color:#7dcea0}.s-ati{background:rgba(183,119,13,.6);color:#f9e79f}
+.s-rec{background:rgba(46,134,193,.5);color:#85c1e9}.s-jog{background:rgba(123,36,28,.6);color:#f1948a}
+.s-fol{background:rgba(90,90,90,.4);color:#aaa}.s-nut{background:rgba(14,98,81,.5);color:#76d7c4}
+.s-fio{background:rgba(26,35,126,.5);color:#9fa8da}.s-reu{background:rgba(147,81,22,.5);color:#f0b27a}
+
+/* PHASE BAR */
+.pbar{display:flex;gap:3px;margin:5px 0}
+.ps{flex:1;height:5px;border-radius:3px;background:var(--bg4)}
+.ps.done{background:var(--c1)}.ps.now{background:var(--acc)}
+
+/* STARS */
+.stars{display:inline-flex;gap:2px}
+.star{font-size:13px;cursor:pointer;color:var(--t3)}.star.on{color:var(--acc)}
+
+/* CHART */
+.chart-wrap{position:relative;width:100%}
+.chart-wrap canvas{max-height:240px}
+
+/* MEAL PLAN */
+.meal{background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);padding:10px;margin-bottom:8px}
+.meal-n{font-size:12px;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:5px}
+.meal-f{font-size:11px;color:var(--t2);line-height:1.7;white-space:pre-line}
+.macros{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.mac{background:var(--bg4);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700}
+
+/* SECTION HEADER */
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap}
+.sh-t{font-size:14px;font-weight:800}
+.sh-a{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:36px 20px;color:var(--t2)}
+.empty .ei{font-size:40px;margin-bottom:9px}
+.empty p{font-size:13px}
+.esub{font-size:11px;color:var(--t3);margin-top:4px}
+
+/* TOAST */
+#toast{position:fixed;bottom:75px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--brd);border-radius:var(--rs);padding:8px 16px;font-size:12px;font-weight:700;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 8px 25px rgba(0,0,0,.4);white-space:nowrap}
+#toast.show{opacity:1}
+#toast.ok{border-color:var(--grn);color:#4ade80}
+#toast.err{border-color:var(--red);color:#f87171}
+
+/* SPIN */
+.spin{display:inline-block;width:15px;height:15px;border:2px solid var(--bg4);border-top-color:var(--c1);border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* DIA DE JOGO — card em destaque no Início da app da atleta */
+.at-gameday-card{animation:gdPulse 2.4s ease-in-out infinite}
+@keyframes gdPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.35)}50%{box-shadow:0 0 0 6px rgba(220,38,38,0)}}
+
+/* PROGRESS */
+.prog-bar{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-top:4px}
+.prog-fill{height:100%;border-radius:3px;background:var(--c1);transition:width .4s}
+
+/* ATLETA APP — paleta dourado (primário) + verde (secundário) do Moreirense, isolada do dashboard técnico */
+#atleta-app{
+  --c1:#C9A227;--c1d:#9C7D14;--c1l:#E3BF4A;
+  --ags:#1F7A34;--agsl:#4ADE80;
+  display:none;min-height:100vh;background:var(--bg0);max-width:500px;margin:0 auto;position:relative;padding-bottom:66px;
+}
+#atleta-app.on{display:block}
+.at-topbar{background:var(--bg1);border-bottom:1px solid var(--brd);padding:12px 15px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50}
+.at-topbar .atn{font-size:14px;font-weight:800;flex:1}
+.at-topbar .atd{font-size:10px;color:var(--t2)}
+.at-content{padding:13px}
+.at-page{display:none}.at-page.on{display:block}
+.at-bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:500px;background:var(--bg1);border-top:1px solid var(--brd);display:flex;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;z-index:100}
+.at-bnav::-webkit-scrollbar{display:none}
+.at-ni{flex:0 0 auto;min-width:56px;padding:8px 6px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;color:var(--t3);cursor:pointer;transition:color .15s}
+.at-ni.on{color:var(--c1l)}
+.at-ni .ic{font-size:18px;line-height:1}
+
+/* Wellness form */
+.wf-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brd)}
+.wf-row:last-child{border-bottom:none}
+.wf-l{font-size:12px;font-weight:700}
+.wf-s{font-size:10px;color:var(--t2);margin-top:1px}
+.wf-sc{display:flex;gap:3px}
+.wsb{width:29px;height:29px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);font-size:11px;font-weight:800;color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.wsb.on{border-color:var(--c1);background:rgba(29,111,59,.3);color:#fff}
+
+/* PSE buttons */
+.pse-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:10px 0}
+.psb{padding:9px 4px;border-radius:var(--rs);background:var(--bg3);border:1px solid var(--brd);font-size:12px;font-weight:800;cursor:pointer;text-align:center;transition:all .15s}
+.psb.on{border-color:var(--c1);background:rgba(29,111,59,.3)}
+
+/* EVAL SLIDERS */
+.eval-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.eval-label{font-size:11px;font-weight:600;width:80px;flex-shrink:0;color:var(--t2)}
+.eval-slider{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:var(--bg4);outline:none;cursor:pointer}
+.eval-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--c1);cursor:pointer}
+.eval-val{width:28px;text-align:right;font-size:11px;font-weight:800;color:var(--c1l)}
+
+/* RESPONSIVE */
+@media(max-width:900px){:root{--sw:200px}.g3{grid-template-columns:1fr 1fr}}
+/* Tablet (681-1024px, sps-v187, 29/09/2026, pedido do Roger — "aproveitamento do ecrã"):
+   até aqui a barra lateral ficava sempre fixa/acoplada (só recolhia a partir de 680px),
+   ocupando 200-242px de um ecrã de tablet (retrato ~768px, paisagem ~1024px) que já não
+   sobra muito. Mesmo mecanismo off-canvas do telemóvel (transform + .mob + backdrop, ver
+   o bloco de 680px logo abaixo) aplicado também a este intervalo — os grids de várias
+   colunas (.g2/.g3/etc) ficam como estão, cabem bem numa largura de tablet. */
+@media(max-width:1024px) and (min-width:681px){
+  #sidebar{transform:translateX(-100%);width:min(var(--sw),320px)}
+  #sidebar.mob{transform:translateX(0)}
+  #main{margin-left:0}
+  #sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:150}
+  #sb-backdrop.on{display:block}
+}
+/* Alvos de toque maiores em qualquer ecrã tátil, telemóvel ou tablet — não por largura de
+   ecrã (um portátil com ecrã pequeno continua a usar rato), mas por tipo de ponteiro
+   (sps-v187, 29/09/2026, pedido do Roger — "toque/tamanho dos botões"). Cobre a topbar
+   geral, que só tinha este reforço dentro dos modos standalone (gd-mode/tt-mode/etc). */
+@media (hover:none) and (pointer:coarse){
+  .tb-btn{width:38px;height:38px}
+  .btn{padding:9px 15px}
+  .btn-sm{padding:7px 11px}
+  .btn-xs{padding:5px 9px}
+  .btn-icon{width:32px;height:32px}
+  .tab-btn{padding:8px 14px}
+}
+@media(max-width:680px){
+  #sidebar{transform:translateX(-100%);width:min(var(--sw),82vw)}
+  #sidebar.mob{transform:translateX(0)}
+  #main{margin-left:0}
+  .kpis{grid-template-columns:1fr 1fr}
+  .g2,.g3{grid-template-columns:1fr}
+  .fr,.fr3,.fr4{grid-template-columns:1fr}
+  /* Grelhas com colunas de largura fixa (px) não encolhem sozinhas — em ecrãs
+     estreitos empilham numa só coluna. Cobre os layouts inline conhecidos
+     (Dashboard 1fr 360px, cartão de exercício 1fr 180px) sem tocar no JS. */
+  div[style*="1fr 360px"],div[style*="1fr 180px"],div[style*="2fr 1fr 1fr"]{grid-template-columns:1fr!important}
+  #sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:150}
+  #sb-backdrop.on{display:block}
+}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+body{padding:24px;background:#05070a;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;font-family:"Segoe UI",system-ui,sans-serif}
+.frame{width:380px;flex-shrink:0}
+.frame-label{color:#e8edf5;font-size:12.5px;font-weight:800;margin-bottom:8px;line-height:1.4}
+.frame-label small{display:block;font-weight:600;color:#94a3b8;font-size:11px;margin-top:2px}
+.frame-body{border:1.5px solid #2e3550;border-radius:16px;overflow:hidden;background:#0c0f14;max-height:800px;overflow-y:auto}
+#atleta-app{max-width:none;margin:0;padding-bottom:70px}
+h1{color:#e8edf5;font-size:18px;width:100%;margin-bottom:4px}
+p.note{color:#94a3b8;font-size:12px;width:100%;margin:-10px 0 10px;max-width:900px;line-height:1.5}
+</style>
+</head><body>
+  <div class="frame" id="frame-a"><div class="frame-label" id="label-a"><div>A) Agora — sexta 23/10, 14:26</div><small>Convocatória já feita (convocatoriaLaunched=true), mas publishAt é só hoje às 22:00</small></div><div class="frame-body" id="body-a">
+  <div id="atleta-app" class="on">
+    <div class="at-topbar">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#1a1500;flex-shrink:0">SPS</div>
+      <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
+    </div>
+    <div class="at-content">
+      <div class="at-page on" id="atp-home">
+  <div style="display:flex;align-items:center;gap:13px;margin-bottom:14px">
+    <div style="width:56px;height:56px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;flex-shrink:0;overflow:hidden;border:3px solid var(--c1)">
+      SL
+    </div>
+    <div>
+      <div style="font-size:17px;font-weight:900;margin-bottom:1px">Olá, Sofia! 👋</div>
+      <div style="font-size:11px;color:var(--t2)">PL · #20</div>
+      <div style="font-size:10px;color:var(--t2)">sexta-feira, 23 de outubro</div>
+    </div>
+  </div>
+  
+  <div style="background:rgba(148,163,184,.08);border:1.5px solid rgba(148,163,184,.25);border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+      <i class="ti ti-ball-football" style="font-size:26px;color:var(--t2);flex-shrink:0" aria-hidden="true"></i>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:800">⚽ Gameday</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">Próximo jogo: vs Boavista Futebol Clube · 25/10/2026 · 15:00</div>
+      </div>
+    </div>
+  
+  
+  
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+  <div onclick="_atNavTo('wellness')" style="background:rgba(2,132,199,.1);border:1px solid rgba(2,132,199,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    <div style="position:absolute;top:7px;right:7px;background:#dc2626;color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">!</div>
+    <i class="ti ti-heart-rate-monitor" style="font-size:21px;color:#38bdf8;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Wellness</div>
+    <div style="font-size:9.5px;color:#f87171;margin-top:3px;line-height:1.25">Por preencher</div>
+  </div>
+  <div onclick="_atNavTo('pse')" style="background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    <div style="position:absolute;top:7px;right:7px;background:#dc2626;color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">!</div>
+    <i class="ti ti-chart-bar" style="font-size:21px;color:#4ade80;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">PSE</div>
+    <div style="font-size:9.5px;color:#f87171;margin-top:3px;line-height:1.25">Por registar</div>
+  </div>
+  <div onclick="_atNavTo('agenda')" style="background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-calendar" style="font-size:21px;color:#a78bfa;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Agenda</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Sem eventos</div>
+  </div>
+  <div onclick="_atNavTo('aval')" style="background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-star" style="font-size:21px;color:#E3BF4A;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Avaliações</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Em dia ✓</div>
+  </div>
+  <div onclick="_atNavTo('nutri')" style="background:rgba(234,88,12,.1);border:1px solid rgba(234,88,12,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-salad" style="font-size:21px;color:#fb923c;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Nutrição</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Sem plano</div>
+  </div>
+  <div onclick="_atNavTo('fisio')" style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-first-aid-kit" style="font-size:21px;color:#f87171;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Fisio</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Disponível ✓</div>
+  </div>
+  <div onclick="_atNavTo('convoc')" style="background:rgba( 14,98,81,.1);border:1px solid rgba( 14,98,81,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-clipboard-list" style="font-size:21px;color:#2dd4bf;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Convocatórias</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Sem convocatórias</div>
+  </div>
+  <div onclick="_atNavTo('treino')" style="background:rgba(71,85,105,.1);border:1px solid rgba(71,85,105,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-run" style="font-size:21px;color:#94a3b8;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Treino Ind.</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Em dia ✓</div>
+  </div>
+  <div onclick="_atNavTo('ginasio')" style="background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-barbell" style="font-size:21px;color:#fbbf24;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Ginásio</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Treinos da equipa técnica</div>
+  </div></div>
+  
+  </div>
+      <div class="at-page" id="atp-convoc">
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-clipboard-list" style="margin-right:6px;vertical-align:-3px;color:#2dd4bf" aria-hidden="true"></i>Convocatórias</div>
+  <div class="al al-b">Sem convocatórias próximas</div>
+  </div>
+    </div>
+    <nav class="at-bnav">
+      <div class="at-ni on"><span class="ic"><i class="ti ti-home" aria-hidden="true"></i></span>Casa</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-heart-rate-monitor" aria-hidden="true"></i></span>Wellness</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-chart-bar" aria-hidden="true"></i></span>PSE</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-calendar" aria-hidden="true"></i></span>Agenda</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-clipboard-list" aria-hidden="true"></i></span>Convoc.</div>
+    </nav>
+  </div></div></div>
+  <div class="frame" id="frame-b"><div class="frame-label" id="label-b"><div>B) Depois de publicar — sábado 24/10, 09:00</div><small>A partir das 22:00 de hoje a atleta já vê "Convocada"</small></div><div class="frame-body" id="body-b">
+  <div id="atleta-app" class="on">
+    <div class="at-topbar">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#1a1500;flex-shrink:0">SPS</div>
+      <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
+    </div>
+    <div class="at-content">
+      <div class="at-page" id="atp-home">
+  <div style="display:flex;align-items:center;gap:13px;margin-bottom:14px">
+    <div style="width:56px;height:56px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;flex-shrink:0;overflow:hidden;border:3px solid var(--c1)">
+      SL
+    </div>
+    <div>
+      <div style="font-size:17px;font-weight:900;margin-bottom:1px">Olá, Sofia! 👋</div>
+      <div style="font-size:11px;color:var(--t2)">PL · #20</div>
+      <div style="font-size:10px;color:var(--t2)">sábado, 24 de outubro</div>
+    </div>
+  </div>
+  
+  <div style="background:rgba(148,163,184,.08);border:1.5px solid rgba(148,163,184,.25);border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+      <i class="ti ti-ball-football" style="font-size:26px;color:var(--t2);flex-shrink:0" aria-hidden="true"></i>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:800">⚽ Gameday</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">Próximo jogo: vs Boavista Futebol Clube · 25/10/2026 · 15:00</div>
+      </div>
+    </div>
+  
+  
+  
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+  <div onclick="_atNavTo('wellness')" style="background:rgba(2,132,199,.1);border:1px solid rgba(2,132,199,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    <div style="position:absolute;top:7px;right:7px;background:#dc2626;color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">!</div>
+    <i class="ti ti-heart-rate-monitor" style="font-size:21px;color:#38bdf8;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Wellness</div>
+    <div style="font-size:9.5px;color:#f87171;margin-top:3px;line-height:1.25">Por preencher</div>
+  </div>
+  <div onclick="_atNavTo('pse')" style="background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    <div style="position:absolute;top:7px;right:7px;background:#dc2626;color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">!</div>
+    <i class="ti ti-chart-bar" style="font-size:21px;color:#4ade80;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">PSE</div>
+    <div style="font-size:9.5px;color:#f87171;margin-top:3px;line-height:1.25">Por registar</div>
+  </div>
+  <div onclick="_atNavTo('agenda')" style="background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-calendar" style="font-size:21px;color:#a78bfa;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Agenda</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Sem eventos</div>
+  </div>
+  <div onclick="_atNavTo('aval')" style="background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-star" style="font-size:21px;color:#E3BF4A;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Avaliações</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Em dia ✓</div>
+  </div>
+  <div onclick="_atNavTo('nutri')" style="background:rgba(234,88,12,.1);border:1px solid rgba(234,88,12,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-salad" style="font-size:21px;color:#fb923c;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Nutrição</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Sem plano</div>
+  </div>
+  <div onclick="_atNavTo('fisio')" style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-first-aid-kit" style="font-size:21px;color:#f87171;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Fisio</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Disponível ✓</div>
+  </div>
+  <div onclick="_atNavTo('convoc')" style="background:rgba( 14,98,81,.1);border:1px solid rgba( 14,98,81,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    <div style="position:absolute;top:7px;right:7px;background:#16a34a;color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">✓</div>
+    <i class="ti ti-clipboard-list" style="font-size:21px;color:#2dd4bf;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Convocatórias</div>
+    <div style="font-size:9.5px;color:#2dd4bf;margin-top:3px;line-height:1.25">Convocada! 25/10/2026</div>
+  </div>
+  <div onclick="_atNavTo('treino')" style="background:rgba(71,85,105,.1);border:1px solid rgba(71,85,105,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-run" style="font-size:21px;color:#94a3b8;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Treino Ind.</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Em dia ✓</div>
+  </div>
+  <div onclick="_atNavTo('ginasio')" style="background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-barbell" style="font-size:21px;color:#fbbf24;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Ginásio</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Treinos da equipa técnica</div>
+  </div></div>
+  
+  </div>
+      <div class="at-page on" id="atp-convoc">
+  <div class="sh-t" style="font-size:16px;font-weight:800;margin-bottom:16px"><i class="ti ti-clipboard-list" style="margin-right:6px;vertical-align:-3px;color:#2dd4bf" aria-hidden="true"></i>Convocatórias</div>
+  <div class="card" style="margin-bottom:10px">
+      <div class="ch"><span class="ct"><i class="ti ti-clipboard-list" style="margin-right:4px;vertical-align:-2px" aria-hidden="true"></i>Convocada</span><span class="bdg bg-gr">⏳ Por confirmar</span></div>
+      <div class="cb" style="padding:12px 14px">
+        <div style="font-size:14px;font-weight:800;margin-bottom:4px">vs Boavista Futebol Clube</div>
+        <div style="font-size:11px;color:var(--t2)">25/10/2026 · 15:00 · Campo Municipal do Outeiro</div>
+        <div style="margin-top:10px;font-size:11px;color:var(--t2)"><div><strong>Concentração:</strong> 12:00 Campo n.º 2 Moreirense FC</div><div><strong>Palestra Pré-Aquecimento:</strong> 15:05</div><div><strong>Transporte:</strong> AUTOCARRO- SAIDA AS 12H15</div></div>
+        
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Confirmas presença?</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="atRsvpYes('mvkwo2sxy44x')">✅ Vou</button>
+        <button class="btn btn-gh btn-sm" style="flex:1" onclick="atRsvpDeclineStart('mvkwo2sxy44x')">❌ Não vou</button>
+      </div>
+    </div>
+      </div>
+    </div>
+  </div>
+    </div>
+    <nav class="at-bnav">
+      <div class="at-ni on"><span class="ic"><i class="ti ti-home" aria-hidden="true"></i></span>Casa</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-heart-rate-monitor" aria-hidden="true"></i></span>Wellness</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-chart-bar" aria-hidden="true"></i></span>PSE</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-calendar" aria-hidden="true"></i></span>Agenda</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-clipboard-list" aria-hidden="true"></i></span>Convoc.</div>
+    </nav>
+  </div></div></div>
+  <div class="frame" id="frame-c"><div class="frame-label" id="label-c"><div>C) Domingo, dia do jogo — 09:00</div><small>Card fica vermelho/ativo a partir da 01:00 de domingo até às ~19:00 (kickoff + 4h)</small></div><div class="frame-body" id="body-c">
+  <div id="atleta-app" class="on">
+    <div class="at-topbar">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#1a1500;flex-shrink:0">SPS</div>
+      <div><div class="atn" id="at-name">Atleta</div><div class="atd" id="at-date"></div></div>
+    </div>
+    <div class="at-content">
+      <div class="at-page on" id="atp-home">
+  <div style="display:flex;align-items:center;gap:13px;margin-bottom:14px">
+    <div style="width:56px;height:56px;border-radius:50%;background:var(--c1l);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;flex-shrink:0;overflow:hidden;border:3px solid var(--c1)">
+      SL
+    </div>
+    <div>
+      <div style="font-size:17px;font-weight:900;margin-bottom:1px">Olá, Sofia! 👋</div>
+      <div style="font-size:11px;color:var(--t2)">PL · #20</div>
+      <div style="font-size:10px;color:var(--t2)">domingo, 25 de outubro</div>
+    </div>
+  </div>
+  
+  <div onclick="_atOpenDiaJogo('g_ta_a_2_eliminat_ria')" style="background:rgba(220,38,38,.18);border:1.5px solid rgba(220,38,38,.55);border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
+      <i class="ti ti-trophy" style="font-size:26px;color:#f87171;flex-shrink:0" aria-hidden="true"></i>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:800;color:#f87171">⚽ Gameday — Hoje!</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">vs Boavista Futebol Clube · 15:00 · toca para abrir o Dia de Jogo</div>
+      </div>
+      <i class="ti ti-chevron-right" style="font-size:18px;color:var(--t2)" aria-hidden="true"></i>
+    </div>
+  
+  
+  
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+  <div onclick="_atNavTo('wellness')" style="background:rgba(2,132,199,.1);border:1px solid rgba(2,132,199,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    <div style="position:absolute;top:7px;right:7px;background:#dc2626;color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">!</div>
+    <i class="ti ti-heart-rate-monitor" style="font-size:21px;color:#38bdf8;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Wellness</div>
+    <div style="font-size:9.5px;color:#f87171;margin-top:3px;line-height:1.25">Por preencher</div>
+  </div>
+  <div onclick="_atNavTo('pse')" style="background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    <div style="position:absolute;top:7px;right:7px;background:#dc2626;color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">!</div>
+    <i class="ti ti-chart-bar" style="font-size:21px;color:#4ade80;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">PSE</div>
+    <div style="font-size:9.5px;color:#f87171;margin-top:3px;line-height:1.25">Por registar</div>
+  </div>
+  <div onclick="_atNavTo('agenda')" style="background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-calendar" style="font-size:21px;color:#a78bfa;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Agenda</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Sem eventos</div>
+  </div>
+  <div onclick="_atNavTo('aval')" style="background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-star" style="font-size:21px;color:#E3BF4A;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Avaliações</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Em dia ✓</div>
+  </div>
+  <div onclick="_atNavTo('nutri')" style="background:rgba(234,88,12,.1);border:1px solid rgba(234,88,12,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-salad" style="font-size:21px;color:#fb923c;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Nutrição</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Sem plano</div>
+  </div>
+  <div onclick="_atNavTo('fisio')" style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-first-aid-kit" style="font-size:21px;color:#f87171;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Fisio</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Disponível ✓</div>
+  </div>
+  <div onclick="_atNavTo('convoc')" style="background:rgba( 14,98,81,.1);border:1px solid rgba( 14,98,81,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    <div style="position:absolute;top:7px;right:7px;background:#16a34a;color:#fff;border-radius:50%;min-width:18px;height:18px;padding:0 3px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">✓</div>
+    <i class="ti ti-clipboard-list" style="font-size:21px;color:#2dd4bf;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Convocatórias</div>
+    <div style="font-size:9.5px;color:#2dd4bf;margin-top:3px;line-height:1.25">Convocada! 25/10/2026</div>
+  </div>
+  <div onclick="_atNavTo('treino')" style="background:rgba(71,85,105,.1);border:1px solid rgba(71,85,105,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-run" style="font-size:21px;color:#94a3b8;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Treino Ind.</div>
+    <div style="font-size:9.5px;color:#4ade80;margin-top:3px;line-height:1.25">Em dia ✓</div>
+  </div>
+  <div onclick="_atNavTo('ginasio')" style="background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:11px;padding:10px 8px;cursor:pointer;position:relative;min-height:80px">
+    
+    <i class="ti ti-barbell" style="font-size:21px;color:#fbbf24;display:block;margin-bottom:5px" aria-hidden="true"></i>
+    <div style="font-size:11px;font-weight:800;color:var(--t1);line-height:1.2">Ginásio</div>
+    <div style="font-size:9.5px;color:var(--t2);margin-top:3px;line-height:1.25">Treinos da equipa técnica</div>
+  </div></div>
+  
+  </div>
+      <div class="at-page" id="atp-convoc"></div>
+    </div>
+    <nav class="at-bnav">
+      <div class="at-ni on"><span class="ic"><i class="ti ti-home" aria-hidden="true"></i></span>Casa</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-heart-rate-monitor" aria-hidden="true"></i></span>Wellness</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-chart-bar" aria-hidden="true"></i></span>PSE</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-calendar" aria-hidden="true"></i></span>Agenda</div>
+      <div class="at-ni"><span class="ic"><i class="ti ti-clipboard-list" aria-hidden="true"></i></span>Convoc.</div>
+    </nav>
+  </div></div></div>
+  <div class="frame" id="frame-d" style="width:420px"><div class="frame-label" id="label-d"><div>D) Ao tocar no card (estado C) → "🏆 Dia de Jogo"</div><small>Cronologia completa + checklist, igual à que a atleta vê</small></div><div class="frame-body" id="body-d" style="max-height:900px">
+  <div class="ov on" id="modal-ov" style="position:static;background:transparent;backdrop-filter:none">
+    <div class="mbox lg" id="modal-box" style="margin:0 auto">
+      <div class="mh"><div class="mt" id="modal-title">🏆 Dia de Jogo</div></div>
+      <div id="modal-body">
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:900">vs Boavista Futebol Clube</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:2px">25/10/2026 · 15:00 · Campo Municipal do Outeiro</div>
+      <div style="margin-top:8px;display:inline-block;background:var(--bg3);border-radius:8px;padding:6px 12px;font-size:11px"><i class="ti ti-map-pin" style="margin-right:4px;vertical-align:-2px;color:#38bdf8" aria-hidden="true"></i>Concentração 12:00 · Campo n.º 2 Moreirense FC</div>
+    </div>
+    
+    <div style="font-size:10px;color:var(--t2);text-align:center;margin-bottom:8px">Orientação geral — ajusta com a fisio/nutricionista se tiveres indicação diferente</div>
+    <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px"></div>
+      <div style="width:2px;background:#fb923c;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',0)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-coffee" style="font-size:15px;color:#fb923c" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Ao acordar</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Hidrata bem (± 500 ml de água) e faz um pequeno-almoço equilibrado — hidratos de carbono + proteína, sem exageros em gordura.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px"></div>
+      <div style="width:2px;background:#a78bfa;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',1)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-brain" style="font-size:15px;color:#a78bfa" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Ativação mental</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Reserva uns minutos para visualizar o jogo: o teu papel, os pontos fortes a explorar, como queres sentir-te em campo.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">11:30</div>
+      <div style="width:2px;background:#fb923c;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',2)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-salad" style="font-size:15px;color:#fb923c" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Refeição pré-jogo</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">3-4h antes do jogo: prato rico em hidratos de carbono de fácil digestão, proteína moderada, pouca gordura e fibra.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px"></div>
+      <div style="width:2px;background:#fb923c;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',3)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-droplet" style="font-size:15px;color:#fb923c" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Hidratação ao longo da manhã</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Bebe água regularmente, em pequenas quantidades — não deixes tudo para a última hora.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">13:30</div>
+      <div style="width:2px;background:#fb923c;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',4)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-droplet" style="font-size:15px;color:#fb923c" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Snack ligeiro (se precisares)</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Fruta, barrita ou lanche leve de fácil digestão, com água — evita algo pesado tão perto do jogo.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">12:00</div>
+      <div style="width:2px;background:#38bdf8;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',5)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-map-pin" style="font-size:15px;color:#38bdf8" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Concentração</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Chegada ao local: Campo n.º 2 Moreirense FC. Equipamento, avaliação com a fisio se precisares, ambiente de equipa.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">15:05</div>
+      <div style="width:2px;background:#a78bfa;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',6)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-message-circle" style="font-size:15px;color:#a78bfa" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Palestra Pré-Aquecimento</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Últimas orientações do treinador no balneário, já equipadas, antes de saíres para o aquecimento.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">14:15</div>
+      <div style="width:2px;background:#4ade80;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',7)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-run" style="font-size:15px;color:#4ade80" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Ativação / Aquecimento</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Mobilidade, ativação neuromuscular progressiva, exercícios com bola — segue o protocolo do treinador.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">14:45</div>
+      <div style="width:2px;background:#a78bfa;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',8)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-target" style="font-size:15px;color:#a78bfa" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Foco final</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Respiração, foco no presente, confiança no trabalho feito. Última hidratação, em pequenos goles.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">15:00</div>
+      <div style="width:2px;background:#f87171;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',9)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-ball-football" style="font-size:15px;color:#f87171" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Apito inicial</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Boa sorte! ⚽</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px">16:45</div>
+      <div style="width:2px;background:#fb923c;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',10)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-droplet" style="font-size:15px;color:#fb923c" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Recuperação pós-jogo</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Nos primeiros 30-60 min: hidrata e come algo com hidratos + proteína para começar a recuperar.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px"></div>
+      <div style="width:2px;background:#4ade80;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="_djToggle('g_ta_a_2_eliminat_ria',11)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-activity" style="font-size:15px;color:#4ade80" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Alongamentos e mobilidade</span>
+          <span style="margin-left:auto;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--brd);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Rotina de retorno à calma — ajuda na recuperação para o dia seguinte.</div>
+      </div>
+    </div><div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:52px;flex-shrink:0;text-align:right;font-size:11px;font-weight:700;color:var(--t2);padding-top:2px"></div>
+      <div style="width:2px;background:#94a3b8;border-radius:1px;flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer" onclick="closeMod();_atNavTo('pse')">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i class="ti ti-clipboard-check" style="font-size:15px;color:#94a3b8" aria-hidden="true"></i>
+          <span style="font-size:12.5px;font-weight:800;">Registar PSE</span>
+          <span class="bdg bg-b" style="font-size:8px">abrir PSE</span>
+        </div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">Assim que possível depois do jogo, regista a tua perceção de esforço na app.</div>
+      </div>
+    </div></div>
+    </div>
+  </div></div></div>
+  
+  
+  </body></html>

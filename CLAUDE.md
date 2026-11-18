@@ -6759,3 +6759,62 @@ o resultado da pesquisa e o emblema escolhido no preview, e o card "Próximo Jog
 a mostrar os dois emblemas lado a lado depois de configurado.
 
 **Ainda por fazer:** nada pendente para este pedido.
+
+## sps-v250 (18/11/2026): Hidratação — generalização para Treino + Jogo (pesagem pré/pós)
+
+Pedido do Roger: a Hidratação (até aqui só para Jogo) passa a cobrir também Treino,
+mantendo a fórmula de reposição e os limiares de alerta editáveis pela Nutricionista (já
+existente desde sps-v188) e sem tocar no Registo de Peso de ontem (sps-v248). Confirmado
+explicitamente por ele que o multiplicador é editado pela Nutricionista, e que a
+pré-treino passa a reaproveitar automaticamente o autorregisto diário de peso da atleta
+(sps-v248) — "quando a atleta se pesa, o pré passa a ser também a pesagem do dia, e
+quando coloca pós, calculamos as perdas e a quantidade de reposição". Analisado,
+investigado (reaproveitado o padrão já usado em `pse_records`) e aprovado em mockup
+interativo (App Atleta / Plataforma / App Nutrição + Histórico + Configurações editáveis)
+antes de tocar em código. "AVANÇA" deu luz verde à implementação real abaixo.
+
+**O que foi construído:**
+- `hydration_records` generalizado: `game_id` (só Jogo) → `event_id`+`session_type`
+  genéricos (`'Treino'`|`'Jogo'`), o mesmo padrão já usado em `pse_records`. Migração
+  Supabase apenas com `ADD COLUMN` (`event_id`, `session_type`) — `game_id` fica
+  deprecated (documentado via `COMMENT ON COLUMN`), nunca mais escrito pelo código novo;
+  tabela tinha 0 registos, sem risco de migração de dados.
+- `_hydraAllSessions()`: junta `APP.games` + `APP.schedule.filter(type==='Treino')` numa
+  lista única ordenada por data, para o seletor de sessão genérico (Plataforma/App
+  Nutrição) e para a App Atleta encontrar a sessão de hoje.
+- App Atleta (`_atHidraCardHtml`, novo card em `renderAtNutri`): para **Treino**, o peso
+  "pré" nunca é pedido de novo — é sempre o autorregisto que a atleta já fez hoje no
+  Registo de Peso (`nutrition_records`, `source==='atleta'`), mostrado com etiqueta
+  "Registo diário"; se ainda não se pesou hoje, mostra um aviso a pedir para o fazer
+  primeiro em vez de bloquear silenciosamente. Para **Jogo**, a pré continua manual
+  (timing diferente, mais perto do apito inicial). O "Pós" (peso + líquidos ingeridos)
+  dispara automaticamente o cálculo de taxa de sudação, % de perda de peso e volume de
+  reposição (fórmulas NATA já existentes, inalteradas).
+- Plataforma/App Nutrição: página "Hidratação" generalizada com filtro Todos/Treino/Jogo,
+  tabela-resumo das sessões recentes (etiqueta "(diário)" nas pré-treino por autorregisto)
+  com ações "Ver/Corrigir" e "Histórico", e por baixo o formulário de edição de um
+  registo (agora com seletor de sessão genérico em vez de só jogos). O editor "Valores de
+  Referência do Clube (editável)" — multiplicador de reposição + limiares de alerta, por
+  clube e por atleta — já existia (sps-v188) e manteve-se tal e qual, só exposto na página
+  generalizada.
+- `_nutriOpenHidraHistorico(athleteId)`: novo modal de histórico por atleta, Treino+Jogo
+  combinados, ordenado por data mais recente; uma correção feita pela equipa técnica é
+  identificável só por `registeredById !== athleteId` (o mesmo mecanismo de sessão —
+  `getSession()` — já atribui `registeredBy`/`registeredById` tanto a atletas como a
+  staff), sem nenhuma coluna nova na base de dados.
+
+SW bump para `sps-v250`. Testado: `node --check` ao bloco `<script>` extraído;
+`test_hidratacao_v250.js` — 32 verificações (junção Treino+Jogo em `_hydraAllSessions`,
+indexação genérica por `eventId`, a regra crítica de que a pré-treino NUNCA usa a
+avaliação da nutricionista do mesmo dia — mesma independência exigida no Registo de Peso
+—, bloqueio do pós-treino com aviso quando não há autorregisto do dia, pré-jogo manual
+inalterado, deteção de correção da equipa técnica, e o modal de Histórico por atleta a
+distinguir autorregisto de correção). Verificação visual (Playwright): App Atleta —
+Treino antes/depois de gravar o pós (card "Registo diário" e card "Resultado"), Plataforma
+— página Hidratação (resumo + "Ver/Corrigir"); tudo conferido por screenshot contra o
+mockup aprovado antes do commit.
+
+**Ainda por fazer:** nada pendente para este pedido. `game_id` fica deprecated na tabela
+(não apagado, para não perder histórico antigo) — pode ser removido numa limpeza futura
+se o Roger confirmar que não há dados antigos a preservar.
+

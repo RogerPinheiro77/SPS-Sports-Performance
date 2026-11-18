@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — Dashboard v1</title>
+<style>
+:root{
+  --c1:#1d6f3b;--c1l:#27a34a;
+  --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+  --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+  --r:12px;--rs:8px;
+  /* status (reservado — nunca usado para identidade de categoria) */
+  --good:#4ade80;--warn:#fbbf24;--crit:#f87171;--info:#60a5fa;
+  /* categórico — tipos de sessão/carga (slots validados, nunca sobrepõem status) */
+  --cat1:#3987e5; /* Treino */
+  --cat2:#d95926; /* Jogo */
+  --cat3:#199e70; /* Força/Ginásio */
+  --cat4:#9085e9; /* Outros */
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg0);color:var(--t1);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:13px;padding:22px}
+h1{font-size:17px;margin:0 0 3px}
+.sub{color:var(--t2);font-size:12px;margin-bottom:18px}
+.note{background:var(--bg2);border:1px solid var(--brd);border-left:3px solid var(--c1l);border-radius:var(--rs);padding:10px 14px;font-size:12px;color:var(--t2);margin-bottom:22px;max-width:980px}
+.note b{color:var(--t1)}
+.wrap{max-width:1180px}
+.card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);margin-bottom:14px}
+.ch{padding:11px 15px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ct{font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.4px;text-transform:uppercase}
+.cb{padding:14px 15px}
+.tag{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;letter-spacing:.3px}
+.tag.new{background:rgba(39,163,74,.18);color:var(--c1l)}
+
+/* ---- Linha de KPIs: hierarquia (1 destaque + 5 normais) ---- */
+.kpi-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:13px 14px;position:relative}
+.kpi.hero{background:linear-gradient(135deg,rgba(248,113,113,.13),var(--bg2));border-color:rgba(248,113,113,.4)}
+.kpi-lbl{font-size:9.5px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.kpi-val{font-size:22px;font-weight:800;line-height:1}
+.kpi.hero .kpi-val{font-size:30px}
+.kpi-sub{font-size:10px;color:var(--t2);margin-top:4px}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+
+/* ---- Legenda partilhada de tipo de sessão ---- */
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;color:var(--t2);padding:9px 15px;border-bottom:1px solid var(--brd)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend .sw{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+/* ---- Tooltip simples (hover) ---- */
+[data-tip]{position:relative;cursor:help}
+[data-tip]:hover::after{
+  content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--bg4);border:1px solid var(--brd);color:var(--t1);font-size:10.5px;font-weight:500;
+  padding:6px 9px;border-radius:7px;white-space:nowrap;z-index:50;box-shadow:0 8px 20px rgba(0,0,0,.4)
+}
+[data-tip]:hover::before{
+  content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);
+  border:4px solid transparent;border-top-color:var(--bg4)
+}
+
+/* ---- Grid principal reorganizado ---- */
+.main-grid{display:grid;grid-template-columns:1fr 330px;gap:14px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.3px;padding:7px 10px;border-bottom:1px solid var(--brd)}
+td{padding:8px 10px;border-bottom:1px solid var(--brd)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px}
+.bar-bg{height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;width:70px}
+.bar-fill{height:100%;border-radius:3px}
+.gauges{display:flex;gap:4px;justify-content:space-around}
+.gauge{text-align:center;font-size:9.5px;color:var(--t2)}
+.gring{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:var(--t1);margin:0 auto 4px}
+
+/* ---- Fiada secundária: só carga/risco (Classificação sai daqui) ---- */
+.sec-row{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.acwr-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.acwr-name{font-size:11px;font-weight:600;width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.badge-removed{opacity:.45;text-decoration:line-through}
+.callout{font-size:11px;color:var(--t2);display:flex;align-items:flex-start;gap:7px;padding:9px 12px;background:rgba(255,255,255,.03);border-radius:8px;margin-top:8px}
+.callout b{color:var(--t1)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Dashboard — proposta de reorganização visual</h1>
+<div class="sub">Mockup só para revisão — não é código. Dados fictícios.</div>
+
+<div class="note">
+<b>O que mudou vs. o Dashboard atual:</b> (1) 1 KPI em destaque em vez de 6 iguais; (2) cor de "tipo de sessão" separada da cor de "estado/risco" — hoje partilham verde/amarelo/vermelho e podem confundir-se; (3) "Risco de Lesão" e "Distribuição de Carga" passam a 2 cartões (eram 1 só); (4) "Classificação" sai da fiada de carga/risco (tema diferente); (5) hover com valor exato nas barras/gauges (passe o rato). Tudo o resto (tabela do plantel, gauges de wellness, próxima sessão) mantém-se igual ao atual.
+</div>
+
+<!-- KPI ROW -->
+<div class="kpi-row">
+  <div class="kpi hero" data-tip="3 atletas em risco elevado · ACWR>1.5 ou lesão ativa">
+    <div class="kpi-lbl"><span class="dot" style="background:var(--crit)"></span>Risco de Lesão</div>
+    <div class="kpi-val" style="color:var(--crit)">3</div>
+    <div class="kpi-sub">Alto risco · ver destaques →</div>
+  </div>
+  <div class="kpi" data-tip="18 de 23 atletas disponíveis para treinar hoje">
+    <div class="kpi-lbl">Disponibilidade</div>
+    <div class="kpi-val">78%</div>
+    <div class="kpi-sub">18/23 disponíveis</div>
+  </div>
+  <div class="kpi" data-tip="Rácio carga aguda/crónica médio da equipa">
+    <div class="kpi-lbl">ACWR Médio</div>
+    <div class="kpi-val" style="color:var(--warn)">1.34</div>
+    <div class="kpi-sub">Zona de atenção</div>
+  </div>
+  <div class="kpi" data-tip="Carga total da semana, u.a.">
+    <div class="kpi-lbl">Carga Semanal</div>
+    <div class="kpi-val">4 820<span style="font-size:11px;color:var(--good)"> ▲6%</span></div>
+    <div class="kpi-sub">u.a. acumulado</div>
+  </div>
+  <div class="kpi" data-tip="Média das 5 escalas de wellness, últimos 7 dias">
+    <div class="kpi-lbl">Wellness Médio</div>
+    <div class="kpi-val" style="color:var(--good)">7.6</div>
+    <div class="kpi-sub">/10 · estável</div>
+  </div>
+  <div class="kpi" data-tip="Jogadoras com 3+ sessões extra esta semana">
+    <div class="kpi-lbl">Treino Extra</div>
+    <div class="kpi-val">2</div>
+    <div class="kpi-sub">acima do habitual</div>
+  </div>
+</div>
+
+<!-- MAIN GRID: plantel + wellness/próxima sessão (igual ao atual) -->
+<div class="main-grid">
+  <div class="card">
+    <div class="ch"><span class="ct">Estado do Plantel</span><span style="font-size:10px;color:var(--t3)">T1 — Seniores Fem.</span></div>
+    <div class="cb" style="padding:0">
+      <table>
+        <tr><th>#</th><th>Atleta</th><th>Estado</th><th>Wellness</th><th>Carga Semanal</th><th>Obs.</th></tr>
+        <tr><td>7</td><td>Ana Ribeiro</td><td><span class="pill"><span class="dot" style="background:var(--good)"></span>OK</span></td><td>8.1</td><td><div class="bar-bg"><div class="bar-fill" style="width:62%;background:var(--good)"></div></div></td><td>—</td></tr>
+        <tr><td>9</td><td>Bruna Costa</td><td><span class="pill"><span class="dot" style="background:var(--warn)"></span>Atenção</span></td><td>6.4</td><td><div class="bar-bg"><div class="bar-fill" style="width:88%;background:var(--warn)"></div></div></td><td>🩺</td></tr>
+        <tr><td>14</td><td>Carla Nunes</td><td><span class="pill"><span class="dot" style="background:var(--crit)"></span>Risco</span></td><td>5.2</td><td><div class="bar-bg"><div class="bar-fill" style="width:97%;background:var(--crit)"></div></div></td><td>🩺⚠️</td></tr>
+        <tr><td>3</td><td>Diana Silva</td><td><span class="pill"><span class="dot" style="background:var(--good)"></span>OK</span></td><td>7.8</td><td><div class="bar-bg"><div class="bar-fill" style="width:55%;background:var(--good)"></div></div></td><td>—</td></tr>
+      </table>
+      <div style="padding:9px 15px;font-size:10px;color:var(--t3)">+ 19 atletas (scroll)</div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <div class="ch"><span class="ct">Wellness Médio (7 dias)</span></div>
+      <div class="cb">
+        <div class="gauges">
+          <div class="gauge"><div class="gring" style="background:conic-gradient(#a78bfa 0 76%,var(--bg4) 0)" data-tip="3.8/5">3.8</div>Sono</div>
+          <div class="gauge"><div class="gring" style="background:conic-gradient(#fbbf24 0 40%,var(--bg4) 0)" data-tip="4/10">4.0</div>Fadiga</div>
+          <div class="gauge"><div class="gring" style="background:conic-gradient(#60a5fa 0 35%,var(--bg4) 0)" data-tip="3.5/10">3.5</div>Stress</div>
+          <div class="gauge"><div class="gring" style="background:conic-gradient(#4ade80 0 20%,var(--bg4) 0)" data-tip="2/10">2.0</div>Dor</div>
+          <div class="gauge"><div class="gring" style="background:conic-gradient(#f87171 0 60%,var(--bg4) 0)" data-tip="6/10">6.0</div>RPE</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">Próxima Sessão</span></div>
+      <div class="cb" style="font-size:12px">
+        <div style="font-weight:700">UT 24 — Treino</div>
+        <div style="color:var(--t2);font-size:11px;margin-top:3px">Hoje · 18:30</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECONDARY ROW: carga/risco só (Classificação saiu daqui) -->
+<div class="sec-row">
+  <div class="card">
+    <div class="ch"><span class="ct">Carga Semanal</span></div>
+    <div class="cb" style="height:150px;display:flex;align-items:flex-end;gap:7px;padding-top:10px">
+      <div style="flex:1;background:var(--cat1);height:40%;border-radius:4px 4px 0 0" data-tip="Seg · 680 u.a."></div>
+      <div style="flex:1;background:var(--cat1);height:65%;border-radius:4px 4px 0 0" data-tip="Ter · 1100 u.a."></div>
+      <div style="flex:1;background:rgba(255,255,255,.08);height:15%;border-radius:4px 4px 0 0" data-tip="Qua · folga"></div>
+      <div style="flex:1;background:var(--cat1);height:72%;border-radius:4px 4px 0 0" data-tip="Qui · 1210 u.a."></div>
+      <div style="flex:1;background:var(--cat3);height:30%;border-radius:4px 4px 0 0" data-tip="Sex · Ginásio · 500 u.a."></div>
+      <div style="flex:1;background:var(--cat2);height:95%;border-radius:4px 4px 0 0" data-tip="Sáb · Jogo · 1600 u.a."></div>
+      <div style="flex:1;background:rgba(255,255,255,.08);height:10%;border-radius:4px 4px 0 0" data-tip="Dom · recuperação"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><span class="ct">Top 5 ACWR</span></div>
+    <div class="cb">
+      <div class="acwr-row"><span style="font-size:10px;color:var(--t3)">1</span><span class="acwr-name">Carla Nunes</span><div class="bar-bg" style="flex:1"><div class="bar-fill" style="width:85%;background:var(--crit)"></div></div><span style="font-weight:800;color:var(--crit)" data-tip="1.72">1.72</span></div>
+      <div class="acwr-row"><span style="font-size:10px;color:var(--t3)">2</span><span class="acwr-name">Bruna Costa</span><div class="bar-bg" style="flex:1"><div class="bar-fill" style="width:68%;background:var(--warn)"></div></div><span style="font-weight:800;color:var(--warn)" data-tip="1.38">1.38</span></div>
+      <div class="acwr-row"><span style="font-size:10px;color:var(--t3)">3</span><span class="acwr-name">Diana Silva</span><div class="bar-bg" style="flex:1"><div class="bar-fill" style="width:52%;background:var(--good)"></div></div><span style="font-weight:800;color:var(--good)" data-tip="1.05">1.05</span></div>
+      <div style="font-size:9px;color:var(--t3);padding-top:7px;border-top:1px solid var(--brd);margin-top:4px">ⓘ Ideal: 0.8–1.3 &nbsp;|&nbsp; &gt;1.5 Risco Elevado</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><span class="ct">Risco de Lesão</span><span class="tag new">separado</span></div>
+    <div class="cb" style="display:flex;gap:10px;align-items:flex-start">
+      <div style="text-align:center;flex-shrink:0">
+        <div style="font-size:28px;font-weight:900;color:var(--crit)">3</div>
+        <div style="font-size:9px;color:var(--t2);font-weight:700">ALTO RISCO</div>
+      </div>
+      <div style="flex:1">
+        <div style="margin-bottom:5px"><div style="font-size:11px;font-weight:700;color:var(--crit)">● Carla Nunes</div><div style="font-size:9px;color:var(--t3)">Entorse de tornozelo</div></div>
+        <div style="margin-bottom:5px"><div style="font-size:11px;font-weight:700;color:var(--warn)">● Bruna Costa</div><div style="font-size:9px;color:var(--t3)">Alta carga / baixa recuperação</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ch"><span class="ct">Distribuição de Carga (28d)</span><span class="tag new">cor própria, já não é verde/amarelo/vermelho</span></div>
+  <div class="cb">
+    <div class="legend" style="border:none;padding:0 0 10px">
+      <span><span class="sw" style="background:var(--cat1)"></span>Treino</span>
+      <span><span class="sw" style="background:var(--cat2)"></span>Jogo</span>
+      <span><span class="sw" style="background:var(--cat3)"></span>Força/Ginásio</span>
+      <span><span class="sw" style="background:var(--cat4)"></span>Outros</span>
+    </div>
+    <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px">
+      <div style="width:48%;background:var(--cat1)" data-tip="Treino · 48%"></div>
+      <div style="width:22%;background:var(--cat2)" data-tip="Jogo · 22%"></div>
+      <div style="width:18%;background:var(--cat3)" data-tip="Força/Ginásio · 18%"></div>
+      <div style="width:12%;background:var(--cat4)" data-tip="Outros · 12%"></div>
+    </div>
+    <div class="callout">
+      <span>💡</span>
+      <span>Antes, "Jogo" era vermelho e "Treino" era verde na Distribuição — exatamente as mesmas cores usadas para "risco"/"estado" nos outros 2 cartões desta fiada. Aqui passam a uma paleta só de identidade (azul/laranja/verde-água/violeta), nunca confundível com um alerta.</span>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="opacity:.75">
+  <div class="ch"><span class="ct">🏆 Classificação</span><span class="tag" style="background:rgba(96,165,250,.18);color:var(--info)">mudou de sítio</span></div>
+  <div class="cb" style="font-size:11px;color:var(--t2)">
+    Sai desta fiada (carga/risco) e passa para uma secção própria mais abaixo, ou para dentro da aba Competições/Jogos — tematicamente não tem relação com carga de treino/risco de lesão, só partilhava a fiada por limitação de espaço.
+  </div>
+</div>
+
+</div>
+</body>
+</html>

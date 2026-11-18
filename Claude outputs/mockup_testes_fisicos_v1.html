@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — Testes Físicos</title>
+<style>
+:root{
+  --c1:#1d6f3b;--c1l:#27a34a;--acc:#f59e0b;
+  --red:#dc2626;--yel:#d97706;--grn:#16a34a;--blu:#0284c7;
+  --bg0:#0c0f14;--bg1:#131720;--bg2:#1a1f2c;--bg3:#222838;--bg4:#2a3145;
+  --brd:#2e3550;--t1:#e8edf5;--t2:#94a3b8;--t3:#5a6582;
+}
+*{box-sizing:border-box}
+body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg0);color:var(--t1);margin:0;padding:24px}
+.wrap{max-width:1040px;margin:0 auto}
+.mock-switch{display:flex;gap:8px;margin-bottom:22px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:5px;width:fit-content}
+.mock-switch button{border:none;background:none;color:var(--t2);font:inherit;font-weight:700;font-size:13px;padding:9px 18px;border-radius:7px;cursor:pointer}
+.mock-switch button.on{background:var(--c1);color:#fff}
+.view{display:none}.view.on{display:block}
+.card{background:var(--bg2);border:1px solid var(--brd);border-radius:12px;padding:16px}
+h1{font-size:19px;margin:0 0 3px}
+h2{font-size:15px;margin:0 0 10px}
+.sub{color:var(--t2);font-size:12px;margin-bottom:18px}
+.tabs{display:flex;gap:4px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:4px;width:fit-content;margin-bottom:16px}
+.tabs button{border:none;background:none;color:var(--t2);font:inherit;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer}
+.tabs button.on{background:var(--bg4);color:var(--t1)}
+.test-card{display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:10px;cursor:pointer}
+.test-ic{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--c1),var(--c1l));display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}
+.test-meta{flex:1}
+.test-name{font-weight:800;font-size:14px}
+.test-desc{color:var(--t2);font-size:11.5px;margin-top:2px}
+.test-count{font-size:11px;color:var(--t2);background:var(--bg3);padding:3px 9px;border-radius:12px}
+.badge-new{background:var(--bg3);border:1.5px dashed var(--brd);color:var(--t3)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--t2);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--brd)}
+td{padding:9px 10px;border-bottom:1px solid var(--bg3)}
+tr:hover td{background:var(--bg3)}
+.pos{font-weight:800;color:var(--t2);width:26px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+.semaforo{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700}
+.sf-g{background:#16a34a22;color:#4ade80}
+.sf-y{background:#d9770622;color:#fbbf24}
+.sf-r{background:#dc262622;color:#f87171}
+.vo2{color:var(--t2);font-size:11px}
+.form-g{margin-bottom:12px}
+.fl{display:block;font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.fc{width:100%;padding:9px 11px;background:var(--bg3);border:1px solid var(--brd);border-radius:7px;color:var(--t1);font-size:13px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.btn{padding:9px 16px;border-radius:7px;font-size:12.5px;font-weight:700;border:none;cursor:pointer}
+.btn-g{background:var(--c1);color:#fff}
+.btn-gh{background:var(--bg3);color:var(--t1);border:1px solid var(--brd)}
+.grid-row{display:grid;grid-template-columns:28px 1fr 110px 90px 90px 70px;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--bg3);font-size:12px}
+.grid-row.hd{color:var(--t2);font-size:10px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--brd)}
+.mini{width:30px;height:30px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:var(--t2)}
+.band-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bg3)}
+.band-row:last-child{border-bottom:none}
+.band-lbl{width:130px;font-size:12px;font-weight:700}
+.band-input{width:90px;padding:6px 9px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;color:var(--t1);font-size:12px}
+.note{font-size:11px;color:var(--t2);background:var(--bg3);border-radius:8px;padding:9px 11px;margin-top:10px;line-height:1.5}
+/* ATLETA */
+.at-shell{max-width:420px;margin:0 auto;background:var(--bg1);border-radius:20px;border:1px solid var(--brd);padding:18px;box-shadow:0 20px 50px rgba(0,0,0,.4)}
+.at-hero{text-align:center;padding:18px 10px 8px}
+.at-big{font-size:42px;font-weight:900;letter-spacing:-1px}
+.at-unit{font-size:13px;color:var(--t2);margin-top:-4px}
+.at-semaforo{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:7px 16px;border-radius:20px;font-size:13px;font-weight:800}
+.at-row{display:flex;justify-content:space-between;padding:11px 2px;border-bottom:1px solid var(--bg3);font-size:12.5px}
+.at-row:last-child{border-bottom:none}
+.at-row .k{color:var(--t2)}
+.at-row .v{font-weight:700}
+.rank-card{background:linear-gradient(135deg,var(--bg3),var(--bg4));border-radius:14px;padding:16px;text-align:center;margin:14px 0}
+.rank-pos{font-size:26px;font-weight:900}
+.rank-sub{font-size:11.5px;color:var(--t2);margin-top:2px}
+.legend{display:flex;gap:14px;justify-content:center;margin-top:14px;font-size:10.5px;color:var(--t2)}
+.legend span{display:flex;align-items:center;gap:5px}
+.chartbox{height:90px;display:flex;align-items:flex-end;gap:6px;padding:10px 2px 0}
+.cbar{flex:1;background:var(--c1);border-radius:3px 3px 0 0;position:relative}
+.cbar .lbl{position:absolute;bottom:-16px;left:0;right:0;text-align:center;font-size:8.5px;color:var(--t3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mock-switch">
+    <button class="on" onclick="sw('staff')">🖥️ Vista Staff</button>
+    <button onclick="sw('atleta')">📱 Vista Atleta</button>
+  </div>
+
+  <!-- ============ VISTA STAFF ============ -->
+  <div class="view on" id="v-staff">
+    <h1>🏃 Testes Físicos</h1>
+    <div class="sub">Catálogo de testes físicos do plantel — mockup, dados fictícios</div>
+
+    <div class="card" style="margin-bottom:20px">
+      <h2 style="margin-bottom:12px">Catálogo</h2>
+      <div class="test-card" style="background:var(--bg3)">
+        <div class="test-ic">🏃</div>
+        <div class="test-meta">
+          <div class="test-name">Yo-Yo Intermittent Recovery Test (Nível 1)</div>
+          <div class="test-desc">Capacidade de repetir esforços intermitentes de alta intensidade — Bangsbo et al. 2008</div>
+        </div>
+        <div class="test-count">23 resultados · última: 20/10</div>
+      </div>
+      <div class="test-card badge-new">
+        <div class="test-ic" style="background:var(--bg4);color:var(--t3)">＋</div>
+        <div class="test-meta">
+          <div class="test-name" style="color:var(--t2)">Novo tipo de teste</div>
+          <div class="test-desc">Ex: Sprint 30m, CMJ, Illinois Agility...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="on" onclick="stab(event,'st-res')">Resultados</button>
+        <button onclick="stab(event,'st-reg')">Registar</button>
+        <button onclick="stab(event,'st-band')">Bandas de Referência</button>
+      </div>
+
+      <!-- RESULTADOS -->
+      <div id="st-res">
+        <div class="sub" style="margin-bottom:10px">Yo-Yo IR1 — 20/10/2026 · ordenado por distância (= ranking da equipa)</div>
+        <table>
+          <thead><tr><th>#</th><th>Atleta</th><th>Nível.Patamar</th><th>Distância</th><th>VO2max est.</th><th>Classificação</th></tr></thead>
+          <tbody>
+            <tr><td class="pos">1</td><td>Mariana Teixeira</td><td>19.4</td><td>1560 m</td><td class="vo2">49.5</td><td><span class="semaforo sf-g">🟢 Acima do esperado</span></td></tr>
+            <tr><td class="pos">2</td><td>Beatriz Nogueira</td><td>18.7</td><td>1480 m</td><td class="vo2">48.8</td><td><span class="semaforo sf-g">🟢 Acima do esperado</span></td></tr>
+            <tr><td class="pos">3</td><td>Inês Cardoso</td><td>17.5</td><td>1360 m</td><td class="vo2">47.8</td><td><span class="semaforo sf-y">🟡 Dentro do esperado</span></td></tr>
+            <tr style="background:rgba(29,111,59,.08)"><td class="pos">4</td><td><b>Sofia Marques</b> <span style="color:var(--t2);font-size:10px">(tu)</span></td><td>16.6</td><td>1280 m</td><td class="vo2">47.1</td><td><span class="semaforo sf-y">🟡 Dentro do esperado</span></td></tr>
+            <tr><td class="pos">5</td><td>Catarina Oliveira</td><td>16.1</td><td>1240 m</td><td class="vo2">46.8</td><td><span class="semaforo sf-y">🟡 Dentro do esperado</span></td></tr>
+            <tr><td class="pos">…</td><td colspan="5" style="color:var(--t3)">18 atletas restantes</td></tr>
+            <tr><td class="pos">23</td><td>Rita Fonseca</td><td>10.2</td><td>480 m</td><td class="vo2">40.4</td><td><span class="semaforo sf-r">🔴 Abaixo do esperado</span></td></tr>
+          </tbody>
+        </table>
+        <div class="note">💡 A tabela é a mesma fonte usada para a posição no ranking que a atleta vê na sua app — nunca um cálculo em duplicado.</div>
+      </div>
+
+      <!-- REGISTAR -->
+      <div id="st-reg" style="display:none">
+        <div class="fr3" style="margin-bottom:14px">
+          <div class="form-g"><label class="fl">Data</label><input class="fc" type="date" value="2026-10-20"></div>
+          <div class="form-g"><label class="fl">Equipa</label><select class="fc"><option>Equipa Principal</option></select></div>
+          <div class="form-g"><label class="fl">Protocolo</label><select class="fc"><option>Yo-Yo IR1 (padrão)</option><option>Yo-Yo IR2</option></select></div>
+        </div>
+        <div class="grid-row hd"><div></div><div>Atleta</div><div>Nível.Patamar</div><div>Distância</div><div>VO2max</div><div>Cor</div></div>
+        <div class="grid-row"><div class="mini">MT</div><div>Mariana Teixeira</div><input class="band-input" value="19.4" style="width:100%"><div>1560 m</div><div class="vo2">49.5</div><div class="dot" style="background:var(--grn)"></div></div>
+        <div class="grid-row"><div class="mini">SM</div><div>Sofia Marques</div><input class="band-input" value="16.6" style="width:100%"><div>1280 m</div><div class="vo2">47.1</div><div class="dot" style="background:var(--yel)"></div></div>
+        <div class="grid-row"><div class="mini">RF</div><div>Rita Fonseca</div><input class="band-input" value="10.2" style="width:100%"><div>480 m</div><div class="vo2">40.4</div><div class="dot" style="background:var(--red)"></div></div>
+        <div class="note">Introduz-se o nível.patamar lido no protocolo (ex: "19.4") — a distância e o VO2max calculam-se automaticamente pela tabela oficial do teste, em direto, linha a linha.</div>
+        <div style="margin-top:14px"><button class="btn btn-g">💾 Guardar resultados (23)</button></div>
+      </div>
+
+      <!-- BANDAS -->
+      <div id="st-band" style="display:none">
+        <div class="sub" style="margin-bottom:6px">Bandas de referência — por defeito calculadas por percentil científico ajustado à idade (estudo em futebolistas femininas de elite inglesas, 2022), editável aqui.</div>
+        <div class="band-row"><span class="dot" style="background:var(--red)"></span><div class="band-lbl">🔴 Abaixo do esperado</div>até ao percentil <input class="band-input" value="25"> %</div>
+        <div class="band-row"><span class="dot" style="background:var(--yel)"></span><div class="band-lbl">🟡 Dentro do esperado</div>percentil <input class="band-input" value="25"> % — <input class="band-input" value="75"> %</div>
+        <div class="band-row"><span class="dot" style="background:var(--grn)"></span><div class="band-lbl">🟢 Acima do esperado</div>a partir do percentil <input class="band-input" value="75"> %</div>
+        <div style="margin-top:14px;display:flex;gap:8px"><button class="btn btn-g">💾 Guardar</button><button class="btn btn-gh">↺ Repor valores científicos</button></div>
+        <div class="note">A idade de cada atleta (já existe na ficha) ajusta automaticamente o percentil usado — uma U15 e uma sénior não são avaliadas pela mesma régua.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VISTA ATLETA ============ -->
+  <div class="view" id="v-atleta">
+    <div class="sub" style="text-align:center;margin-bottom:14px">App da Atleta — mockup</div>
+    <div class="at-shell">
+      <h2 style="text-align:center">🏃 Yo-Yo IR1</h2>
+      <div class="at-hero">
+        <div class="at-big">1280 m</div>
+        <div class="at-unit">Nível 16.6 · 20 Out 2026</div>
+        <div class="at-semaforo sf-y">🟡 Dentro do esperado</div>
+      </div>
+
+      <div class="rank-card">
+        <div class="rank-pos">6º lugar</div>
+        <div class="rank-sub">de 23 atletas da equipa · melhor que 74%</div>
+      </div>
+
+      <div class="at-row"><span class="k">VO2max estimado</span><span class="v">47.1 ml/kg/min</span></div>
+      <div class="at-row"><span class="k">Último teste</span><span class="v">1240 m (+40 m)</span></div>
+      <div class="at-row"><span class="k">Melhor resultado</span><span class="v">1280 m</span></div>
+
+      <h2 style="margin-top:18px">A tua evolução</h2>
+      <div class="chartbox">
+        <div class="cbar" style="height:55%"><span class="lbl">Jun</span></div>
+        <div class="cbar" style="height:62%"><span class="lbl">Ago</span></div>
+        <div class="cbar" style="height:70%"><span class="lbl">Set</span></div>
+        <div class="cbar" style="height:100%;background:var(--c1l)"><span class="lbl">Out</span></div>
+      </div>
+
+      <div class="legend">
+        <span><span class="dot" style="background:var(--red)"></span>Abaixo do esperado</span>
+        <span><span class="dot" style="background:var(--yel)"></span>Dentro</span>
+        <span><span class="dot" style="background:var(--grn)"></span>Acima</span>
+      </div>
+      <div class="note" style="margin-top:16px">Nunca vês os nomes ou resultados das tuas colegas — só a tua posição relativa.</div>
+    </div>
+  </div>
+</div>
+<script>
+function sw(v){
+  document.querySelectorAll('.view').forEach(e=>e.classList.remove('on'));
+  document.getElementById('v-'+v).classList.add('on');
+  document.querySelectorAll('.mock-switch button').forEach(b=>b.classList.remove('on'));
+  event.target.classList.add('on');
+}
+function stab(e,id){
+  document.querySelectorAll('#st-res,#st-reg,#st-band').forEach(d=>d.style.display='none');
+  document.getElementById(id).style.display='';
+  e.target.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  e.target.classList.add('on');
+}
+</script>
+</body>
+</html>
