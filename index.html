@@ -22284,6 +22284,7 @@ function renderAtHome(){
       </div>
     </div>`;
   })()}
+  ${_atHidraHomeBannerHtml()}
   ${estAtivo?`<div onclick="atOpenEstagio('${estAtivo.id}')" style="background:${!estRsvp?'rgba(245,158,11,.18)':'rgba(56,189,248,.12)'};border:1.5px solid ${!estRsvp?'rgba(245,158,11,.55)':'rgba(56,189,248,.35)'};border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
     <i class="ti ${!estRsvp?'ti-alert-triangle':'ti-briefcase'}" style="font-size:26px;color:${!estRsvp?'#fbbf24':'#38bdf8'};flex-shrink:0" aria-hidden="true"></i>
     <div style="flex:1">
@@ -23129,13 +23130,64 @@ function _atHidraCardHtml(){
       <div style="font-size:10px;color:var(--t2);font-style:italic;margin-top:10px">Baseado no NATA Position Statement (2017) — orientativo, não substitui avaliação clínica.</div>
     </div>`;
   }
-  return `<div class="card" style="margin-bottom:14px;padding:14px">
+  return `<div class="card" id="at-hidra-card" style="margin-bottom:14px;padding:14px">
     <div style="font-size:13px;font-weight:800;margin-bottom:4px"><i class="ti ti-droplet" style="margin-right:6px;vertical-align:-2px;color:#38bdf8" aria-hidden="true"></i>Hidratação</div>
     <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${escHtml(sessionLabel)}</div>
     ${toggleHtml}
     ${preHtml}
     ${postHtml}
     ${resultHtml}
+  </div>`;
+}
+// ─── Banner de acesso rápido no Home (sps-v251, pedido do Roger: "colocar acesso a
+// esse card no home do tipo código de conduta e gameday, logo a seguir a estes, e
+// aparecer quer nos dias de treino e dias de jogo") ─────────────────────────────
+// Mesma condição de visibilidade do card dentro da Nutrição (_atHidraTodaySessions) —
+// só aparece em dias com Treino ou Jogo da equipa da atleta, nunca em dias livres.
+// 3 estados (confirmados com o Roger): Pendente (ainda sem pré — âmbar), Parcial (pré
+// feito, falta o pós — azul, mesmo tom informativo do Gameday "próximo jogo"), Completo
+// (pós já registado — verde, sem seta porque deixa de pedir ação, mesmo padrão do
+// Código de Conduta já confirmado). Ao tocar, abre a Nutrição já no card de Hidratação
+// (scrollIntoView), não a página genérica.
+function _atHidraHomeBannerHtml(){
+  const {treino,jogo}=_atHidraTodaySessions();
+  if(!treino&&!jogo)return '';
+  // mesma preferência por omissão já usada no card da Nutrição quando há os dois hoje
+  let selType=_atHidraSelType;
+  if(!selType)selType=jogo?'jogo':'treino';
+  if(selType==='jogo'&&!jogo)selType='treino';
+  if(selType==='treino'&&!treino)selType='jogo';
+  const eventId=selType==='jogo'?jogo.id:treino.id;
+  const sessionLabel=selType==='jogo'?('Jogo vs '+escHtml(jogo.opp||'?')):'Treino';
+  const rec=_hydraRecordFor(AID,eventId);
+  const td=today();
+  const selfToday=APP.nutritionAssessments.find(a=>a.athleteId===AID&&a.source==='atleta'&&a.date===td);
+  const preWeight=selType==='treino'?(selfToday?+selfToday.weight:null):(rec&&rec.preWeight!=null?+rec.preWeight:null);
+
+  let bg,border,color,sub,showChevron=true;
+  if(rec&&rec.postWeight!=null){
+    const bands=_hydraBands(AID);
+    const lossPct=rec.weightLossPct!=null?rec.weightLossPct:_hydraWeightLossPct(preWeight,+rec.postWeight);
+    const target=_hydraReplacementTarget(preWeight,+rec.postWeight,bands);
+    bg='rgba(34,197,94,.12)';border='rgba(34,197,94,.35)';color='#4ade80';
+    sub=`Registo de hoje completo ✓ — perda ${lossPct!=null&&!isNaN(lossPct)?Math.abs(lossPct).toFixed(1)+'%':'—'} · repor ${target!=null?target.toFixed(2)+' L':'—'}`;
+    showChevron=false;
+  } else if(preWeight!=null){
+    bg='rgba(56,189,248,.14)';border='rgba(56,189,248,.4)';color='#38bdf8';
+    sub=`Pré registado (${preWeight} kg) — falta o pós${selType==='jogo'?'-jogo':'-treino'} e os líquidos ingeridos`;
+  } else {
+    bg='rgba(245,158,11,.14)';border='rgba(245,158,11,.4)';color='#fbbf24';
+    sub=selType==='treino'
+      ?'Ainda não te pesaste hoje — regista o peso no Registo de Peso para começares'
+      :'Regista o teu peso pré-jogo antes do apito inicial';
+  }
+  return `<div onclick="_atHidraSelType='${selType}';_atNavTo('nutri');setTimeout(()=>document.getElementById('at-hidra-card')?.scrollIntoView({behavior:'smooth',block:'start'}),60)" style="background:${bg};border:1.5px solid ${border};border-radius:14px;padding:14px 16px;margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:12px">
+    <i class="ti ti-droplet" style="font-size:26px;color:${color};flex-shrink:0" aria-hidden="true"></i>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:800;color:${color}">💧 Hidratação — ${sessionLabel}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:2px">${sub}</div>
+    </div>
+    ${showChevron?'<i class="ti ti-chevron-right" style="font-size:18px;color:var(--t2)" aria-hidden="true"></i>':''}
   </div>`;
 }
 function atSaveHidraPre(){

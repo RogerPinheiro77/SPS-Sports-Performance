@@ -6818,3 +6818,47 @@ mockup aprovado antes do commit.
 (não apagado, para não perder histórico antigo) — pode ser removido numa limpeza futura
 se o Roger confirmar que não há dados antigos a preservar.
 
+## sps-v251 (18/11/2026): Hidratação — banner de acesso rápido no Home da App Atleta
+
+Pedido do Roger, depois de ver o sps-v250 em produção: "que te parece colocar acesso a
+esse card no home do tipo codigo de conduta e gameday logo a seguir a estes? e aparecer
+quer nos dias de treino e dias de jogo?". Analisado e aconselhado antes de mexer em
+código: o Home já tem dois banners de ação-no-dia (Código de Conduta, Gameday) e um
+terceiro banner cru arriscava sobrecarregar visualmente o Home num dia de Jogo (Código de
+Conduta pendente + Gameday "Hoje!" + Hidratação, todos de uma vez) — proposto por isso um
+banner compacto com 3 estados (Pendente/Parcial/Completo), ficando discreto assim que já
+não há ação a fazer, em vez de continuar sempre com a mesma força visual. Aprovado em
+mockup interativo (novo artboard no canvas já existente, a reproduzir esse cenário mais
+carregado com um seletor dos 3 estados) antes de avançar para código. "AVANÇA" deu luz
+verde.
+
+**O que foi construído:**
+- `_atHidraHomeBannerHtml()`: novo banner no Home da App Atleta, inserido logo a seguir
+  ao banner do Gameday e antes do banner de Estágio — mesma posição e estilo visual dos
+  banners já existentes (`border-radius:14px`, `padding:14px 16px`, ícone à esquerda).
+  Usa exatamente a mesma condição de visibilidade do card já existente na Nutrição
+  (`_atHidraTodaySessions`) — só aparece em dias com Treino ou Jogo da equipa da atleta,
+  nunca em dias livres; com os dois no mesmo dia, mostra o Jogo por omissão (mesma
+  preferência já usada no seletor Treino/Jogo dentro do card da Nutrição).
+- 3 estados, confirmados com o Roger:
+  - **Pendente** (âmbar, com seta): ainda sem peso pré — para Treino, pede para ir
+    primeiro ao Registo de Peso (o pré-treino nunca é pedido aqui, é sempre o autorregisto
+    diário, regra sps-v248/v250); para Jogo, pede o pré-jogo manual.
+  - **Parcial** (azul informativo, com seta — mesmo tom do Gameday "próximo jogo"): pré
+    já disponível, mostra o valor e indica que falta o pós e os líquidos ingeridos.
+  - **Completo** (verde, SEM seta — mesmo padrão já confirmado no Código de Conduta
+    depois de "Li e aceito"): pós já registado hoje, mostra logo a % de perda e a
+    reposição recomendada, já não pede nenhuma ação.
+- Ao tocar no banner: navega para a aba Nutrição (`_atNavTo('nutri')`) e salta
+  diretamente para o card de Hidratação (`scrollIntoView`) — não só para a aba genérica.
+  Para isso o card da Nutrição (`_atHidraCardHtml`) passou a ter `id="at-hidra-card"`.
+
+SW bump para `sps-v251`. Testado: `node --check` ao bloco `<script>` extraído;
+`test_hidra_home_banner_v251.js` — 18 verificações (ausência em dia livre, os 3 estados
+para Treino e para Jogo, texto/cor/seta de cada estado, navegação + scroll para o card
+certo, preferência por Jogo quando há os dois no mesmo dia). Verificação visual
+(Playwright): Home da App Atleta nos 3 estados, confirmando a posição logo a seguir ao
+Código de Conduta e a ausência de seta no estado Completo.
+
+**Ainda por fazer:** nada pendente para este pedido.
+
